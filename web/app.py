@@ -98,9 +98,9 @@ def get_team_detail(team_id):
     
     # Get roster
     c.execute('''
-        SELECT * FROM players
+        SELECT * FROM player_stats
         WHERE team_id = ?
-        ORDER BY position, name
+        ORDER BY position, number
     ''', (team_id,))
     team['roster'] = [dict(r) for r in c.fetchall()]
     
@@ -235,7 +235,7 @@ def get_quick_stats():
     c.execute("SELECT COUNT(*) FROM games WHERE status='scheduled'")
     games_scheduled = c.fetchone()[0]
     
-    c.execute("SELECT COUNT(*) FROM players")
+    c.execute("SELECT COUNT(*) FROM player_stats")
     players_tracked = c.fetchone()[0]
     
     c.execute("SELECT COUNT(*) FROM betting_lines")
@@ -443,8 +443,10 @@ def team_detail(team_id):
         return render_template('404.html', message="Team not found"), 404
     
     # Split roster into batters and pitchers
-    batters = [p for p in team['roster'] if p.get('position') not in ('P', 'RHP', 'LHP')]
-    pitchers = [p for p in team['roster'] if p.get('position') in ('P', 'RHP', 'LHP')]
+    pitcher_positions = ('P', 'RHP', 'LHP')
+    pitchers = [p for p in team['roster'] if p.get('position', '') in pitcher_positions 
+                or p.get('position', '').startswith(('RHP', 'LHP'))]
+    batters = [p for p in team['roster'] if p not in pitchers]
     
     # Get recent form (last 10 games)
     completed_games = [g for g in team['schedule'] if g['status'] == 'final']
