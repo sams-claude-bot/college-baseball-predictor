@@ -2,7 +2,21 @@
 """
 College Baseball Prediction Model (Database Version)
 
-Uses SQLite database for all team stats and game data.
+Main entry point for predictions. Uses all available models
+through the dynamic ensemble.
+
+Features:
+- Multiple prediction models (Pythagorean, Elo, Log5, Advanced, Pitching, Conference, Prior)
+- Dynamic ensemble weighting based on model accuracy
+- Series predictions
+- Tournament/neutral site handling
+- Full model comparison mode
+
+Usage:
+    python predictor_db.py "Mississippi State" "Hofstra"
+    python predictor_db.py "Mississippi State" "UCLA" --neutral
+    python predictor_db.py "Mississippi State" "Arkansas" --compare
+    python predictor_db.py --models  # List all models
 """
 
 import sys
@@ -11,8 +25,20 @@ from pathlib import Path
 
 # Add scripts to path for database module
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent))
 
 from database import get_connection, get_team_record, get_team_runs, get_recent_games
+
+# Import all models
+from ensemble_model import EnsembleModel
+from pythagorean_model import PythagoreanModel
+from elo_model import EloModel
+from log5_model import Log5Model
+from advanced_model import AdvancedModel
+from pitching_model import PitchingModel
+from conference_model import ConferenceModel
+from prior_model import PriorModel
+
 
 class TeamStats:
     """Container for team statistics loaded from database"""
@@ -74,24 +100,49 @@ class TeamStats:
         recent = self.recent_games[:n]  # Already sorted by date desc
         return sum(1 for g in recent if g['won']) / len(recent) if recent else 0.5
 
+
 class Predictor:
-    """Main prediction engine using database"""
+    """Main prediction engine using database and all models"""
     
-    WEIGHTS = {
-        'win_pct': 0.25,
-        'pythagorean': 0.20,
-        'recent_form': 0.20,
-        'batting_avg': 0.10,
-        'era': 0.10,
-        'home_advantage': 0.10,
-        'preseason_rank': 0.05
+    # Available models
+    MODELS = {
+        'pythagorean': PythagoreanModel,
+        'elo': EloModel,
+        'log5': Log5Model,
+        'advanced': AdvancedModel,
+        'pitching': PitchingModel,
+        'conference': ConferenceModel,
+        'prior': PriorModel,
+        'ensemble': EnsembleModel
     }
     
-    HOME_ADVANTAGE = 0.54
-    NEUTRAL_SITE_ADVANTAGE = 0.50  # No home advantage at neutral sites
-    
-    def __init__(self):
+    def __init__(self, model='ensemble'):
+        """
+        Initialize predictor with specified model.
+        
+        Args:
+            model: Model name or 'ensemble' (default)
+        """
         self.team_cache = {}
+        
+        if model == 'ensemble':
+            self.model = EnsembleModel()
+        elif model in self.MODELS:
+            self.model = self.MODELS[model]()
+        else:
+            raise ValueError(f"Unknown model: {model}. Available: {list(self.MODELS.keys())}")
+        
+        self.model_name = model
+    
+    @classmethod
+    def list_models(cls):
+        """List available models with descriptions"""
+        print("\nAvailable Models:")
+        print("-" * 60)
+        for name, model_cls in cls.MODELS.items():
+            m = model_cls()
+            print(f"  {name:<15} - {m.description}")
+        print()
     
     def get_team_stats(self, team_id):
         """Get or load team stats"""
@@ -103,83 +154,32 @@ class Predictor:
         return self.team_cache[team_id]
     
     def predict_game(self, home_team, away_team, neutral_site=False):
-        """Predict game outcome"""
+        """Predict game outcome using configured model"""
         home_id = home_team.lower().replace(" ", "-")
         away_id = away_team.lower().replace(" ", "-")
         
+        # Get prediction from model
+        pred = self.model.predict_game(home_id, away_id, neutral_site)
+        
+        # Get team stats for additional context
         home = self.get_team_stats(home_id)
         away = self.get_team_stats(away_id)
         
-        # Calculate base probability
-        home_score = 0.5
+        # Add team info to prediction
+        pred['home_team'] = home_team
+        pred['away_team'] = away_team
+        pred['neutral_site'] = neutral_site
+        pred['predicted_winner'] = home_team if pred['home_win_probability'] > 0.5 else away_team
+        pred['confidence'] = round(abs(pred['home_win_probability'] - 0.5) * 2, 3)
         
-        # Win percentage differential
-        win_diff = (home.win_pct - away.win_pct) / 2
-        home_score += win_diff * self.WEIGHTS['win_pct']
+        # Add basic team stats
+        if 'model_inputs' not in pred:
+            pred['model_inputs'] = {}
         
-        # Pythagorean differential
-        pyth_diff = (home.pythagorean_win_pct - away.pythagorean_win_pct) / 2
-        home_score += pyth_diff * self.WEIGHTS['pythagorean']
+        pred['model_inputs']['home_record'] = f"{home.wins}-{home.losses}"
+        pred['model_inputs']['away_record'] = f"{away.wins}-{away.losses}"
         
-        # Recent form differential
-        form_diff = (home.recent_form() - away.recent_form()) / 2
-        home_score += form_diff * self.WEIGHTS['recent_form']
-        
-        # Home/neutral advantage
-        if neutral_site:
-            home_score += (self.NEUTRAL_SITE_ADVANTAGE - 0.5) * self.WEIGHTS['home_advantage']
-        else:
-            home_score += (self.HOME_ADVANTAGE - 0.5) * self.WEIGHTS['home_advantage']
-        
-        home_win_prob = max(0.1, min(0.9, home_score))
-        
-        # Project runs
-        home_runs_proj = (home.runs_per_game + away.runs_allowed_per_game) / 2
-        away_runs_proj = (away.runs_per_game + home.runs_allowed_per_game) / 2
-        
-        if not neutral_site:
-            home_runs_proj *= 1.02
-            away_runs_proj *= 0.98
-        
-        # Run line calculation
-        projected_diff = home_runs_proj - away_runs_proj
-        run_diff_std = 3.5
-        
-        def norm_cdf(x):
-            return 0.5 * (1 + math.erf(x / math.sqrt(2)))
-        
-        z_home_cover = (projected_diff - 1.5) / run_diff_std
-        home_cover_prob = norm_cdf(z_home_cover)
-        
-        z_away_cover = (-projected_diff + 1.5) / run_diff_std
-        away_cover_prob = norm_cdf(z_away_cover)
-        
-        return {
-            "home_team": home_team,
-            "away_team": away_team,
-            "neutral_site": neutral_site,
-            "home_win_probability": round(home_win_prob, 3),
-            "away_win_probability": round(1 - home_win_prob, 3),
-            "predicted_winner": home_team if home_win_prob > 0.5 else away_team,
-            "confidence": round(abs(home_win_prob - 0.5) * 2, 3),
-            "projected_home_runs": round(home_runs_proj, 1),
-            "projected_away_runs": round(away_runs_proj, 1),
-            "projected_total": round(home_runs_proj + away_runs_proj, 1),
-            "projected_run_diff": round(projected_diff, 1),
-            "run_line": {
-                "home_minus_1_5": round(home_cover_prob, 3),
-                "away_plus_1_5": round(away_cover_prob, 3),
-                "pick": f"{home_team} -1.5" if home_cover_prob > 0.5 else f"{away_team} +1.5"
-            },
-            "model_inputs": {
-                "home_record": f"{home.wins}-{home.losses}",
-                "away_record": f"{away.wins}-{away.losses}",
-                "home_pythagorean": round(home.pythagorean_win_pct, 3),
-                "away_pythagorean": round(away.pythagorean_win_pct, 3),
-                "home_recent_form": round(home.recent_form(), 3),
-                "away_recent_form": round(away.recent_form(), 3)
-            }
-        }
+        return pred
     
     def predict_series(self, home_team, away_team, games=3, neutral_site=False):
         """Predict a series outcome"""
@@ -216,14 +216,106 @@ class Predictor:
             return self.predict_game(team1, team2, neutral_site=False)
         else:
             return self.predict_game(team2, team1, neutral_site=False)
+    
+    def compare_models(self, home_team, away_team, neutral_site=False):
+        """Get predictions from all models for comparison"""
+        home_id = home_team.lower().replace(" ", "-")
+        away_id = away_team.lower().replace(" ", "-")
+        
+        results = {}
+        for name, model_cls in self.MODELS.items():
+            if name == 'ensemble':
+                continue  # Skip ensemble for comparison
+            try:
+                model = model_cls()
+                pred = model.predict_game(home_id, away_id, neutral_site)
+                results[name] = {
+                    'home_prob': pred['home_win_probability'],
+                    'home_runs': pred['projected_home_runs'],
+                    'away_runs': pred['projected_away_runs'],
+                    'inputs': pred.get('inputs', {})
+                }
+            except Exception as e:
+                results[name] = {'error': str(e)}
+        
+        # Add ensemble
+        ensemble = EnsembleModel()
+        ens_pred = ensemble.predict_game(home_id, away_id, neutral_site)
+        results['ensemble'] = {
+            'home_prob': ens_pred['home_win_probability'],
+            'home_runs': ens_pred['projected_home_runs'],
+            'away_runs': ens_pred['projected_away_runs'],
+            'weights': ens_pred.get('weights', {})
+        }
+        
+        return {
+            'home_team': home_team,
+            'away_team': away_team,
+            'neutral_site': neutral_site,
+            'models': results
+        }
+
+
+def print_comparison(comparison):
+    """Print model comparison in a nice format"""
+    home = comparison['home_team']
+    away = comparison['away_team']
+    neutral = " (Neutral Site)" if comparison['neutral_site'] else ""
+    
+    print(f"\n{'='*65}")
+    print(f"  MODEL COMPARISON: {away} @ {home}{neutral}")
+    print('='*65)
+    
+    print(f"\n{'Model':<15} {'Home Win':>10} {'Home Runs':>12} {'Away Runs':>12}")
+    print('-'*65)
+    
+    # Sort by home probability descending
+    sorted_models = sorted(
+        comparison['models'].items(),
+        key=lambda x: x[1].get('home_prob', 0) if 'error' not in x[1] else 0,
+        reverse=True
+    )
+    
+    for name, result in sorted_models:
+        if 'error' in result:
+            print(f"  {name:<13} ERROR: {result['error'][:40]}")
+        else:
+            prob = result['home_prob'] * 100
+            hr = result['home_runs']
+            ar = result['away_runs']
+            marker = " ★" if name == 'ensemble' else ""
+            print(f"  {name:<13} {prob:>9.1f}% {hr:>11.1f} {ar:>11.1f}{marker}")
+    
+    print('-'*65)
+    
+    # Average (excluding ensemble)
+    valid = [r for n, r in comparison['models'].items() 
+             if 'error' not in r and n != 'ensemble']
+    if valid:
+        avg_prob = sum(r['home_prob'] for r in valid) / len(valid)
+        avg_hr = sum(r['home_runs'] for r in valid) / len(valid)
+        avg_ar = sum(r['away_runs'] for r in valid) / len(valid)
+        print(f"  {'Average':<13} {avg_prob*100:>9.1f}% {avg_hr:>11.1f} {avg_ar:>11.1f}")
+    print()
+
 
 def main():
     predictor = Predictor()
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "--models":
+        Predictor.list_models()
+        return
     
     if len(sys.argv) > 2:
         home = sys.argv[1]
         away = sys.argv[2]
         neutral = "--neutral" in sys.argv
+        compare = "--compare" in sys.argv
+        
+        if compare:
+            comparison = predictor.compare_models(home, away, neutral)
+            print_comparison(comparison)
+            return
         
         site_label = " (Neutral Site)" if neutral else ""
         
@@ -240,9 +332,8 @@ def main():
         
         print(f"\n🎯 RUN LINE (-1.5)")
         rl = pred['run_line']
-        print(f"   {home} -1.5: {rl['home_minus_1_5']*100:.1f}%")
-        print(f"   {away} +1.5: {rl['away_plus_1_5']*100:.1f}%")
-        print(f"   → Pick: {rl['pick']}")
+        print(f"   {home} -1.5: {rl['home_cover_prob']*100:.1f}%")
+        print(f"   {away} +1.5: {rl['away_cover_prob']*100:.1f}%")
         
         print(f"\n📈 PROJECTED SCORE")
         print(f"   {away}: {pred['projected_away_runs']:.1f}")
@@ -255,15 +346,37 @@ def main():
         print(f"   {away}: {series['away_series_probability']*100:.1f}%")
         print(f"   → Pick: {series['predicted_series_winner']}")
         
+        # Show model details for ensemble
+        if 'component_predictions' in pred:
+            print(f"\n🔬 MODEL BREAKDOWN")
+            for name, comp in sorted(pred['component_predictions'].items(),
+                                    key=lambda x: -x[1]['weight']):
+                prob = comp['home_prob'] * 100
+                weight = comp['weight'] * 100
+                print(f"   {name:<12}: {prob:>5.1f}% (w={weight:.0f}%)")
+        
         print(f"\n📋 Model Inputs:")
-        for k, v in pred['model_inputs'].items():
+        for k, v in pred.get('model_inputs', {}).items():
             print(f"   {k}: {v}")
+        
+        # Show inputs from specific models if available
+        if 'inputs' in pred:
+            print(f"\n📋 Additional Inputs:")
+            for k, v in pred['inputs'].items():
+                print(f"   {k}: {v}")
+        
         print()
     else:
-        print("Usage: python predictor_db.py <home_team> <away_team> [--neutral]")
+        print("Usage: python predictor_db.py <home_team> <away_team> [--neutral] [--compare]")
         print("\nExamples:")
         print("  python predictor_db.py 'Mississippi State' 'Hofstra'")
         print("  python predictor_db.py 'Mississippi State' 'UCLA' --neutral")
+        print("  python predictor_db.py 'Mississippi State' 'Arkansas' --compare")
+        print("\nOptions:")
+        print("  --models   List all available models")
+        print("  --neutral  Neutral site game")
+        print("  --compare  Compare all models side by side")
+
 
 if __name__ == "__main__":
     main()

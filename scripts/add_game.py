@@ -2,6 +2,11 @@
 """
 Quick game entry script - easier than the full collect_games.py interface
 
+Features:
+- Add game results quickly
+- Automatically updates model accuracy tracking
+- Records predictions vs outcomes for ensemble weight adjustment
+
 Usage:
     python add_game.py "Winner" "Loser" winner_score loser_score [date] [--away]
 
@@ -25,6 +30,10 @@ BASE_DIR = Path(__file__).parent.parent
 GAMES_FILE = BASE_DIR / "data" / "games" / "all_games.json"
 GAMES_FILE.parent.mkdir(parents=True, exist_ok=True)
 
+# Add models to path
+sys.path.insert(0, str(BASE_DIR / "models"))
+sys.path.insert(0, str(BASE_DIR / "scripts"))
+
 # SEC teams for auto-tagging conference games
 SEC_TEAMS = [
     "alabama", "arkansas", "auburn", "florida", "georgia", "kentucky",
@@ -46,6 +55,76 @@ def save_games(data):
     with open(GAMES_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
+def update_model_accuracy(home_team, away_team, home_won, neutral_site=False):
+    """
+    Record the game result for model accuracy tracking.
+    This updates the ensemble model's weight adjustments.
+    """
+    try:
+        from ensemble_model import EnsembleModel
+        
+        ensemble = EnsembleModel()
+        home_id = home_team.lower().replace(" ", "-")
+        away_id = away_team.lower().replace(" ", "-")
+        
+        # Get predictions from each component model
+        predictions = {}
+        for name, model in ensemble.models.items():
+            try:
+                pred = model.predict_game(home_id, away_id, neutral_site)
+                predictions[name] = pred['home_win_probability']
+            except Exception:
+                pass  # Skip models that fail
+        
+        if predictions:
+            # Record the outcome
+            game_id = f"{datetime.now().strftime('%Y-%m-%d')}_{away_id}_{home_id}"
+            actual_winner = 'home' if home_won else 'away'
+            
+            ensemble.record_prediction(game_id, predictions, actual_winner)
+            print(f"  ✓ Updated model accuracy tracking")
+    except Exception as e:
+        print(f"  ⚠️  Could not update model accuracy: {e}")
+
+def add_game_to_database(home_team, away_team, home_score, away_score, date, 
+                         neutral_site=False, conference_game=False):
+    """Add game to SQLite database"""
+    try:
+        from database import add_game as db_add_game
+        
+        winner_id = home_team.lower().replace(" ", "-") if home_score > away_score else away_team.lower().replace(" ", "-")
+        
+        game_id = db_add_game(
+            date=date,
+            home_team_id=home_team.lower().replace(" ", "-"),
+            away_team_id=away_team.lower().replace(" ", "-"),
+            home_score=home_score,
+            away_score=away_score,
+            is_neutral_site=neutral_site,
+            is_conference_game=conference_game,
+            status='final'
+        )
+        
+        # Update Elo ratings
+        try:
+            from elo_model import EloModel
+            elo = EloModel()
+            margin = home_score - away_score
+            elo.update_ratings(
+                home_team.lower().replace(" ", "-"),
+                away_team.lower().replace(" ", "-"),
+                home_won=(home_score > away_score),
+                margin=margin
+            )
+            print(f"  ✓ Updated Elo ratings")
+        except Exception as e:
+            print(f"  ⚠️  Could not update Elo: {e}")
+        
+        return game_id
+    except Exception as e:
+        print(f"  ⚠️  Could not add to database: {e}")
+        return None
+
 def add_game(winner, loser, winner_score, loser_score, date=None, winner_away=False):
     """Add a game result"""
     
@@ -58,11 +137,13 @@ def add_game(winner, loser, winner_score, loser_score, date=None, winner_away=Fa
         away_team = winner
         home_score = loser_score
         away_score = winner_score
+        home_won = False
     else:
         home_team = winner
         away_team = loser
         home_score = winner_score
         away_score = loser_score
+        home_won = True
     
     # Check if SEC conference game
     conference_game = is_sec_team(home_team) and is_sec_team(away_team)
@@ -97,6 +178,13 @@ def add_game(winner, loser, winner_score, loser_score, date=None, winner_away=Fa
     print(f"✓ Added: {winner} {winner_score}, {loser} {loser_score} ({date}){conf}")
     print(f"  {away_team} @ {home_team}")
     
+    # Add to SQLite database
+    add_game_to_database(home_team, away_team, int(home_score), int(away_score), 
+                        date, conference_game=conference_game)
+    
+    # Update model accuracy tracking
+    update_model_accuracy(home_team, away_team, home_won)
+    
     return True
 
 def show_recent(n=10):
@@ -111,9 +199,25 @@ def show_recent(n=10):
         print(f"  {g['date']}: {g['away_team']} {g['away_score']} @ {g['home_team']} {g['home_score']}{conf}")
         print(f"           Winner: {g['winner']}")
 
+def show_model_accuracy():
+    """Show current model accuracy stats"""
+    try:
+        from ensemble_model import EnsembleModel
+        ensemble = EnsembleModel()
+        print(ensemble.get_weights_report())
+    except Exception as e:
+        print(f"Could not load model accuracy: {e}")
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--accuracy":
+        show_model_accuracy()
+        return
+    
     if len(sys.argv) < 5:
         print(__doc__)
+        print("\nOptions:")
+        print("  --away      Winner was the away team")
+        print("  --accuracy  Show model accuracy stats")
         print("\nRecent games:")
         show_recent(5)
         return
