@@ -62,7 +62,7 @@ class BaseballReport(FPDF):
 
     def chapter_title(self, title):
         self.set_font('Helvetica', 'B', 14)
-        self.set_fill_color(128, 0, 0)  # Maroon
+        self.set_fill_color(93, 23, 37)  # Maroon
         self.set_text_color(255, 255, 255)
         self.cell(0, 10, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
         self.set_text_color(0, 0, 0)
@@ -70,7 +70,7 @@ class BaseballReport(FPDF):
 
     def section_title(self, title):
         self.set_font('Helvetica', 'B', 11)
-        self.set_text_color(128, 0, 0)
+        self.set_text_color(93, 23, 37)
         self.cell(0, 8, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.set_text_color(0, 0, 0)
         self.ln(2)
@@ -99,8 +99,8 @@ def create_model_comparison_chart(home_team, away_team, predictions, output_path
     x = range(len(models))
     width = 0.35
 
-    bars1 = ax.bar([i - width / 2 for i in x], home_probs, width, label=home_team, color='#800000')
-    bars2 = ax.bar([i + width / 2 for i in x], away_probs, width, label=away_team, color='#4a4a4a')
+    bars1 = ax.bar([i - width / 2 for i in x], home_probs, width, label=home_team, color='#5D1725')
+    bars2 = ax.bar([i + width / 2 for i in x], away_probs, width, label=away_team, color='#777777')
 
     ax.set_ylabel('Win Probability (%)')
     ax.set_title(f'Model Predictions: {away_team} @ {home_team}')
@@ -139,8 +139,8 @@ def create_runs_projection_chart(home_team, away_team, predictions, output_path)
     x = range(len(models))
     width = 0.35
 
-    bars1 = ax.bar([i - width / 2 for i in x], home_runs, width, label=home_team, color='#800000')
-    bars2 = ax.bar([i + width / 2 for i in x], away_runs, width, label=away_team, color='#4a4a4a')
+    bars1 = ax.bar([i - width / 2 for i in x], home_runs, width, label=home_team, color='#5D1725')
+    bars2 = ax.bar([i + width / 2 for i in x], away_runs, width, label=away_team, color='#777777')
 
     ax.set_ylabel('Projected Runs')
     ax.set_title(f'Runs Projection: {away_team} @ {home_team}')
@@ -173,7 +173,7 @@ def create_ensemble_weights_chart(ensemble, output_path):
 
     names = sorted(weights.keys(), key=lambda k: weights[k], reverse=True)
     vals = [weights[n] * 100 for n in names]
-    colors = ['#800000', '#c0392b', '#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#95a5a6']
+    colors = ['#5D1725', '#c0392b', '#e74c3c', '#f39c12', '#2ecc71', '#3498db', '#9b59b6', '#95a5a6']
 
     bars = ax.barh(names, vals, color=colors[:len(names)])
     ax.set_xlabel('Weight (%)')
@@ -1042,7 +1042,7 @@ def generate_weekend_preview(output_path=None):
 
                 # Commentary
                 pdf.set_font('Helvetica', 'I', 9)
-                pdf.set_text_color(80, 80, 80)
+                pdf.set_text_color(119, 119, 119)
                 pdf.multi_cell(0, 5, f"  {pick['commentary']}")
                 pdf.set_text_color(0, 0, 0)
 
@@ -1061,7 +1061,7 @@ def generate_weekend_preview(output_path=None):
             # Disclaimer
             pdf.ln(5)
             pdf.set_font('Helvetica', 'I', 8)
-            pdf.set_text_color(120, 120, 120)
+            pdf.set_text_color(119, 119, 119)
             pdf.multi_cell(0, 4,
                 get_model_disclaimer()
             )

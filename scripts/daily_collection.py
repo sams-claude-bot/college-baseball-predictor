@@ -5,14 +5,16 @@ Daily data collection orchestrator
 Run this daily to:
 1. Collect NCAA stats
 2. Update game results
-3. Generate predictions for upcoming games using ensemble model
-4. Save daily snapshot
-5. Report on model performance
+3. Collect box scores for completed games
+4. Update player stats
+5. Generate predictions for upcoming games using ensemble model
+6. Save daily snapshot
+7. Report on model performance
 """
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
@@ -23,6 +25,13 @@ from database import get_current_top_25, get_recent_games
 
 # Import predictor with new ensemble
 from predictor_db import Predictor
+
+# Import box score collector
+try:
+    from collect_box_scores import collect_for_date, collect_recent, show_collection_status
+    BOX_SCORES_AVAILABLE = True
+except ImportError:
+    BOX_SCORES_AVAILABLE = False
 
 
 def safe_import(module_name, attr_name=None):
@@ -121,8 +130,36 @@ def run_daily_collection():
         print(f"  ✗ Error: {e}")
         results["errors"].append(str(e))
     
-    # 4. SEC out-of-conference summary
-    print("\n[4/7] SEC out-of-conference tracking...")
+    # 4. Collect box scores for recent games
+    print("\n[4/9] Collecting box scores...")
+    results["box_scores"] = {"collected": 0, "missing": 0}
+    
+    if BOX_SCORES_AVAILABLE:
+        try:
+            # Collect yesterday's and today's box scores
+            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            yesterday_result = collect_for_date(yesterday)
+            today_result = collect_for_date(today)
+            
+            results["box_scores"]["collected"] = (
+                yesterday_result.get('collected', 0) + 
+                today_result.get('collected', 0)
+            )
+            results["box_scores"]["missing"] = (
+                yesterday_result.get('missing', 0) + 
+                today_result.get('missing', 0)
+            )
+            
+            print(f"  ✓ Box scores: {results['box_scores']['collected']} collected, {results['box_scores']['missing']} missing")
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
+            results["errors"].append(f"Box score collection: {str(e)}")
+    else:
+        print("  ⊘ Box score collector not available")
+    
+    # 5. SEC out-of-conference summary
+    print("\n[5/9] SEC out-of-conference tracking...")
     get_ooc = safe_import("track_sec_teams", "get_ooc_games")
     
     if get_ooc:
@@ -136,8 +173,34 @@ def run_daily_collection():
     else:
         print("  ⊘ SEC tracker not available")
     
-    # 5. Top 25 tracking
-    print("\n[5/7] Top 25 teams...")
+    # 6. Weekly Rankings Update (Mondays only)
+    print("\n[6/9] Weekly rankings update...")
+    run_rankings = safe_import("scrape_rankings", "run_weekly_rankings_update")
+    
+    if run_rankings:
+        try:
+            rankings_result = run_rankings()
+            results["rankings_update"] = rankings_result
+            
+            if rankings_result.get("skipped"):
+                print(f"  ⊘ Skipped: {rankings_result.get('reason')}")
+            elif rankings_result.get("success"):
+                print(f"  ✓ Rankings updated from {rankings_result.get('source')}")
+                print(f"    Week {rankings_result.get('week')}: {rankings_result.get('teams_ranked')} teams")
+                if rankings_result.get("new_teams"):
+                    print(f"    🆕 {rankings_result.get('new_teams')} new teams added!")
+                if rankings_result.get("dropped"):
+                    print(f"    📉 {rankings_result.get('dropped')} teams dropped from Top 25")
+            else:
+                print(f"  ✗ Failed: {rankings_result.get('error')}")
+        except Exception as e:
+            print(f"  ✗ Error: {e}")
+            results["errors"].append(str(e))
+    else:
+        print("  ⊘ Rankings scraper not available")
+    
+    # 7. Top 25 tracking
+    print("\n[7/9] Top 25 teams...")
     try:
         top_25 = get_current_top_25()
         results["top_25_count"] = len(top_25)
@@ -155,8 +218,8 @@ def run_daily_collection():
         print(f"  ✗ Error: {e}")
         results["errors"].append(str(e))
     
-    # 6. Model accuracy report
-    print("\n[6/7] Model accuracy report...")
+    # 8. Model accuracy report
+    print("\n[8/9] Model accuracy report...")
     try:
         from ensemble_model import EnsembleModel
         ensemble = EnsembleModel()
@@ -176,8 +239,8 @@ def run_daily_collection():
         print(f"  ✗ Error: {e}")
         results["errors"].append(str(e))
     
-    # 7. Save daily snapshot
-    print("\n[7/7] Saving daily snapshot...")
+    # 9. Save daily snapshot
+    print("\n[9/9] Saving daily snapshot...")
     snapshot_dir = BASE_DIR / "data" / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     snapshot_file = snapshot_dir / f"daily_{today}.json"
