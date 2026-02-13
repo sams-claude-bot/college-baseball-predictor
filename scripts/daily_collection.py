@@ -62,26 +62,40 @@ def run_daily_collection():
         "errors": []
     }
     
-    # 1. Collect NCAA stats (if collector available)
-    print("\n[1/7] Collecting NCAA stats...")
-    fetch_ncaa = safe_import("collect_ncaa_stats", "fetch_ncaa_stats")
-    save_stats = safe_import("collect_ncaa_stats", "save_stats")
-    
-    if fetch_ncaa and save_stats:
-        try:
-            stats = fetch_ncaa()
-            if stats:
-                save_stats(stats, f"ncaa_stats_{today}.json")
-                results["ncaa_stats"] = True
-                print("  ✓ NCAA stats collected")
-            else:
-                print("  ✗ Failed to collect NCAA stats")
-                results["errors"].append("NCAA stats collection failed")
-        except Exception as e:
-            print(f"  ✗ Error: {e}")
-            results["errors"].append(str(e))
-    else:
-        print("  ⊘ NCAA stats collector not available")
+    # 1. Multi-source stats collection (ESPN, NCAA, D1Baseball)
+    print("\n[1/7] Collecting stats from multiple sources...")
+    try:
+        from collect_all_stats import collect_for_daily
+        multi_results = collect_for_daily()
+        
+        results["multi_source_stats"] = {
+            "games_found": multi_results['summary']['games_found'],
+            "games_saved": multi_results['summary']['games_saved'],
+            "stats_saved": multi_results['summary']['stats_saved'],
+            "rankings_saved": multi_results['summary']['rankings_saved'],
+            "errors": multi_results.get('errors', [])
+        }
+        results["ncaa_stats"] = multi_results['summary']['stats_saved'] > 0
+        print(f"  ✓ Multi-source collection complete")
+    except Exception as e:
+        print(f"  ✗ Error in multi-source collection: {e}")
+        results["errors"].append(f"Multi-source stats: {str(e)}")
+        results["ncaa_stats"] = False
+        
+        # Fall back to old NCAA collector
+        print("  Trying legacy NCAA collector...")
+        fetch_ncaa = safe_import("collect_ncaa_stats", "fetch_ncaa_stats")
+        save_stats = safe_import("collect_ncaa_stats", "save_stats")
+        
+        if fetch_ncaa and save_stats:
+            try:
+                stats = fetch_ncaa()
+                if stats:
+                    save_stats(stats, f"ncaa_stats_{today}.json")
+                    results["ncaa_stats"] = True
+                    print("  ✓ NCAA stats collected (legacy)")
+            except Exception as e2:
+                print(f"  ✗ Legacy also failed: {e2}")
     
     # 2. Get upcoming Mississippi State games
     print("\n[2/7] Getting upcoming MS State games...")
