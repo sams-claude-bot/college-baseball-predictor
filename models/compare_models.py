@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Compare predictions across multiple models
+Compare predictions across all models (7 models + ensemble)
 
 Usage:
   python compare_models.py "Mississippi State" "Hofstra"
   python compare_models.py "Mississippi State" "UCLA" --neutral
+  python compare_models.py --accuracy
 """
 
 import sys
@@ -16,14 +17,21 @@ from pythagorean_model import PythagoreanModel
 from elo_model import EloModel
 from log5_model import Log5Model
 from advanced_model import AdvancedModel
+from pitching_model import PitchingModel
+from conference_model import ConferenceModel
+from prior_model import PriorModel
 from ensemble_model import EnsembleModel
 from database import get_connection
 
+# All available models
 MODELS = {
     "pythagorean": PythagoreanModel(),
     "elo": EloModel(),
     "log5": Log5Model(),
     "advanced": AdvancedModel(),
+    "pitching": PitchingModel(),
+    "conference": ConferenceModel(),
+    "prior": PriorModel(),
     "ensemble": EnsembleModel()
 }
 
@@ -51,30 +59,38 @@ def compare_predictions(home_team, away_team, neutral_site=False):
         except Exception as e:
             print(f"\n⚠️  {name}: Error - {e}")
     
+    # Sort by home win probability (ensemble starred)
+    sorted_models = sorted(results.items(), 
+                          key=lambda x: x[1]['home_win_probability'], 
+                          reverse=True)
+    
     # Display comparison table
     print(f"\n{'Model':<15} {'Home Win':<10} {'Away Win':<10} {'Home Runs':<10} {'Away Runs':<10} {'Pick'}")
     print("-" * 65)
     
-    for name, pred in results.items():
+    for name, pred in sorted_models:
+        star = " ★" if name == "ensemble" else ""
         home_pct = f"{pred['home_win_probability']*100:.1f}%"
         away_pct = f"{pred['away_win_probability']*100:.1f}%"
         home_runs = f"{pred['projected_home_runs']:.1f}"
         away_runs = f"{pred['projected_away_runs']:.1f}"
         pick = home_team if pred['home_win_probability'] > 0.5 else away_team
         
-        print(f"{name:<15} {home_pct:<10} {away_pct:<10} {home_runs:<10} {away_runs:<10} {pick}")
+        print(f"  {name:<13} {home_pct:<10} {away_pct:<10} {home_runs:<10} {away_runs:<10} {pick}{star}")
     
     # Run line comparison
     print(f"\n{'Model':<15} {'Home -1.5':<12} {'Away +1.5':<12} {'Run Line Pick'}")
     print("-" * 55)
     
-    for name, pred in results.items():
+    for name, pred in sorted_models:
         if 'run_line' in pred:
             rl = pred['run_line']
-            home_rl = f"{rl.get('home_cover_prob', rl.get('home_minus_1_5', 0))*100:.1f}%"
-            away_rl = f"{rl.get('away_cover_prob', rl.get('away_plus_1_5', 0))*100:.1f}%"
-            rl_pick = f"{home_team} -1.5" if rl.get('home_cover_prob', rl.get('home_minus_1_5', 0)) > 0.5 else f"{away_team} +1.5"
-            print(f"{name:<15} {home_rl:<12} {away_rl:<12} {rl_pick}")
+            home_cover = rl.get('home_cover_prob', rl.get('home_minus_1_5', 0))
+            away_cover = rl.get('away_cover_prob', rl.get('away_plus_1_5', 0))
+            home_rl = f"{home_cover*100:.1f}%"
+            away_rl = f"{away_cover*100:.1f}%"
+            rl_pick = f"{home_team} -1.5" if home_cover > 0.5 else f"{away_team} +1.5"
+            print(f"  {name:<13} {home_rl:<12} {away_rl:<12} {rl_pick}")
     
     # Consensus
     print(f"\n{'='*65}")
@@ -100,16 +116,24 @@ def compare_predictions(home_team, away_team, neutral_site=False):
     print(f"  Winner: {consensus_team} ({consensus_count}/{len(results)} models agree)")
     print(f"  Avg Home Win Prob: {avg_home_prob*100:.1f}%")
     print(f"  Avg Projected Score: {away_team} {avg_away_runs:.1f} - {home_team} {avg_home_runs:.1f}")
-    print()
     
+    # Dynamic ensemble weights
+    ensemble = MODELS.get('ensemble')
+    if ensemble and hasattr(ensemble, 'weights'):
+        print(f"\n  Ensemble Weights:")
+        for model_name, weight in sorted(ensemble.weights.items(), key=lambda x: x[1], reverse=True):
+            bar = "█" * int(weight * 40)
+            print(f"    {model_name:<13} {weight*100:>5.1f}% {bar}")
+    
+    print()
     return results
+
 
 def track_prediction_accuracy():
     """Show model accuracy based on completed predictions"""
     conn = get_connection()
     c = conn.cursor()
     
-    # Check if we have tracked predictions
     c.execute("""
         SELECT model_version, 
                COUNT(*) as total,
@@ -144,7 +168,13 @@ def track_prediction_accuracy():
         
         print(f"{model:<15} {total:<8} {ml_pct:<12} {rl_pct}")
 
+
 def main():
+    if "--accuracy" in sys.argv:
+        track_prediction_accuracy()
+        if len(sys.argv) < 3:
+            return
+    
     if len(sys.argv) < 3:
         print("Usage: python compare_models.py <home_team> <away_team> [--neutral]")
         print("\nExamples:")
@@ -153,9 +183,6 @@ def main():
         print("\nOptions:")
         print("  --neutral    Treat as neutral site game")
         print("  --accuracy   Show model accuracy stats")
-        
-        if "--accuracy" in sys.argv:
-            track_prediction_accuracy()
         return
     
     home = sys.argv[1]
@@ -163,6 +190,7 @@ def main():
     neutral = "--neutral" in sys.argv
     
     compare_predictions(home, away, neutral)
+
 
 if __name__ == "__main__":
     main()
