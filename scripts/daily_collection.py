@@ -20,6 +20,7 @@ sys.path.insert(0, str(BASE_DIR / "models"))
 
 from collect_ncaa_stats import fetch_ncaa_stats, save_stats
 from track_mississippi_state import fetch_schedule, get_upcoming_games
+from track_sec_teams import summarize_sec_ooc, get_ooc_games
 from predictor import Predictor
 
 def run_daily_collection():
@@ -86,8 +87,18 @@ def run_daily_collection():
         print(f"  ✗ Error: {e}")
         results["errors"].append(str(e))
     
-    # 4. Save daily snapshot
-    print("\n[4/4] Saving daily snapshot...")
+    # 4. SEC out-of-conference summary
+    print("\n[4/5] SEC out-of-conference tracking...")
+    try:
+        ooc_games = get_ooc_games()
+        results["sec_ooc_games"] = len(ooc_games)
+        print(f"  ✓ {len(ooc_games)} SEC OOC games tracked")
+    except Exception as e:
+        print(f"  ✗ Error: {e}")
+        results["errors"].append(str(e))
+    
+    # 5. Save daily snapshot
+    print("\n[5/5] Saving daily snapshot...")
     snapshot_dir = BASE_DIR / "data" / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     snapshot_file = snapshot_dir / f"daily_{today}.json"
