@@ -184,6 +184,27 @@ class Predictor:
         home_runs_proj *= 1.02
         away_runs_proj *= 0.98
         
+        # Run line calculation (-1.5 spread)
+        # Probability that favorite wins by 2+ runs
+        projected_diff = home_runs_proj - away_runs_proj
+        
+        # Use normal distribution approximation for run differential
+        # Std dev of run differential is typically ~3-4 runs in college baseball
+        run_diff_std = 3.5
+        
+        # P(home wins by 2+) using z-score
+        import math
+        def norm_cdf(x):
+            return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+        
+        # Z-score for home -1.5 (need to win by 2+, so diff > 1.5)
+        z_home_cover = (projected_diff - 1.5) / run_diff_std
+        home_cover_prob = norm_cdf(z_home_cover)
+        
+        # Z-score for away +1.5 (need to lose by 1 or less, or win)
+        z_away_cover = (-projected_diff - (-1.5)) / run_diff_std  # away +1.5 means diff < 1.5
+        away_cover_prob = norm_cdf(z_away_cover)
+        
         return {
             "home_team": home_team,
             "away_team": away_team,
@@ -194,6 +215,12 @@ class Predictor:
             "projected_home_runs": round(home_runs_proj, 1),
             "projected_away_runs": round(away_runs_proj, 1),
             "projected_total": round(home_runs_proj + away_runs_proj, 1),
+            "projected_run_diff": round(projected_diff, 1),
+            "run_line": {
+                "home_minus_1_5": round(home_cover_prob, 3),
+                "away_plus_1_5": round(away_cover_prob, 3),
+                "pick": f"{home_team} -1.5" if home_cover_prob > 0.5 else f"{away_team} +1.5"
+            },
             "model_inputs": {
                 "home_record": f"{home.wins}-{home.losses}",
                 "away_record": f"{away.wins}-{away.losses}",
@@ -241,19 +268,38 @@ def main():
         home = sys.argv[1]
         away = sys.argv[2]
         
-        print(f"\n=== Game Prediction: {away} @ {home} ===")
-        pred = predictor.predict_game(home, away)
-        print(f"Predicted Winner: {pred['predicted_winner']} ({pred['home_win_probability']*100:.1f}% home)")
-        print(f"Confidence: {pred['confidence']*100:.1f}%")
-        print(f"Projected Score: {pred['projected_away_runs']:.1f} - {pred['projected_home_runs']:.1f}")
-        print(f"\nModel Inputs:")
-        for k, v in pred['model_inputs'].items():
-            print(f"  {k}: {v}")
+        print(f"\n{'='*55}")
+        print(f"  {away} @ {home}")
+        print('='*55)
         
-        print(f"\n=== Series Prediction (Best of 3) ===")
+        pred = predictor.predict_game(home, away)
+        
+        print(f"\n📊 MONEYLINE")
+        print(f"   {home}: {pred['home_win_probability']*100:.1f}%")
+        print(f"   {away}: {pred['away_win_probability']*100:.1f}%")
+        print(f"   → Pick: {pred['predicted_winner']} ({pred['confidence']*100:.0f}% conf)")
+        
+        print(f"\n🎯 RUN LINE (-1.5)")
+        rl = pred['run_line']
+        print(f"   {home} -1.5: {rl['home_minus_1_5']*100:.1f}%")
+        print(f"   {away} +1.5: {rl['away_plus_1_5']*100:.1f}%")
+        print(f"   → Pick: {rl['pick']}")
+        
+        print(f"\n📈 PROJECTED SCORE")
+        print(f"   {away}: {pred['projected_away_runs']:.1f}")
+        print(f"   {home}: {pred['projected_home_runs']:.1f}")
+        print(f"   Total: {pred['projected_total']:.1f}")
+        
+        print(f"\n🏆 SERIES (Best of 3)")
         series = predictor.predict_series(home, away)
-        print(f"Predicted Series Winner: {series['predicted_series_winner']}")
-        print(f"Home Series Win Probability: {series['home_series_probability']*100:.1f}%")
+        print(f"   {home}: {series['home_series_probability']*100:.1f}%")
+        print(f"   {away}: {series['away_series_probability']*100:.1f}%")
+        print(f"   → Pick: {series['predicted_series_winner']}")
+        
+        print(f"\n📋 Model Inputs:")
+        for k, v in pred['model_inputs'].items():
+            print(f"   {k}: {v}")
+        print()
     else:
         print("Usage: python predictor.py <home_team> <away_team>")
         print("\nExample: python predictor.py 'Mississippi State' 'Hofstra'")
