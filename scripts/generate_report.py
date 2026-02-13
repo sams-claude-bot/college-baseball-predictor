@@ -271,6 +271,53 @@ def create_ev_chart(value_picks, output_path):
     return True
 
 
+def create_best_bets_chart(edges, output_path):
+    """Create horizontal bar chart of best bets by edge size"""
+    if not edges:
+        return False
+
+    fig, ax = plt.subplots(figsize=(12, max(4, len(edges) * 0.5)))
+
+    labels = [f"{e['pick']} ({e['odds']:+d})" for e in reversed(edges)]
+    edge_vals = [e['edge'] for e in reversed(edges)]
+    ev_vals = [e['ev'] for e in reversed(edges)]
+
+    colors = []
+    for e in reversed(edges):
+        if abs(e['edge']) > 10:
+            colors.append('#2ecc71')
+        elif abs(e['edge']) > 5:
+            colors.append('#f39c12')
+        else:
+            colors.append('#3498db')
+
+    y_pos = range(len(labels))
+    bars = ax.barh(y_pos, edge_vals, color=colors, height=0.6)
+    ax.set_yticks(list(y_pos))
+    ax.set_yticklabels(labels, fontsize=8)
+    ax.set_xlabel('Edge vs DraftKings (%)')
+    ax.set_title('Best Bets - Model Edge vs DraftKings (Ensemble)')
+    ax.axvline(x=0, color='black', linewidth=0.5)
+    ax.axvline(x=5, color='orange', linestyle='--', alpha=0.5, linewidth=0.8)
+    ax.axvline(x=10, color='green', linestyle='--', alpha=0.5, linewidth=0.8)
+    ax.axvline(x=-5, color='orange', linestyle='--', alpha=0.5, linewidth=0.8)
+    ax.axvline(x=-10, color='green', linestyle='--', alpha=0.5, linewidth=0.8)
+
+    for bar, val, ev in zip(bars, edge_vals, ev_vals):
+        x_pos = bar.get_width()
+        ax.annotate(f'{val:+.1f}% (${ev:+.0f})',
+                     xy=(x_pos, bar.get_y() + bar.get_height() / 2),
+                     xytext=(5 if x_pos >= 0 else -5, 0),
+                     textcoords="offset points",
+                     ha='left' if x_pos >= 0 else 'right',
+                     va='center', fontsize=7)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    return True
+
+
 def get_upcoming_games(days=3):
     """Fetch upcoming games from the database"""
     conn = get_connection()
@@ -688,6 +735,131 @@ def generate_weekend_preview(output_path=None):
                 pdf.mono_line(f"  {pick:<35} {edge:>+6.1f}% ${ev:>+7.1f}  {game}")
 
         ev_page_added = True
+
+    # ─── Best Bets: Largest Model vs DK Disagreements ───
+    if betting_games and len(betting_games) > 1:
+        all_edges = []
+        for bl in betting_games:
+            home_id = bl['home_team_id']
+            away_id = bl['away_team_id']
+            home_ml = bl['home_ml']
+            away_ml = bl['away_ml']
+            over_under = bl.get('over_under')
+
+            h_name = display_name(home_id)
+            a_name = display_name(away_id)
+
+            dk_home_raw = american_to_implied_prob(home_ml)
+            dk_away_raw = american_to_implied_prob(away_ml)
+            total_vig = dk_home_raw + dk_away_raw
+            dk_home = dk_home_raw / total_vig
+            dk_away = dk_away_raw / total_vig
+
+            # Get ensemble prediction
+            try:
+                pred = MODELS['ensemble'].predict_game(home_id, away_id)
+                model_prob = pred['home_win_probability']
+                home_edge = (model_prob - dk_home) * 100
+                away_edge = ((1 - model_prob) - dk_away) * 100
+
+                if home_edge > away_edge:
+                    best_side = h_name
+                    best_edge = home_edge
+                    best_odds = home_ml
+                    best_prob = model_prob
+                    dk_prob = dk_home
+                    if home_ml > 0:
+                        payout = home_ml / 100
+                    else:
+                        payout = 100 / abs(home_ml)
+                    ev = model_prob * payout - (1 - model_prob)
+                else:
+                    best_side = a_name
+                    best_edge = away_edge
+                    best_odds = away_ml
+                    best_prob = 1 - model_prob
+                    dk_prob = dk_away
+                    if away_ml > 0:
+                        payout = away_ml / 100
+                    else:
+                        payout = 100 / abs(away_ml)
+                    ev = (1 - model_prob) * payout - model_prob
+
+                ev_dollars = ev * 100
+
+                # Totals edge
+                total_edge = None
+                total_lean = None
+                if over_under:
+                    proj_total = pred['projected_total']
+                    total_diff = proj_total - over_under
+                    if abs(total_diff) > 0.5:
+                        total_lean = "OVER" if total_diff > 0 else "UNDER"
+                        total_edge = abs(total_diff)
+
+                all_edges.append({
+                    'game': f"{a_name} @ {h_name}",
+                    'pick': best_side,
+                    'odds': best_odds,
+                    'model_prob': best_prob,
+                    'dk_prob': dk_prob,
+                    'edge': best_edge,
+                    'ev': ev_dollars,
+                    'total_lean': total_lean,
+                    'total_edge': total_edge,
+                    'over_under': over_under,
+                    'proj_total': pred['projected_total'],
+                })
+            except Exception:
+                pass
+
+        # Sort by absolute edge descending
+        all_edges.sort(key=lambda x: abs(x['edge']), reverse=True)
+
+        pdf.add_page()
+        pdf.chapter_title('BEST BETS - TOP 25 GAMES')
+        pdf.body_text('Games ranked by largest ensemble model disagreement with DraftKings.')
+        pdf.body_text('Bigger edge = more model confidence the line is wrong.')
+        pdf.ln(5)
+
+        # Best bets chart
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bb_chart = os.path.join(tmpdir, "best_bets.png")
+            if create_best_bets_chart(all_edges[:12], bb_chart):
+                pdf.image(bb_chart, x=5, w=200)
+                pdf.ln(5)
+
+        # Table
+        pdf.set_font('Courier', '', 7)
+        pdf.mono_line(f"  {'#':<3} {'Game':<30} {'Pick':<18} {'Odds':>6} {'Model':>6} {'DK':>6} {'Edge':>7} {'EV/$100':>8}")
+        pdf.mono_line("  " + "-" * 88)
+
+        for i, e in enumerate(all_edges, 1):
+            rating = "***" if abs(e['edge']) > 10 else "** " if abs(e['edge']) > 5 else "*  " if abs(e['edge']) > 2 else "   "
+            pdf.mono_line(
+                f"  {i:<3} {e['game']:<30} {e['pick']:<18} {e['odds']:>+5d} "
+                f"{e['model_prob']*100:>5.1f}% {e['dk_prob']*100:>5.1f}% "
+                f"{e['edge']:>+6.1f}% ${e['ev']:>+6.1f} {rating}"
+            )
+
+        pdf.ln(5)
+        pdf.set_font('Helvetica', '', 9)
+        pdf.body_text("*** = STRONG (>10% edge)  ** = GOOD (>5%)  * = LEAN (>2%)")
+
+        # Totals best bets
+        total_plays = [e for e in all_edges if e['total_lean'] and e['total_edge'] and e['total_edge'] > 1.0]
+        if total_plays:
+            total_plays.sort(key=lambda x: x['total_edge'], reverse=True)
+            pdf.ln(5)
+            pdf.section_title('TOTALS PLAYS')
+            pdf.set_font('Courier', '', 8)
+            pdf.mono_line(f"  {'Game':<30} {'Lean':<6} {'Model':>6} {'DK O/U':>7} {'Diff':>6}")
+            pdf.mono_line("  " + "-" * 58)
+            for e in total_plays:
+                pdf.mono_line(
+                    f"  {e['game']:<30} {e['total_lean']:<6} {e['proj_total']:>5.1f} "
+                    f"{e['over_under']:>7.1f} {e['total_edge']:>+5.1f}"
+                )
 
     # ─── Footer ───
     pdf.ln(15)
