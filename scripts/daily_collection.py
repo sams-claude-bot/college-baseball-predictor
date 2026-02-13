@@ -21,6 +21,7 @@ sys.path.insert(0, str(BASE_DIR / "models"))
 from collect_ncaa_stats import fetch_ncaa_stats, save_stats
 from track_mississippi_state import fetch_schedule, get_upcoming_games
 from track_sec_teams import summarize_sec_ooc, get_ooc_games
+from database import get_current_top_25, get_recent_games
 from predictor import Predictor
 
 def run_daily_collection():
@@ -88,7 +89,7 @@ def run_daily_collection():
         results["errors"].append(str(e))
     
     # 4. SEC out-of-conference summary
-    print("\n[4/5] SEC out-of-conference tracking...")
+    print("\n[4/6] SEC out-of-conference tracking...")
     try:
         ooc_games = get_ooc_games()
         results["sec_ooc_games"] = len(ooc_games)
@@ -97,8 +98,26 @@ def run_daily_collection():
         print(f"  ✗ Error: {e}")
         results["errors"].append(str(e))
     
-    # 5. Save daily snapshot
-    print("\n[5/5] Saving daily snapshot...")
+    # 5. Top 25 tracking
+    print("\n[5/6] Top 25 teams...")
+    try:
+        top_25 = get_current_top_25()
+        results["top_25_count"] = len(top_25)
+        print(f"  ✓ Tracking {len(top_25)} ranked teams")
+        
+        # Show recent Top 25 results if any
+        for team in top_25[:5]:  # Top 5
+            recent = get_recent_games(team['id'], limit=1)
+            if recent and recent[0].get('winner_id'):
+                g = recent[0]
+                won = "W" if g['winner_id'] == team['id'] else "L"
+                print(f"    #{team['current_rank']} {team['name']}: {won} vs {g['away_team_name'] if g['home_team_id'] == team['id'] else g['home_team_name']}")
+    except Exception as e:
+        print(f"  ✗ Error: {e}")
+        results["errors"].append(str(e))
+    
+    # 6. Save daily snapshot
+    print("\n[6/6] Saving daily snapshot...")
     snapshot_dir = BASE_DIR / "data" / "snapshots"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     snapshot_file = snapshot_dir / f"daily_{today}.json"

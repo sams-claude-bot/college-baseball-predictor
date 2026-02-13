@@ -471,3 +471,102 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ============================================
+# Rankings Functions
+# ============================================
+
+def add_ranking(team_id, rank, poll="d1baseball", week=None, date=None):
+    """Add or update a team's ranking"""
+    from datetime import datetime
+    
+    conn = get_connection()
+    c = conn.cursor()
+    
+    if date is None:
+        date = datetime.now().strftime('%Y-%m-%d')
+    
+    # Ensure team exists
+    c.execute("SELECT id FROM teams WHERE id = ?", (team_id,))
+    if not c.fetchone():
+        # Auto-add team if not exists
+        c.execute('''
+            INSERT INTO teams (id, name) VALUES (?, ?)
+        ''', (team_id, team_id.replace("-", " ").title()))
+    
+    # Update team's current rank
+    c.execute('''
+        UPDATE teams SET current_rank = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (rank, team_id))
+    
+    # Insert ranking history
+    c.execute('''
+        INSERT INTO rankings_history (team_id, rank, poll, week, date)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (team_id, rank, poll, week, date))
+    
+    conn.commit()
+    conn.close()
+    
+    return team_id
+
+def get_current_top_25(poll="d1baseball"):
+    """Get current Top 25 teams"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT t.id, t.name, t.nickname, t.conference, t.current_rank
+        FROM teams t
+        WHERE t.current_rank IS NOT NULL AND t.current_rank <= 25
+        ORDER BY t.current_rank
+    ''')
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    return [dict(row) for row in rows]
+
+def get_ranking_history(team_id):
+    """Get ranking history for a team"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT rank, poll, week, date
+        FROM rankings_history
+        WHERE team_id = ?
+        ORDER BY date DESC
+    ''', (team_id,))
+    
+    rows = c.fetchall()
+    conn.close()
+    
+    return [dict(row) for row in rows]
+
+def init_rankings_table():
+    """Add rankings history table if not exists"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS rankings_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id TEXT NOT NULL,
+            rank INTEGER NOT NULL,
+            poll TEXT DEFAULT 'd1baseball',
+            week INTEGER,
+            date TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (team_id) REFERENCES teams(id)
+        )
+    ''')
+    
+    c.execute('CREATE INDEX IF NOT EXISTS idx_rankings_team ON rankings_history(team_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_rankings_date ON rankings_history(date)')
+    
+    conn.commit()
+    conn.close()
+    print("✓ Rankings table initialized")
