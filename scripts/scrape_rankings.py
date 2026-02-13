@@ -535,12 +535,14 @@ def scrape_rankings(poll="d1baseball", force=False):
         notes_str = " | ".join(notes) if notes else ""
         print(f"{rank:<5} {team_name:<25} {change_str:<10} {notes_str}")
     
-    # Find dropped teams
+    # Find dropped teams and clear their current_rank
     previous_ids = set(previous.keys())
     dropped = previous_ids - current_team_ids
     
     if dropped:
         print("\n📉 Dropped from Top 25:")
+        conn = get_connection()
+        c = conn.cursor()
         for team_id in dropped:
             prev_rank = previous[team_id]
             print(f"   DROPPED: {team_id} fell from #{prev_rank}")
@@ -548,6 +550,13 @@ def scrape_rankings(poll="d1baseball", force=False):
                 "team_id": team_id,
                 "prev_rank": prev_rank
             })
+            # Clear the current_rank so they don't show in Top 25
+            c.execute('''
+                UPDATE teams SET current_rank = NULL, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (team_id,))
+        conn.commit()
+        conn.close()
     
     print("-" * 60)
     print(f"✓ Saved {len(results['rankings'])} rankings from {source}")

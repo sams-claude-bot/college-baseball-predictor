@@ -29,6 +29,13 @@ from compare_models import MODELS, normalize_team_id
 from database import get_connection, get_current_top_25
 from betting_lines import american_to_implied_prob, implied_prob_to_american
 
+# Try to import rankings summary (optional, degrades gracefully)
+try:
+    from scrape_rankings import get_rankings_summary
+    RANKINGS_AVAILABLE = True
+except ImportError:
+    RANKINGS_AVAILABLE = False
+
 # Ensure reports directory exists
 _reports_dir.mkdir(parents=True, exist_ok=True)
 
@@ -750,6 +757,47 @@ def generate_weekend_preview(output_path=None):
             pdf.body_text("No ranked team games found for this weekend.")
     else:
         pdf.body_text("No Top 25 rankings loaded yet.")
+
+    # ─── Rankings Movement Summary ───
+    if RANKINGS_AVAILABLE:
+        try:
+            rankings_summary = get_rankings_summary()
+            if rankings_summary.get("top_25"):
+                pdf.ln(8)
+                pdf.section_title('RANKINGS MOVEMENT')
+                pdf.set_font('Courier', '', 8)
+                
+                # Show biggest movers
+                risers = rankings_summary.get("biggest_risers", [])
+                fallers = rankings_summary.get("biggest_fallers", [])
+                new_entries = rankings_summary.get("new_entries", [])
+                exits = rankings_summary.get("exits", [])
+                
+                if risers:
+                    pdf.mono_line("  📈 RISERS:")
+                    for t in risers[:3]:
+                        pdf.mono_line(f"     {t['team']}: #{t['prev_rank']} → #{t['new_rank']} (+{t['change']})")
+                
+                if fallers:
+                    pdf.mono_line("  📉 FALLERS:")
+                    for t in fallers[:3]:
+                        pdf.mono_line(f"     {t['team']}: #{t['prev_rank']} → #{t['new_rank']} ({t['change']})")
+                
+                if new_entries:
+                    pdf.mono_line("  🆕 NEW TO TOP 25:")
+                    for t in new_entries[:3]:
+                        pdf.mono_line(f"     {t['team']} enters at #{t['rank']}")
+                
+                if exits:
+                    pdf.mono_line("  🚪 DROPPED OUT:")
+                    for t in exits[:3]:
+                        pdf.mono_line(f"     {t['team']} (was #{t['prev_rank']})")
+                
+                if not (risers or fallers or new_entries or exits):
+                    pdf.body_text("No significant rankings movement this week.")
+        except Exception as e:
+            # Silently fail if rankings aren't available yet
+            pass
 
     # ─── Expected Value vs DraftKings ───
     ev_page_added = False

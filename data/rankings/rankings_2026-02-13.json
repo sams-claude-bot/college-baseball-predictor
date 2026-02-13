@@ -1,0 +1,202 @@
+{
+  "rankings": [
+    {
+      "team_id": "ucla",
+      "name": "UCLA",
+      "rank": 1,
+      "prev_rank": 1,
+      "change": 0
+    },
+    {
+      "team_id": "texas-am",
+      "name": "Texas A&M",
+      "rank": 2,
+      "prev_rank": 2,
+      "change": 0
+    },
+    {
+      "team_id": "florida",
+      "name": "Florida",
+      "rank": 3,
+      "prev_rank": 3,
+      "change": 0
+    },
+    {
+      "team_id": "arkansas",
+      "name": "Arkansas",
+      "rank": 4,
+      "prev_rank": 4,
+      "change": 0
+    },
+    {
+      "team_id": "lsu",
+      "name": "LSU",
+      "rank": 5,
+      "prev_rank": 5,
+      "change": 0
+    },
+    {
+      "team_id": "tennessee",
+      "name": "Tennessee",
+      "rank": 6,
+      "prev_rank": 6,
+      "change": 0
+    },
+    {
+      "team_id": "georgia",
+      "name": "Georgia",
+      "rank": 7,
+      "prev_rank": 7,
+      "change": 0
+    },
+    {
+      "team_id": "texas",
+      "name": "Texas",
+      "rank": 8,
+      "prev_rank": 8,
+      "change": 0
+    },
+    {
+      "team_id": "vanderbilt",
+      "name": "Vanderbilt",
+      "rank": 9,
+      "prev_rank": 9,
+      "change": 0
+    },
+    {
+      "team_id": "florida-state",
+      "name": "Florida State",
+      "rank": 10,
+      "prev_rank": 10,
+      "change": 0
+    },
+    {
+      "team_id": "wake-forest",
+      "name": "Wake Forest",
+      "rank": 11,
+      "prev_rank": 11,
+      "change": 0
+    },
+    {
+      "team_id": "virginia",
+      "name": "Virginia",
+      "rank": 12,
+      "prev_rank": 12,
+      "change": 0
+    },
+    {
+      "team_id": "oregon-state",
+      "name": "Oregon State",
+      "rank": 13,
+      "prev_rank": 13,
+      "change": 0
+    },
+    {
+      "team_id": "nc-state",
+      "name": "NC State",
+      "rank": 14,
+      "prev_rank": 14,
+      "change": 0
+    },
+    {
+      "team_id": "stanford",
+      "name": "Stanford",
+      "rank": 15,
+      "prev_rank": 15,
+      "change": 0
+    },
+    {
+      "team_id": "ole-miss",
+      "name": "Ole Miss",
+      "rank": 16,
+      "prev_rank": 16,
+      "change": 0
+    },
+    {
+      "team_id": "clemson",
+      "name": "Clemson",
+      "rank": 17,
+      "prev_rank": 17,
+      "change": 0
+    },
+    {
+      "team_id": "miami-fl",
+      "name": "Miami (FL)",
+      "rank": 18,
+      "prev_rank": 18,
+      "change": 0
+    },
+    {
+      "team_id": "louisville",
+      "name": "Louisville",
+      "rank": 19,
+      "prev_rank": 19,
+      "change": 0
+    },
+    {
+      "team_id": "mississippi-state",
+      "name": "Mississippi State",
+      "rank": 20,
+      "prev_rank": 20,
+      "change": 0
+    },
+    {
+      "team_id": "south-carolina",
+      "name": "South Carolina",
+      "rank": 21,
+      "prev_rank": 21,
+      "change": 0
+    },
+    {
+      "team_id": "tcu",
+      "name": "TCU",
+      "rank": 22,
+      "prev_rank": 22,
+      "change": 0
+    },
+    {
+      "team_id": "north-carolina",
+      "name": "North Carolina",
+      "rank": 23,
+      "prev_rank": 23,
+      "change": 0
+    },
+    {
+      "team_id": "arizona",
+      "name": "Arizona",
+      "rank": 24,
+      "prev_rank": 24,
+      "change": 0
+    },
+    {
+      "team_id": "kentucky",
+      "name": "Kentucky",
+      "rank": 25,
+      "prev_rank": 25,
+      "change": 0
+    }
+  ],
+  "source": "fallback",
+  "week": 1,
+  "date": "2026-02-13",
+  "new_teams": [],
+  "dropped_teams": [
+    {
+      "team_id": "southern-miss",
+      "prev_rank": 20
+    },
+    {
+      "team_id": "georgia-tech",
+      "prev_rank": 5
+    },
+    {
+      "team_id": "auburn",
+      "prev_rank": 9
+    },
+    {
+      "team_id": "coastal-carolina",
+      "prev_rank": 6
+    }
+  ],
+  "movements": []
+}

@@ -41,8 +41,8 @@ SEC_ROSTER_URLS = {
     },
     "arkansas": {
         "name": "Arkansas",
-        "roster_url": "https://arkansasrazorbacks.com/sport/baseball/roster/",
-        "site_type": "custom_arkansas"
+        "roster_url": "https://arkansasrazorbacks.com/sports/baseball/roster/",
+        "site_type": "sidearm"
     },
     "auburn": {
         "name": "Auburn",
@@ -81,7 +81,7 @@ SEC_ROSTER_URLS = {
     },
     "oklahoma": {
         "name": "Oklahoma",
-        "roster_url": "https://soonersports.com/sports/baseball/schedule",
+        "roster_url": "https://soonersports.com/sports/baseball/roster",
         "site_type": "sidearm"
     },
     "ole-miss": {
@@ -230,13 +230,70 @@ def fetch_page(url, timeout=30):
 def parse_sidearm_roster(html, team_id):
     """
     Parse roster from Sidearm Sports (most SEC teams use this platform)
+    Uses multiple parsing strategies to handle different Sidearm versions.
     """
     soup = BeautifulSoup(html, 'html.parser')
     players = []
     
-    # Try different Sidearm roster structures
+    # Method 1: Modern Sidearm - pipe-delimited text pattern
+    # Pattern with B/T: Jersey Number|{num}|{name}|Position|{pos}|Academic Year|{year}|Height|{height}|Weight|{weight}|Custom Field 1|{bt}
+    # Pattern without B/T: Jersey Number|{num}|{name}|Position|{pos}|Academic Year|{year}|Height|{height}|Weight|{weight}|...
+    text = soup.get_text('|', strip=True)
     
-    # Method 1: Look for roster cards
+    # Try pattern with Custom Field 1 (B/T) first
+    pattern_with_bt = r'Jersey Number\|(\d+)\|([^|]+)\|Position\|([^|]+)\|Academic Year\|([^|]+)\|Height\|([^|]+)\|Weight\|([^|]+)\|Custom Field 1\|([^|]+)'
+    
+    for match in re.finditer(pattern_with_bt, text):
+        number = int(match.group(1))
+        name = match.group(2).strip()
+        position = normalize_position(match.group(3).strip())
+        year = normalize_year(match.group(4).strip())
+        height = parse_height(match.group(5).strip())
+        weight = parse_weight(match.group(6).strip())
+        bt = match.group(7).strip()
+        
+        bats, throws = parse_bats_throws(bt)
+        
+        players.append({
+            'name': name,
+            'number': number,
+            'position': position,
+            'year': year,
+            'height': height,
+            'weight': weight,
+            'bats': bats,
+            'throws': throws
+        })
+    
+    if players:
+        return players
+    
+    # Try pattern without B/T (some teams don't have Custom Field 1)
+    pattern_no_bt = r'Jersey Number\|(\d+)\|([^|]+)\|Position\|([^|]+)\|Academic Year\|([^|]+)\|Height\|([^|]+)\|Weight\|([^|]+)'
+    
+    for match in re.finditer(pattern_no_bt, text):
+        number = int(match.group(1))
+        name = match.group(2).strip()
+        position = normalize_position(match.group(3).strip())
+        year = normalize_year(match.group(4).strip())
+        height = parse_height(match.group(5).strip())
+        weight = parse_weight(match.group(6).strip())
+        
+        players.append({
+            'name': name,
+            'number': number,
+            'position': position,
+            'year': year,
+            'height': height,
+            'weight': weight,
+            'bats': None,
+            'throws': None
+        })
+    
+    if players:
+        return players
+    
+    # Method 2: Look for roster cards (older Sidearm)
     cards = soup.find_all('li', class_=re.compile(r'sidearm-roster-player'))
     if not cards:
         cards = soup.find_all('div', class_=re.compile(r'sidearm-roster-player'))
@@ -277,7 +334,7 @@ def parse_sidearm_roster(html, team_id):
         if weight_el:
             player['weight'] = parse_weight(weight_el.get_text(strip=True))
         
-        # Bats/Throws - often in "Custom Field 1" on Sidearm
+        # Bats/Throws
         bt_el = card.find(class_=re.compile(r'custom|b-t|bats'))
         if bt_el:
             bats, throws = parse_bats_throws(bt_el.get_text(strip=True))
@@ -287,50 +344,51 @@ def parse_sidearm_roster(html, team_id):
         if player.get('name'):
             players.append(player)
     
-    # Method 2: Try table-based roster
-    if not players:
-        tables = soup.find_all('table', class_=re.compile(r'roster'))
-        for table in tables:
-            rows = table.find_all('tr')
-            for row in rows[1:]:  # Skip header
-                cells = row.find_all(['td', 'th'])
-                if len(cells) >= 3:
-                    player = {}
-                    
-                    # Try to extract from cells
-                    for i, cell in enumerate(cells):
-                        text = cell.get_text(strip=True)
-                        
-                        # Number (usually first, small number)
-                        if i == 0 and re.match(r'^\d{1,2}$', text):
-                            player['number'] = int(text)
-                        
-                        # Name (often has a link)
-                        name_link = cell.find('a')
-                        if name_link and not player.get('name'):
-                            name_text = name_link.get_text(strip=True)
-                            if len(name_text) > 3 and ' ' in name_text:
-                                player['name'] = name_text
-                        
-                        # Position
-                        if text.upper() in ['RHP', 'LHP', 'C', '1B', '2B', '3B', 'SS', 'OF', 'INF', 'UTL', 'DH']:
-                            player['position'] = text.upper()
-                    
-                    if player.get('name'):
-                        players.append(player)
+    if players:
+        return players
     
-    # Method 3: Parse text blocks (fallback)
-    if not players:
-        text = soup.get_text()
-        # Look for patterns like "#12 John Smith RHP Fr."
-        pattern = r'#?(\d{1,2})\s+([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(RHP|LHP|C|1B|2B|3B|SS|OF|INF|UTL)'
-        matches = re.findall(pattern, text)
-        for match in matches:
-            players.append({
-                'number': int(match[0]),
-                'name': match[1],
-                'position': match[2]
-            })
+    # Method 3: Try table-based roster
+    tables = soup.find_all('table', class_=re.compile(r'roster'))
+    for table in tables:
+        rows = table.find_all('tr')
+        for row in rows[1:]:  # Skip header
+            cells = row.find_all(['td', 'th'])
+            if len(cells) >= 3:
+                player = {}
+                
+                for i, cell in enumerate(cells):
+                    text = cell.get_text(strip=True)
+                    
+                    # Number
+                    if i == 0 and re.match(r'^\d{1,2}$', text):
+                        player['number'] = int(text)
+                    
+                    # Name
+                    name_link = cell.find('a')
+                    if name_link and not player.get('name'):
+                        name_text = name_link.get_text(strip=True)
+                        if len(name_text) > 3 and ' ' in name_text:
+                            player['name'] = name_text
+                    
+                    # Position
+                    if text.upper() in ['RHP', 'LHP', 'C', '1B', '2B', '3B', 'SS', 'OF', 'INF', 'UTL', 'DH']:
+                        player['position'] = text.upper()
+                
+                if player.get('name'):
+                    players.append(player)
+    
+    if players:
+        return players
+    
+    # Method 4: Parse text blocks (last resort)
+    pattern = r'#?(\d{1,2})\s+([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(RHP|LHP|C|1B|2B|3B|SS|OF|INF|UTL)'
+    matches = re.findall(pattern, text)
+    for match in matches:
+        players.append({
+            'number': int(match[0]),
+            'name': match[1],
+            'position': match[2]
+        })
     
     return players
 
