@@ -271,6 +271,156 @@ def create_ev_chart(value_picks, output_path):
     return True
 
 
+def get_model_disclaimer():
+    """Return contextual disclaimer based on season progress"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM games WHERE status='final'")
+    games_played = c.fetchone()[0]
+    conn.close()
+
+    if games_played < 20:
+        return (
+            "EARLY SEASON DISCLAIMER: Most models have limited game data. "
+            "The prior and Elo models carry the ensemble right now. Stats-based models "
+            "(Pythagorean, Log5, Advanced, Pitching) are near 50/50 on everything, which inflates "
+            "underdog edges. Treat these as directional, not actionable, until ~3 weeks of data accumulate. "
+            "The model will sharpen significantly as results come in."
+        )
+    elif games_played < 100:
+        return (
+            "MID-SEASON NOTE: Models are building confidence with accumulating data. "
+            "Ensemble weights are adjusting based on accuracy. Edges above 10% are worth attention."
+        )
+    else:
+        return (
+            "Full-season model with substantial data. Ensemble weights tuned by accuracy tracking. "
+            "Strong edges (>10%) have historically been profitable."
+        )
+
+
+def generate_top5_picks(betting_games):
+    """Generate top 5 picks with commentary"""
+    all_picks = []
+    for bl in betting_games:
+        home_id = bl['home_team_id']
+        away_id = bl['away_team_id']
+        home_ml = bl['home_ml']
+        away_ml = bl['away_ml']
+        over_under = bl.get('over_under')
+
+        h_name = display_name(home_id)
+        a_name = display_name(away_id)
+
+        dk_h = american_to_implied_prob(home_ml)
+        dk_a = american_to_implied_prob(away_ml)
+        vig = dk_h + dk_a
+        dk_h /= vig
+        dk_a /= vig
+
+        try:
+            pred = MODELS['ensemble'].predict_game(home_id, away_id)
+            mp = pred['home_win_probability']
+            he = (mp - dk_h) * 100
+            ae = ((1 - mp) - dk_a) * 100
+
+            if he > ae:
+                side, edge, odds, prob, dk = h_name, he, home_ml, mp, dk_h
+                payout = home_ml / 100 if home_ml > 0 else 100 / abs(home_ml)
+                ev = mp * payout - (1 - mp)
+            else:
+                side, edge, odds, prob, dk = a_name, ae, away_ml, 1 - mp, dk_a
+                payout = away_ml / 100 if away_ml > 0 else 100 / abs(away_ml)
+                ev = (1 - mp) * payout - mp
+
+            proj = pred['projected_total']
+            t_diff = (proj - over_under) if over_under else 0
+            t_lean = "OVER" if t_diff > 0.5 else "UNDER" if t_diff < -0.5 else None
+
+            all_picks.append({
+                'game': f"{a_name} @ {h_name}",
+                'pick': side, 'odds': odds, 'edge': edge, 'ev': ev * 100,
+                'model_prob': prob, 'dk_prob': dk,
+                'total_lean': t_lean, 'total_diff': t_diff,
+                'ou': over_under, 'proj': proj,
+                'home_id': home_id, 'away_id': away_id,
+                'home_name': h_name, 'away_name': a_name,
+                'home_ml': home_ml, 'away_ml': away_ml,
+                'commentary': '',
+            })
+        except Exception:
+            pass
+
+    all_picks.sort(key=lambda x: abs(x['edge']), reverse=True)
+
+    # Add commentary to top picks
+    for p in all_picks:
+        p['commentary'] = generate_pick_commentary(p)
+
+    return all_picks
+
+
+def generate_pick_commentary(pick):
+    """Generate contextual commentary for a pick"""
+    edge = pick['edge']
+    odds = pick['odds']
+    ev = pick['ev']
+    home = pick['home_name']
+    away = pick['away_name']
+    side = pick['pick']
+    is_dog = odds > 0
+
+    # Check how many games played
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM games WHERE status='final'")
+    total_games = c.fetchone()[0]
+    conn.close()
+
+    early_season = total_games < 20
+
+    if early_season and is_dog and edge > 15:
+        return (
+            f"Big edge on paper but driven largely by cold-start models defaulting to ~50/50. "
+            f"DK has {home if side == away else away} as a heavy favorite for good reason. "
+            f"Monitor this matchup as data accumulates -- if the edge persists in week 3, it's real."
+        )
+    elif early_season and is_dog and edge > 5:
+        return (
+            f"Moderate underdog value. The line looks exploitable but early-season model uncertainty "
+            f"means this edge could evaporate once stats-based models calibrate. "
+            f"Worth tracking, not yet worth betting heavy."
+        )
+    elif is_dog and edge > 10:
+        return (
+            f"Significant model disagreement with the market. "
+            f"At {odds:+d}, the payout justifies the risk if our model is even close to right. "
+            f"EV of ${ev:+.0f} per $100 is hard to ignore."
+        )
+    elif is_dog and edge > 5:
+        return (
+            f"Solid value play. The market may be underrating {side} here. "
+            f"Not a slam dunk but the kind of +EV spot that adds up over a season."
+        )
+    elif not is_dog and edge > 5:
+        return (
+            f"Model likes the favorite even more than DK does. "
+            f"Laying {odds:+d} isn't glamorous but the model sees this as more lopsided than the line suggests."
+        )
+    elif pick.get('total_lean'):
+        lean = pick['total_lean']
+        diff = pick['total_diff']
+        return (
+            f"Side edge is thin but the model sees {lean} value -- projecting {pick['proj']:.1f} total "
+            f"vs the {pick['ou']} line ({abs(diff):.1f} run gap). Could be the better play."
+        )
+    else:
+        return (
+            f"Small edge. Market has this one roughly right. "
+            f"Pass unless you have a strong situational lean."
+        )
+
+
 def create_best_bets_chart(edges, output_path):
     """Create horizontal bar chart of best bets by edge size"""
     if not edges:
@@ -860,6 +1010,62 @@ def generate_weekend_preview(output_path=None):
                     f"  {e['game']:<30} {e['total_lean']:<6} {e['proj_total']:>5.1f} "
                     f"{e['over_under']:>7.1f} {e['total_edge']:>+5.1f}"
                 )
+
+    # ─── Top 5 Picks of the Weekend ───
+    if betting_games and len(betting_games) > 1:
+        top5 = generate_top5_picks(betting_games)
+        if top5:
+            pdf.add_page()
+            pdf.chapter_title('TOP 5 PICKS OF THE WEEKEND')
+            pdf.ln(3)
+
+            for i, pick in enumerate(top5[:5], 1):
+                # Pick header
+                pdf.set_font('Helvetica', 'B', 12)
+                pdf.cell(0, 8, f"#{i}  {pick['pick']} ({pick['odds']:+d})",
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.set_font('Helvetica', '', 10)
+                pdf.cell(0, 6, pick['game'],
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                # Stats line
+                pdf.set_font('Courier', '', 9)
+                pdf.mono_line(
+                    f"  Model: {pick['model_prob']*100:.1f}%  |  DK Implied: {pick['dk_prob']*100:.1f}%  |  "
+                    f"Edge: {pick['edge']:+.1f}%  |  EV/$100: ${pick['ev']:+.1f}"
+                )
+                if pick.get('total_lean'):
+                    pdf.mono_line(
+                        f"  Totals: {pick['total_lean']} {pick['ou']} "
+                        f"(model projects {pick['proj']:.1f})"
+                    )
+
+                # Commentary
+                pdf.set_font('Helvetica', 'I', 9)
+                pdf.set_text_color(80, 80, 80)
+                pdf.multi_cell(0, 5, f"  {pick['commentary']}")
+                pdf.set_text_color(0, 0, 0)
+
+                # Confidence bar
+                conf = min(abs(pick['edge']), 30) / 30  # Normalize to 0-1
+                bar_width = 150
+                pdf.set_fill_color(46, 204, 113) if pick['edge'] > 10 else \
+                    pdf.set_fill_color(243, 156, 18) if pick['edge'] > 5 else \
+                    pdf.set_fill_color(52, 152, 219)
+                pdf.set_font('Helvetica', '', 8)
+                pdf.cell(25, 5, "Confidence:", new_x=XPos.RIGHT, new_y=YPos.TOP)
+                pdf.cell(int(bar_width * conf), 5, '', fill=True,
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.ln(6)
+
+            # Disclaimer
+            pdf.ln(5)
+            pdf.set_font('Helvetica', 'I', 8)
+            pdf.set_text_color(120, 120, 120)
+            pdf.multi_cell(0, 4,
+                get_model_disclaimer()
+            )
+            pdf.set_text_color(0, 0, 0)
 
     # ─── Footer ───
     pdf.ln(15)
