@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Teams - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-people"></i> All Teams
+    </h1>
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;">
+            <option value="">All Conferences</option>
+            {% for conf in conferences %}
+            <option value="{{ conf }}">{{ conf }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Sort Buttons -->
+<div class="mb-3">
+    <span class="text-muted me-2">Sort by:</span>
+    <div class="btn-group" role="group">
+        <a href="/teams?sort=name" class="btn btn-sm {% if sort_by == 'name' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Name</a>
+        <a href="/teams?sort=elo" class="btn btn-sm {% if sort_by == 'elo' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Elo</a>
+        <a href="/teams?sort=rank" class="btn btn-sm {% if sort_by == 'rank' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Rank</a>
+        <a href="/teams?sort=win_pct" class="btn btn-sm {% if sort_by == 'win_pct' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Win %</a>
+        <a href="/teams?sort=conference" class="btn btn-sm {% if sort_by == 'conference' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Conference</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="teamsTable">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">Rank</th>
+                    <th>Team</th>
+                    <th>Conference</th>
+                    <th class="text-center">Record</th>
+                    <th class="text-center">Win %</th>
+                    <th class="text-end">Elo Rating</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in teams %}
+                <tr data-conference="{{ team.conference or '' }}">
+                    <td class="text-center">
+                        {% if team.current_rank %}
+                        <span class="badge bg-maroon">{{ team.current_rank }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/team/{{ team.id }}" class="team-link">
+                            <strong>{{ team.name }}</strong>
+                        </a>
+                        {% if team.nickname %}
+                        <br><small class="text-muted">{{ team.nickname }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">{{ team.conference or 'N/A' }}</span>
+                    </td>
+                    <td class="text-center">
+                        {% if team.wins or team.losses %}
+                        {{ team.wins }}-{{ team.losses }}
+                        {% else %}
+                        0-0
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if team.win_pct %}
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="progress flex-grow-1" style="height: 8px; width: 60px;">
+                                <div class="progress-bar {% if team.win_pct >= 0.6 %}bg-success{% elif team.win_pct <= 0.4 %}bg-danger{% endif %}" 
+                                     style="width: {{ team.win_pct * 100 }}%"></div>
+                            </div>
+                            <span>{{ (team.win_pct * 100)|round(1) }}%</span>
+                        </div>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if team.elo_rating %}
+                        <strong>{{ team.elo_rating|round(0)|int }}</strong>
+                        {% else %}
+                        <span class="text-muted">1500</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="text-center text-muted mt-3">
+    <small>Showing {{ teams|length }} teams</small>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('conferenceFilter').addEventListener('change', function() {
+    const conference = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#teamsTable tbody tr');
+    
+    rows.forEach(row => {
+        const rowConf = row.dataset.conference.toLowerCase();
+        if (conference === '' || rowConf === conference) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

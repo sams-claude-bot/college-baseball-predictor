@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}College Baseball Predictor{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --maroon: #5D1725;
+            --maroon-dark: #4a1120;
+            --grey: #777777;
+            --dark: #1a1a1a;
+            --light-grey: #e9ecef;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+        
+        /* Navbar */
+        .navbar {
+            background-color: var(--dark) !important;
+            padding: 0.75rem 1rem;
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+        
+        .navbar-brand .icon {
+            color: var(--maroon);
+            margin-right: 0.5rem;
+        }
+        
+        .nav-link {
+            color: rgba(255,255,255,0.85) !important;
+            padding: 0.5rem 1rem !important;
+            border-radius: 6px;
+            margin: 0 2px;
+            transition: all 0.2s;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            background-color: var(--maroon);
+            color: white !important;
+        }
+        
+        /* Cards */
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 2px solid var(--maroon);
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .card-header.bg-maroon {
+            background-color: var(--maroon) !important;
+            color: white;
+            border-bottom: none;
+        }
+        
+        /* Stats cards */
+        .stat-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--maroon);
+            line-height: 1;
+        }
+        
+        .stat-card .stat-label {
+            color: var(--grey);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        
+        /* Tables */
+        .table {
+            margin-bottom: 0;
+        }
+        
+        .table thead th {
+            background-color: var(--light-grey);
+            border-bottom: 2px solid var(--maroon);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .table-hover tbody tr:hover {
+            background-color: rgba(93, 23, 37, 0.05);
+        }
+        
+        .table .rank-col {
+            width: 50px;
+            text-align: center;
+            font-weight: 700;
+            color: var(--maroon);
+        }
+        
+        /* Badges */
+        .badge.bg-maroon {
+            background-color: var(--maroon) !important;
+        }
+        
+        .badge.bg-success-soft {
+            background-color: rgba(25, 135, 84, 0.1);
+            color: #198754;
+        }
+        
+        .badge.bg-danger-soft {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+        }
+        
+        /* Progress bars */
+        .progress {
+            height: 8px;
+            border-radius: 4px;
+            background-color: var(--light-grey);
+        }
+        
+        .progress-bar {
+            background-color: var(--maroon);
+            border-radius: 4px;
+        }
+        
+        .progress-bar.bg-success {
+            background-color: #198754 !important;
+        }
+        
+        .progress-bar.bg-danger {
+            background-color: #dc3545 !important;
+        }
+        
+        /* Win probability display */
+        .win-prob {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .win-prob.high {
+            color: #198754;
+        }
+        
+        .win-prob.medium {
+            color: var(--grey);
+        }
+        
+        .win-prob.low {
+            color: #dc3545;
+        }
+        
+        /* Team links */
+        a.team-link {
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        a.team-link:hover {
+            color: var(--maroon);
+            text-decoration: underline;
+        }
+        
+        /* Value indicator */
+        .value-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
+        .value-indicator.positive {
+            background-color: rgba(25, 135, 84, 0.15);
+            color: #198754;
+        }
+        
+        .value-indicator.negative {
+            background-color: rgba(220, 53, 69, 0.15);
+            color: #dc3545;
+        }
+        
+        /* Edge bars */
+        .edge-bar {
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: white;
+        }
+        
+        .edge-bar.positive {
+            background: linear-gradient(90deg, var(--maroon), #198754);
+        }
+        
+        .edge-bar.negative {
+            background: linear-gradient(90deg, var(--maroon), #dc3545);
+        }
+        
+        /* Sortable headers */
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th.sortable:hover {
+            background-color: #dde0e3;
+        }
+        
+        th.sortable::after {
+            content: ' ↕';
+            opacity: 0.3;
+        }
+        
+        th.sortable.asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+        
+        th.sortable.desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+        
+        /* Form styling */
+        .form-select, .form-control {
+            border-radius: 8px;
+            border: 2px solid var(--light-grey);
+            padding: 0.625rem 1rem;
+        }
+        
+        .form-select:focus, .form-control:focus {
+            border-color: var(--maroon);
+            box-shadow: 0 0 0 0.2rem rgba(93, 23, 37, 0.15);
+        }
+        
+        .btn-maroon {
+            background-color: var(--maroon);
+            border-color: var(--maroon);
+            color: white;
+        }
+        
+        .btn-maroon:hover {
+            background-color: var(--maroon-dark);
+            border-color: var(--maroon-dark);
+            color: white;
+        }
+        
+        /* Game cards */
+        .game-card {
+            border-left: 4px solid var(--maroon);
+        }
+        
+        .game-time {
+            font-size: 0.85rem;
+            color: var(--grey);
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .stat-card .stat-value {
+                font-size: 2rem;
+            }
+            
+            .table-responsive {
+                font-size: 0.9rem;
+            }
+            
+            .navbar-brand {
+                font-size: 1rem;
+            }
+        }
+        
+        /* Footer */
+        .footer {
+            background-color: var(--dark);
+            color: rgba(255,255,255,0.6);
+            padding: 1.5rem 0;
+            margin-top: 3rem;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-trophy-fill icon"></i>
+                Baseball Predictor
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="/">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'teams' %}active{% endif %}" href="/teams">
+                            <i class="bi bi-people"></i> Teams
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'predict' %}active{% endif %}" href="/predict">
+                            <i class="bi bi-calculator"></i> Predict
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'rankings' %}active{% endif %}" href="/rankings">
+                            <i class="bi bi-list-ol"></i> Rankings
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'betting' %}active{% endif %}" href="/betting">
+                            <i class="bi bi-currency-dollar"></i> Betting
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'models' %}active{% endif %}" href="/models">
+                            <i class="bi bi-gear"></i> Models
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container text-center">
+            <small>College Baseball Predictor &copy; 2026 | Built with Flask & Bootstrap</small>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

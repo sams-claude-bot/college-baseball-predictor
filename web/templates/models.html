@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Model Performance - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3">
+        <i class="bi bi-gear"></i> Model Performance
+    </h1>
+    <p class="text-muted">Ensemble weights, accuracy tracking, and prediction history</p>
+</div>
+
+<div class="row">
+    <!-- Weights Section -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header bg-maroon">
+                <i class="bi bi-pie-chart-fill"></i> Current Ensemble Weights
+            </div>
+            <div class="card-body">
+                <canvas id="weightsChart" height="250"></canvas>
+                
+                <div class="table-responsive mt-4">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th class="text-center">Weight</th>
+                                <th>Visual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for model in model_data %}
+                            <tr>
+                                <td>
+                                    <strong>{{ model.name }}</strong>
+                                </td>
+                                <td class="text-center">{{ model.weight_pct|round(1) }}%</td>
+                                <td style="width: 50%;">
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ model.weight_pct }}%; background-color: var(--maroon);"
+                                             aria-valuenow="{{ model.weight_pct }}" aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accuracy Section -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bullseye"></i> Model Accuracy
+            </div>
+            <div class="card-body">
+                {% if model_data and model_data[0].accuracy %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th class="text-center">Recent</th>
+                                <th class="text-center">All-Time</th>
+                                <th class="text-center">Games</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for model in model_data %}
+                            {% if model.accuracy %}
+                            <tr>
+                                <td>{{ model.name }}</td>
+                                <td class="text-center">
+                                    {% if model.accuracy.recent_accuracy %}
+                                    <span class="{% if model.accuracy.recent_accuracy > 0.55 %}text-success{% elif model.accuracy.recent_accuracy < 0.45 %}text-danger{% endif %}">
+                                        {{ (model.accuracy.recent_accuracy * 100)|round(1) }}%
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if model.accuracy.all_time_accuracy %}
+                                    {{ (model.accuracy.all_time_accuracy * 100)|round(1) }}%
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary">{{ model.accuracy.all_time_predictions }}</span>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-graph-up display-4 text-muted"></i>
+                    <p class="mt-2 text-muted">No accuracy data yet</p>
+                    <small class="text-muted">Accuracy will be tracked once games are completed</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Model Descriptions -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-book"></i> Model Descriptions
+            </div>
+            <div class="card-body p-0">
+                <div class="accordion accordion-flush" id="modelDescriptions">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pythagorean">
+                                Pythagorean
+                            </button>
+                        </h2>
+                        <div id="desc-pythagorean" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Based on Bill James' Pythagorean expectation formula, using runs scored and allowed to estimate true team strength.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-elo">
+                                Elo
+                            </button>
+                        </h2>
+                        <div id="desc-elo" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Chess-style rating system adapted for baseball. Ratings update after each game based on result and opponent strength.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-log5">
+                                Log5
+                            </button>
+                        </h2>
+                        <div id="desc-log5" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Bill James' Log5 formula for head-to-head matchups, calculating win probability from two teams' winning percentages.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-advanced">
+                                Advanced
+                            </button>
+                        </h2>
+                        <div id="desc-advanced" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Combines multiple factors: strength of schedule, margin of victory, recency weighting, and opponent quality adjustments.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pitching">
+                                Pitching
+                            </button>
+                        </h2>
+                        <div id="desc-pitching" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Focuses on pitching matchups, ERA, WHIP, strikeout rates, and bullpen depth to predict game outcomes.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-conference">
+                                Conference
+                            </button>
+                        </h2>
+                        <div id="desc-conference" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Accounts for conference strength and cross-conference performance. SEC/ACC/Big 12 teams get adjustments.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-prior">
+                                Prior
+                            </button>
+                        </h2>
+                        <div id="desc-prior" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Uses preseason rankings and historical program strength as a Bayesian prior, especially useful early in season.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prediction Log -->
+{% if prediction_log %}
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-journal-text"></i> Recent Predictions
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Matchup</th>
+                        <th class="text-center">Prediction</th>
+                        <th class="text-center">Actual</th>
+                        <th class="text-center">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pred in prediction_log[:20] %}
+                    <tr>
+                        <td><small>{{ pred.predicted_at[:10] if pred.predicted_at else '—' }}</small></td>
+                        <td>
+                            {{ pred.away_team_name or 'Away' }} @ {{ pred.home_team_name or 'Home' }}
+                        </td>
+                        <td class="text-center">
+                            {% if pred.home_win_prob %}
+                            {{ (pred.home_win_prob * 100)|round(1) }}% home
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if pred.status == 'final' %}
+                            {{ pred.away_score or 0 }} - {{ pred.home_score or 0 }}
+                            {% else %}
+                            <span class="badge bg-secondary">{{ pred.status or 'pending' }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if pred.moneyline_correct == 1 %}
+                            <span class="badge bg-success">✓</span>
+                            {% elif pred.moneyline_correct == 0 %}
+                            <span class="badge bg-danger">✗</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Weights pie chart
+const ctx = document.getElementById('weightsChart').getContext('2d');
+
+const colors = [
+    '#5D1725', '#8B2942', '#B93B5E', '#E74C3C', '#F39C12', '#27AE60', '#3498DB'
+];
+
+new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: [{% for m in model_data %}'{{ m.name }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+        datasets: [{
+            data: [{% for m in model_data %}{{ m.weight_pct|round(1) }}{% if not loop.last %}, {% endif %}{% endfor %}],
+            backgroundColor: colors.slice(0, {{ model_data|length }}),
+            borderWidth: 2,
+            borderColor: '#fff'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'right',
+                labels: {
+                    padding: 15,
+                    usePointStyle: true
+                }
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.label + ': ' + context.parsed.toFixed(1) + '%';
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

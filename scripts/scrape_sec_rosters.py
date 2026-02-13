@@ -41,8 +41,8 @@ SEC_ROSTER_URLS = {
     },
     "arkansas": {
         "name": "Arkansas",
-        "roster_url": "https://arkansasrazorbacks.com/sports/baseball/roster/",
-        "site_type": "sidearm"
+        "roster_url": "https://arkansasrazorbacks.com/sport/m-basebl/roster/",
+        "site_type": "custom_arkansas"
     },
     "auburn": {
         "name": "Auburn",
@@ -150,27 +150,33 @@ def normalize_position(pos_str):
         return None
     pos_str = pos_str.strip()
     
-    # Map long form to abbreviations
-    mappings = {
-        'right-handed pitcher': 'RHP',
-        'left-handed pitcher': 'LHP',
-        'catcher': 'C',
-        'first base': '1B',
-        'second base': '2B',
-        'third base': '3B',
-        'shortstop': 'SS',
-        'outfield': 'OF',
-        'designated hitter': 'DH',
-        'infield': 'INF',
-        'utility': 'UTL',
-        'pitcher': 'P',
-    }
+    # Map long form to abbreviations (check in order - specific before general)
+    mappings = [
+        ('right-handed pitcher', 'RHP'),
+        ('left-handed pitcher', 'LHP'),
+        ('right handed pitcher', 'RHP'),
+        ('left handed pitcher', 'LHP'),
+        ('catcher', 'C'),
+        ('first base', '1B'),
+        ('second base', '2B'),
+        ('third base', '3B'),
+        ('shortstop', 'SS'),
+        ('outfielder', 'OF'),
+        ('outfield', 'OF'),
+        ('infielder', 'INF'),
+        ('infield', 'INF'),
+        ('designated hitter', 'DH'),
+        ('utility', 'UTL'),
+        ('pitcher', 'P'),
+    ]
     
-    result = pos_str.upper()
-    for key, val in mappings.items():
-        result = result.replace(key.upper(), val)
+    result = pos_str.lower()
+    for long_form, abbrev in mappings:
+        result = result.replace(long_form, abbrev)
     
-    # Clean up
+    result = result.upper()
+    
+    # Clean up any remaining words
     result = result.replace('RIGHT-HANDED', 'RHP').replace('LEFT-HANDED', 'LHP')
     result = re.sub(r'\s*/\s*', '/', result.strip())
     
@@ -293,6 +299,34 @@ def parse_sidearm_roster(html, team_id):
     if players:
         return players
     
+    # Try alternate pattern: Number|Name|Position|Height|Weight|Class (Kentucky, South Carolina style)
+    # Pattern: Number|Name|Position|Height|Weight lbs.|Class|...
+    # Supports both abbreviated (RHP) and full names (Right-handed Pitcher, Infielder)
+    pos_pattern = r'(RHP|LHP|C|1B|2B|3B|SS|OF|INF|UTL|IF|P|Right-handed Pitcher|Left-handed Pitcher|Catcher|Infielder|Outfielder|Pitcher|First Base|Second Base|Third Base|Shortstop)'
+    alt_pattern = r'\|(\d{1,2})\|([A-Z][a-zA-Z\'\-\s\.]+)\|' + pos_pattern + r'\|(\d+[\-\']\d+)\|(\d+)\s*(?:lbs?\.)?\|(Freshman|Sophomore|Junior|Senior|Graduate|Redshirt Freshman|Redshirt Sophomore|Redshirt Junior|Redshirt Senior|Fr\.|So\.|Jr\.|Sr\.|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.)\|'
+    
+    for match in re.finditer(alt_pattern, text):
+        number = int(match.group(1))
+        name = match.group(2).strip()
+        position = normalize_position(match.group(3).strip())
+        height = parse_height(match.group(4).strip())
+        weight = parse_weight(match.group(5).strip())
+        year = normalize_year(match.group(6).strip())
+        
+        players.append({
+            'name': name,
+            'number': number,
+            'position': position,
+            'year': year,
+            'height': height,
+            'weight': weight,
+            'bats': None,
+            'throws': None
+        })
+    
+    if players:
+        return players
+    
     # Method 2: Look for roster cards (older Sidearm)
     cards = soup.find_all('li', class_=re.compile(r'sidearm-roster-player'))
     if not cards:
@@ -393,6 +427,50 @@ def parse_sidearm_roster(html, team_id):
     return players
 
 
+def parse_arkansas_roster(html, team_id):
+    """
+    Parse Arkansas roster - uses simple table format
+    Format: Num | Name | Pos | Yr | Ht | Wt | B/T | Hometown | ...
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    players = []
+    
+    # Get text with pipe delimiter
+    text = soup.get_text('|', strip=True)
+    
+    # Pattern: number|name_link|pos|year|height|weight|b/t
+    # Look for the roster section by finding the pattern after "Num|Name|Pos|Yr|Ht|Wt|B/T"
+    pattern = r'\|(\d{1,2})\|([A-Z][a-zA-Z\'\-\s\.]+)\|([A-Z/]+)\|(Fr\.|So\.|Jr\.|Sr\.|Grad\.|R-Fr\.|R-So\.|R-Jr\.|R-Sr\.)\|(\d+-\d+)\|(\d+)\|([RLSB]/[RL])\|'
+    
+    for match in re.finditer(pattern, text):
+        number = int(match.group(1))
+        name = match.group(2).strip()
+        position = normalize_position(match.group(3).strip())
+        year = normalize_year(match.group(4).strip())
+        height = match.group(5).strip()
+        weight = int(match.group(6))
+        bt = match.group(7).strip()
+        
+        bats, throws = parse_bats_throws(bt)
+        
+        # Skip if name looks like something else (coaches section, etc.)
+        if 'Coach' in name or 'Staff' in name:
+            continue
+        
+        players.append({
+            'name': name,
+            'number': number,
+            'position': position,
+            'year': year,
+            'height': height,
+            'weight': weight,
+            'bats': bats,
+            'throws': throws
+        })
+    
+    return players
+
+
 def parse_lsu_roster(html, team_id):
     """
     Parse LSU roster - they have a specific format
@@ -473,7 +551,7 @@ def scrape_team_roster(team_id):
     if site_type == 'sidearm_lsu':
         players = parse_lsu_roster(html, team_id)
     elif site_type == 'custom_arkansas':
-        players = parse_sidearm_roster(html, team_id)  # Arkansas also uses Sidearm-like
+        players = parse_arkansas_roster(html, team_id)
     elif site_type == 'custom_vandy':
         players = parse_sidearm_roster(html, team_id)  # Try generic parser
     else:
