@@ -1,0 +1,115 @@
+{
+  "date": "2026-02-13",
+  "timestamp": "2026-02-13T08:34:54.353961",
+  "ncaa_stats": true,
+  "upcoming_games": [
+    {
+      "date": "2026-02-13",
+      "opponent": "Hofstra",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-14",
+      "opponent": "Hofstra",
+      "home": true,
+      "time": "1:00 PM"
+    },
+    {
+      "date": "2026-02-15",
+      "opponent": "Hofstra",
+      "home": true,
+      "time": "1:00 PM"
+    },
+    {
+      "date": "2026-02-17",
+      "opponent": "Troy",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-18",
+      "opponent": "Alcorn State",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-20",
+      "opponent": "Delaware",
+      "home": true,
+      "time": "4:00 PM"
+    }
+  ],
+  "predictions": [
+    {
+      "date": "2026-02-13",
+      "matchup": "Mississippi State vs Hofstra",
+      "prediction": {
+        "home_team": "Mississippi State",
+        "away_team": "Hofstra",
+        "home_win_probability": 0.504,
+        "away_win_probability": 0.496,
+        "predicted_winner": "Mississippi State",
+        "confidence": 0.008,
+        "projected_home_runs": 5.1,
+        "projected_away_runs": 4.9,
+        "projected_total": 10.0,
+        "model_inputs": {
+          "home_record": "0-0",
+          "away_record": "0-0",
+          "home_pythagorean": 0.5,
+          "away_pythagorean": 0.5,
+          "home_recent_form": 0.5,
+          "away_recent_form": 0.5
+        }
+      }
+    },
+    {
+      "date": "2026-02-14",
+      "matchup": "Mississippi State vs Hofstra",
+      "prediction": {
+        "home_team": "Mississippi State",
+        "away_team": "Hofstra",
+        "home_win_probability": 0.504,
+        "away_win_probability": 0.496,
+        "predicted_winner": "Mississippi State",
+        "confidence": 0.008,
+        "projected_home_runs": 5.1,
+        "projected_away_runs": 4.9,
+        "projected_total": 10.0,
+        "model_inputs": {
+          "home_record": "0-0",
+          "away_record": "0-0",
+          "home_pythagorean": 0.5,
+          "away_pythagorean": 0.5,
+          "home_recent_form": 0.5,
+          "away_recent_form": 0.5
+        }
+      }
+    },
+    {
+      "date": "2026-02-15",
+      "matchup": "Mississippi State vs Hofstra",
+      "prediction": {
+        "home_team": "Mississippi State",
+        "away_team": "Hofstra",
+        "home_win_probability": 0.504,
+        "away_win_probability": 0.496,
+        "predicted_winner": "Mississippi State",
+        "confidence": 0.008,
+        "projected_home_runs": 5.1,
+        "projected_away_runs": 4.9,
+        "projected_total": 10.0,
+        "model_inputs": {
+          "home_record": "0-0",
+          "away_record": "0-0",
+          "home_pythagorean": 0.5,
+          "away_pythagorean": 0.5,
+          "home_recent_form": 0.5,
+          "away_recent_form": 0.5
+        }
+      }
+    }
+  ],
+  "errors": []
+}

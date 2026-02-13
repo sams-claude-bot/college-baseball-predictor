@@ -1,0 +1,46 @@
+{
+  "season": 2026,
+  "season_start": "2026-02-13",
+  "primary_team": "mississippi-state",
+  "primary_conference": "sec",
+  "conferences": {
+    "sec": {
+      "name": "Southeastern Conference",
+      "divisions": {
+        "east": ["florida", "georgia", "kentucky", "missouri", "south-carolina", "tennessee", "texas-am", "vanderbilt"],
+        "west": ["alabama", "arkansas", "auburn", "lsu", "mississippi-state", "ole-miss", "oklahoma", "texas"]
+      }
+    }
+  },
+  "teams": {
+    "mississippi-state": {
+      "name": "Mississippi State",
+      "nickname": "Bulldogs",
+      "conference": "sec",
+      "division": "west",
+      "athletics_url": "https://hailstate.com/sports/baseball",
+      "schedule_url": "https://hailstate.com/sports/baseball/schedule",
+      "roster_url": "https://hailstate.com/sports/baseball/roster",
+      "ncaa_id": "mississippi-st",
+      "priority": 1
+    }
+  },
+  "data_sources": {
+    "ncaa_stats": "https://www.ncaa.com/stats/baseball/d1",
+    "ncaa_scores": "https://www.ncaa.com/scoreboard/baseball/d1",
+    "ncaa_standings": "https://www.ncaa.com/standings/baseball/d1",
+    "d1baseball_rankings": "https://d1baseball.com/top-25/d1baseball-top-25-rankings/"
+  },
+  "prediction_targets": {
+    "game_winner": true,
+    "series_winner": true,
+    "runs_scored": true,
+    "run_differential": true
+  },
+  "collection_schedule": {
+    "game_results": "daily",
+    "rankings": "weekly",
+    "rosters": "weekly",
+    "full_stats": "daily"
+  }
+}

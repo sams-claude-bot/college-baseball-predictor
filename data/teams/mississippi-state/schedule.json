@@ -1,0 +1,253 @@
+{
+  "team": "Mississippi State",
+  "season": 2026,
+  "fetched_at": "2026-02-13T08:34:35.218292",
+  "games": [
+    {
+      "date": "2026-02-13",
+      "opponent": "Hofstra",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-14",
+      "opponent": "Hofstra",
+      "home": true,
+      "time": "1:00 PM"
+    },
+    {
+      "date": "2026-02-15",
+      "opponent": "Hofstra",
+      "home": true,
+      "time": "1:00 PM"
+    },
+    {
+      "date": "2026-02-17",
+      "opponent": "Troy",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-18",
+      "opponent": "Alcorn State",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-20",
+      "opponent": "Delaware",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-21",
+      "opponent": "Delaware",
+      "home": true,
+      "time": "1:00 PM"
+    },
+    {
+      "date": "2026-02-22",
+      "opponent": "Delaware",
+      "home": true,
+      "time": "11:00 AM"
+    },
+    {
+      "date": "2026-02-24",
+      "opponent": "Austin Peay",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-02-27",
+      "opponent": "TBD",
+      "home": false,
+      "time": "11:00 AM",
+      "notes": "Amegy Bank College Baseball Series"
+    },
+    {
+      "date": "2026-02-28",
+      "opponent": "TBD",
+      "home": false,
+      "time": "3:00 PM",
+      "notes": "Amegy Bank College Baseball Series"
+    },
+    {
+      "date": "2026-03-01",
+      "opponent": "UCLA",
+      "home": false,
+      "time": "2:30 PM",
+      "venue": "Globe Life Field, Arlington TX"
+    },
+    {
+      "date": "2026-03-06",
+      "opponent": "Lipscomb",
+      "home": true,
+      "time": "4:00 PM"
+    },
+    {
+      "date": "2026-03-07",
+      "opponent": "Lipscomb",
+      "home": true,
+      "time": "6:00 PM"
+    },
+    {
+      "date": "2026-03-08",
+      "opponent": "Lipscomb",
+      "home": true,
+      "time": "1:00 PM"
+    },
+    {
+      "date": "2026-03-17",
+      "opponent": "Jackson State",
+      "home": true,
+      "time": "6:00 PM",
+      "notes": "Hancock Whitney Classic"
+    },
+    {
+      "date": "2026-03-20",
+      "opponent": "Vanderbilt",
+      "home": true,
+      "time": "7:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-03-21",
+      "opponent": "Vanderbilt",
+      "home": true,
+      "time": "6:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-03-22",
+      "opponent": "Vanderbilt",
+      "home": true,
+      "time": "1:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-03-24",
+      "opponent": "Southern Miss",
+      "home": true,
+      "time": "6:00 PM"
+    },
+    {
+      "date": "2026-03-31",
+      "opponent": "Grambling State",
+      "home": true,
+      "time": "6:00 PM"
+    },
+    {
+      "date": "2026-04-02",
+      "opponent": "Georgia",
+      "home": true,
+      "time": "6:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-04-03",
+      "opponent": "Georgia",
+      "home": true,
+      "time": "6:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-04-04",
+      "opponent": "Georgia",
+      "home": true,
+      "time": "1:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-04-07",
+      "opponent": "UAB",
+      "home": true,
+      "time": "6:00 PM"
+    },
+    {
+      "date": "2026-04-10",
+      "opponent": "Tennessee",
+      "home": true,
+      "time": "6:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-04-11",
+      "opponent": "Tennessee",
+      "home": true,
+      "time": "6:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-04-12",
+      "opponent": "Tennessee",
+      "home": true,
+      "time": "1:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-04-21",
+      "opponent": "Memphis",
+      "home": true,
+      "time": "6:00 PM"
+    },
+    {
+      "date": "2026-04-24",
+      "opponent": "LSU",
+      "home": true,
+      "time": "6:00 PM",
+      "conference": true,
+      "notes": "Super Bulldog Weekend"
+    },
+    {
+      "date": "2026-04-25",
+      "opponent": "LSU",
+      "home": true,
+      "time": "6:30 PM",
+      "conference": true,
+      "notes": "Super Bulldog Weekend"
+    },
+    {
+      "date": "2026-04-26",
+      "opponent": "LSU",
+      "home": true,
+      "time": "1:00 PM",
+      "conference": true,
+      "notes": "Super Bulldog Weekend"
+    },
+    {
+      "date": "2026-05-05",
+      "opponent": "Nicholls State",
+      "home": true,
+      "time": "6:00 PM",
+      "notes": "Governor's Cup"
+    },
+    {
+      "date": "2026-05-07",
+      "opponent": "Auburn",
+      "home": false,
+      "time": "7:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-05-08",
+      "opponent": "Auburn",
+      "home": false,
+      "time": "7:30 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-05-09",
+      "opponent": "Auburn",
+      "home": false,
+      "time": "3:00 PM",
+      "conference": true
+    },
+    {
+      "date": "2026-05-19",
+      "opponent": "SEC Tournament",
+      "home": false,
+      "time": "TBA",
+      "notes": "SEC Tournament May 19-24"
+    }
+  ]
+}

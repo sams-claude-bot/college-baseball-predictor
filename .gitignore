@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+*.log
+# Keep structure but ignore large data files if needed
+# data/snapshots/*.json  # Uncomment if snapshots get too large
