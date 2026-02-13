@@ -27,6 +27,7 @@ from fpdf.enums import XPos, YPos
 
 from compare_models import MODELS, normalize_team_id
 from database import get_connection, get_current_top_25
+from betting_lines import american_to_implied_prob, implied_prob_to_american
 
 # Ensure reports directory exists
 _reports_dir.mkdir(parents=True, exist_ok=True)
@@ -209,6 +210,60 @@ def create_value_chart(value_picks, output_path):
     for bar, edge in zip(bars, edges):
         ax.annotate(f'{edge:.1f}%', xy=(bar.get_width(), bar.get_y() + bar.get_height() / 2),
                     xytext=(5, 0), textcoords="offset points", ha='left', va='center')
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    return True
+
+
+def get_betting_lines_for_report(days=4):
+    """Fetch betting lines for upcoming games"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT home_team_id, away_team_id, home_ml, away_ml, over_under, date
+        FROM betting_lines
+        WHERE date >= date('now')
+          AND date <= date('now', ? || ' days')
+        ORDER BY date
+    ''', (str(days),))
+    rows = c.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def create_ev_chart(value_picks, output_path):
+    """Create EV/edge chart for value picks"""
+    if not value_picks:
+        return False
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+    picks = [v[0][:25] for v in value_picks]
+    edges = [v[1] for v in value_picks]
+    evs = [v[2] for v in value_picks]
+
+    # Edge chart
+    colors = ['#2ecc71' if e > 10 else '#f39c12' if e > 5 else '#3498db' for e in edges]
+    bars1 = ax1.barh(picks, edges, color=colors)
+    ax1.set_xlabel('Edge vs DraftKings (%)')
+    ax1.set_title('Model Edge')
+    ax1.axvline(x=5, color='orange', linestyle='--', alpha=0.7)
+    ax1.axvline(x=10, color='green', linestyle='--', alpha=0.7)
+    for bar, val in zip(bars1, edges):
+        ax1.annotate(f'{val:.1f}%', xy=(bar.get_width(), bar.get_y() + bar.get_height() / 2),
+                     xytext=(5, 0), textcoords="offset points", ha='left', va='center', fontsize=8)
+
+    # EV chart
+    ev_colors = ['#2ecc71' if e > 0 else '#e74c3c' for e in evs]
+    bars2 = ax2.barh(picks, evs, color=ev_colors)
+    ax2.set_xlabel('Expected Value per $100 Bet')
+    ax2.set_title('EV per $100')
+    ax2.axvline(x=0, color='black', linewidth=0.5)
+    for bar, val in zip(bars2, evs):
+        ax2.annotate(f'${val:.1f}', xy=(bar.get_width(), bar.get_y() + bar.get_height() / 2),
+                     xytext=(5, 0), textcoords="offset points", ha='left', va='center', fontsize=8)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -498,6 +553,141 @@ def generate_weekend_preview(output_path=None):
             pdf.body_text("No ranked team games found for this weekend.")
     else:
         pdf.body_text("No Top 25 rankings loaded yet.")
+
+    # ─── Expected Value vs DraftKings ───
+    ev_page_added = False
+    betting_games = get_betting_lines_for_report(days=4)
+    if betting_games:
+        pdf.add_page()
+        pdf.chapter_title('EXPECTED VALUE vs DRAFTKINGS')
+        pdf.body_text('Model probability vs implied odds. Positive EV = value bet.')
+        pdf.body_text('Edge = Model Prob - DK Implied Prob. EV = Edge * Payout.')
+        pdf.ln(3)
+
+        value_picks = []  # Collect for summary chart
+
+        for bl in betting_games:
+            home_id = bl['home_team_id']
+            away_id = bl['away_team_id']
+            home_ml = bl['home_ml']
+            away_ml = bl['away_ml']
+            over_under = bl.get('over_under')
+
+            h_name = display_name(home_id)
+            a_name = display_name(away_id)
+
+            # DK implied probs (vig-removed)
+            dk_home_raw = american_to_implied_prob(home_ml)
+            dk_away_raw = american_to_implied_prob(away_ml)
+            total_vig = dk_home_raw + dk_away_raw
+            dk_home = dk_home_raw / total_vig
+            dk_away = dk_away_raw / total_vig
+
+            pdf.section_title(f'{a_name} @ {h_name}')
+            pdf.set_font('Courier', '', 8)
+            pdf.mono_line(f"  DraftKings:  {h_name} {home_ml:+d} ({dk_home*100:.1f}%)  |  {a_name} {away_ml:+d} ({dk_away*100:.1f}%)")
+            if over_under:
+                pdf.mono_line(f"  O/U: {over_under}")
+            pdf.mono_line("")
+
+            # Header
+            pdf.mono_line(f"  {'Model':<14} {'Prob':>6} {'DK':>6} {'Edge':>7} {'ML EV':>8} {'Rating'}")
+            pdf.mono_line("  " + "-" * 58)
+
+            for model_name, model in MODELS.items():
+                try:
+                    pred = model.predict_game(home_id, away_id)
+                    model_prob = pred['home_win_probability']
+
+                    # Home side edge
+                    home_edge = (model_prob - dk_home) * 100
+                    # Away side edge
+                    away_edge = ((1 - model_prob) - dk_away) * 100
+
+                    # EV calculation: if we bet $100 on the side with edge
+                    if home_edge > away_edge:
+                        # Home is the value side
+                        edge_pct = home_edge
+                        if home_ml > 0:
+                            payout = home_ml / 100
+                        else:
+                            payout = 100 / abs(home_ml)
+                        ev = model_prob * payout - (1 - model_prob)
+                        ev_dollars = ev * 100  # Per $100 bet
+                        pick_side = h_name
+                    else:
+                        edge_pct = away_edge
+                        if away_ml > 0:
+                            payout = away_ml / 100
+                        else:
+                            payout = 100 / abs(away_ml)
+                        ev = (1 - model_prob) * payout - model_prob
+                        ev_dollars = ev * 100
+                        pick_side = a_name
+
+                    # Rating
+                    if edge_pct > 10:
+                        rating = "STRONG"
+                    elif edge_pct > 5:
+                        rating = "GOOD"
+                    elif edge_pct > 2:
+                        rating = "LEAN"
+                    else:
+                        rating = "--"
+
+                    pdf.mono_line(
+                        f"  {model_name:<14} {model_prob*100:>5.1f}% {dk_home*100:>5.1f}% {home_edge:>+6.1f}% "
+                        f"${ev_dollars:>+6.1f}  {rating}"
+                    )
+
+                    # Track for value picks summary
+                    if model_name == 'ensemble' and abs(edge_pct) > 3:
+                        value_picks.append((
+                            f"{pick_side} ({home_ml:+d}/{away_ml:+d})",
+                            edge_pct,
+                            ev_dollars,
+                            f"{a_name} @ {h_name}"
+                        ))
+                except Exception:
+                    pass
+
+            # Totals comparison
+            if over_under:
+                pdf.mono_line("")
+                pdf.mono_line(f"  {'Model':<14} {'Proj Total':>10} {'DK O/U':>8} {'Lean':>8}")
+                pdf.mono_line("  " + "-" * 42)
+                for model_name, model in MODELS.items():
+                    try:
+                        pred = model.predict_game(home_id, away_id)
+                        proj = pred['projected_total']
+                        diff = proj - over_under
+                        lean = "OVER" if diff > 0.5 else "UNDER" if diff < -0.5 else "PUSH"
+                        pdf.mono_line(f"  {model_name:<14} {proj:>9.1f} {over_under:>8.1f} {lean:>8}")
+                    except Exception:
+                        pass
+
+            pdf.ln(5)
+
+        # Value picks summary with chart
+        if value_picks:
+            pdf.add_page()
+            pdf.chapter_title('VALUE PICKS SUMMARY')
+            pdf.body_text('Ensemble model picks with >3% edge vs DraftKings.')
+            pdf.ln(3)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                ev_chart = os.path.join(tmpdir, "ev_chart.png")
+                if create_ev_chart(value_picks, ev_chart):
+                    pdf.image(ev_chart, x=10, w=190)
+                    pdf.ln(5)
+
+            pdf.set_font('Courier', '', 9)
+            pdf.mono_line(f"  {'Pick':<35} {'Edge':>7} {'EV/$100':>9} {'Game'}")
+            pdf.mono_line("  " + "-" * 65)
+            for pick, edge, ev, game in sorted(value_picks, key=lambda x: x[1], reverse=True):
+                pdf.mono_line(f"  {pick:<35} {edge:>+6.1f}% ${ev:>+7.1f}  {game}")
+
+        ev_page_added = True
 
     # ─── Footer ───
     pdf.ln(15)
