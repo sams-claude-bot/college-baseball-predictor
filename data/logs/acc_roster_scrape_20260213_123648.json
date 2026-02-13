@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-02-13T12:35:48.535732",
+  "teams": {
+    "boston-college": {
+      "parsed": 40,
+      "saved": 40
+    },
+    "california": {
+      "parsed": 43,
+      "saved": 43
+    },
+    "clemson": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "duke": {
+      "parsed": 43,
+      "saved": 43
+    },
+    "florida-state": {
+      "parsed": 37,
+      "saved": 37
+    },
+    "georgia-tech": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "louisville": {
+      "parsed": 43,
+      "saved": 43
+    },
+    "miami-fl": {
+      "parsed": 2,
+      "saved": 2
+    },
+    "nc-state": {
+      "parsed": 34,
+      "saved": 34
+    },
+    "north-carolina": {
+      "parsed": 38,
+      "saved": 38
+    },
+    "notre-dame": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "pittsburgh": {
+      "parsed": 38,
+      "saved": 38
+    },
+    "smu": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "stanford": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "syracuse": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "virginia": {
+      "parsed": 0,
+      "saved": 0
+    },
+    "wake-forest": {
+      "parsed": 36,
+      "saved": 36
+    }
+  }
+}
