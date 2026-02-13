@@ -15,29 +15,35 @@ from base_model import BaseModel
 from pythagorean_model import PythagoreanModel
 from elo_model import EloModel
 from log5_model import Log5Model
+from advanced_model import AdvancedModel
 
 class EnsembleModel(BaseModel):
     name = "ensemble"
-    version = "1.0"
-    description = "Weighted combination of multiple models"
+    version = "2.0"
+    description = "Weighted combination of multiple models (includes advanced)"
     
     def __init__(self, weights=None):
         """
         Initialize with model weights
         
         weights: dict of {model_name: weight}
-        Default: Equal weights
+        Default: Advanced model weighted higher
         """
         self.models = {
             "pythagorean": PythagoreanModel(),
             "elo": EloModel(),
-            "log5": Log5Model()
+            "log5": Log5Model(),
+            "advanced": AdvancedModel()
         }
         
+        # Default: Weight advanced model higher (it has more sophisticated features)
         if weights is None:
-            # Equal weights
-            n = len(self.models)
-            self.weights = {name: 1/n for name in self.models}
+            self.weights = {
+                "pythagorean": 0.2,
+                "elo": 0.25,
+                "log5": 0.15,
+                "advanced": 0.4  # Highest weight for advanced model
+            }
         else:
             self.weights = weights
         

@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from pythagorean_model import PythagoreanModel
 from elo_model import EloModel
 from log5_model import Log5Model
+from advanced_model import AdvancedModel
 from ensemble_model import EnsembleModel
 from database import get_connection
 
@@ -22,6 +23,7 @@ MODELS = {
     "pythagorean": PythagoreanModel(),
     "elo": EloModel(),
     "log5": Log5Model(),
+    "advanced": AdvancedModel(),
     "ensemble": EnsembleModel()
 }
 
