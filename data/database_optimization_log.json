@@ -1,86 +1,32 @@
 {
-  "optimization_time": "2026-02-13T22:21:32.512227",
-  "duration_seconds": 0.084651,
+  "optimization_time": "2026-02-13T22:26:40.221559",
+  "duration_seconds": 0.039022,
   "orphaned_records_removed": 4,
-  "space_saved_mb": 0.125,
+  "space_saved_mb": 0.21875,
   "integrity_issues_count": 0,
   "actions": [
     {
-      "timestamp": "2026-02-13T22:21:32.515637",
+      "timestamp": "2026-02-13T22:26:40.224004",
       "action": "REMOVE_ORPHANED",
-      "details": "elo_ratings records",
-      "rows_affected": 4
+      "details": "betting_lines records",
+      "rows_affected": 2
     },
     {
-      "timestamp": "2026-02-13T22:21:32.529747",
-      "action": "CREATE_INDEX",
-      "details": "idx_games_home_team on games.home_team_id",
-      "rows_affected": 0
+      "timestamp": "2026-02-13T22:26:40.224839",
+      "action": "REMOVE_ORPHANED",
+      "details": "game_predictions records",
+      "rows_affected": 2
     },
     {
-      "timestamp": "2026-02-13T22:21:32.534027",
-      "action": "CREATE_INDEX",
-      "details": "idx_games_away_team on games.away_team_id",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.537920",
-      "action": "CREATE_INDEX",
-      "details": "idx_games_status on games.status",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.542065",
-      "action": "CREATE_INDEX",
-      "details": "idx_betting_lines_game on betting_lines.game_id",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.546253",
-      "action": "CREATE_INDEX",
-      "details": "idx_betting_lines_date on betting_lines.date",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.550931",
-      "action": "CREATE_INDEX",
-      "details": "idx_game_predictions_game on game_predictions.game_id",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.555123",
-      "action": "CREATE_INDEX",
-      "details": "idx_game_predictions_model on game_predictions.model",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.559094",
-      "action": "CREATE_INDEX",
-      "details": "idx_player_stats_team on player_stats.team_id",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.564169",
-      "action": "CREATE_INDEX",
-      "details": "idx_player_stats_position on player_stats.position",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.568102",
-      "action": "CREATE_INDEX",
-      "details": "idx_elo_team on elo_ratings.team_id",
-      "rows_affected": 0
-    },
-    {
-      "timestamp": "2026-02-13T22:21:32.569633",
+      "timestamp": "2026-02-13T22:26:40.236028",
       "action": "INTEGRITY_CHECK",
       "details": "All relationships valid",
       "rows_affected": 0
     },
     {
-      "timestamp": "2026-02-13T22:21:32.596679",
+      "timestamp": "2026-02-13T22:26:40.260388",
       "action": "VACUUM",
-      "details": "Reclaimed 0.12 MB",
+      "details": "Reclaimed 0.22 MB",
       "rows_affected": 0
     }
   ]
