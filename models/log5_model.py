@@ -15,11 +15,11 @@ from pathlib import Path
 
 _models_dir = Path(__file__).parent
 _scripts_dir = _models_dir.parent / "scripts"
-sys.path.insert(0, str(_models_dir))
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from base_model import BaseModel
-from database import get_team_record, get_team_runs
+from models.base_model import BaseModel
+from scripts.database import get_team_record, get_team_runs
 
 class Log5Model(BaseModel):
     name = "log5"

@@ -16,8 +16,8 @@ import tempfile
 _scripts_dir = Path(__file__).parent
 _models_dir = _scripts_dir.parent / "models"
 _reports_dir = _scripts_dir.parent / "reports"
-sys.path.insert(0, str(_scripts_dir))
-sys.path.insert(0, str(_models_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
+# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
 
 import matplotlib
 matplotlib.use('Agg')
@@ -25,9 +25,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from fpdf import FPDF
 
-from player_stats import get_starting_pitchers, get_top_hitters, get_team_roster
+from scripts.player_stats import get_starting_pitchers, get_top_hitters, get_team_roster
 from compare_models import MODELS, normalize_team_id
-from database import get_connection, get_team_record, get_team_runs
+from scripts.database import get_connection, get_team_record, get_team_runs
 
 _reports_dir.mkdir(parents=True, exist_ok=True)
 

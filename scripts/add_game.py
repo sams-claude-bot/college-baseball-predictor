@@ -31,8 +31,8 @@ GAMES_FILE = BASE_DIR / "data" / "games" / "all_games.json"
 GAMES_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 # Add models to path
-sys.path.insert(0, str(BASE_DIR / "models"))
-sys.path.insert(0, str(BASE_DIR / "scripts"))
+# sys.path.insert(0, str(BASE_DIR / "models"))  # Removed by cleanup
+# sys.path.insert(0, str(BASE_DIR / "scripts"))  # Removed by cleanup
 
 # SEC teams for auto-tagging conference games
 SEC_TEAMS = [
@@ -61,7 +61,7 @@ def update_model_accuracy(home_team, away_team, home_won, neutral_site=False):
     This updates the ensemble model's weight adjustments.
     """
     try:
-        from ensemble_model import EnsembleModel
+        from models.ensemble_model import EnsembleModel
         
         ensemble = EnsembleModel()
         home_id = home_team.lower().replace(" ", "-")
@@ -90,7 +90,7 @@ def add_game_to_database(home_team, away_team, home_score, away_score, date,
                          neutral_site=False, conference_game=False):
     """Add game to SQLite database"""
     try:
-        from database import add_game as db_add_game
+        from scripts.database import add_game as db_add_game
         
         winner_id = home_team.lower().replace(" ", "-") if home_score > away_score else away_team.lower().replace(" ", "-")
         
@@ -107,7 +107,7 @@ def add_game_to_database(home_team, away_team, home_score, away_score, date,
         
         # Update Elo ratings
         try:
-            from elo_model import EloModel
+            from models.elo_model import EloModel
             elo = EloModel()
             margin = home_score - away_score
             elo.update_ratings(
@@ -202,7 +202,7 @@ def show_recent(n=10):
 def show_model_accuracy():
     """Show current model accuracy stats"""
     try:
-        from ensemble_model import EnsembleModel
+        from models.ensemble_model import EnsembleModel
         ensemble = EnsembleModel()
         print(ensemble.get_weights_report())
     except Exception as e:

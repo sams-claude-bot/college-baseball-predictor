@@ -19,10 +19,10 @@ import requests
 from bs4 import BeautifulSoup
 
 _scripts_dir = Path(__file__).parent
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from database import get_connection, add_team
-from player_stats import add_player, init_player_tables
+from scripts.database import get_connection, add_team
+from scripts.player_stats import add_player, init_player_tables
 
 DB_PATH = Path(__file__).parent.parent / "data" / "baseball.db"
 

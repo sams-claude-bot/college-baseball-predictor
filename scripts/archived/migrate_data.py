@@ -6,7 +6,7 @@ Also seeds initial data (SEC teams, known tournaments)
 
 import json
 from pathlib import Path
-from database import (
+from scripts.database import (
     init_database, add_team, add_tournament, add_game, 
     get_connection, DB_PATH
 )

@@ -23,9 +23,9 @@ from pathlib import Path
 from datetime import datetime
 
 _scripts_dir = Path(__file__).parent
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from database import get_connection
+from scripts.database import get_connection
 
 # Try to import web_fetch helper, fall back to requests
 try:

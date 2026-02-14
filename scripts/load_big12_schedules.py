@@ -4,11 +4,12 @@ Load full 2026 schedules for all 16 Big 12 teams.
 Parses schedule data from athletics websites and inserts into database.
 """
 
+from pathlib import Path
 import sqlite3
 import re
 from datetime import datetime
 
-DB_PATH = "/home/sam/college-baseball-predictor/data/baseball.db"
+DB_PATH = "~/college-baseball-predictor/data/baseball.db"
 
 # All 16 Big 12 teams with their standard IDs
 BIG12_TEAMS = {

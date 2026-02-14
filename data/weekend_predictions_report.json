@@ -1,0 +1,4948 @@
+{
+  "generation_time": "2026-02-13T22:23:41.123044",
+  "weekend_dates": [
+    "2026-02-14",
+    "2026-02-15",
+    "2026-02-16"
+  ],
+  "total_games": 109,
+  "model_results": {
+    "elo": [
+      {
+        "game_id": "2026-02-14-arizona-state-omaha",
+        "date": "2026-02-14",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-14-byu-western-kentucky",
+        "date": "2026-02-14",
+        "home_team": "western-kentucky",
+        "away_team": "byu",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "byu"
+      },
+      {
+        "game_id": "2026-02-14_army_clemson",
+        "date": "2026-02-14",
+        "home_team": "clemson",
+        "away_team": "army",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "army"
+      },
+      {
+        "game_id": "2026-02-14_belmont_illinois",
+        "date": "2026-02-14",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-14_central-arkansas_baylor",
+        "date": "2026-02-14",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-14_chicago-state_northwestern",
+        "date": "2026-02-14",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-14_cincinnati_jacksonville-state",
+        "date": "2026-02-14",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-14_delaware_virginia",
+        "date": "2026-02-14",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-14_fau_miami-fl",
+        "date": "2026-02-14",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-14_fresno-state_stanford",
+        "date": "2026-02-14",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-14_hartford_notre-dame",
+        "date": "2026-02-14",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-14_hofstra_mississippi-state",
+        "date": "2026-02-14",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-14_illinois_houston",
+        "date": "2026-02-14",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-14_indiana_unc_g1",
+        "date": "2026-02-14",
+        "home_team": "north-carolina",
+        "away_team": "indiana",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "indiana"
+      },
+      {
+        "game_id": "2026-02-14_iowa_southeastern-louisiana",
+        "date": "2026-02-14",
+        "home_team": "southeastern-louisiana",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-14_james-madison_florida-state",
+        "date": "2026-02-14",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-14_kansas_utrgv",
+        "date": "2026-02-14",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_unc-greensboro",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_uncg_g2",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_lehigh_duke",
+        "date": "2026-02-14",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-14_maine_syracuse",
+        "date": "2026-02-14",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-14_maryland_uncw",
+        "date": "2026-02-14",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-14_michigan-state_louisville",
+        "date": "2026-02-14",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-14_milwaukee_lsu",
+        "date": "2026-02-14",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-14_minnesota_utah-tech",
+        "date": "2026-02-14",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-14_nebraska_butler",
+        "date": "2026-02-14",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-14_nevada_olemiss",
+        "date": "2026-02-14",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-14_nicholls_tennessee",
+        "date": "2026-02-14",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-14_northern-kentucky_south-carolina",
+        "date": "2026-02-14",
+        "home_team": "south-carolina",
+        "away_team": "northern-kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "northern-kentucky"
+      },
+      {
+        "game_id": "2026-02-14_ohio-state_uc-san-diego",
+        "date": "2026-02-14",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-14_penn-state_high-point",
+        "date": "2026-02-14",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-14_pepperdine_usc",
+        "date": "2026-02-14",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-14_quinnipiac_nc-state",
+        "date": "2026-02-14",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-14_rhode-island_wake-forest",
+        "date": "2026-02-14",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-14_rutgers_bethune-cookman",
+        "date": "2026-02-14",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-14_san-diego_oregon",
+        "date": "2026-02-14",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-14_siena_ucf",
+        "date": "2026-02-14",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-14_stephen-f-austin_smu",
+        "date": "2026-02-14",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-14_tennessee-tech_texas-am",
+        "date": "2026-02-14",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-14_toledo_georgia-tech",
+        "date": "2026-02-14",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-14_uab_florida",
+        "date": "2026-02-14",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-14_uc-davis_texas",
+        "date": "2026-02-14",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-14_uconn_kansas-state",
+        "date": "2026-02-14",
+        "home_team": "kansas-state",
+        "away_team": "uconn",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uconn"
+      },
+      {
+        "game_id": "2026-02-14_umass_boston-college",
+        "date": "2026-02-14",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-14_washington-state_alabama",
+        "date": "2026-02-14",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-14_west-virginia_georgia-southern",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g1",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wvu_georgia-southern_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_youngstown-state_auburn",
+        "date": "2026-02-14",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-wake-forest-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "washington",
+        "away_team": "wake-forest",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wake-forest"
+      },
+      {
+        "game_id": "2026-02-15-arizona-state-omaha",
+        "date": "2026-02-15",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-15_belmont_illinois",
+        "date": "2026-02-15",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-15_cal_santa-clara",
+        "date": "2026-02-15",
+        "home_team": "santa-clara",
+        "away_team": "california",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "california"
+      },
+      {
+        "game_id": "2026-02-15_central-arkansas_baylor",
+        "date": "2026-02-15",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-15_chicago-state_northwestern",
+        "date": "2026-02-15",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-15_cincinnati_jacksonville-state",
+        "date": "2026-02-15",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-15_delaware_virginia",
+        "date": "2026-02-15",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-15_fau_miami-fl",
+        "date": "2026-02-15",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-15_fresno-state_stanford",
+        "date": "2026-02-15",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-15_hartford_notre-dame",
+        "date": "2026-02-15",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-15_hofstra_mississippi-state",
+        "date": "2026-02-15",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-15_illinois_houston",
+        "date": "2026-02-15",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-15_iowa_new-orleans",
+        "date": "2026-02-15",
+        "home_team": "new-orleans",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-15_james-madison_florida-state",
+        "date": "2026-02-15",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-15_kansas_utrgv",
+        "date": "2026-02-15",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-15_lehigh_duke",
+        "date": "2026-02-15",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-15_maine_syracuse",
+        "date": "2026-02-15",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-15_maryland_uncw",
+        "date": "2026-02-15",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-15_michigan-state_louisville",
+        "date": "2026-02-15",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-15_milwaukee_lsu",
+        "date": "2026-02-15",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-15_minnesota_utah-tech",
+        "date": "2026-02-15",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-15_nebraska_butler",
+        "date": "2026-02-15",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-15_nevada_olemiss",
+        "date": "2026-02-15",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-15_nicholls_tennessee",
+        "date": "2026-02-15",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-15_ohio-state_uc-san-diego",
+        "date": "2026-02-15",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-15_oklahoma-state_texas-tech",
+        "date": "2026-02-15",
+        "home_team": "texas-tech",
+        "away_team": "oklahoma-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "oklahoma-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_high-point",
+        "date": "2026-02-15",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_kansas-state",
+        "date": "2026-02-15",
+        "home_team": "kansas-state",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_pepperdine_usc",
+        "date": "2026-02-15",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-15_purdue_northern-kentucky",
+        "date": "2026-02-15",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-15_quinnipiac_nc-state",
+        "date": "2026-02-15",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-15_rhode-island_wake-forest",
+        "date": "2026-02-15",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-15_rutgers_bethune-cookman",
+        "date": "2026-02-15",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-15_san-diego_oregon",
+        "date": "2026-02-15",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-15_siena_ucf",
+        "date": "2026-02-15",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-15_stephen-f-austin_smu",
+        "date": "2026-02-15",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-15_tennessee-tech_texas-am",
+        "date": "2026-02-15",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-15_toledo_georgia-tech",
+        "date": "2026-02-15",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-15_uab_florida",
+        "date": "2026-02-15",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-15_uc-davis_texas",
+        "date": "2026-02-15",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-15_umass_boston-college",
+        "date": "2026-02-15",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-15_washington-state_alabama",
+        "date": "2026-02-15",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-15_youngstown-state_auburn",
+        "date": "2026-02-15",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-boston-college-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "washington",
+        "away_team": "boston-college",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "boston-college"
+      },
+      {
+        "game_id": "2026-02-16_air-force_kansas-state",
+        "date": "2026-02-16",
+        "home_team": "kansas-state",
+        "away_team": "air-force",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "air-force"
+      },
+      {
+        "game_id": "2026-02-16_chicago-state_northwestern",
+        "date": "2026-02-16",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-16_iowa_mcneese",
+        "date": "2026-02-16",
+        "home_team": "mcneese",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-16_kent-state_lsu",
+        "date": "2026-02-16",
+        "home_team": "lsu",
+        "away_team": "kent-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kent-state"
+      },
+      {
+        "game_id": "2026-02-16_minnesota_utah-tech",
+        "date": "2026-02-16",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-16_ohio-state_uc-san-diego",
+        "date": "2026-02-16",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-16_penn-state_high-point",
+        "date": "2026-02-16",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-16_purdue_northern-kentucky",
+        "date": "2026-02-16",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-16_rutgers_bethune-cookman",
+        "date": "2026-02-16",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-16_san-diego_oregon",
+        "date": "2026-02-16",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-16_san-francisco_ucla",
+        "date": "2026-02-16",
+        "home_team": "ucla",
+        "away_team": "san-francisco",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-francisco"
+      },
+      {
+        "game_id": "2026-02-16_santa-clara_washington",
+        "date": "2026-02-16",
+        "home_team": "washington",
+        "away_team": "santa-clara",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "santa-clara"
+      }
+    ],
+    "log5": [
+      {
+        "game_id": "2026-02-14-arizona-state-omaha",
+        "date": "2026-02-14",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-14-byu-western-kentucky",
+        "date": "2026-02-14",
+        "home_team": "western-kentucky",
+        "away_team": "byu",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "byu"
+      },
+      {
+        "game_id": "2026-02-14_army_clemson",
+        "date": "2026-02-14",
+        "home_team": "clemson",
+        "away_team": "army",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "army"
+      },
+      {
+        "game_id": "2026-02-14_belmont_illinois",
+        "date": "2026-02-14",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-14_central-arkansas_baylor",
+        "date": "2026-02-14",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-14_chicago-state_northwestern",
+        "date": "2026-02-14",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-14_cincinnati_jacksonville-state",
+        "date": "2026-02-14",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-14_delaware_virginia",
+        "date": "2026-02-14",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-14_fau_miami-fl",
+        "date": "2026-02-14",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-14_fresno-state_stanford",
+        "date": "2026-02-14",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-14_hartford_notre-dame",
+        "date": "2026-02-14",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-14_hofstra_mississippi-state",
+        "date": "2026-02-14",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-14_illinois_houston",
+        "date": "2026-02-14",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-14_indiana_unc_g1",
+        "date": "2026-02-14",
+        "home_team": "north-carolina",
+        "away_team": "indiana",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "indiana"
+      },
+      {
+        "game_id": "2026-02-14_iowa_southeastern-louisiana",
+        "date": "2026-02-14",
+        "home_team": "southeastern-louisiana",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-14_james-madison_florida-state",
+        "date": "2026-02-14",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-14_kansas_utrgv",
+        "date": "2026-02-14",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_unc-greensboro",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_uncg_g2",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_lehigh_duke",
+        "date": "2026-02-14",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-14_maine_syracuse",
+        "date": "2026-02-14",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-14_maryland_uncw",
+        "date": "2026-02-14",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-14_michigan-state_louisville",
+        "date": "2026-02-14",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-14_milwaukee_lsu",
+        "date": "2026-02-14",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-14_minnesota_utah-tech",
+        "date": "2026-02-14",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-14_nebraska_butler",
+        "date": "2026-02-14",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-14_nevada_olemiss",
+        "date": "2026-02-14",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-14_nicholls_tennessee",
+        "date": "2026-02-14",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-14_northern-kentucky_south-carolina",
+        "date": "2026-02-14",
+        "home_team": "south-carolina",
+        "away_team": "northern-kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "northern-kentucky"
+      },
+      {
+        "game_id": "2026-02-14_ohio-state_uc-san-diego",
+        "date": "2026-02-14",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-14_penn-state_high-point",
+        "date": "2026-02-14",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-14_pepperdine_usc",
+        "date": "2026-02-14",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-14_quinnipiac_nc-state",
+        "date": "2026-02-14",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-14_rhode-island_wake-forest",
+        "date": "2026-02-14",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-14_rutgers_bethune-cookman",
+        "date": "2026-02-14",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-14_san-diego_oregon",
+        "date": "2026-02-14",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-14_siena_ucf",
+        "date": "2026-02-14",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-14_stephen-f-austin_smu",
+        "date": "2026-02-14",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-14_tennessee-tech_texas-am",
+        "date": "2026-02-14",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-14_toledo_georgia-tech",
+        "date": "2026-02-14",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-14_uab_florida",
+        "date": "2026-02-14",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-14_uc-davis_texas",
+        "date": "2026-02-14",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-14_uconn_kansas-state",
+        "date": "2026-02-14",
+        "home_team": "kansas-state",
+        "away_team": "uconn",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uconn"
+      },
+      {
+        "game_id": "2026-02-14_umass_boston-college",
+        "date": "2026-02-14",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-14_washington-state_alabama",
+        "date": "2026-02-14",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-14_west-virginia_georgia-southern",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g1",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wvu_georgia-southern_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_youngstown-state_auburn",
+        "date": "2026-02-14",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-wake-forest-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "washington",
+        "away_team": "wake-forest",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wake-forest"
+      },
+      {
+        "game_id": "2026-02-15-arizona-state-omaha",
+        "date": "2026-02-15",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-15_belmont_illinois",
+        "date": "2026-02-15",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-15_cal_santa-clara",
+        "date": "2026-02-15",
+        "home_team": "santa-clara",
+        "away_team": "california",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "california"
+      },
+      {
+        "game_id": "2026-02-15_central-arkansas_baylor",
+        "date": "2026-02-15",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-15_chicago-state_northwestern",
+        "date": "2026-02-15",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-15_cincinnati_jacksonville-state",
+        "date": "2026-02-15",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-15_delaware_virginia",
+        "date": "2026-02-15",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-15_fau_miami-fl",
+        "date": "2026-02-15",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-15_fresno-state_stanford",
+        "date": "2026-02-15",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-15_hartford_notre-dame",
+        "date": "2026-02-15",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-15_hofstra_mississippi-state",
+        "date": "2026-02-15",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-15_illinois_houston",
+        "date": "2026-02-15",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-15_iowa_new-orleans",
+        "date": "2026-02-15",
+        "home_team": "new-orleans",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-15_james-madison_florida-state",
+        "date": "2026-02-15",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-15_kansas_utrgv",
+        "date": "2026-02-15",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-15_lehigh_duke",
+        "date": "2026-02-15",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-15_maine_syracuse",
+        "date": "2026-02-15",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-15_maryland_uncw",
+        "date": "2026-02-15",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-15_michigan-state_louisville",
+        "date": "2026-02-15",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-15_milwaukee_lsu",
+        "date": "2026-02-15",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-15_minnesota_utah-tech",
+        "date": "2026-02-15",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-15_nebraska_butler",
+        "date": "2026-02-15",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-15_nevada_olemiss",
+        "date": "2026-02-15",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-15_nicholls_tennessee",
+        "date": "2026-02-15",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-15_ohio-state_uc-san-diego",
+        "date": "2026-02-15",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-15_oklahoma-state_texas-tech",
+        "date": "2026-02-15",
+        "home_team": "texas-tech",
+        "away_team": "oklahoma-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "oklahoma-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_high-point",
+        "date": "2026-02-15",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_kansas-state",
+        "date": "2026-02-15",
+        "home_team": "kansas-state",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_pepperdine_usc",
+        "date": "2026-02-15",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-15_purdue_northern-kentucky",
+        "date": "2026-02-15",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-15_quinnipiac_nc-state",
+        "date": "2026-02-15",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-15_rhode-island_wake-forest",
+        "date": "2026-02-15",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-15_rutgers_bethune-cookman",
+        "date": "2026-02-15",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-15_san-diego_oregon",
+        "date": "2026-02-15",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-15_siena_ucf",
+        "date": "2026-02-15",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-15_stephen-f-austin_smu",
+        "date": "2026-02-15",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-15_tennessee-tech_texas-am",
+        "date": "2026-02-15",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-15_toledo_georgia-tech",
+        "date": "2026-02-15",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-15_uab_florida",
+        "date": "2026-02-15",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-15_uc-davis_texas",
+        "date": "2026-02-15",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-15_umass_boston-college",
+        "date": "2026-02-15",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-15_washington-state_alabama",
+        "date": "2026-02-15",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-15_youngstown-state_auburn",
+        "date": "2026-02-15",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-boston-college-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "washington",
+        "away_team": "boston-college",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "boston-college"
+      },
+      {
+        "game_id": "2026-02-16_air-force_kansas-state",
+        "date": "2026-02-16",
+        "home_team": "kansas-state",
+        "away_team": "air-force",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "air-force"
+      },
+      {
+        "game_id": "2026-02-16_chicago-state_northwestern",
+        "date": "2026-02-16",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-16_iowa_mcneese",
+        "date": "2026-02-16",
+        "home_team": "mcneese",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-16_kent-state_lsu",
+        "date": "2026-02-16",
+        "home_team": "lsu",
+        "away_team": "kent-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kent-state"
+      },
+      {
+        "game_id": "2026-02-16_minnesota_utah-tech",
+        "date": "2026-02-16",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-16_ohio-state_uc-san-diego",
+        "date": "2026-02-16",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-16_penn-state_high-point",
+        "date": "2026-02-16",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-16_purdue_northern-kentucky",
+        "date": "2026-02-16",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-16_rutgers_bethune-cookman",
+        "date": "2026-02-16",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-16_san-diego_oregon",
+        "date": "2026-02-16",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-16_san-francisco_ucla",
+        "date": "2026-02-16",
+        "home_team": "ucla",
+        "away_team": "san-francisco",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-francisco"
+      },
+      {
+        "game_id": "2026-02-16_santa-clara_washington",
+        "date": "2026-02-16",
+        "home_team": "washington",
+        "away_team": "santa-clara",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "santa-clara"
+      }
+    ],
+    "pythagorean": [
+      {
+        "game_id": "2026-02-14-arizona-state-omaha",
+        "date": "2026-02-14",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-14-byu-western-kentucky",
+        "date": "2026-02-14",
+        "home_team": "western-kentucky",
+        "away_team": "byu",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "byu"
+      },
+      {
+        "game_id": "2026-02-14_army_clemson",
+        "date": "2026-02-14",
+        "home_team": "clemson",
+        "away_team": "army",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "army"
+      },
+      {
+        "game_id": "2026-02-14_belmont_illinois",
+        "date": "2026-02-14",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-14_central-arkansas_baylor",
+        "date": "2026-02-14",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-14_chicago-state_northwestern",
+        "date": "2026-02-14",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-14_cincinnati_jacksonville-state",
+        "date": "2026-02-14",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-14_delaware_virginia",
+        "date": "2026-02-14",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-14_fau_miami-fl",
+        "date": "2026-02-14",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-14_fresno-state_stanford",
+        "date": "2026-02-14",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-14_hartford_notre-dame",
+        "date": "2026-02-14",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-14_hofstra_mississippi-state",
+        "date": "2026-02-14",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-14_illinois_houston",
+        "date": "2026-02-14",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-14_indiana_unc_g1",
+        "date": "2026-02-14",
+        "home_team": "north-carolina",
+        "away_team": "indiana",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "indiana"
+      },
+      {
+        "game_id": "2026-02-14_iowa_southeastern-louisiana",
+        "date": "2026-02-14",
+        "home_team": "southeastern-louisiana",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-14_james-madison_florida-state",
+        "date": "2026-02-14",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-14_kansas_utrgv",
+        "date": "2026-02-14",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_unc-greensboro",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_uncg_g2",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_lehigh_duke",
+        "date": "2026-02-14",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-14_maine_syracuse",
+        "date": "2026-02-14",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-14_maryland_uncw",
+        "date": "2026-02-14",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-14_michigan-state_louisville",
+        "date": "2026-02-14",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-14_milwaukee_lsu",
+        "date": "2026-02-14",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-14_minnesota_utah-tech",
+        "date": "2026-02-14",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-14_nebraska_butler",
+        "date": "2026-02-14",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-14_nevada_olemiss",
+        "date": "2026-02-14",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-14_nicholls_tennessee",
+        "date": "2026-02-14",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-14_northern-kentucky_south-carolina",
+        "date": "2026-02-14",
+        "home_team": "south-carolina",
+        "away_team": "northern-kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "northern-kentucky"
+      },
+      {
+        "game_id": "2026-02-14_ohio-state_uc-san-diego",
+        "date": "2026-02-14",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-14_penn-state_high-point",
+        "date": "2026-02-14",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-14_pepperdine_usc",
+        "date": "2026-02-14",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-14_quinnipiac_nc-state",
+        "date": "2026-02-14",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-14_rhode-island_wake-forest",
+        "date": "2026-02-14",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-14_rutgers_bethune-cookman",
+        "date": "2026-02-14",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-14_san-diego_oregon",
+        "date": "2026-02-14",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-14_siena_ucf",
+        "date": "2026-02-14",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-14_stephen-f-austin_smu",
+        "date": "2026-02-14",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-14_tennessee-tech_texas-am",
+        "date": "2026-02-14",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-14_toledo_georgia-tech",
+        "date": "2026-02-14",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-14_uab_florida",
+        "date": "2026-02-14",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-14_uc-davis_texas",
+        "date": "2026-02-14",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-14_uconn_kansas-state",
+        "date": "2026-02-14",
+        "home_team": "kansas-state",
+        "away_team": "uconn",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uconn"
+      },
+      {
+        "game_id": "2026-02-14_umass_boston-college",
+        "date": "2026-02-14",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-14_washington-state_alabama",
+        "date": "2026-02-14",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-14_west-virginia_georgia-southern",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g1",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wvu_georgia-southern_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_youngstown-state_auburn",
+        "date": "2026-02-14",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-wake-forest-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "washington",
+        "away_team": "wake-forest",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wake-forest"
+      },
+      {
+        "game_id": "2026-02-15-arizona-state-omaha",
+        "date": "2026-02-15",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-15_belmont_illinois",
+        "date": "2026-02-15",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-15_cal_santa-clara",
+        "date": "2026-02-15",
+        "home_team": "santa-clara",
+        "away_team": "california",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "california"
+      },
+      {
+        "game_id": "2026-02-15_central-arkansas_baylor",
+        "date": "2026-02-15",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-15_chicago-state_northwestern",
+        "date": "2026-02-15",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-15_cincinnati_jacksonville-state",
+        "date": "2026-02-15",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-15_delaware_virginia",
+        "date": "2026-02-15",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-15_fau_miami-fl",
+        "date": "2026-02-15",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-15_fresno-state_stanford",
+        "date": "2026-02-15",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-15_hartford_notre-dame",
+        "date": "2026-02-15",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-15_hofstra_mississippi-state",
+        "date": "2026-02-15",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-15_illinois_houston",
+        "date": "2026-02-15",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-15_iowa_new-orleans",
+        "date": "2026-02-15",
+        "home_team": "new-orleans",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-15_james-madison_florida-state",
+        "date": "2026-02-15",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-15_kansas_utrgv",
+        "date": "2026-02-15",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-15_lehigh_duke",
+        "date": "2026-02-15",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-15_maine_syracuse",
+        "date": "2026-02-15",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-15_maryland_uncw",
+        "date": "2026-02-15",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-15_michigan-state_louisville",
+        "date": "2026-02-15",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-15_milwaukee_lsu",
+        "date": "2026-02-15",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-15_minnesota_utah-tech",
+        "date": "2026-02-15",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-15_nebraska_butler",
+        "date": "2026-02-15",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-15_nevada_olemiss",
+        "date": "2026-02-15",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-15_nicholls_tennessee",
+        "date": "2026-02-15",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-15_ohio-state_uc-san-diego",
+        "date": "2026-02-15",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-15_oklahoma-state_texas-tech",
+        "date": "2026-02-15",
+        "home_team": "texas-tech",
+        "away_team": "oklahoma-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "oklahoma-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_high-point",
+        "date": "2026-02-15",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_kansas-state",
+        "date": "2026-02-15",
+        "home_team": "kansas-state",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_pepperdine_usc",
+        "date": "2026-02-15",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-15_purdue_northern-kentucky",
+        "date": "2026-02-15",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-15_quinnipiac_nc-state",
+        "date": "2026-02-15",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-15_rhode-island_wake-forest",
+        "date": "2026-02-15",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-15_rutgers_bethune-cookman",
+        "date": "2026-02-15",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-15_san-diego_oregon",
+        "date": "2026-02-15",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-15_siena_ucf",
+        "date": "2026-02-15",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-15_stephen-f-austin_smu",
+        "date": "2026-02-15",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-15_tennessee-tech_texas-am",
+        "date": "2026-02-15",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-15_toledo_georgia-tech",
+        "date": "2026-02-15",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-15_uab_florida",
+        "date": "2026-02-15",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-15_uc-davis_texas",
+        "date": "2026-02-15",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-15_umass_boston-college",
+        "date": "2026-02-15",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-15_washington-state_alabama",
+        "date": "2026-02-15",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-15_youngstown-state_auburn",
+        "date": "2026-02-15",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-boston-college-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "washington",
+        "away_team": "boston-college",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "boston-college"
+      },
+      {
+        "game_id": "2026-02-16_air-force_kansas-state",
+        "date": "2026-02-16",
+        "home_team": "kansas-state",
+        "away_team": "air-force",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "air-force"
+      },
+      {
+        "game_id": "2026-02-16_chicago-state_northwestern",
+        "date": "2026-02-16",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-16_iowa_mcneese",
+        "date": "2026-02-16",
+        "home_team": "mcneese",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-16_kent-state_lsu",
+        "date": "2026-02-16",
+        "home_team": "lsu",
+        "away_team": "kent-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kent-state"
+      },
+      {
+        "game_id": "2026-02-16_minnesota_utah-tech",
+        "date": "2026-02-16",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-16_ohio-state_uc-san-diego",
+        "date": "2026-02-16",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-16_penn-state_high-point",
+        "date": "2026-02-16",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-16_purdue_northern-kentucky",
+        "date": "2026-02-16",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-16_rutgers_bethune-cookman",
+        "date": "2026-02-16",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-16_san-diego_oregon",
+        "date": "2026-02-16",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-16_san-francisco_ucla",
+        "date": "2026-02-16",
+        "home_team": "ucla",
+        "away_team": "san-francisco",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-francisco"
+      },
+      {
+        "game_id": "2026-02-16_santa-clara_washington",
+        "date": "2026-02-16",
+        "home_team": "washington",
+        "away_team": "santa-clara",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "santa-clara"
+      }
+    ],
+    "advanced": [
+      {
+        "game_id": "2026-02-14-arizona-state-omaha",
+        "date": "2026-02-14",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-14-byu-western-kentucky",
+        "date": "2026-02-14",
+        "home_team": "western-kentucky",
+        "away_team": "byu",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "byu"
+      },
+      {
+        "game_id": "2026-02-14_army_clemson",
+        "date": "2026-02-14",
+        "home_team": "clemson",
+        "away_team": "army",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "army"
+      },
+      {
+        "game_id": "2026-02-14_belmont_illinois",
+        "date": "2026-02-14",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-14_central-arkansas_baylor",
+        "date": "2026-02-14",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-14_chicago-state_northwestern",
+        "date": "2026-02-14",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-14_cincinnati_jacksonville-state",
+        "date": "2026-02-14",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-14_delaware_virginia",
+        "date": "2026-02-14",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-14_fau_miami-fl",
+        "date": "2026-02-14",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-14_fresno-state_stanford",
+        "date": "2026-02-14",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-14_hartford_notre-dame",
+        "date": "2026-02-14",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-14_hofstra_mississippi-state",
+        "date": "2026-02-14",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-14_illinois_houston",
+        "date": "2026-02-14",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-14_indiana_unc_g1",
+        "date": "2026-02-14",
+        "home_team": "north-carolina",
+        "away_team": "indiana",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "indiana"
+      },
+      {
+        "game_id": "2026-02-14_iowa_southeastern-louisiana",
+        "date": "2026-02-14",
+        "home_team": "southeastern-louisiana",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-14_james-madison_florida-state",
+        "date": "2026-02-14",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-14_kansas_utrgv",
+        "date": "2026-02-14",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_unc-greensboro",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_uncg_g2",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_lehigh_duke",
+        "date": "2026-02-14",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-14_maine_syracuse",
+        "date": "2026-02-14",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-14_maryland_uncw",
+        "date": "2026-02-14",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-14_michigan-state_louisville",
+        "date": "2026-02-14",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-14_milwaukee_lsu",
+        "date": "2026-02-14",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-14_minnesota_utah-tech",
+        "date": "2026-02-14",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-14_nebraska_butler",
+        "date": "2026-02-14",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-14_nevada_olemiss",
+        "date": "2026-02-14",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-14_nicholls_tennessee",
+        "date": "2026-02-14",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-14_northern-kentucky_south-carolina",
+        "date": "2026-02-14",
+        "home_team": "south-carolina",
+        "away_team": "northern-kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "northern-kentucky"
+      },
+      {
+        "game_id": "2026-02-14_ohio-state_uc-san-diego",
+        "date": "2026-02-14",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-14_penn-state_high-point",
+        "date": "2026-02-14",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-14_pepperdine_usc",
+        "date": "2026-02-14",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-14_quinnipiac_nc-state",
+        "date": "2026-02-14",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-14_rhode-island_wake-forest",
+        "date": "2026-02-14",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-14_rutgers_bethune-cookman",
+        "date": "2026-02-14",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-14_san-diego_oregon",
+        "date": "2026-02-14",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-14_siena_ucf",
+        "date": "2026-02-14",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-14_stephen-f-austin_smu",
+        "date": "2026-02-14",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-14_tennessee-tech_texas-am",
+        "date": "2026-02-14",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-14_toledo_georgia-tech",
+        "date": "2026-02-14",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-14_uab_florida",
+        "date": "2026-02-14",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-14_uc-davis_texas",
+        "date": "2026-02-14",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-14_uconn_kansas-state",
+        "date": "2026-02-14",
+        "home_team": "kansas-state",
+        "away_team": "uconn",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uconn"
+      },
+      {
+        "game_id": "2026-02-14_umass_boston-college",
+        "date": "2026-02-14",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-14_washington-state_alabama",
+        "date": "2026-02-14",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-14_west-virginia_georgia-southern",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g1",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wvu_georgia-southern_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_youngstown-state_auburn",
+        "date": "2026-02-14",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-wake-forest-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "washington",
+        "away_team": "wake-forest",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wake-forest"
+      },
+      {
+        "game_id": "2026-02-15-arizona-state-omaha",
+        "date": "2026-02-15",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-15_belmont_illinois",
+        "date": "2026-02-15",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-15_cal_santa-clara",
+        "date": "2026-02-15",
+        "home_team": "santa-clara",
+        "away_team": "california",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "california"
+      },
+      {
+        "game_id": "2026-02-15_central-arkansas_baylor",
+        "date": "2026-02-15",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-15_chicago-state_northwestern",
+        "date": "2026-02-15",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-15_cincinnati_jacksonville-state",
+        "date": "2026-02-15",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-15_delaware_virginia",
+        "date": "2026-02-15",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-15_fau_miami-fl",
+        "date": "2026-02-15",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-15_fresno-state_stanford",
+        "date": "2026-02-15",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-15_hartford_notre-dame",
+        "date": "2026-02-15",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-15_hofstra_mississippi-state",
+        "date": "2026-02-15",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-15_illinois_houston",
+        "date": "2026-02-15",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-15_iowa_new-orleans",
+        "date": "2026-02-15",
+        "home_team": "new-orleans",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-15_james-madison_florida-state",
+        "date": "2026-02-15",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-15_kansas_utrgv",
+        "date": "2026-02-15",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-15_lehigh_duke",
+        "date": "2026-02-15",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-15_maine_syracuse",
+        "date": "2026-02-15",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-15_maryland_uncw",
+        "date": "2026-02-15",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-15_michigan-state_louisville",
+        "date": "2026-02-15",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-15_milwaukee_lsu",
+        "date": "2026-02-15",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-15_minnesota_utah-tech",
+        "date": "2026-02-15",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-15_nebraska_butler",
+        "date": "2026-02-15",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-15_nevada_olemiss",
+        "date": "2026-02-15",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-15_nicholls_tennessee",
+        "date": "2026-02-15",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-15_ohio-state_uc-san-diego",
+        "date": "2026-02-15",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-15_oklahoma-state_texas-tech",
+        "date": "2026-02-15",
+        "home_team": "texas-tech",
+        "away_team": "oklahoma-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "oklahoma-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_high-point",
+        "date": "2026-02-15",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_kansas-state",
+        "date": "2026-02-15",
+        "home_team": "kansas-state",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_pepperdine_usc",
+        "date": "2026-02-15",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-15_purdue_northern-kentucky",
+        "date": "2026-02-15",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-15_quinnipiac_nc-state",
+        "date": "2026-02-15",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-15_rhode-island_wake-forest",
+        "date": "2026-02-15",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-15_rutgers_bethune-cookman",
+        "date": "2026-02-15",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-15_san-diego_oregon",
+        "date": "2026-02-15",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-15_siena_ucf",
+        "date": "2026-02-15",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-15_stephen-f-austin_smu",
+        "date": "2026-02-15",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-15_tennessee-tech_texas-am",
+        "date": "2026-02-15",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-15_toledo_georgia-tech",
+        "date": "2026-02-15",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-15_uab_florida",
+        "date": "2026-02-15",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-15_uc-davis_texas",
+        "date": "2026-02-15",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-15_umass_boston-college",
+        "date": "2026-02-15",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-15_washington-state_alabama",
+        "date": "2026-02-15",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-15_youngstown-state_auburn",
+        "date": "2026-02-15",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-boston-college-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "washington",
+        "away_team": "boston-college",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "boston-college"
+      },
+      {
+        "game_id": "2026-02-16_air-force_kansas-state",
+        "date": "2026-02-16",
+        "home_team": "kansas-state",
+        "away_team": "air-force",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "air-force"
+      },
+      {
+        "game_id": "2026-02-16_chicago-state_northwestern",
+        "date": "2026-02-16",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-16_iowa_mcneese",
+        "date": "2026-02-16",
+        "home_team": "mcneese",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-16_kent-state_lsu",
+        "date": "2026-02-16",
+        "home_team": "lsu",
+        "away_team": "kent-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kent-state"
+      },
+      {
+        "game_id": "2026-02-16_minnesota_utah-tech",
+        "date": "2026-02-16",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-16_ohio-state_uc-san-diego",
+        "date": "2026-02-16",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-16_penn-state_high-point",
+        "date": "2026-02-16",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-16_purdue_northern-kentucky",
+        "date": "2026-02-16",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-16_rutgers_bethune-cookman",
+        "date": "2026-02-16",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-16_san-diego_oregon",
+        "date": "2026-02-16",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-16_san-francisco_ucla",
+        "date": "2026-02-16",
+        "home_team": "ucla",
+        "away_team": "san-francisco",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-francisco"
+      },
+      {
+        "game_id": "2026-02-16_santa-clara_washington",
+        "date": "2026-02-16",
+        "home_team": "washington",
+        "away_team": "santa-clara",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "santa-clara"
+      }
+    ],
+    "ensemble": [
+      {
+        "game_id": "2026-02-14-arizona-state-omaha",
+        "date": "2026-02-14",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-14-byu-western-kentucky",
+        "date": "2026-02-14",
+        "home_team": "western-kentucky",
+        "away_team": "byu",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "byu"
+      },
+      {
+        "game_id": "2026-02-14_army_clemson",
+        "date": "2026-02-14",
+        "home_team": "clemson",
+        "away_team": "army",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "army"
+      },
+      {
+        "game_id": "2026-02-14_belmont_illinois",
+        "date": "2026-02-14",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-14_central-arkansas_baylor",
+        "date": "2026-02-14",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-14_chicago-state_northwestern",
+        "date": "2026-02-14",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-14_cincinnati_jacksonville-state",
+        "date": "2026-02-14",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-14_delaware_virginia",
+        "date": "2026-02-14",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-14_fau_miami-fl",
+        "date": "2026-02-14",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-14_fresno-state_stanford",
+        "date": "2026-02-14",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-14_hartford_notre-dame",
+        "date": "2026-02-14",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-14_hofstra_mississippi-state",
+        "date": "2026-02-14",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-14_illinois_houston",
+        "date": "2026-02-14",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-14_indiana_unc_g1",
+        "date": "2026-02-14",
+        "home_team": "north-carolina",
+        "away_team": "indiana",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "indiana"
+      },
+      {
+        "game_id": "2026-02-14_iowa_southeastern-louisiana",
+        "date": "2026-02-14",
+        "home_team": "southeastern-louisiana",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-14_james-madison_florida-state",
+        "date": "2026-02-14",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-14_kansas_utrgv",
+        "date": "2026-02-14",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_unc-greensboro",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_kentucky_uncg_g2",
+        "date": "2026-02-14",
+        "home_team": "unc-greensboro",
+        "away_team": "kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kentucky"
+      },
+      {
+        "game_id": "2026-02-14_lehigh_duke",
+        "date": "2026-02-14",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-14_maine_syracuse",
+        "date": "2026-02-14",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-14_maryland_uncw",
+        "date": "2026-02-14",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-14_michigan-state_louisville",
+        "date": "2026-02-14",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-14_milwaukee_lsu",
+        "date": "2026-02-14",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-14_minnesota_utah-tech",
+        "date": "2026-02-14",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-14_nebraska_butler",
+        "date": "2026-02-14",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-14_nevada_olemiss",
+        "date": "2026-02-14",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-14_nicholls_tennessee",
+        "date": "2026-02-14",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-14_northern-kentucky_south-carolina",
+        "date": "2026-02-14",
+        "home_team": "south-carolina",
+        "away_team": "northern-kentucky",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "northern-kentucky"
+      },
+      {
+        "game_id": "2026-02-14_ohio-state_uc-san-diego",
+        "date": "2026-02-14",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-14_penn-state_high-point",
+        "date": "2026-02-14",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-14_pepperdine_usc",
+        "date": "2026-02-14",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-14_quinnipiac_nc-state",
+        "date": "2026-02-14",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-14_rhode-island_wake-forest",
+        "date": "2026-02-14",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-14_rutgers_bethune-cookman",
+        "date": "2026-02-14",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-14_san-diego_oregon",
+        "date": "2026-02-14",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-14_siena_ucf",
+        "date": "2026-02-14",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-14_stephen-f-austin_smu",
+        "date": "2026-02-14",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-14_tennessee-tech_texas-am",
+        "date": "2026-02-14",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-14_toledo_georgia-tech",
+        "date": "2026-02-14",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-14_uab_florida",
+        "date": "2026-02-14",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-14_uc-davis_texas",
+        "date": "2026-02-14",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-14_uconn_kansas-state",
+        "date": "2026-02-14",
+        "home_team": "kansas-state",
+        "away_team": "uconn",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uconn"
+      },
+      {
+        "game_id": "2026-02-14_umass_boston-college",
+        "date": "2026-02-14",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-14_washington-state_alabama",
+        "date": "2026-02-14",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-14_west-virginia_georgia-southern",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g1",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wright-state_georgia_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia",
+        "away_team": "wright-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wright-state"
+      },
+      {
+        "game_id": "2026-02-14_wvu_georgia-southern_g2",
+        "date": "2026-02-14",
+        "home_team": "georgia-southern",
+        "away_team": "west-virginia",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "west-virginia"
+      },
+      {
+        "game_id": "2026-02-14_youngstown-state_auburn",
+        "date": "2026-02-14",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-wake-forest-2026-02-14",
+        "date": "2026-02-14",
+        "home_team": "washington",
+        "away_team": "wake-forest",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "wake-forest"
+      },
+      {
+        "game_id": "2026-02-15-arizona-state-omaha",
+        "date": "2026-02-15",
+        "home_team": "arizona-state",
+        "away_team": "omaha",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "omaha"
+      },
+      {
+        "game_id": "2026-02-15_belmont_illinois",
+        "date": "2026-02-15",
+        "home_team": "illinois",
+        "away_team": "belmont",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "belmont"
+      },
+      {
+        "game_id": "2026-02-15_cal_santa-clara",
+        "date": "2026-02-15",
+        "home_team": "santa-clara",
+        "away_team": "california",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "california"
+      },
+      {
+        "game_id": "2026-02-15_central-arkansas_baylor",
+        "date": "2026-02-15",
+        "home_team": "baylor",
+        "away_team": "central-arkansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "central-arkansas"
+      },
+      {
+        "game_id": "2026-02-15_chicago-state_northwestern",
+        "date": "2026-02-15",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-15_cincinnati_jacksonville-state",
+        "date": "2026-02-15",
+        "home_team": "jacksonville-state",
+        "away_team": "cincinnati",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "cincinnati"
+      },
+      {
+        "game_id": "2026-02-15_delaware_virginia",
+        "date": "2026-02-15",
+        "home_team": "virginia",
+        "away_team": "delaware",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "delaware"
+      },
+      {
+        "game_id": "2026-02-15_fau_miami-fl",
+        "date": "2026-02-15",
+        "home_team": "miami-fl",
+        "away_team": "fau",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fau"
+      },
+      {
+        "game_id": "2026-02-15_fresno-state_stanford",
+        "date": "2026-02-15",
+        "home_team": "stanford",
+        "away_team": "fresno-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "fresno-state"
+      },
+      {
+        "game_id": "2026-02-15_hartford_notre-dame",
+        "date": "2026-02-15",
+        "home_team": "notre-dame",
+        "away_team": "hartford",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hartford"
+      },
+      {
+        "game_id": "2026-02-15_hofstra_mississippi-state",
+        "date": "2026-02-15",
+        "home_team": "mississippi-state",
+        "away_team": "hofstra",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "hofstra"
+      },
+      {
+        "game_id": "2026-02-15_illinois_houston",
+        "date": "2026-02-15",
+        "home_team": "houston",
+        "away_team": "illinois",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "illinois"
+      },
+      {
+        "game_id": "2026-02-15_iowa_new-orleans",
+        "date": "2026-02-15",
+        "home_team": "new-orleans",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-15_james-madison_florida-state",
+        "date": "2026-02-15",
+        "home_team": "florida-state",
+        "away_team": "james-madison",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "james-madison"
+      },
+      {
+        "game_id": "2026-02-15_kansas_utrgv",
+        "date": "2026-02-15",
+        "home_team": "utrgv",
+        "away_team": "kansas",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kansas"
+      },
+      {
+        "game_id": "2026-02-15_lehigh_duke",
+        "date": "2026-02-15",
+        "home_team": "duke",
+        "away_team": "lehigh",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "lehigh"
+      },
+      {
+        "game_id": "2026-02-15_maine_syracuse",
+        "date": "2026-02-15",
+        "home_team": "syracuse",
+        "away_team": "maine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maine"
+      },
+      {
+        "game_id": "2026-02-15_maryland_uncw",
+        "date": "2026-02-15",
+        "home_team": "uncw",
+        "away_team": "maryland",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "maryland"
+      },
+      {
+        "game_id": "2026-02-15_michigan-state_louisville",
+        "date": "2026-02-15",
+        "home_team": "louisville",
+        "away_team": "michigan-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "michigan-state"
+      },
+      {
+        "game_id": "2026-02-15_milwaukee_lsu",
+        "date": "2026-02-15",
+        "home_team": "lsu",
+        "away_team": "milwaukee",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "milwaukee"
+      },
+      {
+        "game_id": "2026-02-15_minnesota_utah-tech",
+        "date": "2026-02-15",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-15_nebraska_butler",
+        "date": "2026-02-15",
+        "home_team": "butler",
+        "away_team": "nebraska",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nebraska"
+      },
+      {
+        "game_id": "2026-02-15_nevada_olemiss",
+        "date": "2026-02-15",
+        "home_team": "ole-miss",
+        "away_team": "nevada",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nevada"
+      },
+      {
+        "game_id": "2026-02-15_nicholls_tennessee",
+        "date": "2026-02-15",
+        "home_team": "tennessee",
+        "away_team": "nicholls-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "nicholls-state"
+      },
+      {
+        "game_id": "2026-02-15_ohio-state_uc-san-diego",
+        "date": "2026-02-15",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-15_oklahoma-state_texas-tech",
+        "date": "2026-02-15",
+        "home_team": "texas-tech",
+        "away_team": "oklahoma-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "oklahoma-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_high-point",
+        "date": "2026-02-15",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_penn-state_kansas-state",
+        "date": "2026-02-15",
+        "home_team": "kansas-state",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-15_pepperdine_usc",
+        "date": "2026-02-15",
+        "home_team": "usc",
+        "away_team": "pepperdine",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "pepperdine"
+      },
+      {
+        "game_id": "2026-02-15_purdue_northern-kentucky",
+        "date": "2026-02-15",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-15_quinnipiac_nc-state",
+        "date": "2026-02-15",
+        "home_team": "nc-state",
+        "away_team": "quinnipiac",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "quinnipiac"
+      },
+      {
+        "game_id": "2026-02-15_rhode-island_wake-forest",
+        "date": "2026-02-15",
+        "home_team": "wake-forest",
+        "away_team": "rhode-island",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rhode-island"
+      },
+      {
+        "game_id": "2026-02-15_rutgers_bethune-cookman",
+        "date": "2026-02-15",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-15_san-diego_oregon",
+        "date": "2026-02-15",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-15_siena_ucf",
+        "date": "2026-02-15",
+        "home_team": "ucf",
+        "away_team": "siena",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "siena"
+      },
+      {
+        "game_id": "2026-02-15_stephen-f-austin_smu",
+        "date": "2026-02-15",
+        "home_team": "smu",
+        "away_team": "stephen-f-austin",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "stephen-f-austin"
+      },
+      {
+        "game_id": "2026-02-15_tennessee-tech_texas-am",
+        "date": "2026-02-15",
+        "home_team": "texas-am",
+        "away_team": "tennessee-tech",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "tennessee-tech"
+      },
+      {
+        "game_id": "2026-02-15_toledo_georgia-tech",
+        "date": "2026-02-15",
+        "home_team": "georgia-tech",
+        "away_team": "toledo",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "toledo"
+      },
+      {
+        "game_id": "2026-02-15_uab_florida",
+        "date": "2026-02-15",
+        "home_team": "florida",
+        "away_team": "uab",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uab"
+      },
+      {
+        "game_id": "2026-02-15_uc-davis_texas",
+        "date": "2026-02-15",
+        "home_team": "texas",
+        "away_team": "uc-davis",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-davis"
+      },
+      {
+        "game_id": "2026-02-15_umass_boston-college",
+        "date": "2026-02-15",
+        "home_team": "boston-college",
+        "away_team": "umass",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "umass"
+      },
+      {
+        "game_id": "2026-02-15_washington-state_alabama",
+        "date": "2026-02-15",
+        "home_team": "alabama",
+        "away_team": "washington-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "washington-state"
+      },
+      {
+        "game_id": "2026-02-15_youngstown-state_auburn",
+        "date": "2026-02-15",
+        "home_team": "auburn",
+        "away_team": "youngstown-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "youngstown-state"
+      },
+      {
+        "game_id": "ucla-vs-uc-san-diego-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "ucla",
+        "away_team": "uc-san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "uc-san-diego"
+      },
+      {
+        "game_id": "washington-vs-boston-college-2026-02-15",
+        "date": "2026-02-15",
+        "home_team": "washington",
+        "away_team": "boston-college",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "boston-college"
+      },
+      {
+        "game_id": "2026-02-16_air-force_kansas-state",
+        "date": "2026-02-16",
+        "home_team": "kansas-state",
+        "away_team": "air-force",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "air-force"
+      },
+      {
+        "game_id": "2026-02-16_chicago-state_northwestern",
+        "date": "2026-02-16",
+        "home_team": "northwestern",
+        "away_team": "chicago-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "chicago-state"
+      },
+      {
+        "game_id": "2026-02-16_iowa_mcneese",
+        "date": "2026-02-16",
+        "home_team": "mcneese",
+        "away_team": "iowa",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "iowa"
+      },
+      {
+        "game_id": "2026-02-16_kent-state_lsu",
+        "date": "2026-02-16",
+        "home_team": "lsu",
+        "away_team": "kent-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "kent-state"
+      },
+      {
+        "game_id": "2026-02-16_minnesota_utah-tech",
+        "date": "2026-02-16",
+        "home_team": "utah-tech",
+        "away_team": "minnesota",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "minnesota"
+      },
+      {
+        "game_id": "2026-02-16_ohio-state_uc-san-diego",
+        "date": "2026-02-16",
+        "home_team": "uc-san-diego",
+        "away_team": "ohio-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "ohio-state"
+      },
+      {
+        "game_id": "2026-02-16_penn-state_high-point",
+        "date": "2026-02-16",
+        "home_team": "high-point",
+        "away_team": "penn-state",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "penn-state"
+      },
+      {
+        "game_id": "2026-02-16_purdue_northern-kentucky",
+        "date": "2026-02-16",
+        "home_team": "northern-kentucky",
+        "away_team": "purdue",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "purdue"
+      },
+      {
+        "game_id": "2026-02-16_rutgers_bethune-cookman",
+        "date": "2026-02-16",
+        "home_team": "bethune-cookman",
+        "away_team": "rutgers",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "rutgers"
+      },
+      {
+        "game_id": "2026-02-16_san-diego_oregon",
+        "date": "2026-02-16",
+        "home_team": "oregon",
+        "away_team": "san-diego",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-diego"
+      },
+      {
+        "game_id": "2026-02-16_san-francisco_ucla",
+        "date": "2026-02-16",
+        "home_team": "ucla",
+        "away_team": "san-francisco",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "san-francisco"
+      },
+      {
+        "game_id": "2026-02-16_santa-clara_washington",
+        "date": "2026-02-16",
+        "home_team": "washington",
+        "away_team": "santa-clara",
+        "home_win_prob": 0.5,
+        "away_win_prob": 0.5,
+        "predicted_winner": "santa-clara"
+      }
+    ]
+  },
+  "model_summary": {
+    "elo": {
+      "predictions_generated": 109,
+      "avg_confidence": 0.0
+    },
+    "log5": {
+      "predictions_generated": 109,
+      "avg_confidence": 0.0
+    },
+    "pythagorean": {
+      "predictions_generated": 109,
+      "avg_confidence": 0.0
+    },
+    "advanced": {
+      "predictions_generated": 109,
+      "avg_confidence": 0.0
+    },
+    "ensemble": {
+      "predictions_generated": 109,
+      "avg_confidence": 0.0
+    }
+  }
+}

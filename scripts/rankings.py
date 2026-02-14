@@ -10,9 +10,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# sys.path.insert(0, str(Path(__file__).parent))  # Removed by cleanup
 
-from database import (
+from scripts.database import (
     get_connection, add_ranking, get_current_top_25, 
     get_ranking_history, init_rankings_table, add_team
 )

@@ -17,11 +17,11 @@ from pathlib import Path
 
 _models_dir = Path(__file__).parent
 _scripts_dir = _models_dir.parent / "scripts"
-sys.path.insert(0, str(_models_dir))
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from base_model import BaseModel
-from database import get_connection
+from models.base_model import BaseModel
+from scripts.database import get_connection
 
 
 # Conference strength ratings (updated annually)
@@ -126,7 +126,7 @@ def get_conference_adjustment(team_id):
     - = 1.0 = no adjustment
     
     Usage in other models:
-        from conference_model import get_conference_adjustment
+        from models.conference_model import get_conference_adjustment
         adjustment = get_conference_adjustment(team_id)
         adjusted_win_pct = raw_win_pct * adjustment
     """

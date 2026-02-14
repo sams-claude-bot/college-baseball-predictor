@@ -18,10 +18,10 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 _scripts_dir = Path(__file__).parent
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from database import get_connection
-from player_stats import init_player_tables
+from scripts.database import get_connection
+from scripts.player_stats import init_player_tables
 
 
 def get_team_starters(team_id, min_starts=1):

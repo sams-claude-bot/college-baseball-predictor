@@ -15,11 +15,11 @@ from datetime import datetime
 from pathlib import Path
 
 _scripts_dir = Path(__file__).parent
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from database import get_connection, add_team
+from scripts.database import get_connection, add_team
 
-DB_PATH = "/home/sam/college-baseball-predictor/data/baseball.db"
+DB_PATH = "~/college-baseball-predictor/data/baseball.db"
 
 # All 17 ACC teams with their standard IDs
 ACC_TEAMS = {

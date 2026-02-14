@@ -24,10 +24,10 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 
 BASE_DIR = Path(__file__).parent.parent
-sys.path.insert(0, str(BASE_DIR / "scripts"))
-sys.path.insert(0, str(BASE_DIR / "models"))
+# sys.path.insert(0, str(BASE_DIR / "scripts"))  # Removed by cleanup
+# sys.path.insert(0, str(BASE_DIR / "models"))  # Removed by cleanup
 
-from database import (
+from scripts.database import (
     get_connection, add_team, add_ranking, get_current_top_25,
     get_ranking_history, init_rankings_table
 )

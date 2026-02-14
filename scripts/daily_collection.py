@@ -18,17 +18,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent
-sys.path.insert(0, str(BASE_DIR / "scripts"))
-sys.path.insert(0, str(BASE_DIR / "models"))
+# sys.path.insert(0, str(BASE_DIR / "scripts"))  # Removed by cleanup
+# sys.path.insert(0, str(BASE_DIR / "models"))  # Removed by cleanup
 
-from database import get_current_top_25, get_recent_games
+from scripts.database import get_current_top_25, get_recent_games
 
 # Import predictor with new ensemble
-from predictor_db import Predictor
+from models.predictor_db import Predictor
 
 # Import box score collector
 try:
-    from collect_box_scores import collect_for_date, collect_recent, show_collection_status
+    from scripts.collect_box_scores import collect_for_date, collect_recent, show_collection_status
     BOX_SCORES_AVAILABLE = True
 except ImportError:
     BOX_SCORES_AVAILABLE = False
@@ -65,7 +65,7 @@ def run_daily_collection():
     # 1. Multi-source stats collection (ESPN, NCAA, D1Baseball)
     print("\n[1/7] Collecting stats from multiple sources...")
     try:
-        from collect_all_stats import collect_for_daily
+        from scripts.collect_all_stats import collect_for_daily
         multi_results = collect_for_daily()
         
         results["multi_source_stats"] = {
@@ -235,7 +235,7 @@ def run_daily_collection():
     # 8. Model accuracy report
     print("\n[8/9] Model accuracy report...")
     try:
-        from ensemble_model import EnsembleModel
+        from models.ensemble_model import EnsembleModel
         ensemble = EnsembleModel()
         accuracy = ensemble.get_model_accuracy()
         
@@ -283,7 +283,7 @@ def run_daily_collection():
 def show_model_report():
     """Show detailed model accuracy report"""
     try:
-        from ensemble_model import EnsembleModel
+        from models.ensemble_model import EnsembleModel
         ensemble = EnsembleModel()
         print(ensemble.get_weights_report())
     except Exception as e:
@@ -295,7 +295,7 @@ def compare_prediction(home_team, away_team, neutral=False):
     predictor = Predictor()
     comparison = predictor.compare_models(home_team, away_team, neutral)
     
-    from predictor_db import print_comparison
+    from models.predictor_db import print_comparison
     print_comparison(comparison)
 
 

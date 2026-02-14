@@ -14,15 +14,15 @@ from collections import defaultdict
 _scripts_dir = Path(__file__).parent
 _models_dir = _scripts_dir.parent / "models"
 _reports_dir = _scripts_dir.parent / "reports"
-sys.path.insert(0, str(_scripts_dir))
-sys.path.insert(0, str(_models_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
+# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from fpdf import FPDF
 
-from database import get_connection
+from scripts.database import get_connection
 from compare_models import MODELS, normalize_team_id
 
 _reports_dir.mkdir(parents=True, exist_ok=True)

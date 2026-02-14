@@ -24,20 +24,20 @@ import math
 from pathlib import Path
 
 # Add scripts to path for database module
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-sys.path.insert(0, str(Path(__file__).parent))
+# sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))  # Removed by cleanup
+# sys.path.insert(0, str(Path(__file__).parent))  # Removed by cleanup
 
-from database import get_connection, get_team_record, get_team_runs, get_recent_games
+from scripts.database import get_connection, get_team_record, get_team_runs, get_recent_games
 
 # Import all models
-from ensemble_model import EnsembleModel
-from pythagorean_model import PythagoreanModel
-from elo_model import EloModel
-from log5_model import Log5Model
-from advanced_model import AdvancedModel
-from pitching_model import PitchingModel
-from conference_model import ConferenceModel
-from prior_model import PriorModel
+from models.ensemble_model import EnsembleModel
+from models.pythagorean_model import PythagoreanModel
+from models.elo_model import EloModel
+from models.log5_model import Log5Model
+from models.advanced_model import AdvancedModel
+from models.pitching_model import PitchingModel
+from models.conference_model import ConferenceModel
+from models.prior_model import PriorModel
 
 
 class TeamStats:

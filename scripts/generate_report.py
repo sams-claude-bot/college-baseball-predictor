@@ -15,8 +15,8 @@ import tempfile
 _scripts_dir = Path(__file__).parent
 _models_dir = _scripts_dir.parent / "models"
 _reports_dir = _scripts_dir.parent / "reports"
-sys.path.insert(0, str(_scripts_dir))
-sys.path.insert(0, str(_models_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
+# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
 
 import matplotlib
 matplotlib.use('Agg')
@@ -26,8 +26,8 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 
 from compare_models import MODELS, normalize_team_id
-from database import get_connection, get_current_top_25
-from betting_lines import american_to_implied_prob, implied_prob_to_american
+from scripts.database import get_connection, get_current_top_25
+from scripts.betting_lines import american_to_implied_prob, implied_prob_to_american
 
 # Try to import rankings summary (optional, degrades gracefully)
 try:

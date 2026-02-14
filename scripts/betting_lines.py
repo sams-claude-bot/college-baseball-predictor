@@ -13,10 +13,10 @@ from pathlib import Path
 
 _scripts_dir = Path(__file__).parent
 _models_dir = _scripts_dir.parent / "models"
-sys.path.insert(0, str(_scripts_dir))
-sys.path.insert(0, str(_models_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
+# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
 
-from database import get_connection
+from scripts.database import get_connection
 from compare_models import MODELS, normalize_team_id
 
 def init_betting_table():

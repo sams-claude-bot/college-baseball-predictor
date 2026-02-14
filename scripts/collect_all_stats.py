@@ -19,9 +19,9 @@ from pathlib import Path
 
 # Setup path
 BASE_DIR = Path(__file__).parent.parent
-sys.path.insert(0, str(BASE_DIR / "scripts"))
+# sys.path.insert(0, str(BASE_DIR / "scripts"))  # Removed by cleanup
 
-from database import (
+from scripts.database import (
     get_connection, add_game, add_team, add_ranking, 
     init_rankings_table, init_database
 )

@@ -1,0 +1,578 @@
+{
+  "alabama": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "alabama",
+    "team_name": "Alabama",
+    "db_games_count": 56,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/333/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/333"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_washington-state_alabama",
+        "2026-02-13",
+        "alabama",
+        "washington-state",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_washington-state_alabama",
+        "2026-02-14",
+        "alabama",
+        "washington-state",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_washington-state_alabama",
+        "2026-02-15",
+        "alabama",
+        "washington-state",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "arkansas": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "arkansas",
+    "team_name": "Arkansas",
+    "db_games_count": 49,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/8/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/8"
+    ],
+    "sample_games": [
+      [
+        "2026-02-17_ualr_arkansas",
+        "2026-02-17",
+        "arkansas",
+        "ualr",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-20_belmont_arkansas",
+        "2026-02-20",
+        "arkansas",
+        "belmont",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-21_belmont_arkansas",
+        "2026-02-21",
+        "arkansas",
+        "belmont",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "auburn": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "auburn",
+    "team_name": "Auburn",
+    "db_games_count": 54,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/2/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/2"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_nc-at_auburn",
+        "2026-02-13",
+        "auburn",
+        "youngstown-state",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_youngstown-state_auburn",
+        "2026-02-14",
+        "auburn",
+        "youngstown-state",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_youngstown-state_auburn",
+        "2026-02-15",
+        "auburn",
+        "youngstown-state",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "florida": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "florida",
+    "team_name": "Florida",
+    "db_games_count": 53,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/57/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/57"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_uab_florida",
+        "2026-02-13",
+        "florida",
+        "uab",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_uab_florida",
+        "2026-02-14",
+        "florida",
+        "uab",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_uab_florida",
+        "2026-02-15",
+        "florida",
+        "uab",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "georgia": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "georgia",
+    "team_name": "Georgia",
+    "db_games_count": 53,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/61/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/61"
+    ],
+    "sample_games": [
+      [
+        "georgia-georgia-state-20260213",
+        "2026-02-13",
+        "georgia",
+        "wright-state",
+        null,
+        "final"
+      ],
+      [
+        "2026-02-14_wright-state_georgia_g1",
+        "2026-02-14",
+        "georgia",
+        "wright-state",
+        "Foley Field",
+        "scheduled"
+      ],
+      [
+        "2026-02-14_wright-state_georgia_g2",
+        "2026-02-14",
+        "georgia",
+        "wright-state",
+        "Foley Field",
+        "scheduled"
+      ]
+    ]
+  },
+  "kentucky": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "kentucky",
+    "team_name": "Kentucky",
+    "db_games_count": 52,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/96/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/96"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_kentucky_unc-greensboro",
+        "2026-02-13",
+        "unc-greensboro",
+        "kentucky",
+        null,
+        "final"
+      ],
+      [
+        "2026-02-14_kentucky_unc-greensboro",
+        "2026-02-14",
+        "unc-greensboro",
+        "kentucky",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_kentucky_uncg_g2",
+        "2026-02-14",
+        "unc-greensboro",
+        "kentucky",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "lsu": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "lsu",
+    "team_name": "LSU",
+    "db_games_count": 53,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/99/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/99"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_milwaukee_lsu",
+        "2026-02-13",
+        "lsu",
+        "milwaukee",
+        null,
+        "final"
+      ],
+      [
+        "2026-02-14_milwaukee_lsu",
+        "2026-02-14",
+        "lsu",
+        "milwaukee",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_milwaukee_lsu",
+        "2026-02-15",
+        "lsu",
+        "milwaukee",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "mississippi-state": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "mississippi-state",
+    "team_name": "Mississippi State",
+    "db_games_count": 44,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/344/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/344"
+    ],
+    "sample_games": [
+      [
+        "2026-02-14_hofstra_mississippi-state",
+        "2026-02-14",
+        "mississippi-state",
+        "hofstra",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_hofstra_mississippi-state",
+        "2026-02-15",
+        "mississippi-state",
+        "hofstra",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-17_troy_mississippi-state",
+        "2026-02-17",
+        "mississippi-state",
+        "troy",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "missouri": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "missouri",
+    "team_name": "Missouri",
+    "db_games_count": 48,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/142/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/142"
+    ],
+    "sample_games": [
+      [
+        "2026-02-17_missouri_fau",
+        "2026-02-17",
+        "fau",
+        "missouri",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-20_missouri_new-haven",
+        "2026-02-20",
+        "new-haven",
+        "missouri",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-21_missouri_new-haven",
+        "2026-02-21",
+        "new-haven",
+        "missouri",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "oklahoma": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "oklahoma",
+    "team_name": "Oklahoma",
+    "db_games_count": 46,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/201/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/201"
+    ],
+    "sample_games": [
+      [
+        "2026-02-17_wichita-state_oklahoma",
+        "2026-02-17",
+        "oklahoma",
+        "wichita-state",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-20_cal-state-fullerton_oklahoma",
+        "2026-02-20",
+        "oklahoma",
+        "cal-state-fullerton",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-21_cal-state-fullerton_oklahoma",
+        "2026-02-21",
+        "oklahoma",
+        "cal-state-fullerton",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "ole-miss": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "ole-miss",
+    "team_name": "Ole Miss",
+    "db_games_count": 50,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/145/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/145"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_nevada_ole-miss",
+        "2026-02-13",
+        "ole-miss",
+        "nevada",
+        null,
+        "final"
+      ],
+      [
+        "2026-02-14_nevada_olemiss",
+        "2026-02-14",
+        "ole-miss",
+        "nevada",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_nevada_olemiss",
+        "2026-02-15",
+        "ole-miss",
+        "nevada",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "south-carolina": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "south-carolina",
+    "team_name": "South Carolina",
+    "db_games_count": 47,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/2579/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/2579"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_northern-kentucky_south-carolina",
+        "2026-02-13",
+        "south-carolina",
+        "northern-kentucky",
+        null,
+        "final"
+      ],
+      [
+        "2026-02-13_northern-kentucky_south-carolina_g2",
+        "2026-02-13",
+        "south-carolina",
+        "northern-kentucky",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_northern-kentucky_south-carolina",
+        "2026-02-14",
+        "south-carolina",
+        "northern-kentucky",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "tennessee": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "tennessee",
+    "team_name": "Tennessee",
+    "db_games_count": 49,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/2633/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/2633"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_nicholls-state_tennessee",
+        "2026-02-13",
+        "tennessee",
+        "nicholls-state",
+        null,
+        "final"
+      ],
+      [
+        "2026-02-14_nicholls_tennessee",
+        "2026-02-14",
+        "tennessee",
+        "nicholls-state",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_nicholls_tennessee",
+        "2026-02-15",
+        "tennessee",
+        "nicholls-state",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "texas": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "texas",
+    "team_name": "Texas",
+    "db_games_count": 39,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/251/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/251"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_uc-davis_texas",
+        "2026-02-13",
+        "texas",
+        "uc-davis",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_uc-davis_texas",
+        "2026-02-14",
+        "texas",
+        "uc-davis",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_uc-davis_texas",
+        "2026-02-15",
+        "texas",
+        "uc-davis",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "texas-am": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "texas-am",
+    "team_name": "Texas A&M",
+    "db_games_count": 48,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/245/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/245"
+    ],
+    "sample_games": [
+      [
+        "2026-02-13_tennessee-tech_texas-am",
+        "2026-02-13",
+        "texas-am",
+        "tennessee-tech",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-14_tennessee-tech_texas-am",
+        "2026-02-14",
+        "texas-am",
+        "tennessee-tech",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-15_tennessee-tech_texas-am",
+        "2026-02-15",
+        "texas-am",
+        "tennessee-tech",
+        null,
+        "scheduled"
+      ]
+    ]
+  },
+  "vanderbilt": {
+    "status": "ready_for_espn_fetch",
+    "team_id": "vanderbilt",
+    "team_name": "Vanderbilt",
+    "db_games_count": 46,
+    "espn_urls": [
+      "https://www.espn.com/college-sports/team/schedule/_/id/238/season/2026",
+      "https://www.espn.com/college-sports/team/_/id/238"
+    ],
+    "sample_games": [
+      [
+        "2026-02-17_eastern-michigan_vanderbilt",
+        "2026-02-17",
+        "vanderbilt",
+        "eastern-michigan",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-18_eastern-michigan_vanderbilt",
+        "2026-02-18",
+        "vanderbilt",
+        "eastern-michigan",
+        null,
+        "scheduled"
+      ],
+      [
+        "2026-02-20_marist_vanderbilt",
+        "2026-02-20",
+        "vanderbilt",
+        "marist",
+        null,
+        "scheduled"
+      ]
+    ]
+  }
+}

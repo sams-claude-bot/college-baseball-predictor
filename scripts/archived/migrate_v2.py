@@ -18,7 +18,7 @@ from datetime import datetime
 BASE_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(BASE_DIR / "scripts"))
 
-from database import get_connection, DB_PATH
+from scripts.database import get_connection, DB_PATH
 
 
 def run_migration():

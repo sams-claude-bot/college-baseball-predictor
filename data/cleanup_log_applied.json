@@ -1,0 +1,286 @@
+{
+  "cleanup_time": "2026-02-13T22:20:25.967519",
+  "dry_run": false,
+  "changes": [
+    {
+      "timestamp": "2026-02-13T22:20:25.955338",
+      "action": "ARCHIVE",
+      "target": "scripts/migrate_data.py",
+      "details": "moved to scripts/archived/migrate_data.py",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.955356",
+      "action": "ARCHIVE",
+      "target": "scripts/migrate_v2.py",
+      "details": "moved to scripts/archived/migrate_v2.py",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.955388",
+      "action": "CREATE",
+      "target": "scripts/__init__.py",
+      "details": "package init file",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.955417",
+      "action": "CREATE",
+      "target": "models/__init__.py",
+      "details": "package init file",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.955934",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/scrape_acc_rosters.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.956280",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/scrape_sec_rosters.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.956885",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/generate_report.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.957188",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/fill_roster_gaps.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.957413",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/player_stats.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.957552",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/rankings.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.957769",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/model_accuracy.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.958008",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/daily_collection.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.960943",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/track_starters.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.961351",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/collect_all_stats.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.961533",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/betting_lines.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.961835",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/collect_box_scores.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.962483",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/load_acc_schedules.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.963398",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/load_big_ten.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.963773",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/load_big12_teams.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.963944",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/add_game.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.964172",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/scrape_ncaa_stats.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.964557",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/scrape_rankings.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.964934",
+      "action": "FIX_PYTHONPATH",
+      "target": "scripts/matchup_report.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.965084",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/advanced_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.965288",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/prior_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.965510",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/pitching_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.965718",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/ensemble_model.py",
+      "details": "removed 1 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.965979",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/predictor_db.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.966079",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/log5_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.966174",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/pythagorean_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.966361",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/conference_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.966483",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/elo_model.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.966649",
+      "action": "FIX_PYTHONPATH",
+      "target": "models/compare_models.py",
+      "details": "removed 2 sys.path.insert lines",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.966831",
+      "action": "FIX_HARDCODED_PATHS",
+      "target": "scripts/load_big12_schedules.py",
+      "details": "replaced hardcoded paths",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.967177",
+      "action": "FIX_HARDCODED_PATHS",
+      "target": "scripts/load_acc_schedules.py",
+      "details": "replaced hardcoded paths",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.967380",
+      "action": "FIX_HARDCODED_PATHS",
+      "target": "scripts/load_sec_schedules.py",
+      "details": "replaced hardcoded paths",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.967393",
+      "action": "ANALYZE",
+      "target": "loader_scripts",
+      "details": "Found 4 conference-specific loaders - consider consolidating",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.967395",
+      "action": "ANALYZE",
+      "target": "scraper_scripts",
+      "details": "Found 2 conference-specific scrapers - consider consolidating",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.967455",
+      "action": "VERIFY",
+      "target": "scripts/daily_collection.py",
+      "details": "imports look good after cleanup",
+      "dry_run": false
+    },
+    {
+      "timestamp": "2026-02-13T22:20:25.967515",
+      "action": "CREATE",
+      "target": "setup.py",
+      "details": "project setup file",
+      "dry_run": false
+    }
+  ]
+}

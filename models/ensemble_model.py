@@ -18,16 +18,16 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# sys.path.insert(0, str(Path(__file__).parent))  # Removed by cleanup
 
-from base_model import BaseModel
-from pythagorean_model import PythagoreanModel
-from elo_model import EloModel
-from log5_model import Log5Model
-from advanced_model import AdvancedModel
-from pitching_model import PitchingModel
-from conference_model import ConferenceModel
-from prior_model import PriorModel
+from models.base_model import BaseModel
+from models.pythagorean_model import PythagoreanModel
+from models.elo_model import EloModel
+from models.log5_model import Log5Model
+from models.advanced_model import AdvancedModel
+from models.pitching_model import PitchingModel
+from models.conference_model import ConferenceModel
+from models.prior_model import PriorModel
 
 # File to store model accuracy history
 ACCURACY_FILE = Path(__file__).parent.parent / "data" / "model_accuracy.json"

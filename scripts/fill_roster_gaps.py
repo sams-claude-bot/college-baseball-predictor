@@ -18,10 +18,10 @@ import requests
 from bs4 import BeautifulSoup
 
 _scripts_dir = Path(__file__).parent
-sys.path.insert(0, str(_scripts_dir))
+# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
 
-from database import get_connection
-from player_stats import add_player, init_player_tables
+from scripts.database import get_connection
+from scripts.player_stats import add_player, init_player_tables
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
