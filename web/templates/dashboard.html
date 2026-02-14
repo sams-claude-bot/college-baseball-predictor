@@ -93,15 +93,15 @@
                                 </div>
                                 <div class="col-md-4 text-center">
                                     {% if game.home_ml and game.away_ml %}
-                                    <small class="text-muted d-block">DraftKings</small>
+                                    <small class="text-muted d-block">Lines</small>
                                     <div class="d-flex justify-content-center gap-3">
                                         <span>{{ game.away_ml|format_odds }}</span>
                                         <span class="text-muted">/</span>
                                         <span>{{ game.home_ml|format_odds }}</span>
                                     </div>
-                                    {% if game.over_under %}
-                                    <small class="text-muted">O/U {{ game.over_under }}</small>
-                                    {% endif %}
+                                    <small class="text-muted">
+                                        Run Line: -1.5 | O/U {{ game.over_under }}
+                                    </small>
                                     {% else %}
                                     <small class="text-muted">No lines available</small>
                                     {% endif %}

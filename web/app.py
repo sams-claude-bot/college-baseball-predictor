@@ -163,6 +163,8 @@ def get_value_picks(limit=5):
     c = conn.cursor()
     
     today = datetime.now().strftime('%Y-%m-%d')
+    # Only look at next 3 days to avoid running predictions on 2000+ games
+    three_days = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
     
     c.execute('''
         SELECT b.*, 
@@ -171,9 +173,10 @@ def get_value_picks(limit=5):
         FROM betting_lines b
         LEFT JOIN teams ht ON b.home_team_id = ht.id
         LEFT JOIN teams at ON b.away_team_id = at.id
-        WHERE b.date >= ?
+        WHERE b.date >= ? AND b.date <= ?
         ORDER BY b.date
-    ''', (today,))
+        LIMIT 100
+    ''', (today, three_days))
     
     lines = [dict(row) for row in c.fetchall()]
     conn.close()
