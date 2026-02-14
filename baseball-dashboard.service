@@ -1,0 +1,15 @@
+[Unit]
+Description=College Baseball Predictor Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=sam
+WorkingDirectory=/home/sam/college-baseball-predictor
+ExecStart=/usr/bin/python3 /home/sam/college-baseball-predictor/web/app.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

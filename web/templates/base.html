@@ -42,7 +42,8 @@
             margin-right: 0.5rem;
         }
         
-        .nav-link {
+        /* Navbar links */
+        .navbar .nav-link {
             color: rgba(255,255,255,0.85) !important;
             padding: 0.5rem 1rem !important;
             border-radius: 6px;
@@ -50,9 +51,27 @@
             transition: all 0.2s;
         }
         
-        .nav-link:hover, .nav-link.active {
+        .navbar .nav-link:hover, .navbar .nav-link.active {
             background-color: var(--maroon);
             color: white !important;
+        }
+        
+        /* Tab links inside cards (roster tabs, etc) */
+        .card .nav-link {
+            color: var(--grey) !important;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+        
+        .card .nav-link:hover {
+            color: var(--maroon) !important;
+            background-color: #e9ecef;
+        }
+        
+        .card .nav-link.active {
+            color: white !important;
+            background-color: var(--maroon) !important;
+            border-color: var(--maroon);
         }
         
         /* Cards */
