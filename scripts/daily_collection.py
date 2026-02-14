@@ -26,12 +26,18 @@ from scripts.database import get_current_top_25, get_recent_games
 # Import predictor with new ensemble
 from models.predictor_db import Predictor
 
-# Import box score collector
+# Import box score collector (new comprehensive version)
 try:
-    from scripts.collect_box_scores import collect_for_date, collect_recent, show_collection_status
+    from scripts.collect_all_boxscores import collect_for_date, collect_recent
+    from scripts.espn_boxscore import collect_date as collect_espn_date
     BOX_SCORES_AVAILABLE = True
 except ImportError:
-    BOX_SCORES_AVAILABLE = False
+    # Fall back to old collector
+    try:
+        from scripts.collect_box_scores import collect_for_date, collect_recent
+        BOX_SCORES_AVAILABLE = True
+    except ImportError:
+        BOX_SCORES_AVAILABLE = False
 
 
 def safe_import(module_name, attr_name=None):
@@ -144,9 +150,9 @@ def run_daily_collection():
         print(f"  ✗ Error: {e}")
         results["errors"].append(str(e))
     
-    # 4. Collect box scores for recent games
+    # 4. Collect box scores for recent games (ESPN + Team Sites)
     print("\n[4/9] Collecting box scores...")
-    results["box_scores"] = {"collected": 0, "missing": 0}
+    results["box_scores"] = {"espn": 0, "team_site": 0, "missing": 0, "total": 0}
     
     if BOX_SCORES_AVAILABLE:
         try:
@@ -156,16 +162,26 @@ def run_daily_collection():
             yesterday_result = collect_for_date(yesterday)
             today_result = collect_for_date(today)
             
-            results["box_scores"]["collected"] = (
-                yesterday_result.get('collected', 0) + 
-                today_result.get('collected', 0)
+            results["box_scores"]["espn"] = (
+                yesterday_result.get('espn', 0) + 
+                today_result.get('espn', 0)
+            )
+            results["box_scores"]["team_site"] = (
+                yesterday_result.get('team_site', 0) + 
+                today_result.get('team_site', 0)
             )
             results["box_scores"]["missing"] = (
                 yesterday_result.get('missing', 0) + 
                 today_result.get('missing', 0)
             )
+            results["box_scores"]["total"] = (
+                yesterday_result.get('total', 0) + 
+                today_result.get('total', 0)
+            )
             
-            print(f"  ✓ Box scores: {results['box_scores']['collected']} collected, {results['box_scores']['missing']} missing")
+            collected = results['box_scores']['espn'] + results['box_scores']['team_site']
+            print(f"  ✓ Box scores: {collected} collected (ESPN: {results['box_scores']['espn']}, Sites: {results['box_scores']['team_site']})")
+            print(f"    Missing: {results['box_scores']['missing']} of {results['box_scores']['total']} games")
         except Exception as e:
             print(f"  ✗ Error: {e}")
             results["errors"].append(f"Box score collection: {str(e)}")
