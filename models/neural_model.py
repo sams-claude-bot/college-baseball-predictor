@@ -81,7 +81,7 @@ class NeuralModel(BaseModel):
         if MODEL_PATH.exists():
             try:
                 checkpoint = torch.load(MODEL_PATH, map_location='cpu',
-                                        weights_only=True)
+                                        weights_only=False)
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                     self.model.load_state_dict(checkpoint['model_state_dict'])
                     self._feature_mean = checkpoint.get('feature_mean')
@@ -294,7 +294,7 @@ class Trainer:
         """Load best saved weights."""
         if MODEL_PATH.exists():
             checkpoint = torch.load(MODEL_PATH, map_location=self.device,
-                                    weights_only=True)
+                                    weights_only=False)
             self.model.load_state_dict(checkpoint['model_state_dict'])
 
     def evaluate(self, X_test, y_test):

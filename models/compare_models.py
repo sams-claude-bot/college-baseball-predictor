@@ -20,6 +20,7 @@ from models.pitching_model import PitchingModel
 from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
 from models.ensemble_model import EnsembleModel, PoissonModelWrapper
+from models.neural_model import NeuralModel
 from models.momentum_model import get_momentum_score
 from scripts.database import get_connection
 
@@ -33,6 +34,7 @@ MODELS = {
     "conference": ConferenceModel(),
     "prior": PriorModel(),
     "poisson": PoissonModelWrapper(),
+    "neural": NeuralModel(use_model_predictions=False),
     "ensemble": EnsembleModel()
 }
 
