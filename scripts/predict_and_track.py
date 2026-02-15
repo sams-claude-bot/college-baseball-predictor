@@ -71,32 +71,56 @@ def predict_games(date=None):
     print(f"\n✅ Stored {predictions_made} predictions for {len(games)} games")
 
 def evaluate_predictions(date=None):
-    """Compare predictions to actual results"""
-    if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
+    """Compare predictions to actual results.
     
+    If date is None, evaluates ALL pending predictions (was_correct IS NULL)
+    where the game has a final score. This ensures we catch up on any missed
+    evaluations from past days.
+    
+    If date is specified, only evaluates predictions for that date.
+    """
     conn = get_connection()
     cur = conn.cursor()
     
-    # Get games with results and predictions
-    cur.execute('''
-        SELECT 
-            g.id, h.name, a.name, g.home_score, g.away_score,
-            mp.model_name, mp.predicted_home_prob
-        FROM games g
-        JOIN teams h ON g.home_team_id = h.id
-        JOIN teams a ON g.away_team_id = a.id
-        JOIN model_predictions mp ON mp.game_id = g.id
-        WHERE g.date = ?
-        AND g.home_score IS NOT NULL
-        AND mp.was_correct IS NULL
-    ''', (date,))
+    # Get games with results and unevaluated predictions
+    # Use LEFT JOIN for teams in case team IDs don't match teams table
+    if date:
+        cur.execute('''
+            SELECT 
+                g.id, COALESCE(h.name, g.home_team_id), COALESCE(a.name, g.away_team_id), 
+                g.home_score, g.away_score,
+                mp.model_name, mp.predicted_home_prob, g.date
+            FROM games g
+            LEFT JOIN teams h ON g.home_team_id = h.id
+            LEFT JOIN teams a ON g.away_team_id = a.id
+            JOIN model_predictions mp ON mp.game_id = g.id
+            WHERE g.date = ?
+            AND g.home_score IS NOT NULL
+            AND mp.was_correct IS NULL
+        ''', (date,))
+    else:
+        # Evaluate ALL pending predictions with completed games
+        cur.execute('''
+            SELECT 
+                g.id, COALESCE(h.name, g.home_team_id), COALESCE(a.name, g.away_team_id), 
+                g.home_score, g.away_score,
+                mp.model_name, mp.predicted_home_prob, g.date
+            FROM games g
+            LEFT JOIN teams h ON g.home_team_id = h.id
+            LEFT JOIN teams a ON g.away_team_id = a.id
+            JOIN model_predictions mp ON mp.game_id = g.id
+            WHERE g.home_score IS NOT NULL
+            AND mp.was_correct IS NULL
+            ORDER BY g.date
+        ''')
     
     rows = cur.fetchall()
-    print(f"Evaluating {len(rows)} predictions for {date}")
+    date_str = date if date else "all pending"
+    print(f"Evaluating {len(rows)} predictions for {date_str}")
     
     updated = 0
-    for game_id, home, away, home_score, away_score, model, home_prob in rows:
+    dates_evaluated = set()
+    for game_id, home, away, home_score, away_score, model, home_prob, game_date in rows:
         home_won = home_score > away_score
         predicted_home = home_prob > 0.5
         correct = 1 if (home_won == predicted_home) else 0
@@ -107,10 +131,15 @@ def evaluate_predictions(date=None):
             WHERE game_id = ? AND model_name = ?
         ''', (correct, game_id, model))
         updated += 1
+        dates_evaluated.add(game_date)
     
     conn.commit()
     conn.close()
-    print(f"✅ Updated {updated} predictions with results")
+    
+    if dates_evaluated:
+        print(f"✅ Updated {updated} predictions across {len(dates_evaluated)} date(s): {', '.join(sorted(dates_evaluated))}")
+    else:
+        print(f"✅ No predictions needed evaluation")
 
 def show_accuracy():
     """Show model accuracy statistics"""
