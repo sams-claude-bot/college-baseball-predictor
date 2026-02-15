@@ -721,8 +721,8 @@ def team_detail(team_id):
     
     # Split roster into batters and pitchers
     pitcher_positions = ('P', 'RHP', 'LHP')
-    pitchers = [p for p in team['roster'] if p.get('position', '') in pitcher_positions 
-                or p.get('position', '').startswith(('RHP', 'LHP'))]
+    pitchers = [p for p in team['roster'] if (p.get('position') or '') in pitcher_positions 
+                or (p.get('position') or '').startswith(('RHP', 'LHP'))]
     batters = [p for p in team['roster'] if p not in pitchers]
     
     # Get recent form (last 10 games)

@@ -28,6 +28,15 @@ log = logging.getLogger('box_score_collector')
 
 # ESPN team name -> our team_id mapping (built dynamically)
 ESPN_TEAM_MAP = {}
+
+def normalize_player_name(name):
+    """Convert 'Last, First' to 'First Last' format."""
+    if not name:
+        return name
+    if ',' in name:
+        parts = name.split(',', 1)
+        return f"{parts[1].strip()} {parts[0].strip()}"
+    return name.strip()
 REQUEST_DELAY = 1
 
 
@@ -66,23 +75,23 @@ def fetch_json(url):
 def resolve_team_id(espn_name):
     """Resolve ESPN team display name to our team_id."""
     name_lower = espn_name.lower()
-    
+
     # Direct match
     if name_lower in ESPN_TEAM_MAP:
         return ESPN_TEAM_MAP[name_lower]
-    
+
     # Partial match
     for key, team_id in ESPN_TEAM_MAP.items():
         if key in name_lower or name_lower in key:
             return team_id
-    
+
     # Try just the school name (remove mascot)
     parts = espn_name.split()
     for i in range(len(parts), 0, -1):
         partial = ' '.join(parts[:i]).lower()
         if partial in ESPN_TEAM_MAP:
             return ESPN_TEAM_MAP[partial]
-    
+
     return None
 
 
@@ -92,14 +101,14 @@ def get_games_for_date(date_str):
     data = fetch_json(url)
     if not data:
         return []
-    
+
     games = []
     for event in data.get('events', []):
         comp = event['competitions'][0]
         status = comp['status']['type']['name']
         if status != 'STATUS_FINAL':
             continue
-        
+
         # Check if at least one team is P4
         competitors = comp.get('competitors', [])
         teams = []
@@ -112,7 +121,7 @@ def get_games_for_date(date_str):
                 'home_away': c.get('homeAway', ''),
                 'score': c.get('score', '0'),
             })
-        
+
         # Only collect if at least one P4 team
         p4_teams = [t for t in teams if t['team_id']]
         if p4_teams:
@@ -121,7 +130,7 @@ def get_games_for_date(date_str):
                 'teams': teams,
                 'date': date_str,
             })
-    
+
     return games
 
 
@@ -132,42 +141,42 @@ def collect_box_score(game_id, db):
     if not data or 'boxscore' not in data:
         log.error(f"  No box score data for game {game_id}")
         return False
-    
+
     bs = data['boxscore']
     batting_count = 0
     pitching_count = 0
-    
+
     for team_data in bs.get('players', []):
         team_info = team_data.get('team', {})
         espn_name = team_info.get('displayName', '')
         team_id = resolve_team_id(espn_name)
-        
+
         if not team_id:
             # Not a P4 team - skip
             continue
-        
+
         for stat_group in team_data.get('statistics', []):
             stat_type = stat_group.get('type', '')
             labels = stat_group.get('labels', [])
-            
+
             for athlete_data in stat_group.get('athletes', []):
                 athlete = athlete_data.get('athlete', {})
-                player_name = athlete.get('displayName', '')
+                player_name = normalize_player_name(athlete.get('displayName', ''))
                 stats = athlete_data.get('stats', [])
-                
+
                 if not player_name or not stats:
                     continue
-                
+
                 # Create stat dict from labels and values
                 stat_dict = dict(zip(labels, stats))
-                
+
                 if stat_type == 'batting':
                     insert_game_batting(db, game_id, team_id, player_name, stat_dict)
                     batting_count += 1
                 elif stat_type == 'pitching':
                     insert_game_pitching(db, game_id, team_id, player_name, stat_dict)
                     pitching_count += 1
-    
+
     db.commit()
     return batting_count > 0 or pitching_count > 0
 
@@ -216,12 +225,12 @@ def insert_game_pitching(db, game_id, team_id, player_name, stats):
     """Insert a pitching line into game_pitching_stats."""
     # Parse IP (format: "6.0" or "5.2")
     ip = safe_float(stats.get('IP', '0'))
-    
+
     # Parse W/L/S from decision column if present
     win = 1 if stats.get('DEC', '') == 'W' else 0
     loss = 1 if stats.get('DEC', '') == 'L' else 0
     save = 1 if stats.get('DEC', '') == 'S' else 0
-    
+
     db.execute("""
         INSERT OR REPLACE INTO game_pitching_stats (
             game_id, team_id, player_name,
@@ -251,46 +260,46 @@ def main():
     parser.add_argument('--yesterday', action='store_true')
     parser.add_argument('--game-id', help='Single ESPN game ID')
     args = parser.parse_args()
-    
+
     if not any([args.date, args.yesterday, args.game_id]):
         parser.print_help()
         sys.exit(1)
-    
+
     db = get_db()
     build_team_map(db)
-    
+
     if args.game_id:
         log.info(f"Collecting box score for game {args.game_id}")
         success = collect_box_score(args.game_id, db)
         log.info(f"{'Success' if success else 'Failed'}")
         db.close()
         return
-    
+
     if args.yesterday:
         date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
     else:
         date = args.date
-    
+
     date_fmt = date.replace('-', '')
     log.info(f"Collecting box scores for {date}")
-    
+
     games = get_games_for_date(date_fmt)
     log.info(f"Found {len(games)} completed P4 games")
-    
+
     success = 0
     failed = 0
     for i, game in enumerate(games, 1):
         teams_str = ' vs '.join(t['espn_name'] for t in game['teams'])
         log.info(f"[{i}/{len(games)}] Game {game['game_id']}: {teams_str}")
-        
+
         if collect_box_score(game['game_id'], db):
             success += 1
         else:
             failed += 1
-        
+
         if i < len(games):
             time.sleep(REQUEST_DELAY)
-    
+
     log.info(f"\nResults: {success} collected, {failed} failed out of {len(games)} games")
     db.close()
 
