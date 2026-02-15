@@ -18,7 +18,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-# sys.path.insert(0, str(Path(__file__).parent))  # Removed by cleanup
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.base_model import BaseModel
 from models.pythagorean_model import PythagoreanModel
@@ -28,9 +28,35 @@ from models.advanced_model import AdvancedModel
 from models.pitching_model import PitchingModel
 from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
+from models.poisson_model import predict as poisson_predict
+from models.momentum_model import predict_with_momentum
 
 # File to store model accuracy history
 ACCURACY_FILE = Path(__file__).parent.parent / "data" / "model_accuracy.json"
+
+
+class PoissonModelWrapper(BaseModel):
+    """Wrapper to make Poisson model compatible with ensemble interface."""
+    
+    name = "poisson"
+    version = "1.0"
+    description = "Poisson run distribution model"
+    
+    def predict_game(self, home_team_id, away_team_id, neutral_site=False):
+        result = poisson_predict(home_team_id, away_team_id, 
+                                 neutral_site=neutral_site, 
+                                 team_a_home=True)
+        return {
+            "model": self.name,
+            "home_win_probability": result['win_prob_a'],
+            "away_win_probability": result['win_prob_b'],
+            "projected_home_runs": result['expected_runs_a'],
+            "projected_away_runs": result['expected_runs_b'],
+            "projected_total": result['expected_total'],
+            "run_line": self.calculate_run_line(
+                result['expected_runs_a'], result['expected_runs_b']
+            )
+        }
 
 
 class EnsembleModel(BaseModel):
@@ -68,20 +94,26 @@ class EnsembleModel(BaseModel):
             "advanced": AdvancedModel(),
             "pitching": PitchingModel(),
             "conference": ConferenceModel(),
-            "prior": PriorModel()
+            "prior": PriorModel(),
+            "poisson": PoissonModelWrapper()
         }
         
         # Default weights (sum to 1.0)
-        # Advanced and pitching weighted higher due to sophistication
+        # Advanced, pitching, and poisson weighted higher due to sophistication
         self.default_weights = {
-            "pythagorean": 0.10,
-            "elo": 0.15,
-            "log5": 0.10,
-            "advanced": 0.25,
+            "pythagorean": 0.07,
+            "elo": 0.12,
+            "log5": 0.08,
+            "advanced": 0.20,
             "pitching": 0.15,
-            "conference": 0.10,
-            "prior": 0.15
+            "conference": 0.08,
+            "prior": 0.12,
+            "poisson": 0.18
         }
+        
+        # Momentum adjustment settings
+        self.use_momentum = True
+        self.momentum_strength = 1.0  # Multiplier for momentum adjustment (0-2)
         
         # Use provided weights or defaults
         if weights is not None:
@@ -340,6 +372,33 @@ class EnsembleModel(BaseModel):
         home_prob = max(0.1, min(0.9, home_prob))
         run_line = self.calculate_run_line(home_runs, away_runs)
         
+        # Apply momentum adjustment if enabled
+        momentum_info = None
+        if self.use_momentum:
+            try:
+                mom_result = predict_with_momentum(
+                    home_team_id, away_team_id, 
+                    base_prob_a=home_prob
+                )
+                # Apply momentum with configurable strength
+                adjustment = mom_result['adjustment'] * self.momentum_strength
+                home_prob_adjusted = home_prob + adjustment
+                home_prob_adjusted = max(0.1, min(0.9, home_prob_adjusted))
+                
+                momentum_info = {
+                    "base_prob": round(home_prob, 3),
+                    "adjustment": round(adjustment, 3),
+                    "adjusted_prob": round(home_prob_adjusted, 3),
+                    "home_momentum": round(mom_result['team_a_momentum']['momentum_score'], 3),
+                    "away_momentum": round(mom_result['team_b_momentum']['momentum_score'], 3),
+                    "home_streak": mom_result['team_a_momentum']['components'].get('streak', 'N/A'),
+                    "away_streak": mom_result['team_b_momentum']['components'].get('streak', 'N/A')
+                }
+                home_prob = home_prob_adjusted
+            except Exception as e:
+                # If momentum fails, continue without it
+                momentum_info = {"error": str(e)}
+        
         return {
             "model": self.name,
             "home_win_probability": round(home_prob, 3),
@@ -348,6 +407,7 @@ class EnsembleModel(BaseModel):
             "projected_away_runs": round(away_runs, 1),
             "projected_total": round(home_runs + away_runs, 1),
             "run_line": run_line,
+            "momentum": momentum_info,
             "component_predictions": {
                 name: {
                     "home_prob": pred['home_win_probability'],
