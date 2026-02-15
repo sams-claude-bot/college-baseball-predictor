@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,16 +19,42 @@
             --grey: #777777;
             --dark: #1a1a1a;
             --light-grey: #e9ecef;
+            --bg-body: #f8f9fa;
+            --bg-card: #ffffff;
+            --bg-card-header: #ffffff;
+            --text-primary: #212529;
+            --text-muted: #6c757d;
+            --border-color: #dee2e6;
+            --table-hover-bg: rgba(93, 23, 37, 0.05);
+            --navbar-bg: #1a1a1a;
+        }
+        
+        [data-theme="dark"] {
+            --maroon: #8B3A4A;
+            --maroon-dark: #5D1725;
+            --grey: #aaaaaa;
+            --dark: #e8e8e8;
+            --light-grey: #2a2a3e;
+            --bg-body: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-card-header: #16213e;
+            --text-primary: #e8e8e8;
+            --text-muted: #9a9ab0;
+            --border-color: #2a2a4e;
+            --table-hover-bg: rgba(139, 58, 74, 0.15);
+            --navbar-bg: #0f0f23;
         }
         
         body {
-            background-color: #f8f9fa;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
         }
         
         /* Navbar */
         .navbar {
-            background-color: var(--dark) !important;
+            background-color: var(--navbar-bg) !important;
             padding: 0.75rem 1rem;
         }
         
@@ -38,11 +64,13 @@
         }
         
         .navbar-brand .icon {
-            color: var(--maroon);
-            margin-right: 0.5rem;
+            color: #5D1725;
         }
         
-        /* Navbar links */
+        [data-theme="dark"] .navbar-brand .icon {
+            color: #8B3A4A;
+        }
+        
         .navbar .nav-link {
             color: rgba(255,255,255,0.85) !important;
             padding: 0.5rem 1rem !important;
@@ -52,26 +80,8 @@
         }
         
         .navbar .nav-link:hover, .navbar .nav-link.active {
-            background-color: var(--maroon);
+            background-color: #5D1725;
             color: white !important;
-        }
-        
-        /* Tab links inside cards (roster tabs, etc) */
-        .card .nav-link {
-            color: var(--grey) !important;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-        
-        .card .nav-link:hover {
-            color: var(--maroon) !important;
-            background-color: #e9ecef;
-        }
-        
-        .card .nav-link.active {
-            color: white !important;
-            background-color: var(--maroon) !important;
-            border-color: var(--maroon);
         }
         
         /* Cards */
@@ -80,20 +90,40 @@
             border-radius: 12px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.08);
             margin-bottom: 1.5rem;
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+        }
+        
+        [data-theme="dark"] .card {
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
         }
         
         .card-header {
-            background-color: white;
-            border-bottom: 2px solid var(--maroon);
+            background-color: var(--bg-card-header);
+            border-bottom: 2px solid #5D1725;
             font-weight: 600;
             padding: 1rem 1.25rem;
             border-radius: 12px 12px 0 0 !important;
+            color: var(--text-primary);
         }
         
         .card-header.bg-maroon {
-            background-color: var(--maroon) !important;
+            background-color: #5D1725 !important;
             color: white;
             border-bottom: none;
+        }
+        
+        /* Tab links inside cards */
+        .card .nav-link {
+            color: var(--grey) !important;
+            background-color: var(--light-grey);
+            border: 1px solid var(--border-color);
+        }
+        .card .nav-link:hover { color: var(--maroon) !important; }
+        .card .nav-link.active {
+            color: white !important;
+            background-color: #5D1725 !important;
+            border-color: #5D1725;
         }
         
         /* Stats cards */
@@ -101,228 +131,144 @@
             text-align: center;
             padding: 1.5rem;
         }
-        
         .stat-card .stat-value {
             font-size: 2.5rem;
             font-weight: 700;
             color: var(--maroon);
             line-height: 1;
         }
-        
         .stat-card .stat-label {
-            color: var(--grey);
+            color: var(--text-muted);
             font-size: 0.9rem;
             margin-top: 0.5rem;
         }
         
         /* Tables */
-        .table {
-            margin-bottom: 0;
-        }
-        
+        .table { margin-bottom: 0; color: var(--text-primary); }
         .table thead th {
             background-color: var(--light-grey);
-            border-bottom: 2px solid var(--maroon);
+            border-bottom: 2px solid #5D1725;
             font-weight: 600;
             font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            color: var(--text-primary);
         }
+        .table-hover tbody tr:hover { background-color: var(--table-hover-bg); }
+        .table .rank-col { width: 50px; text-align: center; font-weight: 700; color: var(--maroon); }
         
-        .table-hover tbody tr:hover {
-            background-color: rgba(93, 23, 37, 0.05);
-        }
-        
-        .table .rank-col {
-            width: 50px;
-            text-align: center;
-            font-weight: 700;
-            color: var(--maroon);
-        }
+        [data-theme="dark"] .table { --bs-table-bg: transparent; --bs-table-color: var(--text-primary); }
+        [data-theme="dark"] .table-light { --bs-table-bg: rgba(255,255,255,0.03); }
         
         /* Badges */
-        .badge.bg-maroon {
-            background-color: var(--maroon) !important;
-        }
-        
-        .badge.bg-success-soft {
-            background-color: rgba(25, 135, 84, 0.1);
-            color: #198754;
-        }
-        
-        .badge.bg-danger-soft {
-            background-color: rgba(220, 53, 69, 0.1);
-            color: #dc3545;
-        }
+        .badge.bg-maroon { background-color: #5D1725 !important; }
+        .badge.bg-success-soft { background-color: rgba(25, 135, 84, 0.1); color: #198754; }
+        .badge.bg-danger-soft { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; }
         
         /* Progress bars */
-        .progress {
-            height: 8px;
-            border-radius: 4px;
-            background-color: var(--light-grey);
-        }
+        .progress { height: 8px; border-radius: 4px; background-color: var(--light-grey); }
+        .progress-bar { background-color: #5D1725; border-radius: 4px; }
+        .progress-bar.bg-success { background-color: #198754 !important; }
+        .progress-bar.bg-danger { background-color: #dc3545 !important; }
         
-        .progress-bar {
-            background-color: var(--maroon);
-            border-radius: 4px;
-        }
-        
-        .progress-bar.bg-success {
-            background-color: #198754 !important;
-        }
-        
-        .progress-bar.bg-danger {
-            background-color: #dc3545 !important;
-        }
-        
-        /* Win probability display */
-        .win-prob {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-        
-        .win-prob.high {
-            color: #198754;
-        }
-        
-        .win-prob.medium {
-            color: var(--grey);
-        }
-        
-        .win-prob.low {
-            color: #dc3545;
-        }
+        /* Win probability */
+        .win-prob { font-size: 1.5rem; font-weight: 700; }
+        .win-prob.high { color: #198754; }
+        .win-prob.medium { color: var(--grey); }
+        .win-prob.low { color: #dc3545; }
         
         /* Team links */
-        a.team-link {
-            color: var(--dark);
-            text-decoration: none;
-            font-weight: 500;
-        }
-        
-        a.team-link:hover {
-            color: var(--maroon);
-            text-decoration: underline;
-        }
+        a.team-link { color: var(--text-primary); text-decoration: none; font-weight: 500; }
+        a.team-link:hover { color: var(--maroon); text-decoration: underline; }
         
         /* Value indicator */
         .value-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-weight: 600;
-            font-size: 0.85rem;
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.25rem 0.75rem; border-radius: 20px; font-weight: 600; font-size: 0.85rem;
         }
-        
-        .value-indicator.positive {
-            background-color: rgba(25, 135, 84, 0.15);
-            color: #198754;
-        }
-        
-        .value-indicator.negative {
-            background-color: rgba(220, 53, 69, 0.15);
-            color: #dc3545;
-        }
+        .value-indicator.positive { background-color: rgba(25, 135, 84, 0.15); color: #198754; }
+        .value-indicator.negative { background-color: rgba(220, 53, 69, 0.15); color: #dc3545; }
         
         /* Edge bars */
         .edge-bar {
-            height: 24px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 0.8rem;
-            color: white;
+            height: 24px; border-radius: 4px; display: flex; align-items: center;
+            justify-content: center; font-weight: 600; font-size: 0.8rem; color: white;
         }
-        
-        .edge-bar.positive {
-            background: linear-gradient(90deg, var(--maroon), #198754);
-        }
-        
-        .edge-bar.negative {
-            background: linear-gradient(90deg, var(--maroon), #dc3545);
-        }
+        .edge-bar.positive { background: linear-gradient(90deg, #5D1725, #198754); }
+        .edge-bar.negative { background: linear-gradient(90deg, #5D1725, #dc3545); }
         
         /* Sortable headers */
-        th.sortable {
-            cursor: pointer;
-            user-select: none;
-        }
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { background-color: var(--light-grey); }
+        th.sortable::after { content: ' ↕'; opacity: 0.3; }
+        th.sortable.asc::after { content: ' ↑'; opacity: 1; }
+        th.sortable.desc::after { content: ' ↓'; opacity: 1; }
         
-        th.sortable:hover {
-            background-color: #dde0e3;
-        }
-        
-        th.sortable::after {
-            content: ' ↕';
-            opacity: 0.3;
-        }
-        
-        th.sortable.asc::after {
-            content: ' ↑';
-            opacity: 1;
-        }
-        
-        th.sortable.desc::after {
-            content: ' ↓';
-            opacity: 1;
-        }
-        
-        /* Form styling */
+        /* Forms */
         .form-select, .form-control {
-            border-radius: 8px;
-            border: 2px solid var(--light-grey);
-            padding: 0.625rem 1rem;
+            border-radius: 8px; border: 2px solid var(--border-color); padding: 0.625rem 1rem;
+            background-color: var(--bg-card); color: var(--text-primary);
         }
-        
         .form-select:focus, .form-control:focus {
-            border-color: var(--maroon);
-            box-shadow: 0 0 0 0.2rem rgba(93, 23, 37, 0.15);
+            border-color: #5D1725; box-shadow: 0 0 0 0.2rem rgba(93, 23, 37, 0.15);
         }
-        
-        .btn-maroon {
-            background-color: var(--maroon);
-            border-color: var(--maroon);
-            color: white;
-        }
-        
-        .btn-maroon:hover {
-            background-color: var(--maroon-dark);
-            border-color: var(--maroon-dark);
-            color: white;
-        }
+        .btn-maroon { background-color: #5D1725; border-color: #5D1725; color: white; }
+        .btn-maroon:hover { background-color: #4a1120; border-color: #4a1120; color: white; }
         
         /* Game cards */
-        .game-card {
-            border-left: 4px solid var(--maroon);
+        .game-card { border-left: 4px solid #5D1725; }
+        .game-time { font-size: 0.85rem; color: var(--text-muted); }
+        
+        /* Dark mode toggle */
+        .dark-mode-toggle {
+            background: none; border: none; color: rgba(255,255,255,0.85);
+            font-size: 1.2rem; cursor: pointer; padding: 0.5rem;
+        }
+        .dark-mode-toggle:hover { color: white; }
+        
+        /* List group dark mode */
+        [data-theme="dark"] .list-group-item {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--border-color);
         }
         
-        .game-time {
-            font-size: 0.85rem;
-            color: var(--grey);
+        /* Accordion dark mode */
+        [data-theme="dark"] .accordion-button {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] .accordion-body {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
         }
         
-        /* Mobile responsiveness */
+        /* Alert dark mode */
+        [data-theme="dark"] .alert-secondary {
+            background-color: var(--light-grey);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        
+        /* Card footer dark mode */
+        [data-theme="dark"] .card-footer {
+            background-color: var(--bg-card);
+            border-color: var(--border-color);
+        }
+        
+        /* Text helpers */
+        .text-muted { color: var(--text-muted) !important; }
+        
+        /* Mobile */
         @media (max-width: 768px) {
-            .stat-card .stat-value {
-                font-size: 2rem;
-            }
-            
-            .table-responsive {
-                font-size: 0.9rem;
-            }
-            
-            .navbar-brand {
-                font-size: 1rem;
-            }
+            .stat-card .stat-value { font-size: 2rem; }
+            .table-responsive { font-size: 0.9rem; }
+            .navbar-brand { font-size: 1rem; }
         }
         
         /* Footer */
         .footer {
-            background-color: var(--dark);
+            background-color: var(--navbar-bg);
             color: rgba(255,255,255,0.6);
             padding: 1.5rem 0;
             margin-top: 3rem;
@@ -369,6 +315,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'tracker' %}active{% endif %}" href="/tracker">
+                            <i class="bi bi-graph-up-arrow"></i> P&L Tracker
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="/calendar">
                             <i class="bi bi-calendar3"></i> Calendar
                         </a>
@@ -377,6 +328,11 @@
                         <a class="nav-link {% if request.endpoint == 'models' %}active{% endif %}" href="/models">
                             <i class="bi bi-gear"></i> Models
                         </a>
+                    </li>
+                    <li class="nav-item">
+                        <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">
+                            <i class="bi bi-moon-fill" id="darkModeIcon"></i>
+                        </button>
                     </li>
                 </ul>
             </div>
@@ -397,6 +353,30 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Dark Mode -->
+    <script>
+    function toggleDarkMode() {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateIcon(next);
+    }
+    function updateIcon(theme) {
+        const icon = document.getElementById('darkModeIcon');
+        if (icon) {
+            icon.className = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        }
+    }
+    // Load saved preference
+    (function() {
+        const saved = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        updateIcon(saved);
+    })();
+    </script>
     
     {% block extra_js %}{% endblock %}
 </body>

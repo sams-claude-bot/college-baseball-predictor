@@ -4,9 +4,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1 class="h3 mb-0">
-        <i class="bi bi-list-ol"></i> Rankings
-    </h1>
+    <h1 class="h3 mb-0"><i class="bi bi-list-ol"></i> Rankings</h1>
     <div class="d-flex gap-2">
         <select class="form-select form-select-sm" style="width: auto;"
                 onchange="updateRankingsFilters()">
@@ -28,60 +26,44 @@
 </div>
 
 <div class="row">
-    <!-- Current Top 25 -->
-    <div class="col-lg-8">
+    <!-- D1Baseball / AP Top 25 -->
+    <div class="col-lg-6">
         <div class="card">
             <div class="card-header bg-maroon">
                 <i class="bi bi-trophy-fill"></i> 
-                {% if selected_date %}
-                Rankings for {{ selected_date }}
-                {% else %}
-                Current Top 25
-                {% endif %}
+                {% if selected_date %}D1Baseball Rankings ({{ selected_date }}){% else %}D1Baseball Top 25{% endif %}
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover table-sm mb-0">
                         <thead>
                             <tr>
-                                <th style="width: 60px;" class="text-center">Rank</th>
+                                <th style="width: 50px;" class="text-center">#</th>
                                 <th>Team</th>
-                                <th>Conference</th>
                                 <th class="text-center">Record</th>
-                                <th class="text-end">Elo Rating</th>
+                                <th class="text-end">Elo</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% set rankings = historical if historical else top_25 %}
                             {% for team in rankings %}
-                            <tr>
+                            {% set tid = team.id if team.id else team.team_id %}
+                            <tr class="{% if tid not in elo_ids %}table-warning{% endif %}">
                                 <td class="text-center">
-                                    <span class="badge bg-maroon fs-6">{{ team.rank if team.rank else team.current_rank }}</span>
+                                    <span class="badge bg-maroon">{{ team.rank if team.rank else team.current_rank }}</span>
                                 </td>
                                 <td>
-                                    <a href="/team/{{ team.id if team.id else team.team_id }}" class="team-link">
-                                        <strong>{{ team.name }}</strong>
-                                    </a>
-                                    {% if team.nickname %}
-                                    <br><small class="text-muted">{{ team.nickname }}</small>
+                                    <a href="/team/{{ tid }}" class="team-link"><strong>{{ team.name }}</strong></a>
+                                    <br><small class="text-muted">{{ team.conference or '' }}</small>
+                                    {% if tid not in elo_ids %}
+                                    <span class="badge bg-warning text-dark ms-1" title="Not in Elo Top 25">AP only</span>
                                     {% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-secondary">{{ team.conference or 'N/A' }}</span>
                                 </td>
                                 <td class="text-center">
-                                    {% if team.wins is defined %}
-                                    {{ team.wins }}-{{ team.losses }}
-                                    {% else %}
-                                    —
-                                    {% endif %}
+                                    {% if team.wins is defined %}{{ team.wins }}-{{ team.losses }}{% else %}—{% endif %}
                                 </td>
                                 <td class="text-end">
-                                    {% if team.elo_rating %}
-                                    <strong>{{ team.elo_rating|round(0)|int }}</strong>
-                                    {% else %}
-                                    <span class="text-muted">1500</span>
-                                    {% endif %}
+                                    {% if team.elo_rating %}{{ team.elo_rating|round(0)|int }}{% else %}—{% endif %}
                                 </td>
                             </tr>
                             {% endfor %}
@@ -92,59 +74,63 @@
         </div>
     </div>
 
-    <!-- Sidebar -->
-    <div class="col-lg-4">
-        <!-- Elo Top 10 -->
+    <!-- Elo Top 25 -->
+    <div class="col-lg-6">
         <div class="card">
-            <div class="card-header">
-                <i class="bi bi-graph-up-arrow"></i> Top 10 by Elo
+            <div class="card-header" style="background-color: #2563eb; color: white;">
+                <i class="bi bi-graph-up-arrow"></i> Elo Top 25
             </div>
             <div class="card-body p-0">
-                <div class="list-group list-group-flush">
-                    {% for team in top_25[:10] %}
-                    {% if team.elo_rating %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                        <div>
-                            <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
-                            {% if team.current_rank %}
-                            <span class="badge bg-secondary ms-2">#{{ team.current_rank }}</span>
-                            {% endif %}
-                        </div>
-                        <strong style="color: var(--maroon);">{{ team.elo_rating|round(0)|int }}</strong>
-                    </div>
-                    {% endif %}
-                    {% endfor %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;" class="text-center">#</th>
+                                <th>Team</th>
+                                <th class="text-center">Record</th>
+                                <th class="text-end">Elo</th>
+                                <th class="text-center">AP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for team in elo_top_25 %}
+                            <tr class="{% if team.team_id not in ap_ids %}table-info{% endif %}">
+                                <td class="text-center">
+                                    <span class="badge" style="background-color: #2563eb;">{{ team.elo_rank }}</span>
+                                </td>
+                                <td>
+                                    <a href="/team/{{ team.team_id }}" class="team-link"><strong>{{ team.name }}</strong></a>
+                                    <br><small class="text-muted">{{ team.conference or '' }}</small>
+                                    {% if team.team_id not in ap_ids %}
+                                    <span class="badge bg-info text-dark ms-1" title="Not in AP Top 25">Elo only</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">{{ team.wins }}-{{ team.losses }}</td>
+                                <td class="text-end"><strong>{{ team.rating|round(0)|int }}</strong></td>
+                                <td class="text-center">
+                                    {% if team.current_rank %}
+                                    <span class="badge bg-maroon">{{ team.current_rank }}</span>
+                                    {% else %}
+                                    <span class="text-muted">NR</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
-        <!-- Rankings Legend -->
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-info-circle"></i> About Rankings
-            </div>
-            <div class="card-body">
-                <h6>D1Baseball Poll</h6>
-                <p class="small text-muted mb-3">
-                    Rankings are based on the D1Baseball Top 25 poll, updated weekly during the season.
-                </p>
-                
-                <h6>Elo Ratings</h6>
-                <p class="small text-muted mb-0">
-                    Elo ratings are calculated based on game results, with adjustments for:
-                </p>
-                <ul class="small text-muted">
-                    <li>Margin of victory</li>
-                    <li>Home field advantage</li>
-                    <li>Opponent strength</li>
-                </ul>
-                
-                <div class="alert alert-secondary small mb-0">
-                    <strong>Starting Rating:</strong> 1500<br>
-                    <strong>Top Programs:</strong> 1600+<br>
-                    <strong>Elite Teams:</strong> 1700+
-                </div>
-            </div>
+<!-- Legend -->
+<div class="card mt-3">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-3 align-items-center small">
+            <strong>Legend:</strong>
+            <span><span class="badge bg-warning text-dark">AP only</span> Ranked by D1Baseball but not in Elo Top 25</span>
+            <span><span class="badge bg-info text-dark">Elo only</span> In Elo Top 25 but not ranked by D1Baseball</span>
         </div>
     </div>
 </div>
@@ -154,28 +140,15 @@
 <script>
 function updateRankingsFilters() {
     const selects = document.querySelectorAll('select');
-    let conference = '';
-    let week = '';
-    
+    let conference = '', week = '';
     selects.forEach(s => {
-        if (s.id === 'weekSelector') {
-            week = s.value;
-        } else if (s.options[0] && s.options[0].text === 'All Conferences') {
-            conference = s.value;
-        }
+        if (s.id === 'weekSelector') week = s.value;
+        else if (s.options[0] && s.options[0].text === 'All Conferences') conference = s.value;
     });
-    
-    let url = '/rankings?';
-    const params = [];
-    
-    if (conference) {
-        params.push('conference=' + encodeURIComponent(conference));
-    }
-    if (week) {
-        params.push('week=' + encodeURIComponent(week));
-    }
-    
-    window.location.href = url + params.join('&');
+    let params = [];
+    if (conference) params.push('conference=' + encodeURIComponent(conference));
+    if (week) params.push('week=' + encodeURIComponent(week));
+    window.location.href = '/rankings?' + params.join('&');
 }
 </script>
 {% endblock %}

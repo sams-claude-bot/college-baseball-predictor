@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Rankings - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-list-ol"></i> Rankings
+    </h1>
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" style="width: auto;"
+                onchange="updateRankingsFilters()">
+            <option value="">All Conferences</option>
+            {% for conf in conferences %}
+            <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
+            {% endfor %}
+        </select>
+        {% if history_dates %}
+        <select class="form-select form-select-sm" id="weekSelector" style="width: auto;"
+                onchange="updateRankingsFilters()">
+            <option value="">Current Rankings</option>
+            {% for date in history_dates %}
+            <option value="{{ date }}" {% if selected_date == date %}selected{% endif %}>{{ date }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <!-- Current Top 25 -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-maroon">
+                <i class="bi bi-trophy-fill"></i> 
+                {% if selected_date %}
+                Rankings for {{ selected_date }}
+                {% else %}
+                Current Top 25
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;" class="text-center">Rank</th>
+                                <th>Team</th>
+                                <th>Conference</th>
+                                <th class="text-center">Record</th>
+                                <th class="text-end">Elo Rating</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set rankings = historical if historical else top_25 %}
+                            {% for team in rankings %}
+                            <tr>
+                                <td class="text-center">
+                                    <span class="badge bg-maroon fs-6">{{ team.rank if team.rank else team.current_rank }}</span>
+                                </td>
+                                <td>
+                                    <a href="/team/{{ team.id if team.id else team.team_id }}" class="team-link">
+                                        <strong>{{ team.name }}</strong>
+                                    </a>
+                                    {% if team.nickname %}
+                                    <br><small class="text-muted">{{ team.nickname }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ team.conference or 'N/A' }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if team.wins is defined %}
+                                    {{ team.wins }}-{{ team.losses }}
+                                    {% else %}
+                                    —
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if team.elo_rating %}
+                                    <strong>{{ team.elo_rating|round(0)|int }}</strong>
+                                    {% else %}
+                                    <span class="text-muted">1500</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Elo Top 10 -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-graph-up-arrow"></i> Top 10 by Elo
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for team in top_25[:10] %}
+                    {% if team.elo_rating %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
+                            {% if team.current_rank %}
+                            <span class="badge bg-secondary ms-2">#{{ team.current_rank }}</span>
+                            {% endif %}
+                        </div>
+                        <strong style="color: var(--maroon);">{{ team.elo_rating|round(0)|int }}</strong>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Rankings Legend -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> About Rankings
+            </div>
+            <div class="card-body">
+                <h6>D1Baseball Poll</h6>
+                <p class="small text-muted mb-3">
+                    Rankings are based on the D1Baseball Top 25 poll, updated weekly during the season.
+                </p>
+                
+                <h6>Elo Ratings</h6>
+                <p class="small text-muted mb-0">
+                    Elo ratings are calculated based on game results, with adjustments for:
+                </p>
+                <ul class="small text-muted">
+                    <li>Margin of victory</li>
+                    <li>Home field advantage</li>
+                    <li>Opponent strength</li>
+                </ul>
+                
+                <div class="alert alert-secondary small mb-0">
+                    <strong>Starting Rating:</strong> 1500<br>
+                    <strong>Top Programs:</strong> 1600+<br>
+                    <strong>Elite Teams:</strong> 1700+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateRankingsFilters() {
+    const selects = document.querySelectorAll('select');
+    let conference = '';
+    let week = '';
+    
+    selects.forEach(s => {
+        if (s.id === 'weekSelector') {
+            week = s.value;
+        } else if (s.options[0] && s.options[0].text === 'All Conferences') {
+            conference = s.value;
+        }
+    });
+    
+    let url = '/rankings?';
+    const params = [];
+    
+    if (conference) {
+        params.push('conference=' + encodeURIComponent(conference));
+    }
+    if (week) {
+        params.push('week=' + encodeURIComponent(week));
+    }
+    
+    window.location.href = url + params.join('&');
+}
+</script>
+{% endblock %}

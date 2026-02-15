@@ -5,26 +5,17 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">
-        <i class="bi bi-speedometer2 text-maroon"></i> Dashboard
+        <i class="bi bi-speedometer2"></i> Dashboard
     </h1>
-    <div class="d-flex gap-2 align-items-center">
-        <select class="form-select form-select-sm" style="width: auto;"
-                onchange="window.location.href='/?conference=' + encodeURIComponent(this.value)">
-            <option value="">All Conferences</option>
-            {% for conf in conferences %}
-            <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
-            {% endfor %}
-        </select>
-        <span class="text-muted">{{ today }}</span>
-    </div>
+    <span class="text-muted">{{ today }}</span>
 </div>
 
 <!-- Quick Stats Row -->
 <div class="row mb-4">
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value">{{ stats.total_teams }}</div>
-            <div class="stat-label">Teams Tracked</div>
+            <div class="stat-value">{{ todays_games|length }}</div>
+            <div class="stat-label">Today's Games</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
@@ -35,90 +26,130 @@
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value">{{ stats.games_scheduled }}</div>
-            <div class="stat-label">Games Scheduled</div>
+            <div class="stat-value">{{ accuracy.ensemble.pct or '—' }}{% if accuracy.ensemble.pct %}%{% endif %}</div>
+            <div class="stat-label">Ensemble Accuracy</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value">{{ stats.players_tracked or 0 }}</div>
-            <div class="stat-label">Players Tracked</div>
+            <div class="stat-value">{{ accuracy.neural.pct or '—' }}{% if accuracy.neural.pct %}%{% endif %}</div>
+            <div class="stat-label">Neural Accuracy</div>
         </div>
     </div>
 </div>
 
 <div class="row">
-    <!-- Today's Games -->
+    <!-- Main column -->
     <div class="col-lg-8">
+        <!-- MS State Focus -->
         <div class="card">
             <div class="card-header bg-maroon">
-                <i class="bi bi-calendar-event"></i> Today's Games
+                <i class="bi bi-star-fill"></i> Mississippi State Bulldogs
             </div>
             <div class="card-body">
-                {% if todays_games %}
-                    {% for game in todays_games %}
-                    <div class="game-card card mb-3">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-md-5">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <a href="/team/{{ game.away_team_id }}" class="team-link">
-                                                {% if game.away_rank %}<span class="badge bg-maroon me-1">#{{ game.away_rank }}</span>{% endif %}
-                                                {{ game.away_team_name }}
-                                            </a>
-                                        </div>
-                                        {% if game.prediction %}
-                                        <span class="win-prob {% if game.prediction.away_win_probability > 0.6 %}high{% elif game.prediction.away_win_probability < 0.4 %}low{% else %}medium{% endif %}">
-                                            {{ (game.prediction.away_win_probability * 100)|round(1) }}%
-                                        </span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="mt-2">
-                                        <small class="text-muted">@</small>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <a href="/team/{{ game.home_team_id }}" class="team-link">
-                                                {% if game.home_rank %}<span class="badge bg-maroon me-1">#{{ game.home_rank }}</span>{% endif %}
-                                                {{ game.home_team_name }}
-                                            </a>
-                                        </div>
-                                        {% if game.prediction %}
-                                        <span class="win-prob {% if game.prediction.home_win_probability > 0.6 %}high{% elif game.prediction.home_win_probability < 0.4 %}low{% else %}medium{% endif %}">
-                                            {{ (game.prediction.home_win_probability * 100)|round(1) }}%
-                                        </span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="col-md-3 text-center">
-                                    <div class="game-time">{{ game.time or 'TBD' }}</div>
-                                    {% if game.prediction %}
-                                    <div class="mt-2">
-                                        <small class="text-muted">Projected:</small>
-                                        <div class="fw-bold">{{ game.prediction.projected_away_runs|round(1) }} - {{ game.prediction.projected_home_runs|round(1) }}</div>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-4 text-center">
-                                    {% if game.home_ml and game.away_ml %}
-                                    <small class="text-muted d-block">Lines</small>
-                                    <div class="d-flex justify-content-center gap-3">
-                                        <span>{{ game.away_ml|format_odds }}</span>
-                                        <span class="text-muted">/</span>
-                                        <span>{{ game.home_ml|format_odds }}</span>
-                                    </div>
-                                    <small class="text-muted">
-                                        Run Line: -1.5 | O/U {{ game.over_under }}
-                                    </small>
-                                    {% else %}
-                                    <small class="text-muted">No lines available</small>
-                                    {% endif %}
-                                </div>
-                            </div>
+                <div class="row align-items-center">
+                    <div class="col-md-4 text-center mb-3 mb-md-0">
+                        <div class="fs-2 fw-bold">{{ msstate.record.wins }}-{{ msstate.record.losses }}</div>
+                        <div class="text-muted">Season Record</div>
+                        {% if msstate.rank %}
+                        <span class="badge bg-maroon fs-6 mt-1">#{{ msstate.rank }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 text-center mb-3 mb-md-0">
+                        <div class="fs-2 fw-bold">{{ msstate.elo|round(0)|int }}</div>
+                        <div class="text-muted">Elo Rating</div>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="mb-2"><strong>Last 5</strong></div>
+                        <div class="d-flex justify-content-center gap-1">
+                            {% for g in msstate.last_5 %}
+                            <span class="badge {% if g.won %}bg-success{% else %}bg-danger{% endif %}" 
+                                  title="{{ g.opponent }} {{ g.score }}">
+                                {{ 'W' if g.won else 'L' }}
+                            </span>
+                            {% endfor %}
+                            {% if not msstate.last_5 %}
+                            <span class="text-muted">No games yet</span>
+                            {% endif %}
                         </div>
                     </div>
-                    {% endfor %}
+                </div>
+                {% if msstate.next_game %}
+                <hr>
+                <div class="text-center">
+                    <small class="text-muted">Next Game</small>
+                    <div class="fw-bold">
+                        {{ msstate.next_game.location }} {{ msstate.next_game.opponent }}
+                        — {{ msstate.next_game.date }} {{ msstate.next_game.time or '' }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer text-center">
+                <a href="/team/mississippi-state" class="btn btn-sm btn-maroon">Full Team Page</a>
+            </div>
+        </div>
+
+        <!-- Today's Games -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-calendar-event"></i> Today's Games
+                <span class="badge bg-secondary ms-2">{{ todays_games|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if todays_games %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Away</th>
+                                <th class="text-center">Score/Time</th>
+                                <th>Home</th>
+                                <th class="text-center">Pred</th>
+                                <th class="text-center">Lines</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in todays_games[:20] %}
+                            <tr>
+                                <td>
+                                    {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
+                                    <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
+                                </td>
+                                <td class="text-center">
+                                    {% if game.status == 'final' %}
+                                    <span class="{% if game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score }}</span>
+                                    -
+                                    <span class="{% if game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score }}</span>
+                                    <br><small class="text-success">Final</small>
+                                    {% else %}
+                                    {{ game.time or 'TBD' }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
+                                    <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
+                                </td>
+                                <td class="text-center">
+                                    {% if game.prediction %}
+                                    <small>{{ (game.prediction.projected_away_runs|round(1)) }}-{{ (game.prediction.projected_home_runs|round(1)) }}</small>
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if game.home_ml %}
+                                    <small>{{ game.away_ml|format_odds }}/{{ game.home_ml|format_odds }}</small>
+                                    {% else %}—{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if todays_games|length > 20 %}
+                <div class="card-footer text-center">
+                    <a href="/calendar" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games</a>
+                </div>
+                {% endif %}
                 {% else %}
                 <div class="text-center text-muted py-4">
                     <i class="bi bi-calendar-x display-4"></i>
@@ -131,7 +162,7 @@
 
     <!-- Sidebar -->
     <div class="col-lg-4">
-        <!-- Value Picks -->
+        <!-- Top Value Picks -->
         <div class="card">
             <div class="card-header">
                 <i class="bi bi-lightning-charge text-warning"></i> Top Value Picks
@@ -147,9 +178,7 @@
                                 <div class="small text-muted">{{ pick.game }}</div>
                             </div>
                             <div class="text-end">
-                                <span class="value-indicator positive">
-                                    +{{ pick.edge|round(1) }}%
-                                </span>
+                                <span class="value-indicator positive">+{{ pick.edge|round(1) }}%</span>
                                 <div class="small text-muted mt-1">{{ pick.moneyline|format_odds }}</div>
                             </div>
                         </div>
@@ -174,50 +203,30 @@
             </div>
         </div>
 
-        <!-- Top 25 -->
+        <!-- Model Snapshot -->
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-trophy text-warning"></i> Current Top 25
+                <i class="bi bi-bar-chart"></i> Model Accuracy Snapshot
             </div>
-            <div class="card-body p-0">
-                {% if top_25 %}
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th class="rank-col">#</th>
-                                <th>Team</th>
-                                <th class="text-end">Elo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for team in top_25[:10] %}
-                            <tr>
-                                <td class="rank-col">{{ team.current_rank }}</td>
-                                <td>
-                                    <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
-                                    <br><small class="text-muted">{{ team.conference }}</small>
-                                </td>
-                                <td class="text-end">
-                                    {% if team.elo_rating %}
-                                    {{ team.elo_rating|round(0)|int }}
-                                    {% else %}
-                                    —
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center text-muted py-4">
-                    <p>No rankings available</p>
+            <div class="card-body">
+                {% for name, info in all_accuracy.items() %}
+                {% if info.all_time_accuracy %}
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="fw-bold" style="width: 80px;">{{ name[:8] }}</small>
+                    <div class="flex-grow-1 mx-2">
+                        <div class="progress" style="height: 16px;">
+                            <div class="progress-bar {% if info.all_time_accuracy > 0.55 %}bg-success{% elif info.all_time_accuracy > 0.5 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 style="width: {{ info.all_time_accuracy * 100 }}%;">
+                            </div>
+                        </div>
+                    </div>
+                    <small>{{ (info.all_time_accuracy * 100)|round(1) }}%</small>
                 </div>
                 {% endif %}
-            </div>
-            <div class="card-footer text-center">
-                <a href="/rankings" class="btn btn-sm btn-outline-secondary">View Full Rankings</a>
+                {% endfor %}
+                <div class="text-center mt-3">
+                    <a href="/models" class="btn btn-sm btn-outline-secondary">Full Model Details</a>
+                </div>
             </div>
         </div>
     </div>

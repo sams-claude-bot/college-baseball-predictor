@@ -569,119 +569,42 @@ def get_model_accuracy():
 # Routes
 # ============================================
 
-def get_msstate_info():
-    """Get Mississippi State focus data for dashboard"""
-    team_id = 'mississippi-state'
-    conn = get_connection()
-    c = conn.cursor()
-    
-    # Record
-    record = get_team_record(team_id)
-    
-    # Elo
-    c.execute('SELECT rating FROM elo_ratings WHERE team_id = ?', (team_id,))
-    row = c.fetchone()
-    elo = row[0] if row else 1500
-    
-    # Current rank
-    c.execute('SELECT current_rank FROM teams WHERE id = ?', (team_id,))
-    row = c.fetchone()
-    rank = row[0] if row else None
-    
-    # Last 5 results
-    c.execute('''
-        SELECT g.date, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.winner_id,
-               ht.name as home_name, at.name as away_name
-        FROM games g
-        LEFT JOIN teams ht ON g.home_team_id = ht.id
-        LEFT JOIN teams at ON g.away_team_id = at.id
-        WHERE (g.home_team_id = ? OR g.away_team_id = ?) AND g.status = 'final'
-        ORDER BY g.date DESC
-        LIMIT 5
-    ''', (team_id, team_id))
-    last_5 = []
-    for r in c.fetchall():
-        r = dict(r)
-        won = r['winner_id'] == team_id
-        if r['home_team_id'] == team_id:
-            opponent = r['away_name']
-            score = f"{r['home_score']}-{r['away_score']}"
-        else:
-            opponent = r['home_name']
-            score = f"{r['away_score']}-{r['home_score']}"
-        last_5.append({'won': won, 'opponent': opponent, 'score': score, 'date': r['date']})
-    
-    # Next game
-    today = datetime.now().strftime('%Y-%m-%d')
-    c.execute('''
-        SELECT g.date, g.time, g.home_team_id, g.away_team_id,
-               ht.name as home_name, at.name as away_name
-        FROM games g
-        LEFT JOIN teams ht ON g.home_team_id = ht.id
-        LEFT JOIN teams at ON g.away_team_id = at.id
-        WHERE (g.home_team_id = ? OR g.away_team_id = ?) AND g.status = 'scheduled' AND g.date >= ?
-        ORDER BY g.date, g.time
-        LIMIT 1
-    ''', (team_id, team_id, today))
-    next_game = None
-    row = c.fetchone()
-    if row:
-        r = dict(row)
-        if r['home_team_id'] == team_id:
-            next_game = {'opponent': r['away_name'], 'location': 'vs', 'date': r['date'], 'time': r['time']}
-        else:
-            next_game = {'opponent': r['home_name'], 'location': '@', 'date': r['date'], 'time': r['time']}
-    
-    conn.close()
-    return {
-        'record': record,
-        'elo': elo,
-        'rank': rank,
-        'last_5': last_5,
-        'next_game': next_game
-    }
-
-def get_model_accuracy_summary():
-    """Get quick model accuracy numbers for dashboard"""
-    conn = get_connection()
-    c = conn.cursor()
-    
-    result = {}
-    for model_name in ('ensemble', 'neural'):
-        c.execute('''
-            SELECT SUM(was_correct) as correct, COUNT(*) as total
-            FROM model_predictions 
-            WHERE was_correct IS NOT NULL AND model_name = ?
-        ''', (model_name,))
-        row = c.fetchone()
-        if row and row['total'] > 0:
-            result[model_name] = {'correct': row['correct'], 'total': row['total'],
-                                  'pct': round(row['correct'] / row['total'] * 100, 1)}
-        else:
-            result[model_name] = {'correct': 0, 'total': 0, 'pct': None}
-    
-    conn.close()
-    return result
-
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
+    conference = request.args.get('conference', '')
+    
     todays_games = get_todays_games()
     value_picks = get_value_picks(5)
+    top_25 = get_current_top_25()
     stats = get_quick_stats()
-    msstate = get_msstate_info()
-    accuracy = get_model_accuracy_summary()
+    conferences = get_all_conferences()
     
-    # Model snapshot - all models
-    all_accuracy = get_model_accuracy()
+    # Filter games by conference if specified
+    if conference:
+        todays_games = [g for g in todays_games 
+                       if g.get('home_conf') == conference or g.get('away_conf') == conference]
+    
+    # Add Elo ratings and conference to top 25
+    conn = get_connection()
+    c = conn.cursor()
+    for team in top_25:
+        c.execute('SELECT rating FROM elo_ratings WHERE team_id = ?', (team['id'],))
+        row = c.fetchone()
+        team['elo_rating'] = row[0] if row else None
+    conn.close()
+    
+    # Filter top 25 by conference if specified
+    if conference:
+        top_25 = [t for t in top_25 if t.get('conference') == conference]
     
     return render_template('dashboard.html',
                           todays_games=todays_games,
                           value_picks=value_picks,
+                          top_25=top_25,
                           stats=stats,
-                          msstate=msstate,
-                          accuracy=accuracy,
-                          all_accuracy=all_accuracy,
+                          conferences=conferences,
+                          selected_conference=conference,
                           today=datetime.now().strftime('%B %d, %Y'))
 
 @app.route('/teams')
@@ -876,33 +799,8 @@ def rankings():
         if conference:
             historical = [t for t in historical if t.get('conference') == conference]
     
-    # Get Elo Top 25
-    conn2 = get_connection()
-    c2 = conn2.cursor()
-    c2.execute('''
-        SELECT e.team_id, e.rating, t.name, t.conference, t.current_rank
-        FROM elo_ratings e
-        JOIN teams t ON e.team_id = t.id
-        ORDER BY e.rating DESC
-        LIMIT 25
-    ''')
-    elo_top_25 = [dict(row) for row in c2.fetchall()]
-    for i, team in enumerate(elo_top_25):
-        team['elo_rank'] = i + 1
-        record = get_team_record(team['team_id'])
-        team['wins'] = record['wins']
-        team['losses'] = record['losses']
-    conn2.close()
-    
-    # Find disagreements - teams in AP but not Elo top 25, and vice versa
-    ap_ids = set(t['id'] for t in top_25)
-    elo_ids = set(t['team_id'] for t in elo_top_25)
-    
     return render_template('rankings.html',
                           top_25=top_25,
-                          elo_top_25=elo_top_25,
-                          ap_ids=ap_ids,
-                          elo_ids=elo_ids,
                           history_dates=history_dates,
                           selected_date=selected_date,
                           historical=historical,
@@ -1067,42 +965,6 @@ def models():
     
     conn.close()
     
-    # Rolling accuracy data for chart
-    conn3 = get_connection()
-    c3 = conn3.cursor()
-    c3.execute('''
-        SELECT mp.model_name, g.date, mp.was_correct
-        FROM model_predictions mp
-        JOIN games g ON mp.game_id = g.id
-        WHERE mp.was_correct IS NOT NULL
-        ORDER BY g.date, mp.id
-    ''')
-    
-    # Build rolling accuracy (window=30) per model
-    from collections import defaultdict
-    model_history = defaultdict(list)
-    for row in c3.fetchall():
-        model_history[row['model_name']].append({
-            'date': row['date'],
-            'correct': row['was_correct']
-        })
-    
-    rolling_data = {}
-    for model_name, entries in model_history.items():
-        points = []
-        window = []
-        for entry in entries:
-            window.append(entry['correct'])
-            if len(window) > 30:
-                window.pop(0)
-            if len(window) >= 10:  # need at least 10 to show
-                points.append({
-                    'date': entry['date'],
-                    'accuracy': round(sum(window) / len(window) * 100, 1)
-                })
-        rolling_data[model_name] = points
-    conn3.close()
-    
     return render_template('models.html',
                           model_data=model_data,
                           weights=weights,
@@ -1112,8 +974,7 @@ def models():
                           totals_overall=totals_overall,
                           totals_by_type=totals_by_type,
                           totals_by_edge=totals_by_edge,
-                          recent_totals=recent_totals,
-                          rolling_data=rolling_data)
+                          recent_totals=recent_totals)
 
 @app.route('/calendar')
 def calendar():
@@ -1220,164 +1081,6 @@ def calendar():
                           nn_accuracy=round((nn_correct / nn_total) * 100) if nn_total > 0 else None,
                           nn_correct=nn_correct,
                           nn_total=nn_total)
-
-@app.route('/tracker')
-def tracker():
-    """P&L Tracker - simulate flat $100 bets on value picks"""
-    conn = get_connection()
-    c = conn.cursor()
-    
-    # Get all completed games where we had both a prediction and betting line
-    c.execute('''
-        SELECT mp.game_id, mp.model_name, mp.predicted_home_prob,
-               g.date, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.winner_id,
-               ht.name as home_name, at.name as away_name,
-               b.home_ml, b.away_ml
-        FROM model_predictions mp
-        JOIN games g ON mp.game_id = g.id
-        JOIN teams ht ON g.home_team_id = ht.id
-        JOIN teams at ON g.away_team_id = at.id
-        JOIN betting_lines b ON b.game_id = g.id
-        WHERE mp.model_name = 'ensemble'
-          AND g.status = 'final'
-          AND g.winner_id IS NOT NULL
-          AND b.home_ml IS NOT NULL
-          AND b.away_ml IS NOT NULL
-        ORDER BY g.date
-    ''')
-    
-    rows = [dict(r) for r in c.fetchall()]
-    
-    # Also get neural predictions for blending
-    nn_preds = {}
-    c.execute('''
-        SELECT game_id, predicted_home_prob FROM model_predictions
-        WHERE model_name = 'neural' AND predicted_home_prob IS NOT NULL
-    ''')
-    for r in c.fetchall():
-        nn_preds[r['game_id']] = r['predicted_home_prob']
-    
-    conn.close()
-    
-    bets = []
-    for row in rows:
-        ens_prob = row['predicted_home_prob']
-        nn_prob = nn_preds.get(row['game_id'])
-        
-        # Blend: 60% neural, 40% ensemble (matching get_blended_prediction)
-        if nn_prob is not None:
-            model_home_prob = nn_prob * 0.6 + ens_prob * 0.4
-        else:
-            model_home_prob = ens_prob
-        
-        # DK implied (remove vig)
-        try:
-            dk_home = american_to_implied_prob(row['home_ml'])
-            dk_away = american_to_implied_prob(row['away_ml'])
-            total = dk_home + dk_away
-            dk_home_fair = dk_home / total
-        except:
-            continue
-        
-        # Calculate edges
-        home_edge = (model_home_prob - dk_home_fair) * 100
-        away_edge = ((1 - model_home_prob) - (1 - dk_home_fair)) * 100
-        
-        # Pick the side with positive edge
-        if home_edge > away_edge:
-            pick_home = True
-            edge = home_edge
-            ml = row['home_ml']
-            pick_name = row['home_name']
-        else:
-            pick_home = False
-            edge = away_edge
-            ml = row['away_ml']
-            pick_name = row['away_name']
-        
-        # Only include 5%+ edge bets
-        if edge < 5:
-            continue
-        
-        # Did we win?
-        if pick_home:
-            won = row['winner_id'] == row['home_team_id']
-        else:
-            won = row['winner_id'] == row['away_team_id']
-        
-        # Calculate profit on $100 bet
-        if won:
-            if ml > 0:
-                profit = ml
-            else:
-                profit = 100 / abs(ml) * 100
-        else:
-            profit = -100
-        
-        bets.append({
-            'date': row['date'],
-            'game': f"{row['away_name']} @ {row['home_name']}",
-            'pick': pick_name,
-            'moneyline': ml,
-            'edge': round(edge, 1),
-            'won': won,
-            'profit': round(profit, 2)
-        })
-    
-    # Summary stats
-    total_bets = len(bets)
-    wins = sum(1 for b in bets if b['won'])
-    total_pl = sum(b['profit'] for b in bets)
-    win_rate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
-    roi = round(total_pl / (total_bets * 100) * 100, 1) if total_bets > 0 else 0
-    
-    # Running P&L for chart
-    running_pl = []
-    cumulative = 0
-    for b in bets:
-        cumulative += b['profit']
-        running_pl.append({'date': b['date'], 'pl': round(cumulative, 2)})
-    
-    # Edge buckets
-    buckets = {
-        '5-10%': {'bets': [], 'label': '5-10%'},
-        '10-20%': {'bets': [], 'label': '10-20%'},
-        '20%+': {'bets': [], 'label': '20%+'}
-    }
-    for b in bets:
-        if b['edge'] >= 20:
-            buckets['20%+']['bets'].append(b)
-        elif b['edge'] >= 10:
-            buckets['10-20%']['bets'].append(b)
-        else:
-            buckets['5-10%']['bets'].append(b)
-    
-    bucket_stats = []
-    for key in ('5-10%', '10-20%', '20%+'):
-        bb = buckets[key]['bets']
-        if bb:
-            bw = sum(1 for x in bb if x['won'])
-            bp = sum(x['profit'] for x in bb)
-            bucket_stats.append({
-                'label': key,
-                'count': len(bb),
-                'wins': bw,
-                'win_rate': round(bw / len(bb) * 100, 1),
-                'pl': round(bp, 2),
-                'roi': round(bp / (len(bb) * 100) * 100, 1)
-            })
-        else:
-            bucket_stats.append({'label': key, 'count': 0, 'wins': 0, 'win_rate': 0, 'pl': 0, 'roi': 0})
-    
-    return render_template('tracker.html',
-                          bets=bets,
-                          total_bets=total_bets,
-                          wins=wins,
-                          win_rate=win_rate,
-                          total_pl=round(total_pl, 2),
-                          roi=roi,
-                          running_pl=running_pl,
-                          bucket_stats=bucket_stats)
 
 @app.route('/api/teams')
 def api_teams():

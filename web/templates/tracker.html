@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}P&L Tracker - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3"><i class="bi bi-graph-up-arrow"></i> P&L Tracker</h1>
+    <p class="text-muted">Simulated flat $100 bets on all value picks with 5%+ edge</p>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ total_bets }}</div>
+            <div class="stat-label">Total Bets</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value {% if win_rate >= 55 %}text-success{% elif win_rate < 50 %}text-danger{% endif %}">
+                {{ win_rate }}%
+            </div>
+            <div class="stat-label">Win Rate ({{ wins }}/{{ total_bets }})</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value {% if total_pl > 0 %}text-success{% elif total_pl < 0 %}text-danger{% endif %}">
+                {{ '+' if total_pl > 0 else '' }}${{ total_pl }}
+            </div>
+            <div class="stat-label">Total P&L</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value {% if roi > 0 %}text-success{% elif roi < 0 %}text-danger{% endif %}">
+                {{ '+' if roi > 0 else '' }}{{ roi }}%
+            </div>
+            <div class="stat-label">ROI</div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <!-- P&L Chart -->
+        <div class="card">
+            <div class="card-header bg-maroon">
+                <i class="bi bi-graph-up"></i> Running P&L
+            </div>
+            <div class="card-body">
+                {% if running_pl %}
+                <canvas id="plChart" height="300"></canvas>
+                {% else %}
+                <div class="text-center text-muted py-5">No data yet</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Edge Buckets -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-steps"></i> Performance by Edge
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Edge</th>
+                            <th class="text-center">Bets</th>
+                            <th class="text-center">Win%</th>
+                            <th class="text-center">P&L</th>
+                            <th class="text-center">ROI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in bucket_stats %}
+                        <tr>
+                            <td><strong>{{ b.label }}</strong></td>
+                            <td class="text-center">{{ b.count }}</td>
+                            <td class="text-center {% if b.win_rate >= 55 %}text-success{% elif b.win_rate < 50 %}text-danger{% endif %}">
+                                {{ b.win_rate }}%
+                            </td>
+                            <td class="text-center {% if b.pl > 0 %}text-success{% elif b.pl < 0 %}text-danger{% endif %}">
+                                {{ '+' if b.pl > 0 else '' }}${{ b.pl }}
+                            </td>
+                            <td class="text-center {% if b.roi > 0 %}text-success{% elif b.roi < 0 %}text-danger{% endif %}">
+                                {{ '+' if b.roi > 0 else '' }}{{ b.roi }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bet History Table -->
+<div class="card mt-4">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-journal-text"></i> Bet History</span>
+            <span class="badge bg-secondary">{{ bets|length }} bets</span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if bets %}
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Game</th>
+                        <th>Pick</th>
+                        <th class="text-center">ML</th>
+                        <th class="text-center">Edge</th>
+                        <th class="text-center">Result</th>
+                        <th class="text-end">P&L</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bet in bets|reverse %}
+                    <tr>
+                        <td><small>{{ bet.date }}</small></td>
+                        <td>{{ bet.game }}</td>
+                        <td><strong>{{ bet.pick }}</strong></td>
+                        <td class="text-center">{{ bet.moneyline|format_odds }}</td>
+                        <td class="text-center">
+                            <span class="badge {% if bet.edge >= 10 %}bg-success{% else %}bg-secondary{% endif %}">
+                                +{{ bet.edge }}%
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if bet.won %}
+                            <span class="badge bg-success">W</span>
+                            {% else %}
+                            <span class="badge bg-danger">L</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end {% if bet.profit > 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                            {{ '+' if bet.profit > 0 else '' }}${{ bet.profit }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-inbox display-4"></i>
+            <p class="mt-3">No completed bets to show yet</p>
+            <small>Bets will appear here as games with value picks are completed</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if running_pl %}
+<script>
+const ctx = document.getElementById('plChart').getContext('2d');
+const data = {{ running_pl|tojson }};
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: data.map(d => d.date),
+        datasets: [{
+            label: 'Cumulative P&L ($)',
+            data: data.map(d => d.pl),
+            borderColor: data[data.length-1].pl >= 0 ? '#198754' : '#dc3545',
+            backgroundColor: data[data.length-1].pl >= 0 ? 'rgba(25,135,84,0.1)' : 'rgba(220,53,69,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(ctx) {
+                        return '$' + ctx.parsed.y.toFixed(2);
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { maxTicksToShow: 10, maxRotation: 45 }
+            },
+            y: {
+                ticks: {
+                    callback: function(val) { return '$' + val; }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

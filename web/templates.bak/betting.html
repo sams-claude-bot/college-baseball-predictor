@@ -5,7 +5,9 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h3 mb-1"><i class="bi bi-currency-dollar"></i> Betting Analysis</h1>
+        <h1 class="h3 mb-1">
+            <i class="bi bi-currency-dollar"></i> Betting Analysis
+        </h1>
         <p class="text-muted mb-0">Compare model predictions to DraftKings lines and find value</p>
     </div>
     <div>
@@ -19,19 +21,8 @@
     </div>
 </div>
 
-<!-- Model Agreement Legend -->
-<div class="card mb-4">
-    <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-3 align-items-center">
-            <strong class="me-2"><i class="bi bi-info-circle"></i> Model Signals:</strong>
-            <span><span class="badge bg-success">AGREE</span> Both models agree on pick with &gt;60% confidence</span>
-            <span><span class="badge bg-danger">SPLIT</span> Models disagree on the winner</span>
-            <span class="text-muted">| <strong>NN</strong> = Neural Network, <strong>ENS</strong> = Ensemble</span>
-        </div>
-    </div>
-</div>
-
 {% if best_bets %}
+<!-- Best Bets Section -->
 <div class="card mb-4">
     <div class="card-header bg-maroon">
         <i class="bi bi-lightning-charge-fill"></i> Best Bets (5%+ Edge)
@@ -44,25 +35,26 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
-                            <div>
-                                <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
-                                {% if game.nn_prob is not none and game.ens_prob is not none %}
-                                    {% set nn_home_fav = game.nn_prob > 0.5 %}
-                                    {% set ens_home_fav = game.ens_prob > 0.5 %}
-                                    {% if nn_home_fav == ens_home_fav and (game.nn_prob > 0.6 or game.nn_prob < 0.4) and (game.ens_prob > 0.6 or game.ens_prob < 0.4) %}
-                                    <span class="badge bg-success">AGREE</span>
-                                    {% elif nn_home_fav != ens_home_fav %}
-                                    <span class="badge bg-danger">SPLIT</span>
-                                    {% endif %}
-                                {% endif %}
-                            </div>
+                            <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
                         </div>
                         <h6 class="mb-1">
-                            {% if game.best_pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
+                            {% if game.best_pick == 'home' %}
+                            {{ game.home_team_name }}
+                            {% else %}
+                            {{ game.away_team_name }}
+                            {% endif %}
                         </h6>
-                        <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
+                        <small class="text-muted d-block mb-2">
+                            {{ game.away_team_name }} @ {{ game.home_team_name }}
+                        </small>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span>{% if game.best_pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}</span>
+                            <span>
+                                {% if game.best_pick == 'home' %}
+                                {{ game.home_ml|format_odds }}
+                                {% else %}
+                                {{ game.away_ml|format_odds }}
+                                {% endif %}
+                            </span>
                             {% if game.ev_per_100 %}
                             <span class="badge {% if game.ev_per_100 > 0 %}bg-success{% else %}bg-secondary{% endif %}">
                                 EV: {{ '+' if game.ev_per_100 > 0 else '' }}${{ game.ev_per_100|round(2) }}/100
@@ -79,6 +71,7 @@
 {% endif %}
 
 {% if best_totals %}
+<!-- Best Totals Section -->
 <div class="card mb-4">
     <div class="card-header" style="background-color: #2563eb; color: white;">
         <i class="bi bi-graph-up"></i> Best Totals (15%+ Edge)
@@ -95,15 +88,23 @@
                                 {{ game.total_lean }} +{{ game.total_edge|round(0) }}%
                             </span>
                         </div>
-                        <h6 class="mb-1">{{ game.away_team_name }} @ {{ game.home_team_name }}</h6>
+                        <h6 class="mb-1">
+                            {{ game.away_team_name }} @ {{ game.home_team_name }}
+                        </h6>
                         <div class="d-flex justify-content-between align-items-center mt-2">
                             <div>
-                                <span class="fw-bold">O/U {{ game.over_under }}</span><br>
+                                <span class="fw-bold">O/U {{ game.over_under }}</span>
+                                <br>
                                 <small class="text-muted">Proj: {{ game.projected_total|round(1) }}</small>
                             </div>
                             <div class="text-end">
-                                <span class="{% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %} fw-bold">{{ game.total_lean }}</span><br>
-                                <small class="text-muted">Diff: {{ '%+.1f'|format(game.total_diff) }}</small>
+                                <span class="{% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                    {{ game.total_lean }}
+                                </span>
+                                <br>
+                                <small class="text-muted">
+                                    Diff: {{ '%+.1f'|format(game.total_diff) }}
+                                </small>
                             </div>
                         </div>
                     </div>
@@ -115,7 +116,7 @@
 </div>
 {% endif %}
 
-<!-- All Games Table -->
+<!-- All Games with Lines -->
 <div class="card">
     <div class="card-header">
         <div class="d-flex justify-content-between align-items-center">
@@ -129,20 +130,21 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
+                        <th>Date</th>
                         <th>Matchup</th>
                         <th class="text-center">DK Lines</th>
-                        <th class="text-center">Blended</th>
-                        <th class="text-center">Neural</th>
-                        <th class="text-center">Ensemble</th>
-                        <th class="text-center">Signal</th>
+                        <th class="text-center">Model Prob</th>
                         <th class="text-center">Edge</th>
-                        <th class="text-center">O/U</th>
+                        <th class="text-center">O/U Analysis</th>
                         <th class="text-center">EV/100</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for game in games %}
                     <tr>
+                        <td>
+                            <small>{{ game.date }}</small>
+                        </td>
                         <td>
                             <div class="d-flex flex-column">
                                 <span>
@@ -168,61 +170,56 @@
                                 <span>{{ (game.model_away_prob * 100)|round(1) }}%</span>
                                 <span>{{ (game.model_home_prob * 100)|round(1) }}%</span>
                             </div>
-                            {% else %}—{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if game.nn_prob is not none %}
-                            <div class="d-flex flex-column">
-                                <span>{{ ((1 - game.nn_prob) * 100)|round(1) }}%</span>
-                                <span>{{ (game.nn_prob * 100)|round(1) }}%</span>
-                            </div>
-                            {% else %}—{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if game.ens_prob is not none %}
-                            <div class="d-flex flex-column">
-                                <span>{{ ((1 - game.ens_prob) * 100)|round(1) }}%</span>
-                                <span>{{ (game.ens_prob * 100)|round(1) }}%</span>
-                            </div>
-                            {% else %}—{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if game.nn_prob is not none and game.ens_prob is not none %}
-                                {% set nn_home_fav = game.nn_prob > 0.5 %}
-                                {% set ens_home_fav = game.ens_prob > 0.5 %}
-                                {% if nn_home_fav == ens_home_fav and (game.nn_prob > 0.6 or game.nn_prob < 0.4) and (game.ens_prob > 0.6 or game.ens_prob < 0.4) %}
-                                <span class="badge bg-success">AGREE</span>
-                                {% elif nn_home_fav != ens_home_fav %}
-                                <span class="badge bg-danger">SPLIT</span>
-                                {% else %}
-                                <span class="text-muted">—</span>
-                                {% endif %}
-                            {% else %}—{% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                         <td class="text-center">
                             {% if game.best_edge %}
-                            <span class="{% if game.best_edge >= 5 %}text-success fw-bold{% elif game.best_edge >= 2 %}text-warning{% else %}text-muted{% endif %}">
-                                +{{ game.best_edge|round(1) }}%
-                            </span>
-                            <br><small class="text-muted">{% if game.best_pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}</small>
-                            {% else %}—{% endif %}
+                            <div class="d-flex flex-column align-items-center">
+                                <span class="{% if game.best_edge >= 5 %}text-success fw-bold{% elif game.best_edge >= 2 %}text-warning{% else %}text-muted{% endif %}">
+                                    {{ '+' if game.best_edge > 0 else '' }}{{ game.best_edge|round(1) }}%
+                                </span>
+                                <small class="text-muted">
+                                    {% if game.best_pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                         <td class="text-center">
                             {% if game.over_under and game.projected_total %}
-                            <span class="{% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %}">
-                                {{ game.total_lean }}
-                            </span>
-                            <br><small class="text-muted">{{ game.over_under }} | {{ game.projected_total|round(1) }}</small>
+                            <div class="d-flex flex-column align-items-center">
+                                <span class="{% if game.total_edge and game.total_edge > 10 %}fw-bold{% endif %} {% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %}">
+                                    {{ game.total_lean }}
+                                    {% if game.total_edge %}
+                                    <small>({{ game.total_edge|round(1) }}%)</small>
+                                    {% endif %}
+                                </span>
+                                <small class="text-muted">
+                                    O/U {{ game.over_under }} | Proj {{ game.projected_total|round(1) }}
+                                </small>
+                                {% if game.total_over_prob %}
+                                <small class="text-muted">
+                                    O: {{ (game.total_over_prob * 100)|round(0) }}% / U: {{ (game.total_under_prob * 100)|round(0) }}%
+                                </small>
+                                {% endif %}
+                            </div>
                             {% elif game.over_under %}
-                            <small class="text-muted">{{ game.over_under }}</small>
-                            {% else %}—{% endif %}
+                            <small class="text-muted">O/U {{ game.over_under }}</small>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                         <td class="text-center">
                             {% if game.ev_per_100 %}
                             <span class="badge {% if game.ev_per_100 > 5 %}bg-success{% elif game.ev_per_100 > 0 %}bg-secondary{% else %}bg-danger{% endif %}">
                                 {{ '+' if game.ev_per_100 > 0 else '' }}${{ game.ev_per_100|round(2) }}
                             </span>
-                            {% else %}—{% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -233,6 +230,7 @@
         <div class="text-center py-5">
             <i class="bi bi-inbox display-4 text-muted"></i>
             <p class="mt-3 text-muted">No betting lines available</p>
+            <p class="small text-muted">Lines will appear here once loaded via the CLI</p>
         </div>
         {% endif %}
     </div>
@@ -245,7 +243,9 @@
             <div class="card-body">
                 <h6><i class="bi bi-info-circle text-primary"></i> Understanding Edge</h6>
                 <p class="small text-muted mb-0">
-                    Edge = Model probability - DK implied probability. <strong>5%+ edge</strong> is significant.
+                    Edge = Model probability - DraftKings implied probability.
+                    A positive edge means the model thinks the team is more likely to win than DK implies.
+                    <strong>5%+ edge</strong> is generally considered significant.
                 </p>
             </div>
         </div>
@@ -253,10 +253,11 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
-                <h6><i class="bi bi-people text-success"></i> Model Agreement</h6>
+                <h6><i class="bi bi-calculator text-success"></i> Expected Value (EV)</h6>
                 <p class="small text-muted mb-0">
-                    <strong>AGREE</strong> = both neural & ensemble pick the same team with &gt;60% confidence. Strongest signal.
-                    <strong>SPLIT</strong> = models disagree on the winner — proceed with caution.
+                    EV per $100 shows the expected profit/loss per $100 bet based on model probabilities.
+                    Positive EV means the bet is +EV according to our models.
+                    <strong>This is theoretical</strong> — actual results vary.
                 </p>
             </div>
         </div>
@@ -265,7 +266,10 @@
         <div class="card">
             <div class="card-body">
                 <h6><i class="bi bi-exclamation-triangle text-warning"></i> Disclaimer</h6>
-                <p class="small text-muted mb-0">For entertainment purposes only. Gamble responsibly.</p>
+                <p class="small text-muted mb-0">
+                    This is for entertainment purposes only. Model predictions are estimates and not financial advice.
+                    Gamble responsibly.
+                </p>
             </div>
         </div>
     </div>

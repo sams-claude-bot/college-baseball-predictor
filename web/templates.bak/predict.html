@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block title %}Predict Game - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3">
+        <i class="bi bi-calculator"></i> Prediction Tool
+    </h1>
+    <p class="text-muted">Compare predictions across all 8 models plus momentum-adjusted ensemble</p>
+</div>
+
+<div class="row">
+    <!-- Input Form -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-maroon">
+                <i class="bi bi-sliders"></i> Select Matchup
+            </div>
+            <div class="card-body">
+                <form id="predictForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Away Team</label>
+                        <select class="form-select" id="awayTeam" required>
+                            <option value="">Select away team...</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}">
+                                {% if team.current_rank %}#{{ team.current_rank }} {% endif %}{{ team.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="text-center my-2">
+                        <span class="text-muted">@</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Home Team</label>
+                        <select class="form-select" id="homeTeam" required>
+                            <option value="">Select home team...</option>
+                            {% for team in teams %}
+                            <option value="{{ team.id }}">
+                                {% if team.current_rank %}#{{ team.current_rank }} {% endif %}{{ team.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="neutralSite">
+                            <label class="form-check-label" for="neutralSite">
+                                Neutral Site
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-maroon w-100" id="predictBtn">
+                        <i class="bi bi-lightning-charge"></i> Generate Predictions
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="col-lg-8">
+        <div id="resultsContainer" style="display: none;">
+            <!-- Ensemble Result -->
+            <div class="card">
+                <div class="card-header bg-maroon">
+                    <i class="bi bi-star-fill"></i> Ensemble Prediction
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-5">
+                            <div id="awayTeamName" class="h5 mb-1">Away</div>
+                            <div id="awayWinProb" class="display-4 fw-bold" style="color: var(--grey);">—</div>
+                            <div id="awayProjectedRuns" class="text-muted">— runs</div>
+                        </div>
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            <span class="text-muted fs-4">vs</span>
+                        </div>
+                        <div class="col-5">
+                            <div id="homeTeamName" class="h5 mb-1">Home</div>
+                            <div id="homeWinProb" class="display-4 fw-bold" style="color: var(--maroon);">—</div>
+                            <div id="homeProjectedRuns" class="text-muted">— runs</div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <small class="text-muted">Projected Total</small>
+                            <div id="projectedTotal" class="h4 mb-0">—</div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">Predicted Winner</small>
+                            <div id="predictedWinner" class="h4 mb-0" style="color: var(--maroon);">—</div>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted">Confidence</small>
+                            <div id="confidence" class="h4 mb-0">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Momentum Info -->
+            <div id="momentumInfo" class="card mb-3" style="display: none;">
+                <div class="card-body py-2">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- All Models Comparison -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-list-check"></i> All Models Comparison
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th class="text-center">Home Win %</th>
+                                    <th class="text-center">Away Win %</th>
+                                    <th class="text-center">Home Runs</th>
+                                    <th class="text-center">Away Runs</th>
+                                    <th class="text-center">Pick</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modelsTableBody">
+                                <!-- Filled by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Series Prediction -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-trophy"></i> Best of 3 Series
+                </div>
+                <div class="card-body">
+                    <div class="row text-center" id="seriesPrediction">
+                        <div class="col-5">
+                            <div class="h6 mb-1">Away Team</div>
+                            <div id="awaySeriesProb" class="h3">—</div>
+                        </div>
+                        <div class="col-2 d-flex align-items-center justify-content-center">
+                            <span class="text-muted">wins series</span>
+                        </div>
+                        <div class="col-5">
+                            <div class="h6 mb-1">Home Team</div>
+                            <div id="homeSeriesProb" class="h3">—</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Betting Analysis (if lines exist) -->
+            <div class="card" id="bettingAnalysis" style="display: none;">
+                <div class="card-header">
+                    <i class="bi bi-currency-dollar"></i> DraftKings Analysis
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Moneylines</h6>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Home:</span>
+                                <span id="dkHomeMl" class="fw-bold">—</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Away:</span>
+                                <span id="dkAwayMl" class="fw-bold">—</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Value Analysis</h6>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>Home Edge:</span>
+                                <span id="homeEdge" class="fw-bold">—</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Away Edge:</span>
+                                <span id="awayEdge" class="fw-bold">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div id="valuePick" class="text-center">
+                        <!-- Value recommendation -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="text-center py-5">
+            <i class="bi bi-calculator display-1 text-muted"></i>
+            <h4 class="mt-3 text-muted">Select a matchup to see predictions</h4>
+            <p class="text-muted">Choose an away and home team from the dropdowns</p>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" style="display: none;" class="text-center py-5">
+            <div class="spinner-border text-secondary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Running predictions through all models...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('predictForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const homeTeam = document.getElementById('homeTeam').value;
+    const awayTeam = document.getElementById('awayTeam').value;
+    const neutralSite = document.getElementById('neutralSite').checked;
+    
+    if (!homeTeam || !awayTeam) {
+        alert('Please select both teams');
+        return;
+    }
+    
+    if (homeTeam === awayTeam) {
+        alert('Please select different teams');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('resultsContainer').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'block';
+    
+    try {
+        const response = await fetch('/api/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                home_team: homeTeam,
+                away_team: awayTeam,
+                neutral_site: neutralSite
+            })
+        });
+        
+        const data = await response.json();
+        displayResults(data, homeTeam, awayTeam);
+        
+    } catch (error) {
+        console.error('Prediction error:', error);
+        alert('Error generating predictions. Please try again.');
+        document.getElementById('emptyState').style.display = 'block';
+    }
+    
+    document.getElementById('loadingState').style.display = 'none';
+});
+
+function displayResults(data, homeId, awayId) {
+    // Get team names from dropdowns
+    const homeSelect = document.getElementById('homeTeam');
+    const awaySelect = document.getElementById('awayTeam');
+    const homeName = homeSelect.options[homeSelect.selectedIndex].text.replace(/^#\d+\s+/, '');
+    const awayName = awaySelect.options[awaySelect.selectedIndex].text.replace(/^#\d+\s+/, '');
+    
+    // Ensemble results
+    const ensemble = data.ensemble || {};
+    
+    document.getElementById('homeTeamName').textContent = homeName;
+    document.getElementById('awayTeamName').textContent = awayName;
+    
+    const homeProb = ensemble.home_win_prob || 0.5;
+    const awayProb = ensemble.away_win_prob || 0.5;
+    
+    document.getElementById('homeWinProb').textContent = (homeProb * 100).toFixed(1) + '%';
+    document.getElementById('awayWinProb').textContent = (awayProb * 100).toFixed(1) + '%';
+    
+    // Color based on probability
+    document.getElementById('homeWinProb').style.color = homeProb > 0.5 ? '#198754' : '#777';
+    document.getElementById('awayWinProb').style.color = awayProb > 0.5 ? '#198754' : '#777';
+    
+    document.getElementById('homeProjectedRuns').textContent = (ensemble.projected_home_runs || 0).toFixed(1) + ' runs';
+    document.getElementById('awayProjectedRuns').textContent = (ensemble.projected_away_runs || 0).toFixed(1) + ' runs';
+    
+    document.getElementById('projectedTotal').textContent = (ensemble.projected_total || 0).toFixed(1);
+    document.getElementById('predictedWinner').textContent = homeProb > awayProb ? homeName : awayName;
+    
+    const confidence = Math.abs(homeProb - 0.5) * 2 * 100;
+    let confLabel = confidence > 30 ? 'High' : confidence > 15 ? 'Medium' : 'Low';
+    document.getElementById('confidence').textContent = confLabel + ' (' + confidence.toFixed(0) + '%)';
+    
+    // Models table
+    const tbody = document.getElementById('modelsTableBody');
+    tbody.innerHTML = '';
+    
+    const modelOrder = ['ensemble', 'advanced', 'poisson', 'pitching', 'elo', 'log5', 'conference', 'prior', 'pythagorean'];
+    
+    // Display momentum info if available
+    const momentumDiv = document.getElementById('momentumInfo');
+    if (momentumDiv && ensemble.momentum) {
+        const mom = ensemble.momentum;
+        const homeStreakColor = mom.home_momentum > 0 ? '#198754' : mom.home_momentum < 0 ? '#dc3545' : '#777';
+        const awayStreakColor = mom.away_momentum > 0 ? '#198754' : mom.away_momentum < 0 ? '#dc3545' : '#777';
+        momentumDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-center">
+                    <span style="color: ${homeStreakColor}; font-weight: 600;">${mom.home_streak || 'N/A'}</span>
+                    <br><small class="text-muted">${homeName}</small>
+                </div>
+                <div class="text-center">
+                    <i class="bi bi-fire text-warning"></i> Momentum
+                    <br><small class="text-muted">${mom.adjustment > 0 ? '+' : ''}${(mom.adjustment * 100).toFixed(1)}% adj</small>
+                </div>
+                <div class="text-center">
+                    <span style="color: ${awayStreakColor}; font-weight: 600;">${mom.away_streak || 'N/A'}</span>
+                    <br><small class="text-muted">${awayName}</small>
+                </div>
+            </div>
+        `;
+        momentumDiv.style.display = 'block';
+    } else if (momentumDiv) {
+        momentumDiv.style.display = 'none';
+    }
+    
+    for (const modelName of modelOrder) {
+        const model = data[modelName];
+        if (!model || model.error) continue;
+        
+        const row = document.createElement('tr');
+        if (modelName === 'ensemble') {
+            row.style.backgroundColor = 'rgba(93, 23, 37, 0.1)';
+            row.style.fontWeight = 'bold';
+        }
+        
+        const pick = model.home_win_prob > 0.5 ? homeName : awayName;
+        const pickColor = model.home_win_prob > 0.5 ? '#5D1725' : '#777';
+        
+        row.innerHTML = `
+            <td>${modelName === 'ensemble' ? '★ ' : ''}${modelName}</td>
+            <td class="text-center">${(model.home_win_prob * 100).toFixed(1)}%</td>
+            <td class="text-center">${(model.away_win_prob * 100).toFixed(1)}%</td>
+            <td class="text-center">${model.projected_home_runs.toFixed(1)}</td>
+            <td class="text-center">${model.projected_away_runs.toFixed(1)}</td>
+            <td class="text-center" style="color: ${pickColor}">${pick}</td>
+        `;
+        tbody.appendChild(row);
+    }
+    
+    // Series prediction
+    if (data.series) {
+        document.getElementById('homeSeriesProb').textContent = (data.series.home_series_probability * 100).toFixed(1) + '%';
+        document.getElementById('awaySeriesProb').textContent = (data.series.away_series_probability * 100).toFixed(1) + '%';
+    }
+    
+    // Betting analysis
+    if (data.betting_line) {
+        document.getElementById('bettingAnalysis').style.display = 'block';
+        
+        const bl = data.betting_line;
+        document.getElementById('dkHomeMl').textContent = bl.home_ml > 0 ? '+' + bl.home_ml : bl.home_ml;
+        document.getElementById('dkAwayMl').textContent = bl.away_ml > 0 ? '+' + bl.away_ml : bl.away_ml;
+        
+        const homeEdge = bl.home_edge || 0;
+        const awayEdge = bl.away_edge || 0;
+        
+        document.getElementById('homeEdge').textContent = (homeEdge > 0 ? '+' : '') + homeEdge.toFixed(1) + '%';
+        document.getElementById('homeEdge').style.color = homeEdge > 5 ? '#198754' : homeEdge < -5 ? '#dc3545' : '#777';
+        
+        document.getElementById('awayEdge').textContent = (awayEdge > 0 ? '+' : '') + awayEdge.toFixed(1) + '%';
+        document.getElementById('awayEdge').style.color = awayEdge > 5 ? '#198754' : awayEdge < -5 ? '#dc3545' : '#777';
+        
+        // Value pick recommendation
+        const valuePick = document.getElementById('valuePick');
+        if (homeEdge >= 5) {
+            valuePick.innerHTML = `<div class="alert alert-success mb-0"><strong>💰 Value Pick:</strong> ${homeName} (+${homeEdge.toFixed(1)}% edge)</div>`;
+        } else if (awayEdge >= 5) {
+            valuePick.innerHTML = `<div class="alert alert-success mb-0"><strong>💰 Value Pick:</strong> ${awayName} (+${awayEdge.toFixed(1)}% edge)</div>`;
+        } else {
+            valuePick.innerHTML = `<div class="alert alert-secondary mb-0">No significant edge found (±5%)</div>`;
+        }
+    } else {
+        document.getElementById('bettingAnalysis').style.display = 'none';
+    }
+    
+    document.getElementById('resultsContainer').style.display = 'block';
+}
+
+// Pre-select team from URL parameter
+const urlParams = new URLSearchParams(window.location.search);
+const teamParam = urlParams.get('team');
+if (teamParam) {
+    document.getElementById('homeTeam').value = teamParam;
+}
+</script>
+{% endblock %}
