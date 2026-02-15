@@ -473,11 +473,32 @@ def get_ensemble_weights():
     return {}
 
 def get_model_accuracy():
-    """Get model accuracy statistics"""
-    ensemble = MODELS.get('ensemble')
-    if ensemble and hasattr(ensemble, 'get_model_accuracy'):
-        return ensemble.get_model_accuracy()
-    return {}
+    """Get model accuracy statistics from database"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT model_name,
+               SUM(was_correct) as correct,
+               COUNT(*) as total
+        FROM model_predictions 
+        WHERE was_correct IS NOT NULL
+        GROUP BY model_name
+    ''')
+    
+    result = {}
+    for row in c.fetchall():
+        model_name, correct, total = row
+        result[model_name] = {
+            'all_time_accuracy': correct / total if total > 0 else None,
+            'all_time_predictions': total,
+            'recent_accuracy': correct / total if total > 0 else None,  # TODO: add rolling window
+            'recent_predictions': total,
+            'current_weight': MODELS.get('ensemble').weights.get(model_name, 0) if MODELS.get('ensemble') else 0
+        }
+    
+    conn.close()
+    return result
 
 # ============================================
 # Routes
