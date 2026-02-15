@@ -54,6 +54,7 @@ Bayesian blending shifts weight from preseason priors to actual performance:
 - **Models** — Ensemble weights, accuracy tracking
 
 ### Data Pipelines
+- **P4 Stats Collection** — 67 Power 4 teams, batting + pitching stats (biweekly) [📖 Docs](docs/P4_STATS_COLLECTION.md)
 - SEC roster scraper (all 16 teams)
 - Multi-source schedule loader (ESPN, team sites)
 - Box score collection (post-game stats)
@@ -61,6 +62,7 @@ Bayesian blending shifts weight from preseason priors to actual performance:
 - Weekly Top 25 scraper with auto-tracking
 - NCAA.com stats integration
 - DraftKings line comparison
+- Browser automation via Playwright (SIDEARM Sports, ESPN, DraftKings)
 
 ### ⚠️ Data Collection Philosophy (IMPORTANT)
 **Accuracy over speed. Always.**
@@ -108,6 +110,7 @@ Don't just give up — document what's available so we can revisit.
 │   ├── daily_collection.py    # Nightly cron orchestrator
 │   ├── generate_report.py     # PDF report generator
 │   ├── betting_lines.py       # DK line comparison
+│   ├── p4_stats_scraper.py    # P4 team stats (browser-based)
 │   ├── scrape_sec_rosters.py  # SEC roster scraper
 │   ├── scrape_rankings.py     # Weekly Top 25
 │   ├── collect_box_scores.py  # Post-game stats
@@ -115,6 +118,8 @@ Don't just give up — document what's available so we can revisit.
 │   ├── track_starters.py      # Pitcher tracking
 │   ├── add_game.py            # Quick game entry
 │   └── database.py            # DB operations
+├── docs/                # Documentation
+│   └── P4_STATS_COLLECTION.md # P4 stats system docs
 ├── web/                 # Flask dashboard
 │   ├── app.py
 │   └── templates/
@@ -150,9 +155,14 @@ python3 scripts/scrape_rankings.py show
 
 | Time | Day | Task |
 |------|-----|------|
+| 8 AM | Daily | DraftKings odds scraping |
+| 2 AM | Daily | ESPN scores + box score stats |
+| 8 AM | Thursday | P4 stats collection (pre-weekend) |
 | 11 PM | Thursday | Weekend preview — predictions, DK lines, value picks |
+| 10 PM | Monday | D1Baseball Top 25 rankings |
 | 11 PM | Monday | Weekend recap + midweek preview — results, Elo updates |
-| 10 PM | Sunday | Weekly accuracy report — model performance, profitability |
+| 10 PM | Sunday | Weekly accuracy report — model performance |
+| 11 PM | Sunday | P4 stats collection (post-games) |
 
 ## Colors
 
