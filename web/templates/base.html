@@ -369,6 +369,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="/calendar">
+                            <i class="bi bi-calendar3"></i> Calendar
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'models' %}active{% endif %}" href="/models">
                             <i class="bi bi-gear"></i> Models
                         </a>

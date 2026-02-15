@@ -7,16 +7,24 @@
     <h1 class="h3 mb-0">
         <i class="bi bi-list-ol"></i> Rankings
     </h1>
-    {% if history_dates %}
-    <div>
-        <select class="form-select form-select-sm" id="weekSelector" onchange="window.location.href='/rankings?week='+this.value">
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" style="width: auto;"
+                onchange="updateRankingsFilters()">
+            <option value="">All Conferences</option>
+            {% for conf in conferences %}
+            <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
+            {% endfor %}
+        </select>
+        {% if history_dates %}
+        <select class="form-select form-select-sm" id="weekSelector" style="width: auto;"
+                onchange="updateRankingsFilters()">
             <option value="">Current Rankings</option>
             {% for date in history_dates %}
             <option value="{{ date }}" {% if selected_date == date %}selected{% endif %}>{{ date }}</option>
             {% endfor %}
         </select>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
 
 <div class="row">
@@ -140,4 +148,34 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateRankingsFilters() {
+    const selects = document.querySelectorAll('select');
+    let conference = '';
+    let week = '';
+    
+    selects.forEach(s => {
+        if (s.id === 'weekSelector') {
+            week = s.value;
+        } else if (s.options[0] && s.options[0].text === 'All Conferences') {
+            conference = s.value;
+        }
+    });
+    
+    let url = '/rankings?';
+    const params = [];
+    
+    if (conference) {
+        params.push('conference=' + encodeURIComponent(conference));
+    }
+    if (week) {
+        params.push('week=' + encodeURIComponent(week));
+    }
+    
+    window.location.href = url + params.join('&');
+}
+</script>
 {% endblock %}

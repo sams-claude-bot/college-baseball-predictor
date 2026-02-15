@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Calendar - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-calendar3"></i> Game Calendar
+    </h1>
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;"
+                onchange="updateFilters()">
+            <option value="">All Conferences</option>
+            {% for conf in conferences %}
+            <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Date Navigation -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <a href="/calendar?date={{ prev_date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-chevron-left"></i> Prev
+                </a>
+            </div>
+            <div class="col text-center">
+                <h4 class="mb-1">{{ display_date.strftime('%A, %B %d, %Y') }}</h4>
+                <div class="d-flex justify-content-center gap-4 text-muted">
+                    <span><strong>{{ total_games }}</strong> games</span>
+                    <span class="text-success"><strong>{{ completed }}</strong> final</span>
+                    <span class="text-primary"><strong>{{ scheduled }}</strong> scheduled</span>
+                </div>
+            </div>
+            <div class="col-auto">
+                <a href="/calendar?date={{ next_date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
+                   class="btn btn-outline-secondary">
+                    Next <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+        </div>
+        
+        <!-- Date picker -->
+        <div class="row mt-3 justify-content-center">
+            <div class="col-auto">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-calendar"></i></span>
+                    <input type="date" class="form-control" id="datePicker" value="{{ selected_date }}"
+                           onchange="goToDate(this.value)">
+                    <button class="btn btn-maroon" onclick="goToDate(document.getElementById('datePicker').value)">
+                        Go
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Date Links -->
+<div class="mb-4 text-center">
+    <span class="text-muted me-2">Quick links:</span>
+    {% set today = selected_date %}
+    {% for date_info in available_dates[:10] %}
+    <a href="/calendar?date={{ date_info.date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
+       class="btn btn-sm {% if date_info.date == selected_date %}btn-maroon{% else %}btn-outline-secondary{% endif %} me-1 mb-1">
+        {{ date_info.date[5:] }} ({{ date_info.game_count }})
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Games List -->
+{% if games %}
+<div class="card">
+    <div class="card-header bg-maroon text-white">
+        <i class="bi bi-list-ul"></i> Games on {{ display_date.strftime('%B %d, %Y') }}
+        {% if selected_conference %}
+        <span class="badge bg-light text-dark ms-2">{{ selected_conference }}</span>
+        {% endif %}
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Time</th>
+                    <th>Away</th>
+                    <th class="text-center" style="width: 100px;">Score</th>
+                    <th>Home</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Prediction</th>
+                    <th class="text-center">ML</th>
+                    <th class="text-center">O/U</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for game in games %}
+                <tr class="{% if game.status == 'final' %}table-light{% endif %}">
+                    <td class="text-muted">
+                        {{ game.time or '—' }}
+                    </td>
+                    <td>
+                        {% if game.away_rank %}
+                        <span class="badge bg-maroon me-1">{{ game.away_rank }}</span>
+                        {% endif %}
+                        <a href="/team/{{ game.away_team_id }}" class="team-link">
+                            {{ game.away_team_name or game.away_team_id }}
+                        </a>
+                        <br><small class="text-muted">{{ game.away_conf or '' }}</small>
+                    </td>
+                    <td class="text-center">
+                        {% if game.status == 'final' %}
+                        <span class="{% if game.winner_id == game.away_team_id %}fw-bold text-success{% endif %}">
+                            {{ game.away_score }}
+                        </span>
+                        -
+                        <span class="{% if game.winner_id == game.home_team_id %}fw-bold text-success{% endif %}">
+                            {{ game.home_score }}
+                        </span>
+                        {% if game.innings and game.innings != 9 %}
+                        <br><small class="text-muted">({{ game.innings }} inn)</small>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">vs</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if game.home_rank %}
+                        <span class="badge bg-maroon me-1">{{ game.home_rank }}</span>
+                        {% endif %}
+                        <a href="/team/{{ game.home_team_id }}" class="team-link">
+                            {{ game.home_team_name or game.home_team_id }}
+                        </a>
+                        <br><small class="text-muted">{{ game.home_conf or '' }}</small>
+                        {% if game.is_neutral_site %}
+                        <span class="badge bg-secondary ms-1">N</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if game.status == 'final' %}
+                        <span class="badge bg-success">Final</span>
+                        {% elif game.status == 'postponed' %}
+                        <span class="badge bg-warning">PPD</span>
+                        {% elif game.status == 'cancelled' %}
+                        <span class="badge bg-danger">CXL</span>
+                        {% else %}
+                        <span class="badge bg-primary">Scheduled</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if game.pred_winner %}
+                            {% set is_home_pick = game.pred_winner == game.home_team_id %}
+                            {% set pick_name = game.home_team_name if is_home_pick else game.away_team_name %}
+                            {% set conf_pct = (game.pred_confidence * 100)|round(0)|int %}
+                            
+                            {% if game.status == 'final' %}
+                                {% if game.pred_correct %}
+                                <span class="badge bg-success" title="{{ pick_name }} ({{ conf_pct }}%)">
+                                    <i class="bi bi-check"></i> {{ conf_pct }}%
+                                </span>
+                                {% else %}
+                                <span class="badge bg-danger" title="{{ pick_name }} ({{ conf_pct }}%)">
+                                    <i class="bi bi-x"></i> {{ conf_pct }}%
+                                </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary" title="Pick: {{ pick_name }}">
+                                    {{ pick_name[:3]|upper }} {{ conf_pct }}%
+                                </span>
+                            {% endif %}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if game.away_ml and game.home_ml %}
+                        <small>
+                            {{ game.away_ml|format_odds }}<br>
+                            {{ game.home_ml|format_odds }}
+                        </small>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if game.over_under %}
+                        {{ game.over_under }}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-calendar-x display-1 text-muted"></i>
+        <h4 class="mt-3">No Games Found</h4>
+        <p class="text-muted">
+            No games scheduled for {{ display_date.strftime('%B %d, %Y') }}
+            {% if selected_conference %}
+            in {{ selected_conference }}
+            {% endif %}
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Summary Stats -->
+{% if completed > 0 %}
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stat-card">
+                <div class="stat-value">{{ completed }}</div>
+                <div class="stat-label">Completed Games</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stat-card">
+                <div class="stat-value">{{ avg_runs }}</div>
+                <div class="stat-label">Avg Runs/Game</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stat-card">
+                <div class="stat-value">{{ home_win_pct }}%</div>
+                <div class="stat-label">Home Win Rate</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body stat-card">
+                {% if model_accuracy is not none %}
+                <div class="stat-value {% if model_accuracy >= 60 %}text-success{% elif model_accuracy < 50 %}text-danger{% endif %}">
+                    {{ model_accuracy }}%
+                </div>
+                <div class="stat-label">Model Accuracy ({{ correct_predictions }}/{{ total_predictions }})</div>
+                {% else %}
+                <div class="stat-value text-muted">—</div>
+                <div class="stat-label">Model Accuracy</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function goToDate(dateStr) {
+    const conf = document.getElementById('conferenceFilter').value;
+    let url = '/calendar?date=' + dateStr;
+    if (conf) {
+        url += '&conference=' + encodeURIComponent(conf);
+    }
+    window.location.href = url;
+}
+
+function updateFilters() {
+    const date = '{{ selected_date }}';
+    goToDate(date);
+}
+</script>
+{% endblock %}

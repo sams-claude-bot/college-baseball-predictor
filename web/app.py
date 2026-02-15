@@ -30,6 +30,74 @@ app = Flask(__name__)
 # Helper Functions
 # ============================================
 
+def get_all_conferences():
+    """Get all unique conferences"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT DISTINCT conference FROM teams 
+        WHERE conference IS NOT NULL AND conference != ''
+        ORDER BY conference
+    ''')
+    conferences = [row[0] for row in c.fetchall()]
+    conn.close()
+    return conferences
+
+def get_games_by_date(date_str, conference=None):
+    """Get all games for a specific date, optionally filtered by conference"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    query = '''
+        SELECT g.id, g.date, g.time, g.status,
+               g.home_team_id, g.away_team_id,
+               g.home_score, g.away_score, g.winner_id, g.innings,
+               g.venue, g.is_neutral_site, g.is_conference_game,
+               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
+               he.rating as home_elo, ae.rating as away_elo,
+               b.home_ml, b.away_ml, b.over_under
+        FROM games g
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
+        LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
+        LEFT JOIN betting_lines b ON g.home_team_id = b.home_team_id 
+            AND g.away_team_id = b.away_team_id AND g.date = b.date
+        WHERE g.date = ?
+    '''
+    
+    params = [date_str]
+    
+    if conference:
+        query += " AND (ht.conference = ? OR at.conference = ?)"
+        params.extend([conference, conference])
+    
+    query += " ORDER BY g.time, g.id"
+    
+    c.execute(query, params)
+    games = [dict(row) for row in c.fetchall()]
+    conn.close()
+    
+    return games
+
+def get_available_dates():
+    """Get all dates that have games (for calendar navigation)"""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT DISTINCT date, 
+               COUNT(*) as game_count,
+               SUM(CASE WHEN status = 'final' THEN 1 ELSE 0 END) as completed
+        FROM games 
+        GROUP BY date 
+        ORDER BY date DESC
+        LIMIT 60
+    ''')
+    dates = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return dates
+
 def get_all_teams():
     """Get all teams with their records and ratings"""
     conn = get_connection()
@@ -133,8 +201,8 @@ def get_todays_games():
                g.home_score, g.away_score,
                b.home_ml, b.away_ml, b.over_under, 
                b.home_spread as run_line, b.home_spread_odds as run_line_odds,
-               ht.name as home_team_name, ht.current_rank as home_rank,
-               at.name as away_team_name, at.current_rank as away_rank,
+               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
                he.rating as home_elo, ae.rating as away_elo
         FROM games g
         LEFT JOIN betting_lines b ON g.home_team_id = b.home_team_id 
@@ -152,8 +220,8 @@ def get_todays_games():
                NULL as home_score, NULL as away_score,
                b.home_ml, b.away_ml, b.over_under,
                b.home_spread as run_line, b.home_spread_odds as run_line_odds,
-               ht.name as home_team_name, ht.current_rank as home_rank,
-               at.name as away_team_name, at.current_rank as away_rank,
+               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
                he.rating as home_elo, ae.rating as away_elo
         FROM betting_lines b
         LEFT JOIN teams ht ON b.home_team_id = ht.id
@@ -292,8 +360,8 @@ def get_betting_games():
     
     c.execute('''
         SELECT b.*, 
-               ht.name as home_team_name, ht.current_rank as home_rank,
-               at.name as away_team_name, at.current_rank as away_rank,
+               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
                g.status, g.home_score, g.away_score
         FROM betting_lines b
         LEFT JOIN teams ht ON b.home_team_id = ht.id
@@ -418,12 +486,20 @@ def get_model_accuracy():
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
+    conference = request.args.get('conference', '')
+    
     todays_games = get_todays_games()
     value_picks = get_value_picks(5)
     top_25 = get_current_top_25()
     stats = get_quick_stats()
+    conferences = get_all_conferences()
     
-    # Add Elo ratings to top 25
+    # Filter games by conference if specified
+    if conference:
+        todays_games = [g for g in todays_games 
+                       if g.get('home_conf') == conference or g.get('away_conf') == conference]
+    
+    # Add Elo ratings and conference to top 25
     conn = get_connection()
     c = conn.cursor()
     for team in top_25:
@@ -432,11 +508,17 @@ def dashboard():
         team['elo_rating'] = row[0] if row else None
     conn.close()
     
+    # Filter top 25 by conference if specified
+    if conference:
+        top_25 = [t for t in top_25 if t.get('conference') == conference]
+    
     return render_template('dashboard.html',
                           todays_games=todays_games,
                           value_picks=value_picks,
                           top_25=top_25,
                           stats=stats,
+                          conferences=conferences,
+                          selected_conference=conference,
                           today=datetime.now().strftime('%B %d, %Y'))
 
 @app.route('/teams')
@@ -576,8 +658,11 @@ def api_predict():
 @app.route('/rankings')
 def rankings():
     """Rankings page"""
+    conference = request.args.get('conference', '')
+    
     top_25 = get_current_top_25()
     history_dates = get_rankings_history()
+    conferences = get_all_conferences()
     
     # Add Elo and records to top 25
     conn = get_connection()
@@ -592,22 +677,38 @@ def rankings():
         team['losses'] = record['losses']
     conn.close()
     
+    # Filter by conference if specified
+    if conference:
+        top_25 = [t for t in top_25 if t.get('conference') == conference]
+    
     # Get selected week rankings
     selected_date = request.args.get('week')
     historical = None
     if selected_date:
         historical = get_rankings_for_date(selected_date)
+        if conference:
+            historical = [t for t in historical if t.get('conference') == conference]
     
     return render_template('rankings.html',
                           top_25=top_25,
                           history_dates=history_dates,
                           selected_date=selected_date,
-                          historical=historical)
+                          historical=historical,
+                          conferences=conferences,
+                          selected_conference=conference)
 
 @app.route('/betting')
 def betting():
     """Betting analysis page"""
+    conference = request.args.get('conference', '')
+    conferences = get_all_conferences()
+    
     games = get_betting_games()
+    
+    # Filter by conference if specified
+    if conference:
+        games = [g for g in games 
+                if g.get('home_conf') == conference or g.get('away_conf') == conference]
     
     # Sort by edge
     games_with_edge = [g for g in games if g.get('best_edge')]
@@ -618,7 +719,9 @@ def betting():
     
     return render_template('betting.html',
                           games=games_with_edge,
-                          best_bets=best_bets)
+                          best_bets=best_bets,
+                          conferences=conferences,
+                          selected_conference=conference)
 
 @app.route('/models')
 def models():
@@ -679,6 +782,90 @@ def models():
                           weights=weights,
                           weight_history=weight_history,
                           prediction_log=prediction_log)
+
+@app.route('/calendar')
+def calendar():
+    """Calendar view for historical game data"""
+    # Get date from query param, default to today
+    date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    conference = request.args.get('conference', '')
+    
+    # Get games for selected date
+    games = get_games_by_date(date_str, conference if conference else None)
+    
+    # Get available dates for navigation
+    available_dates = get_available_dates()
+    
+    # Get conferences for filter
+    conferences = get_all_conferences()
+    
+    # Parse date for display
+    try:
+        display_date = datetime.strptime(date_str, '%Y-%m-%d')
+    except:
+        display_date = datetime.now()
+    
+    # Calculate prev/next dates
+    prev_date = (display_date - timedelta(days=1)).strftime('%Y-%m-%d')
+    next_date = (display_date + timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    # Add predictions to each game
+    ensemble = MODELS.get('ensemble')
+    correct_predictions = 0
+    total_predictions = 0
+    
+    for game in games:
+        try:
+            if ensemble and game.get('home_team_id') and game.get('away_team_id'):
+                pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
+                game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
+                game['pred_away_prob'] = pred.get('away_win_probability', 0.5)
+                game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
+                game['pred_confidence'] = max(game['pred_home_prob'], game['pred_away_prob'])
+                
+                # Check if prediction was correct for final games
+                if game['status'] == 'final' and game.get('winner_id'):
+                    game['pred_correct'] = game['pred_winner'] == game['winner_id']
+                    total_predictions += 1
+                    if game['pred_correct']:
+                        correct_predictions += 1
+        except Exception:
+            game['pred_winner'] = None
+            game['pred_confidence'] = None
+    
+    # Model accuracy for the day
+    model_accuracy = round((correct_predictions / total_predictions) * 100) if total_predictions > 0 else None
+    
+    # Stats for the day
+    total_games = len(games)
+    completed = sum(1 for g in games if g['status'] == 'final')
+    scheduled = sum(1 for g in games if g['status'] == 'scheduled')
+    
+    # Calculate aggregate stats
+    final_games = [g for g in games if g['status'] == 'final']
+    total_runs = sum((g.get('home_score') or 0) + (g.get('away_score') or 0) for g in final_games)
+    avg_runs = round(total_runs / completed, 1) if completed > 0 else 0
+    
+    home_wins = sum(1 for g in final_games if g.get('winner_id') == g.get('home_team_id'))
+    home_win_pct = round((home_wins / completed) * 100) if completed > 0 else 0
+    
+    return render_template('calendar.html',
+                          games=games,
+                          selected_date=date_str,
+                          display_date=display_date,
+                          prev_date=prev_date,
+                          next_date=next_date,
+                          available_dates=available_dates,
+                          conferences=conferences,
+                          selected_conference=conference,
+                          total_games=total_games,
+                          completed=completed,
+                          scheduled=scheduled,
+                          avg_runs=avg_runs,
+                          home_win_pct=home_win_pct,
+                          model_accuracy=model_accuracy,
+                          correct_predictions=correct_predictions,
+                          total_predictions=total_predictions)
 
 @app.route('/api/teams')
 def api_teams():
