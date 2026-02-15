@@ -62,6 +62,27 @@ Bayesian blending shifts weight from preseason priors to actual performance:
 - NCAA.com stats integration
 - DraftKings line comparison
 
+### ⚠️ Data Collection Philosophy (IMPORTANT)
+**Accuracy over speed. Always.**
+
+When collecting player stats, game results, or any data:
+- Go slow and methodical — one school at a time
+- Verify data against multiple sources when possible
+- If ESPN has no box score, check official team athletics sites
+- Never rush or batch carelessly — bad data corrupts the models
+- Take time to match player names correctly in the database
+
+This is a long-term project. There's no deadline. Get it right.
+
+### Source Fallback Protocol (when a school returns blank)
+1. **ESPN** — Try first (API + box score page)
+2. **Team athletics site** — Official school stats page
+3. **Opponent's athletics site** — Often has our team's stats in their box score
+4. **Conference site** — SEC, Big Ten, ACC stats portals
+5. **If all blank** — Log which sources exist but require JavaScript (StatBroadcast, etc.) for manual follow-up later
+
+Don't just give up — document what's available so we can revisit.
+
 ## Tech Stack
 
 - **Language:** Python 3

@@ -1,0 +1,790 @@
+[RHEUC San Diego(0-1)4821UCLA(1-0)870](https://www.espn.com/college-baseball/game/_/gameId/401852666/uc-san-diego-tritons-ucla-bruins)
+R
+H
+E
+
+- UC Davis(0-1)261
+- 3Texas(1-0)12110
+
+R
+H
+E
+
+- Bowling Green490
+- 5Georgia Tech(1-0)11132
+
+R
+H
+E
+
+- Oklahoma State(0-1)241
+- 7Arkansas(1-0)12131
+Shriners Children's College Showdown
+
+R
+H
+E
+
+- Youngstown State1249
+- Auburn(1-0)250
+
+R
+H
+E
+
+- Indiana(0-1)451
+- 11North Carolina(1-0)991
+
+R
+H
+E
+
+- UAB(1-0)9621
+- 3Florida(0-1)7103
+
+R
+H
+E
+
+- Wright State141
+- 15Georgia(1-0)1360
+
+R
+H
+E
+
+- 17NC State(1-0)13161
+- Washington(0-1)082
+Puerto Rico Challenge
+
+R
+H
+E
+
+- Army21011
+- 9Clemson(1-0)392
+
+R
+H
+E
+
+- 21Wake Forest(0-1)271
+- Houston(1-0)881
+Puerto Rico Challenge
+
+R
+H
+E
+
+- Stanford(1-0)10100
+- 24Arizona(0-1)7111
+College Baseball Series - Surprise, AZ
+
+R
+H
+E
+
+- Evansville262
+- Marshall(1-0)581
+Mike Sansing Classic
+
+R
+H
+E
+
+- Oklahoma(1-0)1090
+- Texas Tech(0-1)361
+Shriners Children's College Showdown
+
+R
+H
+E
+
+- Monmouth(1-0)4110
+- Richmond380
+
+R
+H
+E
+
+- Canisius252
+- App State(1-0)570
+
+R
+H
+E
+
+- Western Michigan480
+- Pittsburgh(1-0)12130
+
+R
+H
+E
+
+- Central Arkansas(0-1)230
+- UL Monroe(1-0)11113
+
+R
+H
+E
+
+- Stony Brook(0-1)891
+- Arkansas State(1-0)992
+
+R
+H
+E
+
+- Northern Illinois1070
+- North Carolina A&T(0-1)251
+
+R
+H
+E
+
+- Georgetown(0-1)273
+- Winthrop1391
+
+R
+H
+E
+
+- Iowa(0-1)6111
+- Kansas State(1-0)15140
+MLB Desert Invitational
+
+R
+H
+E
+
+- Wagner7102
+- Virginia(1-0)13141
+
+R
+H
+E
+
+- Evansville350
+- Kennesaw State(1-0)11122
+
+R
+H
+E
+
+- Utah Tech12151
+- UC Riverside(0-1)5132
+
+R
+H
+E
+
+- Navy12130
+- Queens University(0-1)142
+
+R
+H
+E
+
+- Liberty(1-0)774
+- The Citadel341
+
+R
+H
+E
+
+- New Orleans6101
+- Georgia State(1-0)10111
+
+R
+H
+E
+
+- Xavier(1-0)493
+- East Carolina(0-1)352
+
+R
+H
+E
+
+- Maryland(1-0)5101
+- UNC Wilmington(0-1)390
+
+R
+H
+E
+
+- Binghamton250
+- Dallas Baptist(1-0)13110
+
+R
+H
+E
+
+- Central Michigan18152
+- West Georgia(1-1)6100
+
+R
+H
+E
+
+- BYU(1-1)291
+- Western Kentucky(1-1)551
+
+R
+H
+E
+
+- Houston Christian591
+- Louisiana Tech(1-0)1792
+
+R
+H
+E
+
+- South Dakota State490
+- UTSA(1-0)17191
+
+R
+H
+E
+
+- Creighton(1-0)11100
+- Saint Mary's3102
+
+R
+H
+E
+
+- Cincinnati(1-0)1193
+- Jacksonville State(0-1)554
+
+R
+H
+E
+
+- Nevada391
+- Ole Miss(1-0)11112
+
+R
+H
+E
+
+- Rhode Island371
+- Jacksonville(0-0)16130
+
+R
+H
+E
+
+- Villanova(1-0)784
+- Florida International(0-0)452
+
+R
+H
+E
+
+- Mount St. Mary's881
+- Missouri(0-1)580
+
+R
+H
+E
+
+- George Mason241
+- Oregon(1-0)6101
+
+R
+H
+E
+
+- North Dakota State150
+- Florida Gulf Coast(0-0)230
+
+R
+H
+E
+
+- Illinois(0-1)462
+- South Florida(1-0)9101
+
+R
+H
+E
+
+- Notre Dame(0-1)151
+- Florida Atlantic(1-0)7111
+
+R
+H
+E
+
+- Eastern Kentucky(0-1)381
+- Alabama State680
+
+R
+H
+E
+
+- Maine490
+- Duke(1-1)370
+
+R
+H
+E
+
+- South Carolina Upstate7101
+- South Alabama(0-0)16150
+
+R
+H
+E
+
+- Northeastern(0-0)041
+- Grand Canyon1081
+MLB Desert Invitational
+
+R
+H
+E
+
+- Air Force15140
+- Penn State(0-1)345
+MLB Desert Invitational
+
+R
+H
+E
+
+- Omaha271
+- Arizona State(1-0)7111
+
+R
+H
+E
+
+- San José State8120
+- Long Beach State(0-0)022
+
+R
+H
+E
+
+- Pepperdine151
+- USC(1-0)331
+
+R
+H
+E
+
+- Utah(1-0)893
+- Fresno State395
+
+R
+H
+E
+
+- Austin Peay(0-0)330
+- UNLV791
+
+R
+H
+E
+
+- Southern Indiana7143
+- Cal State Bakersfield(0-0)862
+
+R
+H
+E
+
+- Milwaukee583
+- 2LSU(1-0)15150
+
+R
+H
+E
+
+- Hofstra(0-1)5101
+- 4Mississippi State(1-0)631
+
+R
+H
+E
+
+- Fairfield373
+- 6Coastal Carolina(1-0)575
+
+R
+H
+E
+
+- Michigan State(1-0)450
+- 8Louisville(0-1)380
+
+R
+H
+E
+
+- 10TCU(1-0)561
+- 23Vanderbilt(0-1)491
+Shriners Children's College Showdown
+
+R
+H
+E
+
+- Michigan(1-0)5100
+- 12Oregon State(0-1)390
+College Baseball Series - Surprise, AZ
+
+R
+H
+E
+
+- Nicholls024
+- 14Tennessee(1-0)10110
+
+R
+H
+E
+
+- James Madison(0-1)171
+- 16Florida State(1-0)581
+
+R
+H
+E
+
+- 18Kentucky(1-0)13141
+- UNC Greensboro271
+
+R
+H
+E
+
+- UC Santa Barbara(1-0)5110
+- 20Southern Miss(0-1)160
+
+R
+H
+E
+
+- Lehigh280
+- 22Miami(1-0)13123
+
+R
+H
+E
+
+- Tennessee Tech691
+- 25Texas A&M(1-0)15180
+
+R
+H
+E
+
+- St. John's(0-1)371
+- Ball State450
+
+R
+H
+E
+
+- Central Michigan370
+- West Georgia(1-1)11101
+
+R
+H
+E
+
+- BYU(1-0)341
+- Western Kentucky(0-1)272
+
+R
+H
+E
+
+- Butler(1-0)10111
+- UT Martin7114
+
+R
+H
+E
+
+- Northern Kentucky280
+- South Carolina(1-0)591
+
+R
+H
+E
+
+- Quinnipiac5112
+- Old Dominion(1-0)15181
+
+R
+H
+E
+
+- Towson(0-1)054
+- Norfolk State271
+
+R
+H
+E
+
+- Missouri State(1-0)882
+- Louisiana(0-1)241
+
+R
+H
+E
+
+- Saint Louis1103
+- Ohio State(1-0)780
+
+R
+H
+E
+
+- William & Mary(0-1)260
+- Virginia Tech(1-0)991
+
+R
+H
+E
+
+- Northwestern(0-1)690
+- Rice(1-0)7100
+
+R
+H
+E
+
+- Delaware(0-1)164
+- Elon(1-0)13110
+
+R
+H
+E
+
+- SIU Edwardsville150
+- North Alabama(2-0)351
+
+R
+H
+E
+
+- Dayton6104
+- Lipscomb(1-0)11121
+
+R
+H
+E
+
+- Bellarmine(0-1)290
+- Middle Tennessee(1-0)8112
+
+R
+H
+E
+
+- Rutgers(0-1)384
+- Charleston(1-0)892
+
+R
+H
+E
+
+- San Diego790
+- Charlotte(0-1)441
+
+R
+H
+E
+
+- Maine364
+- Duke(1-0)870
+
+R
+H
+E
+
+- Northern Colorado4111
+- Wichita State(1-0)1183
+
+R
+H
+E
+
+- Butler(1-1)8141
+- UT Martin9122
+
+R
+H
+E
+
+- Northern Kentucky580
+- South Carolina(2-0)6101
+
+R
+H
+E
+
+- Cal Poly(0-1)272
+- Campbell(1-0)572
+
+R
+H
+E
+
+- Portland9110
+- Purdue(0-1)381
+
+R
+H
+E
+
+- Toledo8131
+- Memphis(0-1)672
+
+R
+H
+E
+
+- New Mexico State(0-1)230
+- Baylor(1-0)1590
+
+R
+H
+E
+
+- Washington State8100
+- Alabama(0-1)461
+
+R
+H
+E
+
+- Troy(0-1)351
+- Mercer470
+
+R
+H
+E
+
+- Siena054
+- UCF(1-0)1690
+
+R
+H
+E
+
+- Sacred Heart791
+- North Florida(0-1)272
+
+R
+H
+E
+
+- SIU Edwardsville140
+- North Alabama(2-0)8101
+
+R
+H
+E
+
+- Minnesota(1-0)11162
+- Stetson(0-1)5123
+
+R
+H
+E
+
+- West Virginia(1-0)15121
+- Georgia Southern(0-1)353
+
+R
+H
+E
+
+- Binghamton140
+- Dallas Baptist(1-0)1470
+
+R
+H
+E
+
+- Sam Houston(0-0)8121
+- McNeese9173
+
+R
+H
+E
+
+- Niagara030
+- Texas State(1-0)13150
+
+R
+H
+E
+
+- Kansas(0-1)4100
+- UT Rio Grande Valley772
+
+R
+H
+E
+
+- Seattle U582
+- Cal State Northridge(1-0)1080
+
+R
+H
+E
+
+- UConn(0-1)241
+- Nebraska(1-0)12160
+MLB Desert Invitational
+
+R
+H
+E
+
+- Boston College(1-0)6101
+- Seton Hall(0-1)451
+Puerto Rico Challenge
+
+R
+H
+E
+
+- UC Irvine(0-0)570
+- Sacramento State012
+
+R
+H
+E
+
+- Tulane(0-0)1290
+- Loyola Marymount342
+
+R
+H
+E
+
+- Santa Clara1390
+- California(0-1)271
+
+R
+H
+E
+
+- California Baptist172
+- Cal State Fullerton(0-0)380
+
+R
+H
+E
+
+- Gonzaga253
+- Hawai'i(0-0)361

@@ -1,0 +1,308 @@
+{
+  "8": {
+    "id": 8,
+    "name": "Alabama",
+    "conference": "SEC",
+    "nickname": "Crimson Tide"
+  },
+  "28": {
+    "id": 28,
+    "name": "Arizona St.",
+    "conference": "Pac-12",
+    "nickname": "Sun Devils"
+  },
+  "31": {
+    "id": 31,
+    "name": "Arkansas",
+    "conference": "SEC",
+    "nickname": "Razorbacks"
+  },
+  "37": {
+    "id": 37,
+    "name": "Auburn",
+    "conference": "SEC",
+    "nickname": "Tigers"
+  },
+  "77": {
+    "id": 77,
+    "name": "BYU",
+    "conference": "WCC",
+    "nickname": "Cougars"
+  },
+  "96": {
+    "id": 96,
+    "name": "Fresno St.",
+    "conference": "WAC",
+    "nickname": "Bulldogs"
+  },
+  "128": {
+    "id": 128,
+    "name": "UCF",
+    "conference": "CUSA",
+    "nickname": "Knights"
+  },
+  "140": {
+    "id": 140,
+    "name": "Cincinnati",
+    "conference": "The American",
+    "nickname": "Bearcats"
+  },
+  "147": {
+    "id": 147,
+    "name": "Clemson",
+    "conference": "ACC",
+    "nickname": "Tigers"
+  },
+  "234": {
+    "id": 234,
+    "name": "Florida St.",
+    "conference": "ACC",
+    "nickname": "Seminoles"
+  },
+  "235": {
+    "id": 235,
+    "name": "Florida",
+    "conference": "SEC",
+    "nickname": "Gators"
+  },
+  "255": {
+    "id": 255,
+    "name": "Georgia Tech",
+    "conference": "ACC",
+    "nickname": "Yellow Jackets"
+  },
+  "257": {
+    "id": 257,
+    "name": "Georgia",
+    "conference": "SEC",
+    "nickname": "Bulldogs"
+  },
+  "277": {
+    "id": 277,
+    "name": "Hawaii",
+    "conference": "WAC",
+    "nickname": "Rainbow Warriors"
+  },
+  "312": {
+    "id": 312,
+    "name": "Iowa",
+    "conference": "Big Ten",
+    "nickname": "Hawkeyes"
+  },
+  "328": {
+    "id": 328,
+    "name": "Kansas",
+    "conference": "Big 12",
+    "nickname": "Jayhawks"
+  },
+  "334": {
+    "id": 334,
+    "name": "Kentucky",
+    "conference": "SEC",
+    "nickname": "Wildcats"
+  },
+  "365": {
+    "id": 365,
+    "name": "LSU",
+    "conference": "SEC",
+    "nickname": "Fighting Tigers"
+  },
+  "415": {
+    "id": 415,
+    "name": "Miami (FL)",
+    "conference": "ACC",
+    "nickname": "Hurricanes"
+  },
+  "430": {
+    "id": 430,
+    "name": "Mississippi St.",
+    "conference": "SEC",
+    "nickname": "Bulldogs"
+  },
+  "433": {
+    "id": 433,
+    "name": "Ole Miss",
+    "conference": "SEC",
+    "nickname": "Rebels"
+  },
+  "434": {
+    "id": 434,
+    "name": "Missouri",
+    "conference": "Big 12",
+    "nickname": "Tigers"
+  },
+  "463": {
+    "id": 463,
+    "name": "Nebraska",
+    "conference": "Big Ten",
+    "nickname": "Huskers"
+  },
+  "465": {
+    "id": 465,
+    "name": "UNLV",
+    "conference": "Mountain West",
+    "nickname": "Rebels"
+  },
+  "466": {
+    "id": 466,
+    "name": "Nevada",
+    "conference": "WAC",
+    "nickname": "Wolf Pack"
+  },
+  "473": {
+    "id": 473,
+    "name": "New Mexico",
+    "conference": "Mountain West",
+    "nickname": "Lobos"
+  },
+  "513": {
+    "id": 513,
+    "name": "Notre Dame",
+    "conference": "AAC",
+    "nickname": "Fighting Irish"
+  },
+  "518": {
+    "id": 518,
+    "name": "Ohio St.",
+    "conference": "Big Ten",
+    "nickname": "Buckeyes"
+  },
+  "522": {
+    "id": 522,
+    "name": "Oklahoma",
+    "conference": "Big 12",
+    "nickname": "Sooners"
+  },
+  "523": {
+    "id": 523,
+    "name": "Old Dominion",
+    "conference": "CAA",
+    "nickname": "Monarchs"
+  },
+  "539": {
+    "id": 539,
+    "name": "Penn St.",
+    "conference": "Big Ten",
+    "nickname": "Nittany Lions"
+  },
+  "559": {
+    "id": 559,
+    "name": "Purdue",
+    "conference": "Big Ten",
+    "nickname": "Boilermakers"
+  },
+  "626": {
+    "id": 626,
+    "name": "San Diego St.",
+    "conference": "Mountain West",
+    "nickname": "Aztecs"
+  },
+  "630": {
+    "id": 630,
+    "name": "San Jose St.",
+    "conference": "WAC",
+    "nickname": "Spartans"
+  },
+  "648": {
+    "id": 648,
+    "name": "South Carolina",
+    "conference": "SEC",
+    "nickname": "Gamecocks"
+  },
+  "674": {
+    "id": 674,
+    "name": "Stanford",
+    "conference": "Pac-12",
+    "nickname": "Cardinal"
+  },
+  "694": {
+    "id": 694,
+    "name": "Tennessee",
+    "conference": "SEC",
+    "nickname": "Volunteers"
+  },
+  "697": {
+    "id": 697,
+    "name": "Texas A&M",
+    "conference": "Big 12",
+    "nickname": "Aggies"
+  },
+  "703": {
+    "id": 703,
+    "name": "Texas",
+    "conference": "Big 12",
+    "nickname": "Longhorns"
+  },
+  "706": {
+    "id": 706,
+    "name": "UTSA",
+    "conference": "Southland",
+    "nickname": "Roadrunners"
+  },
+  "721": {
+    "id": 721,
+    "name": "Air Force",
+    "conference": "Mountain West",
+    "nickname": "Falcons"
+  },
+  "736": {
+    "id": 736,
+    "name": "Vanderbilt",
+    "conference": "SEC",
+    "nickname": "Commodores"
+  },
+  "742": {
+    "id": 742,
+    "name": "Virginia Tech",
+    "conference": "ACC",
+    "nickname": "Hokies"
+  },
+  "746": {
+    "id": 746,
+    "name": "Virginia",
+    "conference": "ACC",
+    "nickname": "Cavaliers"
+  },
+  "754": {
+    "id": 754,
+    "name": "Washington St.",
+    "conference": "Pac-12",
+    "nickname": "Cougars"
+  },
+  "1356": {
+    "id": 1356,
+    "name": "Seattle U",
+    "conference": "Seattle U",
+    "nickname": "Redhawks"
+  },
+  "1104": {
+    "id": 1104,
+    "name": "Grand Canyon",
+    "conference": "PacWest",
+    "nickname": "Lopes"
+  },
+  "154": {
+    "id": 154,
+    "name": "Colorado Col.",
+    "conference": null,
+    "nickname": "Tigers"
+  },
+  "156": {
+    "id": 156,
+    "name": "Colorado St.",
+    "conference": null,
+    "nickname": "Rams"
+  },
+  "811": {
+    "id": 811,
+    "name": "Wyoming",
+    "conference": null,
+    "nickname": "Cowboys"
+  },
+  "66": {
+    "id": 66,
+    "name": "Boise St.",
+    "conference": null,
+    "nickname": "Broncos"
+  }
+}

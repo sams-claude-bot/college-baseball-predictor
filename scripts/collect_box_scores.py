@@ -339,7 +339,7 @@ def fetch_team_site_boxscore(team_id, opponent_id, date_str):
     """
     Try to fetch box score from team athletics site
     """
-    from track_sec_teams import SEC_TEAMS
+    from scripts.track_sec_teams import SEC_TEAMS
     
     if team_id not in SEC_TEAMS:
         return None
