@@ -764,9 +764,15 @@ def betting():
     # Best bets (edge > 5%)
     best_bets = [g for g in games_with_edge if g.get('best_edge', 0) >= 5]
     
+    # Best totals (edge > 15% on over/under)
+    games_with_totals = [g for g in games if g.get('total_edge') and g.get('over_under')]
+    games_with_totals.sort(key=lambda x: x.get('total_edge', 0), reverse=True)
+    best_totals = [g for g in games_with_totals if g.get('total_edge', 0) >= 15]
+    
     return render_template('betting.html',
                           games=games_with_edge,
                           best_bets=best_bets,
+                          best_totals=best_totals,
                           conferences=conferences,
                           selected_conference=conference)
 

@@ -70,6 +70,52 @@
 </div>
 {% endif %}
 
+{% if best_totals %}
+<!-- Best Totals Section -->
+<div class="card mb-4">
+    <div class="card-header" style="background-color: #2563eb; color: white;">
+        <i class="bi bi-graph-up"></i> Best Totals (15%+ Edge)
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for game in best_totals[:6] %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 {% if game.total_lean == 'OVER' %}border-success{% else %}border-danger{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <small class="text-muted">{{ game.date }}</small>
+                            <span class="badge {% if game.total_lean == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ game.total_lean }} +{{ game.total_edge|round(0) }}%
+                            </span>
+                        </div>
+                        <h6 class="mb-1">
+                            {{ game.away_team_name }} @ {{ game.home_team_name }}
+                        </h6>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div>
+                                <span class="fw-bold">O/U {{ game.over_under }}</span>
+                                <br>
+                                <small class="text-muted">Proj: {{ game.projected_total|round(1) }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="{% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                    {{ game.total_lean }}
+                                </span>
+                                <br>
+                                <small class="text-muted">
+                                    Diff: {{ '%+.1f'|format(game.total_diff) }}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- All Games with Lines -->
 <div class="card">
     <div class="card-header">
