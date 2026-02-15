@@ -1,0 +1,25 @@
+[Unit]
+Description=College Baseball Predictor Dashboard
+After=network.target
+
+[Service]
+Type=simple
+User=sam
+Group=sam
+WorkingDirectory=/home/sam/college-baseball-predictor
+Environment="PATH=/home/sam/college-baseball-predictor/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="FLASK_APP=web/app.py"
+Environment="FLASK_ENV=production"
+ExecStart=/home/sam/college-baseball-predictor/venv/bin/python -m flask run --host=0.0.0.0 --port=5000
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/sam/college-baseball-predictor/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
