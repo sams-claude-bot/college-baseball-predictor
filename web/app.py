@@ -290,9 +290,10 @@ def get_value_picks(limit=5):
             total_prob = dk_home_prob + dk_away_prob
             dk_home_fair = dk_home_prob / total_prob
             
-            # Get model prediction
-            ensemble = MODELS['ensemble']
-            pred = ensemble.predict_game(line['home_team_id'], line['away_team_id'])
+            # Get blended model prediction (neural + ensemble)
+            pred = get_blended_prediction(line['home_team_id'], line['away_team_id'])
+            if not pred:
+                continue
             model_home_prob = pred['home_win_probability']
             
             # Calculate edge
@@ -351,6 +352,64 @@ def get_quick_stats():
         'betting_lines': betting_lines
     }
 
+def get_blended_prediction(home_team_id, away_team_id):
+    """Blend ensemble + neural predictions for betting analysis.
+    
+    Neural gets 60% weight while ensemble warms up (few evaluated predictions).
+    As ensemble accumulates more data, weights will shift toward equal.
+    """
+    ensemble = MODELS.get('ensemble')
+    neural = MODELS.get('neural')
+    
+    ensemble_pred = None
+    neural_pred = None
+    
+    if ensemble:
+        try:
+            ensemble_pred = ensemble.predict_game(home_team_id, away_team_id)
+        except Exception:
+            pass
+    
+    if neural:
+        try:
+            neural_pred = neural.predict_game(home_team_id, away_team_id)
+        except Exception:
+            pass
+    
+    # If only one model available, use it
+    if ensemble_pred and not neural_pred:
+        return ensemble_pred
+    if neural_pred and not ensemble_pred:
+        return neural_pred
+    if not ensemble_pred and not neural_pred:
+        return None
+    
+    # Blend: neural 60%, ensemble 40% (early season weighting)
+    nn_weight = 0.60
+    ens_weight = 0.40
+    
+    home_prob = (neural_pred['home_win_probability'] * nn_weight + 
+                 ensemble_pred['home_win_probability'] * ens_weight)
+    away_prob = 1 - home_prob
+    
+    # Blend run projections
+    home_runs = (neural_pred.get('projected_home_runs', 0) * nn_weight +
+                 ensemble_pred.get('projected_home_runs', 0) * ens_weight)
+    away_runs = (neural_pred.get('projected_away_runs', 0) * nn_weight +
+                 ensemble_pred.get('projected_away_runs', 0) * ens_weight)
+    
+    return {
+        'home_win_probability': home_prob,
+        'away_win_probability': away_prob,
+        'projected_home_runs': home_runs,
+        'projected_away_runs': away_runs,
+        'projected_total': home_runs + away_runs,
+        'neural_prob': neural_pred['home_win_probability'],
+        'ensemble_prob': ensemble_pred['home_win_probability'],
+        'blend': f"NN {int(nn_weight*100)}% / Ens {int(ens_weight*100)}%"
+    }
+
+
 def get_betting_games():
     """Get all games with betting lines"""
     conn = get_connection()
@@ -387,12 +446,16 @@ def get_betting_games():
             line['dk_home_fair'] = dk_home_prob / total
             line['dk_away_fair'] = dk_away_prob / total
             
-            # Model prediction
-            ensemble = MODELS['ensemble']
-            pred = ensemble.predict_game(line['home_team_id'], line['away_team_id'])
+            # Model prediction (blended neural + ensemble)
+            pred = get_blended_prediction(line['home_team_id'], line['away_team_id'])
+            if not pred:
+                continue
             line['model_home_prob'] = pred['home_win_probability']
             line['model_away_prob'] = pred['away_win_probability']
-            line['projected_total'] = pred['projected_total']
+            line['projected_total'] = pred.get('projected_total', 0)
+            line['blend_info'] = pred.get('blend', '')
+            line['nn_prob'] = pred.get('neural_prob')
+            line['ens_prob'] = pred.get('ensemble_prob')
             
             # Edges
             line['home_edge'] = (pred['home_win_probability'] - line['dk_home_fair']) * 100
