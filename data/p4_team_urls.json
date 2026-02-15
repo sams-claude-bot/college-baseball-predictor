@@ -2,8 +2,14 @@
   "_meta": {
     "description": "Power 4 Conference Team Stats URLs",
     "url_pattern": "Most schools use SIDEARM Sports: {domain}/sports/baseball/stats/2026",
-    "conferences": ["SEC", "Big Ten", "ACC", "Big 12"],
-    "last_updated": "2026-02-15"
+    "conferences": [
+      "SEC",
+      "Big Ten",
+      "ACC",
+      "Big 12"
+    ],
+    "last_updated": "2026-02-15",
+    "notes": "Removed colorado, iowa-state, smu, syracuse (no baseball programs). Miami uses WordPress cumestats format."
   },
   "teams": {
     "alabama": "https://rolltide.com/sports/baseball/stats/2026",
@@ -22,7 +28,6 @@
     "texas": "https://texassports.com/sports/baseball/stats/2026",
     "texas-am": "https://12thman.com/sports/baseball/stats/2026",
     "vanderbilt": "https://vucommodores.com/sports/baseball/stats/2026",
-    
     "illinois": "https://fightingillini.com/sports/baseball/stats/2026",
     "indiana": "https://iuhoosiers.com/sports/baseball/stats/2026",
     "iowa": "https://hawkeyesports.com/sports/baseball/stats/2026",
@@ -41,7 +46,6 @@
     "washington": "https://gohuskies.com/sports/baseball/stats/2026",
     "wisconsin": "https://uwbadgers.com/sports/baseball/stats/2026",
     "oregon": "https://goducks.com/sports/baseball/stats/2026",
-    
     "boston-college": "https://bceagles.com/sports/baseball/stats/2026",
     "california": "https://calbears.com/sports/baseball/stats/2026",
     "clemson": "https://clemsontigers.com/sports/baseball/stats/2026",
@@ -49,23 +53,19 @@
     "florida-state": "https://seminoles.com/sports/baseball/stats/2026",
     "georgia-tech": "https://ramblinwreck.com/sports/baseball/stats/2026",
     "louisville": "https://gocards.com/sports/baseball/stats/2026",
-    "miami-fl": "https://miamihurricanes.com/sports/baseball/stats/2026",
+    "miami-fl": "https://miamihurricanes.com/sports/baseball/cumestats/season/2025-26/",
     "nc-state": "https://gopack.com/sports/baseball/stats/2026",
     "north-carolina": "https://goheels.com/sports/baseball/stats/2026",
     "notre-dame": "https://und.com/sports/baseball/stats/2026",
     "pittsburgh": "https://pittsburghpanthers.com/sports/baseball/stats/2026",
-    "smu": "https://smumustangs.com/sports/baseball/stats/2026",
     "stanford": "https://gostanford.com/sports/baseball/stats/2026",
-    "syracuse": "https://cuse.com/sports/baseball/stats/2026",
     "virginia": "https://virginiasports.com/sports/baseball/stats/2026",
     "wake-forest": "https://godeacs.com/sports/baseball/stats/2026",
-    
     "arizona": "https://arizonawildcats.com/sports/baseball/stats/2026",
     "arizona-state": "https://thesundevils.com/sports/baseball/stats/2026",
     "baylor": "https://baylorbears.com/sports/baseball/stats/2026",
     "byu": "https://byucougars.com/sports/baseball/stats/2026",
     "cincinnati": "https://gobearcats.com/sports/baseball/stats/2026",
-    "colorado": "https://cubuffs.com/sports/baseball/stats/2026",
     "houston": "https://uhcougars.com/sports/baseball/stats/2026",
     "kansas": "https://kuathletics.com/sports/baseball/stats/2026",
     "kansas-state": "https://kstatesports.com/sports/baseball/stats/2026",
@@ -74,7 +74,6 @@
     "texas-tech": "https://texastech.com/sports/baseball/stats/2026",
     "ucf": "https://ucfknights.com/sports/baseball/stats/2026",
     "utah": "https://utahutes.com/sports/baseball/stats/2026",
-    "west-virginia": "https://wvusports.com/sports/baseball/stats/2026",
-    "iowa-state": "https://cyclones.com/sports/baseball/stats/2026"
+    "west-virginia": "https://wvusports.com/sports/baseball/stats/2026"
   }
 }

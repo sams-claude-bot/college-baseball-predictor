@@ -40,6 +40,17 @@ log = logging.getLogger('stats_collector')
 
 REQUEST_DELAY = 2
 
+# ESPN team ID mapping (for future use when ESPN adds college baseball stats)
+ESPN_IDS_FILE = DATA_DIR / 'espn_team_ids.json'
+
+# WMT iframe URLs for WordPress-based sites
+WMT_URLS = {
+    'miami-fl': 'https://wmt.games/miamihurricanes/stats/season/614661',
+}
+
+# Teams that don't have baseball programs (included in P4 conferences but no team)
+NO_BASEBALL = {'colorado', 'iowa-state', 'smu', 'syracuse'}
+
 
 def get_db():
     conn = sqlite3.connect(str(DB_PATH))
@@ -305,6 +316,110 @@ def upsert_player_stats(db, player):
     """, player)
 
 
+def collect_wmt_stats(team_id, wmt_url, db, dry_run=False):
+    """Collect stats from WMT (Web Management Tool) iframe used by WordPress sites."""
+    log.info(f"  Trying WMT scraper for {team_id}...")
+    
+    try:
+        import subprocess as sp
+        from wmt_scraper import parse_wmt_batting_text, parse_wmt_pitching_text
+        
+        # Fetch batting page
+        batting_url = wmt_url
+        if '?' not in batting_url:
+            batting_url += '?overall=Batting'
+        
+        # WMT requires a browser - try curl first as a quick check
+        result = sp.run(
+            ['curl', '-s', '--max-time', '15', '-L',
+             '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+             batting_url],
+            capture_output=True, text=True, timeout=20
+        )
+        
+        batting_html = result.stdout
+        pitching_html = ""
+        
+        # If curl got data with stats
+        if 'AVG' in batting_html and 'NAME' in batting_html:
+            # Extract text content (simple HTML strip)
+            import re
+            text = re.sub(r'<[^>]+>', '\n', batting_html)
+            batting_players = parse_wmt_batting_text(text)
+        else:
+            log.warning(f"  WMT batting page needs browser (JS-rendered)")
+            return None
+        
+        # Fetch pitching
+        pitching_url = wmt_url.split('?')[0] + '?overall=Pitching'
+        result = sp.run(
+            ['curl', '-s', '--max-time', '15', '-L',
+             '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+             pitching_url],
+            capture_output=True, text=True, timeout=20
+        )
+        
+        pitching_html = result.stdout
+        pitching_players = []
+        if 'ERA' in pitching_html and 'NAME' in pitching_html:
+            text = re.sub(r'<[^>]+>', '\n', pitching_html)
+            pitching_players = parse_wmt_pitching_text(text)
+        
+        if not batting_players:
+            log.error(f"  WMT: No batting data parsed for {team_id}")
+            return None
+        
+        # Build pitching lookup
+        pitching_by_name = {p['name']: p for p in pitching_players}
+        
+        batting_count = 0
+        for bp in batting_players:
+            player = {
+                'team_id': team_id,
+                **bp,
+            }
+            for k, v in PITCHING_DEFAULTS.items():
+                player.setdefault(k, v)
+            if player['name'] in pitching_by_name:
+                ps = pitching_by_name.pop(player['name'])
+                for k in PITCHING_DEFAULTS:
+                    player[k] = ps[k]
+            
+            calculate_derived_stats(player)
+            if not dry_run:
+                upsert_player_stats(db, player)
+            batting_count += 1
+        
+        # Pitch-only players
+        pitching_only = 0
+        for name, ps in pitching_by_name.items():
+            player = {
+                'team_id': team_id, 'name': name, 'number': ps['number'],
+                'games': 0, 'at_bats': 0, 'runs': 0, 'hits': 0, 'doubles': 0,
+                'triples': 0, 'home_runs': 0, 'rbi': 0, 'walks': 0, 'strikeouts': 0,
+                'stolen_bases': 0, 'caught_stealing': 0,
+            }
+            for k in PITCHING_DEFAULTS:
+                player[k] = ps[k]
+            calculate_derived_stats(player)
+            if not dry_run:
+                upsert_player_stats(db, player)
+            pitching_only += 1
+        
+        if not dry_run:
+            db.commit()
+        
+        total_pitchers = len(pitching_players)
+        log.info(f"  {team_id} (WMT): {batting_count} batters, {total_pitchers} pitchers ({pitching_only} pitch-only)")
+        return {'batting': batting_count, 'pitching': total_pitchers, 'status': 'ok', 'source': 'wmt'}
+        
+    except Exception as e:
+        log.error(f"  WMT scraper failed for {team_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def collect_team_stats(team_id, url, db, dry_run=False):
     """Collect batting + pitching stats for one team."""
     log.info(f"  Fetching {team_id}...")
@@ -389,7 +504,7 @@ def collect_team_stats(team_id, url, db, dry_run=False):
                          and p.get('playerName') not in ('Totals', 'Opponents', None)])
 
     log.info(f"  {team_id}: {batting_count} batters, {total_pitchers} pitchers ({pitching_only} pitch-only)")
-    return {'batting': batting_count, 'pitching': total_pitchers, 'status': 'ok'}
+    return {'batting': batting_count, 'pitching': total_pitchers, 'status': 'ok', 'source': 'sidearm'}
 
 
 def recalculate_all_stats(db):
@@ -474,6 +589,11 @@ def main():
     results = {'ok': 0, 'failed': 0, 'total_batting': 0, 'total_pitching': 0}
 
     for i, team_id in enumerate(team_ids, 1):
+        # Skip teams without baseball programs
+        if team_id in NO_BASEBALL:
+            log.info(f"[{i}/{len(team_ids)}] {team_id} - SKIPPED (no baseball program)")
+            continue
+
         url = team_urls.get(team_id)
         if not url:
             log.warning(f"No URL for {team_id}")
@@ -482,12 +602,23 @@ def main():
         log.info(f"[{i}/{len(team_ids)}] {team_id}")
 
         try:
+            # Try SIDEARM Nuxt parsing first
             result = collect_team_stats(team_id, url, db, dry_run=args.dry_run)
+            
+            # If SIDEARM failed, try WMT fallback
+            if result['status'] != 'ok' and team_id in WMT_URLS:
+                log.info(f"  SIDEARM failed, trying WMT fallback...")
+                result = collect_wmt_stats(team_id, WMT_URLS[team_id], db, dry_run=args.dry_run)
+                if result is None:
+                    result = {'status': 'failed', 'batting': 0, 'pitching': 0}
+            
             if result['status'] == 'ok':
                 results['ok'] += 1
                 results['total_batting'] += result['batting']
                 results['total_pitching'] += result['pitching']
                 progress['completed'].append(team_id)
+                if 'source' in result:
+                    progress.setdefault('sources', {})[team_id] = result['source']
             else:
                 results['failed'] += 1
                 progress['failed'].append(team_id)
