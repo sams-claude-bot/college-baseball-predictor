@@ -165,27 +165,49 @@ class EnsembleModel(BaseModel):
     
     def _update_weights_from_history(self):
         """
-        Update weights based on recent model accuracy.
+        Update weights based on recent model accuracy from SQLite database.
         Models with better recent accuracy get higher weights.
         """
-        model_stats = self.accuracy_history.get("model_stats", {})
-        
-        # Calculate recent accuracy for each model
-        recent_accuracy = {}
-        for name in self.models:
-            stats = model_stats.get(name, {"recent": []})
-            recent = stats.get("recent", [])[-self.ROLLING_WINDOW:]
+        try:
+            from scripts.database import get_connection
+            conn = get_connection()
+            c = conn.cursor()
             
-            if len(recent) >= 10:  # Need minimum predictions for adjustment
-                accuracy = sum(recent) / len(recent)
-            else:
-                accuracy = 0.5  # Default to 50% if insufficient data
+            # Get accuracy from SQLite (single source of truth)
+            c.execute('''
+                SELECT model_name,
+                       SUM(was_correct) as correct,
+                       COUNT(*) as total
+                FROM model_predictions 
+                WHERE was_correct IS NOT NULL
+                GROUP BY model_name
+            ''')
             
-            recent_accuracy[name] = accuracy
-        
-        # Only adjust if we have enough data
-        total_predictions = sum(len(model_stats.get(n, {}).get("recent", []))
-                               for n in self.models)
+            recent_accuracy = {}
+            total_predictions = 0
+            for row in c.fetchall():
+                model_name, correct, total = row
+                if model_name in self.models:
+                    recent_accuracy[model_name] = correct / total if total > 0 else 0.5
+                    total_predictions += total
+            
+            conn.close()
+            
+            # Fill in defaults for models without predictions
+            for name in self.models:
+                if name not in recent_accuracy:
+                    recent_accuracy[name] = 0.5
+            
+        except Exception as e:
+            # Fallback to JSON if database fails
+            model_stats = self.accuracy_history.get("model_stats", {})
+            recent_accuracy = {}
+            for name in self.models:
+                stats = model_stats.get(name, {"recent": []})
+                recent = stats.get("recent", [])[-self.ROLLING_WINDOW:]
+                recent_accuracy[name] = sum(recent) / len(recent) if len(recent) >= 10 else 0.5
+            total_predictions = sum(len(model_stats.get(n, {}).get("recent", []))
+                                   for n in self.models)
         
         if total_predictions < 50:
             return  # Not enough data to adjust yet

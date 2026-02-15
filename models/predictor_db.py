@@ -30,7 +30,7 @@ from pathlib import Path
 from scripts.database import get_connection, get_team_record, get_team_runs, get_recent_games
 
 # Import all models
-from models.ensemble_model import EnsembleModel
+from models.ensemble_model import EnsembleModel, PoissonModelWrapper
 from models.pythagorean_model import PythagoreanModel
 from models.elo_model import EloModel
 from models.log5_model import Log5Model
@@ -113,6 +113,7 @@ class Predictor:
         'pitching': PitchingModel,
         'conference': ConferenceModel,
         'prior': PriorModel,
+        'poisson': PoissonModelWrapper,
         'ensemble': EnsembleModel
     }
     

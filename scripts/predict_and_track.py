@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.predictor_db import Predictor
 from scripts.database import get_connection
 
-MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'ensemble']
+MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'ensemble']
 
 def predict_games(date=None):
     """Generate and store predictions for all games on a date"""
