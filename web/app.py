@@ -828,13 +828,88 @@ def models():
         prediction_log = [dict(row) for row in c.fetchall()]
     except:
         prediction_log = []
+    
+    # Get runs ensemble weights
+    try:
+        import models.runs_ensemble as runs_ens
+        runs_weights = runs_ens.get_weights()
+    except:
+        runs_weights = {}
+    
+    # Get totals prediction accuracy
+    try:
+        c.execute('''
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct,
+                SUM(CASE WHEN was_correct = 0 THEN 1 ELSE 0 END) as incorrect
+            FROM totals_predictions
+            WHERE was_correct IS NOT NULL
+        ''')
+        totals_overall = dict(c.fetchone())
+        
+        # By type
+        c.execute('''
+            SELECT 
+                prediction,
+                COUNT(*) as total,
+                SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct
+            FROM totals_predictions
+            WHERE was_correct IS NOT NULL
+            GROUP BY prediction
+        ''')
+        totals_by_type = [dict(row) for row in c.fetchall()]
+        
+        # By edge bucket
+        c.execute('''
+            SELECT 
+                CASE 
+                    WHEN edge_pct >= 30 THEN '30%+'
+                    WHEN edge_pct >= 20 THEN '20-30%'
+                    WHEN edge_pct >= 10 THEN '10-20%'
+                    ELSE '<10%'
+                END as edge_bucket,
+                COUNT(*) as total,
+                SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct
+            FROM totals_predictions
+            WHERE was_correct IS NOT NULL
+            GROUP BY edge_bucket
+            ORDER BY MIN(edge_pct) DESC
+        ''')
+        totals_by_edge = [dict(row) for row in c.fetchall()]
+        
+        # Recent totals predictions
+        c.execute('''
+            SELECT tp.prediction, tp.over_under_line, tp.projected_total, tp.edge_pct,
+                   tp.actual_total, tp.was_correct,
+                   ht.name as home_name, at.name as away_name
+            FROM totals_predictions tp
+            JOIN games g ON tp.game_id = g.id
+            JOIN teams ht ON g.home_team_id = ht.id
+            JOIN teams at ON g.away_team_id = at.id
+            WHERE tp.actual_total IS NOT NULL
+            ORDER BY tp.predicted_at DESC
+            LIMIT 10
+        ''')
+        recent_totals = [dict(row) for row in c.fetchall()]
+    except:
+        totals_overall = {'total': 0, 'correct': 0, 'incorrect': 0}
+        totals_by_type = []
+        totals_by_edge = []
+        recent_totals = []
+    
     conn.close()
     
     return render_template('models.html',
                           model_data=model_data,
                           weights=weights,
                           weight_history=weight_history,
-                          prediction_log=prediction_log)
+                          prediction_log=prediction_log,
+                          runs_weights=runs_weights,
+                          totals_overall=totals_overall,
+                          totals_by_type=totals_by_type,
+                          totals_by_edge=totals_by_edge,
+                          recent_totals=recent_totals)
 
 @app.route('/calendar')
 def calendar():

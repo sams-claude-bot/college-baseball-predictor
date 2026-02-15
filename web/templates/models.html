@@ -208,6 +208,168 @@
     </div>
 </div>
 
+<!-- Runs Ensemble Section -->
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header" style="background-color: #2563eb; color: white;">
+                <i class="bi bi-graph-up"></i> Runs Ensemble (Totals Model)
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Combines multiple models to predict game totals for over/under analysis</p>
+                
+                {% if runs_weights %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th class="text-center">Weight</th>
+                                <th>Visual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for name, weight in runs_weights.items()|sort(attribute='1', reverse=true) %}
+                            <tr>
+                                <td><strong>{{ name }}</strong></td>
+                                <td class="text-center">{{ (weight * 100)|round(0) }}%</td>
+                                <td style="width: 50%;">
+                                    <div class="progress" style="height: 16px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ weight * 100 }}%; background-color: #2563eb;">
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Runs ensemble weights not available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bullseye"></i> Totals Prediction Accuracy
+            </div>
+            <div class="card-body">
+                {% if totals_overall and totals_overall.total > 0 %}
+                <div class="row mb-3">
+                    <div class="col-4 text-center">
+                        <h3 class="mb-0 {% if totals_overall.correct / (totals_overall.correct + totals_overall.incorrect) > 0.52 %}text-success{% else %}text-warning{% endif %}">
+                            {{ ((totals_overall.correct / (totals_overall.correct + totals_overall.incorrect)) * 100)|round(1) }}%
+                        </h3>
+                        <small class="text-muted">Overall</small>
+                    </div>
+                    <div class="col-4 text-center">
+                        <h3 class="mb-0">{{ totals_overall.correct }}</h3>
+                        <small class="text-muted text-success">Correct</small>
+                    </div>
+                    <div class="col-4 text-center">
+                        <h3 class="mb-0">{{ totals_overall.incorrect }}</h3>
+                        <small class="text-muted text-danger">Wrong</small>
+                    </div>
+                </div>
+                
+                {% if totals_by_type %}
+                <h6 class="mb-2">By Type:</h6>
+                <div class="row mb-3">
+                    {% for row in totals_by_type %}
+                    <div class="col-6">
+                        <span class="badge {% if row.prediction == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ row.prediction }}
+                        </span>
+                        {{ row.correct }}/{{ row.total }}
+                        ({{ ((row.correct / row.total) * 100)|round(0) if row.total > 0 else 0 }}%)
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% if totals_by_edge %}
+                <h6 class="mb-2">By Edge:</h6>
+                <table class="table table-sm">
+                    <tbody>
+                        {% for row in totals_by_edge %}
+                        <tr>
+                            <td>{{ row.edge_bucket }}</td>
+                            <td class="text-center">{{ row.correct }}/{{ row.total }}</td>
+                            <td class="text-end">
+                                <span class="{% if row.total > 0 and row.correct / row.total > 0.55 %}text-success{% elif row.total > 0 and row.correct / row.total < 0.45 %}text-danger{% endif %}">
+                                    {{ ((row.correct / row.total) * 100)|round(0) if row.total > 0 else 0 }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+                
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-graph-up display-4 text-muted"></i>
+                    <p class="mt-2 text-muted">No totals predictions tracked yet</p>
+                    <small class="text-muted">Run <code>track_totals.py predict</code> to start tracking</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if recent_totals %}
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-journal-text"></i> Recent Totals Predictions
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Matchup</th>
+                        <th class="text-center">Line</th>
+                        <th class="text-center">Projection</th>
+                        <th class="text-center">Pick</th>
+                        <th class="text-center">Actual</th>
+                        <th class="text-center">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pred in recent_totals %}
+                    <tr>
+                        <td>{{ pred.away_name }} @ {{ pred.home_name }}</td>
+                        <td class="text-center">{{ pred.over_under_line }}</td>
+                        <td class="text-center">{{ pred.projected_total|round(1) }}</td>
+                        <td class="text-center">
+                            <span class="badge {% if pred.prediction == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ pred.prediction }}
+                            </span>
+                        </td>
+                        <td class="text-center">{{ pred.actual_total }}</td>
+                        <td class="text-center">
+                            {% if pred.was_correct == 1 %}
+                            <span class="badge bg-success">✓</span>
+                            {% elif pred.was_correct == 0 %}
+                            <span class="badge bg-danger">✗</span>
+                            {% else %}
+                            <span class="badge bg-secondary">PUSH</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Prediction Log -->
 {% if prediction_log %}
 <div class="card mt-4">
