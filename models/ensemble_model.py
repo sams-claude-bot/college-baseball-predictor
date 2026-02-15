@@ -105,26 +105,18 @@ class EnsembleModel(BaseModel):
             "poisson": PoissonModelWrapper()
         }
         
-        # Add neural model if available and trained
-        if _NEURAL_AVAILABLE:
-            try:
-                neural = NeuralModel(use_model_predictions=False)
-                if neural.is_trained():
-                    self.models["neural"] = neural
-            except Exception:
-                pass
+        # Neural model excluded from ensemble for now — tracking independently
         
         # Default weights (sum to 1.0)
         self.default_weights = {
-            "pythagorean": 0.06,
-            "elo": 0.11,
-            "log5": 0.07,
-            "advanced": 0.18,
-            "pitching": 0.14,
-            "conference": 0.07,
-            "prior": 0.11,
-            "poisson": 0.16,
-            "neural": 0.10
+            "pythagorean": 0.07,
+            "elo": 0.12,
+            "log5": 0.08,
+            "advanced": 0.20,
+            "pitching": 0.15,
+            "conference": 0.08,
+            "prior": 0.12,
+            "poisson": 0.18
         }
         
         # Momentum adjustment settings

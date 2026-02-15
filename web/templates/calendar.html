@@ -90,7 +90,8 @@
                     <th class="text-center" style="width: 100px;">Score</th>
                     <th>Home</th>
                     <th class="text-center">Status</th>
-                    <th class="text-center">Prediction</th>
+                    <th class="text-center">Ensemble</th>
+                    <th class="text-center">Neural</th>
                     <th class="text-center">ML</th>
                     <th class="text-center">O/U</th>
                 </tr>
@@ -175,6 +176,31 @@
                         {% endif %}
                     </td>
                     <td class="text-center">
+                        {% if game.nn_winner %}
+                            {% set nn_is_home = game.nn_winner == game.home_team_id %}
+                            {% set nn_name = game.home_team_name if nn_is_home else game.away_team_name %}
+                            {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
+                            
+                            {% if game.status == 'final' %}
+                                {% if game.nn_correct %}
+                                <span class="badge bg-success" title="{{ nn_name }} ({{ nn_pct }}%)">
+                                    <i class="bi bi-check"></i> {{ nn_pct }}%
+                                </span>
+                                {% else %}
+                                <span class="badge bg-danger" title="{{ nn_name }} ({{ nn_pct }}%)">
+                                    <i class="bi bi-x"></i> {{ nn_pct }}%
+                                </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-info" title="Pick: {{ nn_name }}">
+                                    {{ nn_name[:3]|upper }} {{ nn_pct }}%
+                                </span>
+                            {% endif %}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
                         {% if game.away_ml and game.home_ml %}
                         <small>
                             {{ game.away_ml|format_odds }}<br>
@@ -215,41 +241,56 @@
 <!-- Summary Stats -->
 {% if completed > 0 %}
 <div class="row mt-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card">
             <div class="card-body stat-card">
                 <div class="stat-value">{{ completed }}</div>
-                <div class="stat-label">Completed Games</div>
+                <div class="stat-label">Completed</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card">
             <div class="card-body stat-card">
                 <div class="stat-value">{{ avg_runs }}</div>
-                <div class="stat-label">Avg Runs/Game</div>
+                <div class="stat-label">Avg Runs</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card">
             <div class="card-body stat-card">
                 <div class="stat-value">{{ home_win_pct }}%</div>
-                <div class="stat-label">Home Win Rate</div>
+                <div class="stat-label">Home Win %</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card">
             <div class="card-body stat-card">
                 {% if model_accuracy is not none %}
                 <div class="stat-value {% if model_accuracy >= 60 %}text-success{% elif model_accuracy < 50 %}text-danger{% endif %}">
                     {{ model_accuracy }}%
                 </div>
-                <div class="stat-label">Model Accuracy ({{ correct_predictions }}/{{ total_predictions }})</div>
+                <div class="stat-label">Ensemble ({{ correct_predictions }}/{{ total_predictions }})</div>
                 {% else %}
                 <div class="stat-value text-muted">—</div>
-                <div class="stat-label">Model Accuracy</div>
+                <div class="stat-label">Ensemble</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card">
+            <div class="card-body stat-card">
+                {% if nn_accuracy is not none %}
+                <div class="stat-value {% if nn_accuracy >= 60 %}text-success{% elif nn_accuracy < 50 %}text-danger{% endif %}">
+                    {{ nn_accuracy }}%
+                </div>
+                <div class="stat-label">Neural ({{ nn_correct }}/{{ nn_total }})</div>
+                {% else %}
+                <div class="stat-value text-muted">—</div>
+                <div class="stat-label">Neural</div>
                 {% endif %}
             </div>
         </div>

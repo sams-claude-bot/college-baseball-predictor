@@ -782,20 +782,22 @@ def models():
     weights = get_ensemble_weights()
     accuracy = get_model_accuracy()
     
-    # Combine weights and accuracy
+    # Combine weights and accuracy (include models with accuracy but not in ensemble)
     model_data = []
-    for name in weights:
+    all_model_names = set(weights.keys()) | set(accuracy.keys())
+    for name in all_model_names:
         data = {
             'name': name,
             'weight': weights.get(name, 0),
-            'weight_pct': weights.get(name, 0) * 100
+            'weight_pct': weights.get(name, 0) * 100,
+            'independent': name not in weights
         }
         if name in accuracy:
             data['accuracy'] = accuracy[name]
         model_data.append(data)
     
-    # Sort by weight
-    model_data.sort(key=lambda x: x['weight'], reverse=True)
+    # Sort: ensemble models by weight first, then independent models by accuracy
+    model_data.sort(key=lambda x: (not x['independent'], x['weight']), reverse=True)
     
     # Get weight history from DB (if exists)
     conn = get_connection()
@@ -939,8 +941,11 @@ def calendar():
     
     # Add predictions to each game
     ensemble = MODELS.get('ensemble')
+    neural = MODELS.get('neural')
     correct_predictions = 0
     total_predictions = 0
+    nn_correct = 0
+    nn_total = 0
     
     for game in games:
         try:
@@ -960,6 +965,22 @@ def calendar():
         except Exception:
             game['pred_winner'] = None
             game['pred_confidence'] = None
+        
+        # Neural model prediction (independent)
+        try:
+            if neural and game.get('home_team_id') and game.get('away_team_id'):
+                nn_pred = neural.predict_game(game['home_team_id'], game['away_team_id'])
+                game['nn_home_prob'] = nn_pred.get('home_win_probability', 0.5)
+                game['nn_winner'] = game['home_team_id'] if game['nn_home_prob'] > 0.5 else game['away_team_id']
+                game['nn_confidence'] = max(game['nn_home_prob'], 1 - game['nn_home_prob'])
+                
+                if game['status'] == 'final' and game.get('winner_id'):
+                    game['nn_correct'] = game['nn_winner'] == game['winner_id']
+                    nn_total += 1
+                    if game['nn_correct']:
+                        nn_correct += 1
+        except Exception:
+            game['nn_winner'] = None
     
     # Model accuracy for the day
     model_accuracy = round((correct_predictions / total_predictions) * 100) if total_predictions > 0 else None
@@ -993,7 +1014,10 @@ def calendar():
                           home_win_pct=home_win_pct,
                           model_accuracy=model_accuracy,
                           correct_predictions=correct_predictions,
-                          total_predictions=total_predictions)
+                          total_predictions=total_predictions,
+                          nn_accuracy=round((nn_correct / nn_total) * 100) if nn_total > 0 else None,
+                          nn_correct=nn_correct,
+                          nn_total=nn_total)
 
 @app.route('/api/teams')
 def api_teams():
