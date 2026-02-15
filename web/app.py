@@ -398,18 +398,20 @@ def get_betting_games():
             line['home_edge'] = (pred['home_win_probability'] - line['dk_home_fair']) * 100
             line['away_edge'] = (pred['away_win_probability'] - line['dk_away_fair']) * 100
             
-            # Best pick
-            if line['home_edge'] > abs(line['away_edge']):
+            # Best pick (pick whichever side has positive edge)
+            if line['home_edge'] >= 0:
                 line['best_pick'] = 'home'
                 line['best_edge'] = line['home_edge']
             else:
                 line['best_pick'] = 'away'
                 line['best_edge'] = abs(line['away_edge'])
             
-            # Totals analysis
+            # Totals analysis (simple version for speed)
             if line['over_under']:
                 line['total_diff'] = pred['projected_total'] - line['over_under']
                 line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
+                # Estimate edge from diff (rough approximation)
+                line['total_edge'] = min(abs(line['total_diff']) * 8, 50)  # ~8% edge per run diff
             
             # EV calculation (per $100)
             if line['best_pick'] == 'home':
@@ -678,6 +680,27 @@ def api_predict():
             results['betting_line']['away_edge'] = ((1-model_home) - dk_away/total) * 100
     
     return jsonify(results)
+
+@app.route('/api/runs', methods=['POST'])
+def api_runs():
+    """API endpoint for detailed runs ensemble analysis"""
+    data = request.get_json()
+    home_team = data.get('home_team')
+    away_team = data.get('away_team')
+    total_line = data.get('total_line')
+    
+    if not home_team or not away_team:
+        return jsonify({'error': 'Both teams required'}), 400
+    
+    home_id = normalize_team_id(home_team)
+    away_id = normalize_team_id(away_team)
+    
+    try:
+        import models.runs_ensemble as runs_ens
+        result = runs_ens.predict(home_id, away_id, total_line=total_line)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/rankings')
 def rankings():

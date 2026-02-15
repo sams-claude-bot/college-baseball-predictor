@@ -145,12 +145,20 @@
                         <td class="text-center">
                             {% if game.over_under and game.projected_total %}
                             <div class="d-flex flex-column align-items-center">
-                                <span class="{% if game.total_diff|abs > 1 %}fw-bold{% endif %} {% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %}">
+                                <span class="{% if game.total_edge and game.total_edge > 10 %}fw-bold{% endif %} {% if game.total_lean == 'OVER' %}text-success{% else %}text-danger{% endif %}">
                                     {{ game.total_lean }}
+                                    {% if game.total_edge %}
+                                    <small>({{ game.total_edge|round(1) }}%)</small>
+                                    {% endif %}
                                 </span>
                                 <small class="text-muted">
                                     O/U {{ game.over_under }} | Proj {{ game.projected_total|round(1) }}
                                 </small>
+                                {% if game.total_over_prob %}
+                                <small class="text-muted">
+                                    O: {{ (game.total_over_prob * 100)|round(0) }}% / U: {{ (game.total_under_prob * 100)|round(0) }}%
+                                </small>
+                                {% endif %}
                             </div>
                             {% elif game.over_under %}
                             <small class="text-muted">O/U {{ game.over_under }}</small>
