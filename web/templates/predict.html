@@ -7,7 +7,7 @@
     <h1 class="h3">
         <i class="bi bi-calculator"></i> Prediction Tool
     </h1>
-    <p class="text-muted">Compare predictions across all 7 models plus ensemble</p>
+    <p class="text-muted">Compare predictions across all 8 models plus momentum-adjusted ensemble</p>
 </div>
 
 <div class="row">
@@ -99,6 +99,13 @@
                             <div id="confidence" class="h4 mb-0">—</div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Momentum Info -->
+            <div id="momentumInfo" class="card mb-3" style="display: none;">
+                <div class="card-body py-2">
+                    <!-- Filled by JS -->
                 </div>
             </div>
 
@@ -290,7 +297,34 @@ function displayResults(data, homeId, awayId) {
     const tbody = document.getElementById('modelsTableBody');
     tbody.innerHTML = '';
     
-    const modelOrder = ['ensemble', 'advanced', 'pitching', 'elo', 'log5', 'conference', 'prior', 'pythagorean'];
+    const modelOrder = ['ensemble', 'advanced', 'poisson', 'pitching', 'elo', 'log5', 'conference', 'prior', 'pythagorean'];
+    
+    // Display momentum info if available
+    const momentumDiv = document.getElementById('momentumInfo');
+    if (momentumDiv && ensemble.momentum) {
+        const mom = ensemble.momentum;
+        const homeStreakColor = mom.home_momentum > 0 ? '#198754' : mom.home_momentum < 0 ? '#dc3545' : '#777';
+        const awayStreakColor = mom.away_momentum > 0 ? '#198754' : mom.away_momentum < 0 ? '#dc3545' : '#777';
+        momentumDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-center">
+                    <span style="color: ${homeStreakColor}; font-weight: 600;">${mom.home_streak || 'N/A'}</span>
+                    <br><small class="text-muted">${homeName}</small>
+                </div>
+                <div class="text-center">
+                    <i class="bi bi-fire text-warning"></i> Momentum
+                    <br><small class="text-muted">${mom.adjustment > 0 ? '+' : ''}${(mom.adjustment * 100).toFixed(1)}% adj</small>
+                </div>
+                <div class="text-center">
+                    <span style="color: ${awayStreakColor}; font-weight: 600;">${mom.away_streak || 'N/A'}</span>
+                    <br><small class="text-muted">${awayName}</small>
+                </div>
+            </div>
+        `;
+        momentumDiv.style.display = 'block';
+    } else if (momentumDiv) {
+        momentumDiv.style.display = 'none';
+    }
     
     for (const modelName of modelOrder) {
         const model = data[modelName];

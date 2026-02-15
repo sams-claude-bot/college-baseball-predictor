@@ -610,6 +610,9 @@ def api_predict():
             }
             if 'run_line' in pred:
                 results[name]['run_line'] = pred['run_line']
+            # Include momentum for ensemble
+            if 'momentum' in pred:
+                results[name]['momentum'] = pred['momentum']
         except Exception as e:
             results[name] = {'error': str(e)}
     

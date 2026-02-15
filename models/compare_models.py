@@ -10,8 +10,7 @@ Usage:
 
 import sys
 from pathlib import Path
-# sys.path.insert(0, str(Path(__file__).parent))  # Removed by cleanup
-# sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))  # Removed by cleanup
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.pythagorean_model import PythagoreanModel
 from models.elo_model import EloModel
@@ -20,7 +19,8 @@ from models.advanced_model import AdvancedModel
 from models.pitching_model import PitchingModel
 from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
-from models.ensemble_model import EnsembleModel
+from models.ensemble_model import EnsembleModel, PoissonModelWrapper
+from models.momentum_model import get_momentum_score
 from scripts.database import get_connection
 
 # All available models
@@ -32,6 +32,7 @@ MODELS = {
     "pitching": PitchingModel(),
     "conference": ConferenceModel(),
     "prior": PriorModel(),
+    "poisson": PoissonModelWrapper(),
     "ensemble": EnsembleModel()
 }
 
