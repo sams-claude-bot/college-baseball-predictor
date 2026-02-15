@@ -12,8 +12,8 @@ import json
 
 # Add paths for imports
 base_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(base_dir / "scripts"))
-sys.path.insert(0, str(base_dir / "models"))
+sys.path.insert(0, str(base_dir))  # Project root for models.* imports
+sys.path.insert(0, str(base_dir / "scripts"))  # For database.py etc
 
 from flask import Flask, render_template, request, jsonify
 
@@ -21,7 +21,7 @@ from database import (
     get_connection, get_team_record, get_team_runs, 
     get_recent_games, get_upcoming_games, get_current_top_25
 )
-from compare_models import MODELS, normalize_team_id
+from models.compare_models import MODELS, normalize_team_id
 from betting_lines import american_to_implied_prob
 
 app = Flask(__name__)
@@ -120,26 +120,28 @@ def get_team_detail(team_id):
     return team
 
 def get_todays_games():
-    """Get games scheduled for today"""
+    """Get games scheduled for today from betting_lines (fresh DK data)"""
     today = datetime.now().strftime('%Y-%m-%d')
     
     conn = get_connection()
     c = conn.cursor()
     
+    # Pull from betting_lines first (has fresh DK data)
     c.execute('''
-        SELECT g.*, 
+        SELECT b.game_id as id, b.date,
+               b.home_team_id, b.away_team_id,
+               b.home_ml, b.away_ml, b.over_under, 
+               b.home_spread as run_line, b.home_spread_odds as run_line_odds,
                ht.name as home_team_name, ht.current_rank as home_rank,
                at.name as away_team_name, at.current_rank as away_rank,
-               he.rating as home_elo, ae.rating as away_elo,
-               b.home_ml, b.away_ml, b.over_under
-        FROM games g
-        LEFT JOIN teams ht ON g.home_team_id = ht.id
-        LEFT JOIN teams at ON g.away_team_id = at.id
-        LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
-        LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
-        LEFT JOIN betting_lines b ON g.id = b.game_id
-        WHERE g.date = ?
-        ORDER BY g.time
+               he.rating as home_elo, ae.rating as away_elo
+        FROM betting_lines b
+        LEFT JOIN teams ht ON b.home_team_id = ht.id
+        LEFT JOIN teams at ON b.away_team_id = at.id
+        LEFT JOIN elo_ratings he ON b.home_team_id = he.team_id
+        LEFT JOIN elo_ratings ae ON b.away_team_id = ae.team_id
+        WHERE b.date = ?
+        ORDER BY b.captured_at DESC
     ''', (today,))
     
     games = [dict(row) for row in c.fetchall()]
@@ -270,8 +272,8 @@ def get_betting_games():
         LEFT JOIN teams ht ON b.home_team_id = ht.id
         LEFT JOIN teams at ON b.away_team_id = at.id
         LEFT JOIN games g ON b.game_id = g.id
-        WHERE b.date >= ?
-        ORDER BY b.date, b.captured_at DESC
+        WHERE b.date = ?
+        ORDER BY b.captured_at DESC
     ''', (today,))
     
     lines = [dict(row) for row in c.fetchall()]

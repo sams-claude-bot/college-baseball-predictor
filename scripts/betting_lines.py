@@ -12,12 +12,12 @@ from datetime import datetime
 from pathlib import Path
 
 _scripts_dir = Path(__file__).parent
-_models_dir = _scripts_dir.parent / "models"
-# sys.path.insert(0, str(_scripts_dir))  # Removed by cleanup
-# sys.path.insert(0, str(_models_dir))  # Removed by cleanup
+_project_root = _scripts_dir.parent
+sys.path.insert(0, str(_project_root))  # For models.* imports
+sys.path.insert(0, str(_scripts_dir))  # For database.py
 
-from scripts.database import get_connection
-from compare_models import MODELS, normalize_team_id
+from database import get_connection
+from models.compare_models import MODELS, normalize_team_id
 
 def init_betting_table():
     """Create betting lines table"""
