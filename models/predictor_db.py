@@ -114,7 +114,8 @@ class Predictor:
         'conference': ConferenceModel,
         'prior': PriorModel,
         'poisson': PoissonModelWrapper,
-        'ensemble': EnsembleModel
+        'ensemble': EnsembleModel,
+        'neural': None  # Lazy-loaded due to PyTorch dependency
     }
     
     def __init__(self, model='ensemble'):
@@ -128,7 +129,10 @@ class Predictor:
         
         if model == 'ensemble':
             self.model = EnsembleModel()
-        elif model in self.MODELS:
+        elif model == 'neural':
+            from models.neural_model import NeuralModel
+            self.model = NeuralModel()
+        elif model in self.MODELS and self.MODELS[model] is not None:
             self.model = self.MODELS[model]()
         else:
             raise ValueError(f"Unknown model: {model}. Available: {list(self.MODELS.keys())}")
