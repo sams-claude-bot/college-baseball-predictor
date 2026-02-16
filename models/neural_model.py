@@ -70,7 +70,7 @@ class NeuralModel(BaseModel):
     version = "1.0"
     description = "PyTorch neural network (model stacking ensemble)"
 
-    def __init__(self, use_model_predictions=True):
+    def __init__(self, use_model_predictions=False):
         self.feature_computer = FeatureComputer(
             use_model_predictions=use_model_predictions
         )

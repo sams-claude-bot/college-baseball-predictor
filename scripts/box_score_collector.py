@@ -60,13 +60,12 @@ def build_team_map(db):
 
 
 def fetch_json(url):
-    """Fetch JSON from URL."""
+    """Fetch JSON from URL using urllib (no subprocess hang risk)."""
+    import urllib.request
     try:
-        result = subprocess.run(
-            ['curl', '-s', '--max-time', '15', url],
-            capture_output=True, text=True, timeout=20
-        )
-        return json.loads(result.stdout) if result.stdout else None
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
     except Exception as e:
         log.error(f"Fetch failed: {e}")
         return None

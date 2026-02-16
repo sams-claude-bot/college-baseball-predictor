@@ -60,8 +60,17 @@ def get_db():
 
 
 def load_team_urls():
-    with open(TEAM_URLS_FILE) as f:
-        return json.load(f).get('teams', {})
+    urls = {}
+    # Load P4 URLs
+    if TEAM_URLS_FILE.exists():
+        with open(TEAM_URLS_FILE) as f:
+            urls.update(json.load(f).get('teams', {}))
+    # Load extended D1 URLs
+    d1_file = DATA_DIR / 'd1_team_urls.json'
+    if d1_file.exists():
+        with open(d1_file) as f:
+            urls.update(json.load(f).get('teams', {}))
+    return urls
 
 
 def get_teams_for_args(args):
@@ -70,6 +79,10 @@ def get_teams_for_args(args):
         teams = db.execute("SELECT id FROM teams WHERE id = ?", (args.team,)).fetchall()
     elif args.conference:
         teams = db.execute("SELECT id FROM teams WHERE conference = ?", (args.conference,)).fetchall()
+    elif args.d1:
+        teams = db.execute(
+            "SELECT id FROM teams WHERE conference != '' AND conference IS NOT NULL ORDER BY conference, id"
+        ).fetchall()
     else:
         teams = db.execute(
             "SELECT id FROM teams WHERE conference IN ('SEC','Big 12','Big Ten','ACC') ORDER BY conference, id"
@@ -79,13 +92,13 @@ def get_teams_for_args(args):
 
 
 def fetch_page(url, follow_redirects=True):
-    cmd = ['curl', '-s', '--max-time', '15']
-    if follow_redirects:
-        cmd.append('-L')
-    cmd.append(url)
+    import urllib.request
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
-        return result.stdout
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        })
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.read().decode('utf-8', errors='ignore')
     except Exception as e:
         log.error(f"Fetch failed for {url}: {e}")
         return ""
@@ -558,6 +571,7 @@ def save_progress(progress):
 def main():
     parser = argparse.ArgumentParser(description='Collect P4 baseball stats')
     parser.add_argument('--all', action='store_true', help='All P4 teams')
+    parser.add_argument('--d1', action='store_true', help='All D1 teams with conference assignments')
     parser.add_argument('--conference', help='Conference (e.g., SEC)')
     parser.add_argument('--team', help='Single team ID')
     parser.add_argument('--resume', action='store_true', help='Resume from progress')
@@ -612,15 +626,27 @@ def main():
         log.info(f"[{i}/{len(team_ids)}] {team_id}")
 
         try:
-            # Try SIDEARM Nuxt parsing first
-            result = collect_team_stats(team_id, url, db, dry_run=args.dry_run)
+            import signal
             
-            # If SIDEARM failed, try WMT fallback
-            if result['status'] != 'ok' and team_id in WMT_URLS:
-                log.info(f"  SIDEARM failed, trying WMT fallback...")
-                result = collect_wmt_stats(team_id, WMT_URLS[team_id], db, dry_run=args.dry_run)
-                if result is None:
-                    result = {'status': 'failed', 'batting': 0, 'pitching': 0}
+            def _timeout_handler(signum, frame):
+                raise TimeoutError(f"Team {team_id} timed out after 60s")
+            
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(60)  # 60 second per-team timeout
+            
+            try:
+                # Try SIDEARM Nuxt parsing first
+                result = collect_team_stats(team_id, url, db, dry_run=args.dry_run)
+                
+                # If SIDEARM failed, try WMT fallback
+                if result['status'] != 'ok' and team_id in WMT_URLS:
+                    log.info(f"  SIDEARM failed, trying WMT fallback...")
+                    result = collect_wmt_stats(team_id, WMT_URLS[team_id], db, dry_run=args.dry_run)
+                    if result is None:
+                        result = {'status': 'failed', 'batting': 0, 'pitching': 0}
+            finally:
+                signal.alarm(0)  # Cancel alarm
+                signal.signal(signal.SIGALRM, old_handler)
             
             if result['status'] == 'ok':
                 results['ok'] += 1
@@ -632,10 +658,8 @@ def main():
             else:
                 results['failed'] += 1
                 progress['failed'].append(team_id)
-        except Exception as e:
+        except (TimeoutError, Exception) as e:
             log.error(f"Exception for {team_id}: {e}")
-            import traceback
-            traceback.print_exc()
             results['failed'] += 1
             progress['failed'].append(team_id)
 
