@@ -7,3 +7,4 @@ __pycache__/
 data/baseball.db.backup.*
 data/baseball.db-shm
 data/baseball.db-wal
+backups/
