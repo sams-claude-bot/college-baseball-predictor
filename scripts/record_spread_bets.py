@@ -261,6 +261,13 @@ def record_bets(max_spread=6, max_total=6):
     
     spread_recorded = 0
     for s in top_spreads:
+        # Check per-day cap: only 6 spread bets per date
+        existing_count = c.execute(
+            'SELECT COUNT(*) FROM tracked_bets_spreads WHERE date=? AND bet_type="spread"',
+            (s['date'],)
+        ).fetchone()[0]
+        if existing_count >= max_spread:
+            break
         c.execute('''
             INSERT OR IGNORE INTO tracked_bets_spreads
             (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
@@ -276,6 +283,13 @@ def record_bets(max_spread=6, max_total=6):
     
     total_recorded = 0
     for t in top_totals:
+        # Check per-day cap: only 6 total bets per date
+        existing_count = c.execute(
+            'SELECT COUNT(*) FROM tracked_bets_spreads WHERE date=? AND bet_type="total"',
+            (t['date'],)
+        ).fetchone()[0]
+        if existing_count >= max_total:
+            break
         c.execute('''
             INSERT OR IGNORE INTO tracked_bets_spreads
             (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)

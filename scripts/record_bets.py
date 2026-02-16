@@ -128,6 +128,14 @@ def record_bets():
         if edge < EDGE_THRESHOLD:
             continue
         
+        # Per-day cap: only 6 moneyline bets per date
+        existing_count = c.execute(
+            'SELECT COUNT(*) FROM tracked_bets WHERE date=?',
+            (line['date'],)
+        ).fetchone()[0]
+        if existing_count >= 6:
+            continue
+        
         c.execute('''
             INSERT OR IGNORE INTO tracked_bets 
             (game_id, date, pick_team_id, pick_team_name, opponent_name,

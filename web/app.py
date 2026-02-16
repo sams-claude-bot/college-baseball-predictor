@@ -1317,11 +1317,15 @@ def tracker():
     
     c.execute('''
         SELECT tb.*, g.home_score, g.away_score,
-               ht.name as home_name, at.name as away_name
+               COALESCE(ht.name, bht.name) as home_name,
+               COALESCE(at.name, bat.name) as away_name
         FROM tracked_bets_spreads tb
         LEFT JOIN games g ON tb.game_id = g.id
         LEFT JOIN teams ht ON g.home_team_id = ht.id
         LEFT JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN betting_lines bl ON tb.game_id = bl.game_id AND tb.date = bl.date
+        LEFT JOIN teams bht ON bl.home_team_id = bht.id
+        LEFT JOIN teams bat ON bl.away_team_id = bat.id
         ORDER BY tb.date, tb.game_id
     ''')
     all_spread_bets = [dict(r) for r in c.fetchall()]
@@ -1388,6 +1392,21 @@ def tracker():
         running_pl.append({'date': b['date'], 'pl': round(cumulative, 2), 
                           'type': b['type'], 'pick': b['pick'], 'profit': b['profit']})
     
+    # Per-type running P&L for individual charts
+    def build_running_pl(bet_list, bet_type):
+        result = []
+        cum = 0
+        sorted_bets = sorted(bet_list, key=lambda x: x['date'])
+        for b in sorted_bets:
+            cum += b['profit']
+            result.append({'date': b['date'], 'pl': round(cum, 2), 
+                          'pick': b['pick'], 'profit': b['profit']})
+        return result
+    
+    ml_running_pl = build_running_pl(bets, 'ML')
+    spread_running_pl = build_running_pl(spread_bets, 'SPR')
+    totals_running_pl = build_running_pl(total_bets_list, 'TOT')
+    
     # Edge buckets (moneyline only for backward compat)
     buckets = {
         '5-10%': {'bets': [], 'label': '5-10%'},
@@ -1436,6 +1455,9 @@ def tracker():
                           total_pl=ml_stats['pl'],
                           roi=ml_stats['roi'],
                           running_pl=running_pl,
+                          ml_running_pl=ml_running_pl,
+                          spread_running_pl=spread_running_pl,
+                          totals_running_pl=totals_running_pl,
                           bucket_stats=bucket_stats)
 
 @app.route('/api/teams')
@@ -1443,6 +1465,94 @@ def api_teams():
     """API endpoint for team list"""
     teams = get_all_teams()
     return jsonify(teams)
+
+@app.route('/api/best-bets')
+def api_best_bets():
+    """Return today's best bets — same logic as the Betting page.
+    Used by record_daily_bets.py to populate the P&L tracker.
+    """
+    games = get_betting_games()
+    
+    # Best moneyline bets (5%+ edge, top 6)
+    ml_candidates = [g for g in games if g.get('best_edge', 0) >= 5]
+    ml_candidates.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
+    best_ml = ml_candidates[:6]
+    
+    ml_bets = []
+    for g in best_ml:
+        if g['best_pick'] == 'home':
+            pick_id = g['home_team_id']
+            pick_name = g['home_team_name']
+            opp_name = g['away_team_name']
+            ml = g['home_ml']
+            prob = g['model_home_prob']
+            dk_imp = g['dk_home_fair']
+            is_home = 1
+        else:
+            pick_id = g['away_team_id']
+            pick_name = g['away_team_name']
+            opp_name = g['home_team_name']
+            ml = g['away_ml']
+            prob = g['model_away_prob']
+            dk_imp = g['dk_away_fair']
+            is_home = 0
+        ml_bets.append({
+            'game_id': g['game_id'], 'date': g['date'],
+            'pick_team_id': pick_id, 'pick_team_name': pick_name,
+            'opponent_name': opp_name, 'is_home': is_home,
+            'moneyline': ml, 'model_prob': round(prob, 4),
+            'dk_implied': round(dk_imp, 4), 'edge': round(g['best_edge'], 2)
+        })
+    
+    # Best totals (15%+ edge, top 6)
+    totals_candidates = [g for g in games if g.get('total_edge', 0) >= 15 and g.get('over_under')]
+    totals_candidates.sort(key=lambda x: x.get('total_edge', 0), reverse=True)
+    best_totals = totals_candidates[:6]
+    
+    totals_bets = []
+    for g in best_totals:
+        pick = g.get('total_lean', 'UNDER')
+        odds = g.get('under_odds', -110) if pick == 'UNDER' else g.get('over_odds', -110)
+        totals_bets.append({
+            'game_id': g['game_id'], 'date': g['date'],
+            'pick': pick, 'line': g['over_under'],
+            'odds': odds or -110,
+            'model_projection': round(g.get('projected_total', 0), 2),
+            'edge': round(abs(g.get('total_diff', 0)), 2)
+        })
+    
+    # Best spreads (top 6 by NN margin diff from line)
+    spread_candidates = []
+    for g in games:
+        if g.get('home_spread') and g.get('nn_margin') is not None:
+            margin = g['nn_margin']
+            spread = g['home_spread']
+            diff = abs(margin - spread)
+            if diff >= 1.0:  # At least 1 run edge
+                if margin > spread:
+                    pick = g['home_team_name']
+                    line = spread
+                    odds = g.get('home_spread_odds', -110)
+                else:
+                    pick = g['away_team_name']
+                    line = g.get('away_spread', -spread)
+                    odds = g.get('away_spread_odds', -110)
+                spread_candidates.append({
+                    'game_id': g['game_id'], 'date': g['date'],
+                    'pick': pick, 'line': line,
+                    'odds': odds or -110,
+                    'model_projection': round(margin, 2),
+                    'edge': round(diff, 2)
+                })
+    spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
+    best_spreads = spread_candidates[:6]
+    
+    return jsonify({
+        'date': datetime.now().strftime('%Y-%m-%d'),
+        'moneylines': ml_bets,
+        'totals': totals_bets,
+        'spreads': best_spreads
+    })
 
 # ============================================
 # Template Filters

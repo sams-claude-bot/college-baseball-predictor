@@ -8,6 +8,18 @@
     <p class="text-muted">Simulated flat $100 bets on value picks • Moneylines (5%+ edge) • Spreads & Totals (1+ run edge)</p>
 </div>
 
+{% if combined_stats.total == 0 and not pending_bets and not pending_spread and not pending_totals %}
+<!-- No bets at all -->
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-calendar-x display-1 text-muted"></i>
+        <h4 class="mt-3 text-muted">No Bets Tracked Yet</h4>
+        <p class="text-muted">Bets are automatically recorded when DraftKings lines are scraped each morning.<br>
+        Check back after games are played and results come in.</p>
+    </div>
+</div>
+{% else %}
+
 <!-- Combined Summary Cards -->
 <div class="row mb-4">
     <div class="col-6 col-md-3">
@@ -49,9 +61,15 @@
             <div class="card-body text-center">
                 <h6 class="text-muted mb-1"><i class="bi bi-currency-dollar"></i> Moneylines</h6>
                 <div class="h4 mb-0 {% if ml_stats.pl > 0 %}text-success{% elif ml_stats.pl < 0 %}text-danger{% endif %}">
+                    {% if ml_stats.total > 0 %}
                     {{ '+' if ml_stats.pl > 0 else '' }}${{ ml_stats.pl }}
+                    {% else %}—{% endif %}
                 </div>
-                <small class="text-muted">{{ ml_stats.wins }}/{{ ml_stats.total }} ({{ ml_stats.win_rate }}%) • ROI {{ '+' if ml_stats.roi > 0 else '' }}{{ ml_stats.roi }}%</small>
+                <small class="text-muted">
+                    {% if ml_stats.total > 0 %}
+                    {{ ml_stats.wins }}/{{ ml_stats.total }} ({{ ml_stats.win_rate }}%) • ROI {{ '+' if ml_stats.roi > 0 else '' }}{{ ml_stats.roi }}%
+                    {% else %}No completed bets yet{% endif %}
+                </small>
             </div>
         </div>
     </div>
@@ -62,16 +80,12 @@
                 <div class="h4 mb-0 {% if spread_stats.pl > 0 %}text-success{% elif spread_stats.pl < 0 %}text-danger{% endif %}">
                     {% if spread_stats.total > 0 %}
                     {{ '+' if spread_stats.pl > 0 else '' }}${{ spread_stats.pl }}
-                    {% else %}
-                    —
-                    {% endif %}
+                    {% else %}—{% endif %}
                 </div>
                 <small class="text-muted">
                     {% if spread_stats.total > 0 %}
                     {{ spread_stats.wins }}/{{ spread_stats.total }} ({{ spread_stats.win_rate }}%) • ROI {{ '+' if spread_stats.roi > 0 else '' }}{{ spread_stats.roi }}%
-                    {% else %}
-                    No completed bets yet
-                    {% endif %}
+                    {% else %}No completed bets yet{% endif %}
                 </small>
             </div>
         </div>
@@ -83,41 +97,85 @@
                 <div class="h4 mb-0 {% if totals_stats.pl > 0 %}text-success{% elif totals_stats.pl < 0 %}text-danger{% endif %}">
                     {% if totals_stats.total > 0 %}
                     {{ '+' if totals_stats.pl > 0 else '' }}${{ totals_stats.pl }}
-                    {% else %}
-                    —
-                    {% endif %}
+                    {% else %}—{% endif %}
                 </div>
                 <small class="text-muted">
                     {% if totals_stats.total > 0 %}
                     {{ totals_stats.wins }}/{{ totals_stats.total }} ({{ totals_stats.win_rate }}%) • ROI {{ '+' if totals_stats.roi > 0 else '' }}{{ totals_stats.roi }}%
-                    {% else %}
-                    No completed bets yet
-                    {% endif %}
+                    {% else %}No completed bets yet{% endif %}
                 </small>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-8">
-        <!-- P&L Chart -->
-        <div class="card">
+<!-- Charts Row 1: Combined + Moneylines -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
             <div class="card-header bg-maroon">
-                <i class="bi bi-graph-up"></i> Running P&L (All Bet Types)
+                <i class="bi bi-graph-up"></i> Combined P&L
             </div>
             <div class="card-body">
                 {% if running_pl %}
-                <canvas id="plChart" height="300"></canvas>
+                <div style="position:relative;height:250px"><canvas id="combinedChart"></canvas></div>
                 {% else %}
-                <div class="text-center text-muted py-5">No data yet</div>
+                <div class="text-center text-muted py-4"><i class="bi bi-hourglass"></i> Waiting for results</div>
                 {% endif %}
             </div>
         </div>
     </div>
-    
-    <div class="col-lg-4">
-        <!-- Edge Buckets (ML only) -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #0d6efd; color: white;">
+                <i class="bi bi-currency-dollar"></i> Moneyline P&L
+            </div>
+            <div class="card-body">
+                {% if ml_running_pl %}
+                <div style="position:relative;height:250px"><canvas id="mlChart"></canvas></div>
+                {% else %}
+                <div class="text-center text-muted py-4"><i class="bi bi-hourglass"></i> Waiting for results</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2: Spreads + Totals -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #6f42c1; color: white;">
+                <i class="bi bi-arrows-expand"></i> Spread P&L
+            </div>
+            <div class="card-body">
+                {% if spread_running_pl %}
+                <div style="position:relative;height:250px"><canvas id="spreadChart"></canvas></div>
+                {% else %}
+                <div class="text-center text-muted py-4"><i class="bi bi-hourglass"></i> Waiting for results</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header" style="background-color: #fd7e14; color: white;">
+                <i class="bi bi-bullseye"></i> Totals P&L
+            </div>
+            <div class="card-body">
+                {% if totals_running_pl %}
+                <div style="position:relative;height:250px"><canvas id="totalsChart"></canvas></div>
+                {% else %}
+                <div class="text-center text-muted py-4"><i class="bi bi-hourglass"></i> Waiting for results</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edge Buckets -->
+<div class="row mb-4">
+    <div class="col-lg-6">
         <div class="card">
             <div class="card-header">
                 <i class="bi bi-bar-chart-steps"></i> ML Performance by Edge
@@ -361,82 +419,115 @@
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
-{% if running_pl %}
 <script>
-const ctx = document.getElementById('plChart').getContext('2d');
-const rawData = {{ running_pl|tojson }};
-
-// Aggregate to one point per date (end-of-day P&L)
-const dailyPL = {};
-rawData.forEach(d => { dailyPL[d.date] = d.pl; });
-const dates = Object.keys(dailyPL).sort();
-const plValues = dates.map(d => dailyPL[d]);
-
-const lineColor = plValues[plValues.length - 1] >= 0 ? '#198754' : '#dc3545';
-const fillColor = plValues[plValues.length - 1] >= 0 ? 'rgba(25,135,84,0.1)' : 'rgba(220,53,69,0.1)';
-
-const pointColors = dates.map((date, i) => {
-    const prev = i > 0 ? plValues[i - 1] : 0;
-    return plValues[i] >= prev ? '#198754' : '#dc3545';
-});
-
-// Build tooltip with individual bets for each date
-const betsByDate = {};
-rawData.forEach(b => {
-    if (!betsByDate[b.date]) betsByDate[b.date] = [];
-    betsByDate[b.date].push(b);
-});
-
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: dates,
-        datasets: [{
-            label: 'Cumulative P&L ($)',
-            data: plValues,
-            borderColor: lineColor,
-            backgroundColor: fillColor,
-            fill: true,
-            tension: 0,
-            pointRadius: 5,
-            pointBackgroundColor: pointColors,
-            pointBorderColor: pointColors,
-            borderWidth: 2.5
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { display: false },
-            tooltip: {
-                callbacks: {
-                    title: function(items) { return items[0].label; },
-                    label: function(ctx) { return 'Cumulative: $' + ctx.parsed.y.toFixed(2); },
-                    afterBody: function(items) {
-                        const date = items[0].label;
-                        const db = betsByDate[date];
-                        if (!db) return [];
-                        const lines = [''];
-                        db.forEach(b => {
-                            const icon = b.profit >= 0 ? '✅' : '❌';
-                            const sign = b.profit >= 0 ? '+' : '';
-                            lines.push(icon + ' [' + b.type + '] ' + b.pick + ' (' + sign + '$' + b.profit.toFixed(0) + ')');
-                        });
-                        return lines;
+function buildPLChart(canvasId, rawData, color, label) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !rawData || rawData.length === 0) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Aggregate to one point per date (end-of-day P&L), always start from $0
+    const dailyPL = {};
+    rawData.forEach(d => { dailyPL[d.date] = d.pl; });
+    const dates = Object.keys(dailyPL).sort();
+    const plValues = dates.map(d => dailyPL[d]);
+    
+    // Prepend a zero origin if we have data
+    const chartDates = ['Start', ...dates];
+    const chartValues = [0, ...plValues];
+    
+    const finalVal = chartValues[chartValues.length - 1];
+    const lineColor = finalVal >= 0 ? color : '#dc3545';
+    const fillColor = finalVal >= 0 ? color + '1a' : 'rgba(220,53,69,0.1)';
+    
+    const pointColors = chartValues.map((val, i) => {
+        if (i === 0) return '#6c757d';
+        const prev = chartValues[i - 1];
+        return val >= prev ? color : '#dc3545';
+    });
+    
+    // Build tooltip with individual bets for each date
+    const betsByDate = {};
+    rawData.forEach(b => {
+        if (!betsByDate[b.date]) betsByDate[b.date] = [];
+        betsByDate[b.date].push(b);
+    });
+    
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartDates,
+            datasets: [{
+                label: label,
+                data: chartValues,
+                borderColor: lineColor,
+                backgroundColor: fillColor,
+                fill: true,
+                tension: 0.1,
+                pointRadius: 5,
+                pointBackgroundColor: pointColors,
+                pointBorderColor: pointColors,
+                borderWidth: 2.5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: function(items) { return items[0].label; },
+                        label: function(ctx) { 
+                            const v = ctx.parsed.y;
+                            return (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+                        },
+                        afterBody: function(items) {
+                            const date = items[0].label;
+                            if (date === 'Start') return [];
+                            const db = betsByDate[date];
+                            if (!db) return [];
+                            const lines = [''];
+                            db.forEach(b => {
+                                const icon = b.profit >= 0 ? '✅' : '❌';
+                                const sign = b.profit >= 0 ? '+' : '';
+                                const pickLabel = b.type ? '[' + b.type + '] ' + b.pick : b.pick;
+                                lines.push(icon + ' ' + pickLabel + ' (' + sign + '$' + b.profit.toFixed(0) + ')');
+                            });
+                            return lines;
+                        }
                     }
                 }
+            },
+            scales: {
+                x: { 
+                    ticks: { maxRotation: 45 },
+                    grid: { display: false }
+                },
+                y: { 
+                    ticks: { callback: function(val) { return '$' + val; } },
+                    grid: { color: 'rgba(0,0,0,0.05)' }
+                }
             }
-        },
-        scales: {
-            x: { ticks: { maxRotation: 45 } },
-            y: { ticks: { callback: function(val) { return '$' + val; } } }
         }
-    }
-});
-</script>
+    });
+}
+
+{% if running_pl %}
+buildPLChart('combinedChart', {{ running_pl|tojson }}, '#5D1725', 'Combined P&L ($)');
 {% endif %}
+{% if ml_running_pl %}
+buildPLChart('mlChart', {{ ml_running_pl|tojson }}, '#0d6efd', 'Moneyline P&L ($)');
+{% endif %}
+{% if spread_running_pl %}
+buildPLChart('spreadChart', {{ spread_running_pl|tojson }}, '#6f42c1', 'Spread P&L ($)');
+{% endif %}
+{% if totals_running_pl %}
+buildPLChart('totalsChart', {{ totals_running_pl|tojson }}, '#fd7e14', 'Totals P&L ($)');
+{% endif %}
+</script>
 {% endblock %}
