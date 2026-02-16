@@ -47,3 +47,21 @@ Started: 2026-02-16
 - Mar 24: Southern Miss game - not in DB
 
 ---
+
+## Alabama
+
+### Official Source: rolltide.com
+
+### Discrepancies Found:
+
+1. **Apr 23-25: @ Tennessee** (SEC series)
+   - DB showed: Apr 10-12 + extra game Apr 23
+   - Official (utsports.com): Apr 23-25 at Knoxville
+   - Fix: Updated dates to Apr 23, 24, 25
+
+### Changes Applied:
+- Tennessee vs Alabama series: Apr 10-12 → Apr 23-25
+- Times: Apr 23 7 PM, Apr 24 6:30 PM, Apr 25 1 PM
+- Removed duplicate Apr 23 single game
+
+---
