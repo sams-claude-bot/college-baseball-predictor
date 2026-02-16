@@ -476,6 +476,30 @@ def get_betting_games():
                 # Estimate edge from diff (rough approximation)
                 line['total_edge'] = min(abs(line['total_diff']) * 8, 50)  # ~8% edge per run diff
             
+            # NN Totals model
+            nn_totals = MODELS.get('nn_totals')
+            if nn_totals and nn_totals.is_trained():
+                try:
+                    totals_pred = nn_totals.predict_game(
+                        line['home_team_id'], line['away_team_id'],
+                        over_under_line=line.get('over_under'))
+                    line['nn_total'] = totals_pred.get('projected_total')
+                    line['nn_over_prob'] = totals_pred.get('over_prob')
+                    line['nn_under_prob'] = totals_pred.get('under_prob')
+                except Exception:
+                    pass
+            
+            # NN Spread model
+            nn_spread = MODELS.get('nn_spread')
+            if nn_spread and nn_spread.is_trained():
+                try:
+                    spread_pred = nn_spread.predict_game(
+                        line['home_team_id'], line['away_team_id'])
+                    line['nn_margin'] = spread_pred.get('projected_margin')
+                    line['nn_cover_prob'] = spread_pred.get('cover_prob')
+                except Exception:
+                    pass
+            
             # EV calculation (per $100)
             if line['best_pick'] == 'home':
                 ml = line['home_ml']
@@ -1167,6 +1191,21 @@ def calendar():
         except Exception:
             game['pred_winner'] = None
             game['pred_confidence'] = None
+        
+        # NN Totals and Spread predictions
+        try:
+            nn_totals_model = MODELS.get('nn_totals')
+            nn_spread_model = MODELS.get('nn_spread')
+            if game.get('home_team_id') and game.get('away_team_id'):
+                if nn_totals_model and nn_totals_model.is_trained():
+                    t_pred = nn_totals_model.predict_game(game['home_team_id'], game['away_team_id'])
+                    game['nn_projected_total'] = t_pred.get('projected_total')
+                if nn_spread_model and nn_spread_model.is_trained():
+                    s_pred = nn_spread_model.predict_game(game['home_team_id'], game['away_team_id'])
+                    game['nn_projected_margin'] = s_pred.get('projected_margin')
+                    game['nn_cover_prob'] = s_pred.get('cover_prob')
+        except Exception:
+            pass
         
         # Neural model prediction (independent)
         try:

@@ -16,6 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.predictor_db import Predictor
+from models.nn_totals_model import NNTotalsModel
+from models.nn_spread_model import NNSpreadModel
 from scripts.database import get_connection
 
 MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'ensemble']
@@ -44,6 +46,10 @@ def predict_games(date=None):
     # Initialize predictors for each model
     predictors = {name: Predictor(model=name) for name in MODEL_NAMES}
     
+    # Initialize NN totals and spread models
+    nn_totals = NNTotalsModel(use_model_predictions=False)
+    nn_spread = NNSpreadModel(use_model_predictions=False)
+    
     predictions_made = 0
     for game_id, home_id, away_id, home_name, away_name in games:
         print(f"\n{away_name} @ {home_name}:")
@@ -65,6 +71,36 @@ def predict_games(date=None):
                 predictions_made += 1
             except Exception as e:
                 print(f"  {model_name:12}: ERROR - {e}")
+        
+        # NN Totals prediction
+        if nn_totals.is_trained():
+            try:
+                t_pred = nn_totals.predict_game(home_id, away_id)
+                proj_total = t_pred.get('projected_total', 0)
+                cur.execute('''
+                    INSERT OR IGNORE INTO totals_predictions 
+                    (game_id, over_under_line, projected_total, prediction, model_name)
+                    VALUES (?, 0, ?, ?, 'nn_totals')
+                ''', (game_id, proj_total, 'OVER' if proj_total > 13 else 'UNDER'))
+                print(f"  {'nn_totals':12}: projected total {proj_total:.1f}")
+            except Exception as e:
+                print(f"  {'nn_totals':12}: ERROR - {e}")
+        
+        # NN Spread prediction  
+        if nn_spread.is_trained():
+            try:
+                s_pred = nn_spread.predict_game(home_id, away_id)
+                margin = s_pred.get('projected_margin', 0)
+                cover_prob = s_pred.get('cover_prob', 0.5)
+                prediction = 'HOME_COVER' if margin > -1.5 else 'AWAY_COVER'
+                cur.execute('''
+                    INSERT OR IGNORE INTO spread_predictions
+                    (game_id, model_name, spread_line, projected_margin, prediction, cover_prob)
+                    VALUES (?, 'nn_spread', -1.5, ?, ?, ?)
+                ''', (game_id, margin, prediction, cover_prob))
+                print(f"  {'nn_spread':12}: margin {margin:+.1f} | cover prob {cover_prob:.1%}")
+            except Exception as e:
+                print(f"  {'nn_spread':12}: ERROR - {e}")
     
     conn.commit()
     conn.close()

@@ -94,6 +94,8 @@
                     <th class="text-center">Neural</th>
                     <th class="text-center">ML</th>
                     <th class="text-center">O/U</th>
+                    <th class="text-center">NN Tot</th>
+                    <th class="text-center">NN Sprd</th>
                 </tr>
             </thead>
             <tbody>
@@ -213,6 +215,20 @@
                     <td class="text-center">
                         {% if game.over_under %}
                         {{ game.over_under }}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if game.nn_projected_total %}
+                        <small>{{ game.nn_projected_total|round(1) }}</small>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if game.nn_projected_margin is not none %}
+                        <small>{{ '%+.1f'|format(game.nn_projected_margin) }}</small>
                         {% else %}
                         <span class="text-muted">—</span>
                         {% endif %}

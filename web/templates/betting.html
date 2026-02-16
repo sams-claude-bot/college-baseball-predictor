@@ -137,6 +137,8 @@
                         <th class="text-center">Signal</th>
                         <th class="text-center">Edge</th>
                         <th class="text-center">O/U</th>
+                        <th class="text-center">NN Total</th>
+                        <th class="text-center">NN Spread</th>
                         <th class="text-center">EV/100</th>
                     </tr>
                 </thead>
@@ -215,6 +217,26 @@
                             <br><small class="text-muted">{{ game.over_under }} | {{ game.projected_total|round(1) }}</small>
                             {% elif game.over_under %}
                             <small class="text-muted">{{ game.over_under }}</small>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if game.nn_total %}
+                            <span class="fw-bold">{{ game.nn_total|round(1) }}</span>
+                            {% if game.nn_over_prob and game.over_under %}
+                            <br><small class="{% if game.nn_over_prob > 0.55 %}text-success{% elif game.nn_under_prob > 0.55 %}text-danger{% else %}text-muted{% endif %}">
+                                {% if game.nn_over_prob > 0.5 %}O {{ (game.nn_over_prob * 100)|round(0) }}%{% else %}U {{ (game.nn_under_prob * 100)|round(0) }}%{% endif %}
+                            </small>
+                            {% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if game.nn_margin is not none %}
+                            <span class="fw-bold">{{ '%+.1f'|format(game.nn_margin) }}</span>
+                            {% if game.nn_cover_prob %}
+                            <br><small class="{% if game.nn_cover_prob > 0.55 %}text-success{% elif game.nn_cover_prob < 0.45 %}text-danger{% else %}text-muted{% endif %}">
+                                Cover {{ (game.nn_cover_prob * 100)|round(0) }}%
+                            </small>
+                            {% endif %}
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
