@@ -1,6 +1,17 @@
 {
   "processed_teams": [
-    "belmont"
+    "charleston",
+    "delaware",
+    "drexel",
+    "elon",
+    "hampton",
+    "hofstra",
+    "monmouth",
+    "north-carolina-at",
+    "northeastern",
+    "stony-brook",
+    "towson",
+    "unc-wilmington"
   ],
-  "games_added": 7
+  "games_added": 332
 }
