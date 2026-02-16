@@ -1,0 +1,27 @@
+{
+  "rutgers": {
+    "flag": "correct",
+    "note": "Fixed \u2014 charleston and college of charelston are the same school",
+    "flagged_at": "2026-02-16T08:25:49.497001"
+  },
+  "unc-wilmington": {
+    "flag": "correct",
+    "note": "Fixed \u2014 duplicate games with maryland",
+    "flagged_at": "2026-02-16T08:26:19.344624"
+  },
+  "maryland": {
+    "flag": "correct",
+    "note": "Fixed \u2014 duplicate gaems with UNC wilmington, might be an artifact of when unc wilmington had two names",
+    "flagged_at": "2026-02-16T08:26:44.793241"
+  },
+  "maine": {
+    "flag": "correct",
+    "note": "Fixed \u2014 duke and maine should have 4 games. duke won 8-3, duke lost 3-4, duke won 3-0, duke won 7-1",
+    "flagged_at": "2026-02-16T08:28:32.744622"
+  },
+  "duke": {
+    "flag": "correct",
+    "note": "Fixed \u2014 duke and maine should have 4 games. duke won 8-3, duke lost 3-4, duke won 3-0, duke won 7-1",
+    "flagged_at": "2026-02-16T08:28:36.104957"
+  }
+}

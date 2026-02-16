@@ -79,6 +79,8 @@ NAME_OVERRIDES = {
     "Tarleton State Texans": "tarleton-state",
     "Seattle U Redhawks": "seattle",
     "Tulane Green Wave": "tulane",
+    "Charleston Cougars": "charleston",
+    "College of Charleston Cougars": "charleston",
     "Purdue Fort Wayne Mastodons": "purdue-fort-wayne",
     "Southern University Jaguars": "southern",
     "Grambling Tigers": "grambling",

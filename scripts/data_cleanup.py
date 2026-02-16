@@ -42,6 +42,7 @@ BAD_SLUG_ALIASES = {
     'william-and-mary': 'william-mary',
     'miami': 'miami-fl',
     'tulane-green': 'tulane',
+    'college-of-charleston': 'charleston',
 }
 
 
