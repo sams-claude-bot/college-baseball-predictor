@@ -1273,108 +1273,45 @@ def calendar():
 
 @app.route('/tracker')
 def tracker():
-    """P&L Tracker - simulate flat $100 bets on value picks"""
+    """P&L Tracker - reads from tracked_bets table (recorded by record_bets.py).
+    
+    This ensures P&L exactly matches what was shown as 'best bets' on the betting page,
+    since both use the same blended prediction logic at the same point in time.
+    """
     conn = get_connection()
     c = conn.cursor()
     
-    # Get all completed games where we had both a prediction and betting line
+    # Read all tracked bets (both pending and completed)
     c.execute('''
-        SELECT mp.game_id, mp.model_name, mp.predicted_home_prob,
-               g.date, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.winner_id,
-               ht.name as home_name, at.name as away_name,
-               b.home_ml, b.away_ml
-        FROM model_predictions mp
-        JOIN games g ON mp.game_id = g.id
-        JOIN teams ht ON g.home_team_id = ht.id
-        JOIN teams at ON g.away_team_id = at.id
-        JOIN betting_lines b ON b.game_id = g.id
-        WHERE mp.model_name = 'ensemble'
-          AND g.status = 'final'
-          AND g.winner_id IS NOT NULL
-          AND b.home_ml IS NOT NULL
-          AND b.away_ml IS NOT NULL
-        ORDER BY g.date
+        SELECT tb.*, g.status, g.home_score, g.away_score
+        FROM tracked_bets tb
+        LEFT JOIN games g ON tb.game_id = g.id
+        ORDER BY tb.date, tb.game_id
     ''')
-    
-    rows = [dict(r) for r in c.fetchall()]
-    
-    # Also get neural predictions for blending
-    nn_preds = {}
-    c.execute('''
-        SELECT game_id, predicted_home_prob FROM model_predictions
-        WHERE model_name = 'neural' AND predicted_home_prob IS NOT NULL
-    ''')
-    for r in c.fetchall():
-        nn_preds[r['game_id']] = r['predicted_home_prob']
-    
+    all_bets = [dict(r) for r in c.fetchall()]
     conn.close()
     
+    # Split into completed (scored) and pending
     bets = []
-    for row in rows:
-        ens_prob = row['predicted_home_prob']
-        nn_prob = nn_preds.get(row['game_id'])
-        
-        # Blend: 60% neural, 40% ensemble (matching get_blended_prediction)
-        if nn_prob is not None:
-            model_home_prob = nn_prob * 0.6 + ens_prob * 0.4
+    pending_bets = []
+    for b in all_bets:
+        entry = {
+            'date': b['date'],
+            'game': f"{'vs ' if b['is_home'] else '@ '}{b['opponent_name']}",
+            'pick': b['pick_team_name'],
+            'moneyline': b['moneyline'],
+            'edge': round(b['edge'], 1),
+            'model_prob': b['model_prob'],
+            'dk_implied': b['dk_implied'],
+            'won': b['won'],
+            'profit': b.get('profit', 0) or 0,
+        }
+        if b['won'] is not None:
+            bets.append(entry)
         else:
-            model_home_prob = ens_prob
-        
-        # DK implied (remove vig)
-        try:
-            dk_home = american_to_implied_prob(row['home_ml'])
-            dk_away = american_to_implied_prob(row['away_ml'])
-            total = dk_home + dk_away
-            dk_home_fair = dk_home / total
-        except:
-            continue
-        
-        # Calculate edges
-        home_edge = (model_home_prob - dk_home_fair) * 100
-        away_edge = ((1 - model_home_prob) - (1 - dk_home_fair)) * 100
-        
-        # Pick the side with positive edge
-        if home_edge > away_edge:
-            pick_home = True
-            edge = home_edge
-            ml = row['home_ml']
-            pick_name = row['home_name']
-        else:
-            pick_home = False
-            edge = away_edge
-            ml = row['away_ml']
-            pick_name = row['away_name']
-        
-        # Only include 5%+ edge bets
-        if edge < 5:
-            continue
-        
-        # Did we win?
-        if pick_home:
-            won = row['winner_id'] == row['home_team_id']
-        else:
-            won = row['winner_id'] == row['away_team_id']
-        
-        # Calculate profit on $100 bet
-        if won:
-            if ml > 0:
-                profit = ml
-            else:
-                profit = 100 / abs(ml) * 100
-        else:
-            profit = -100
-        
-        bets.append({
-            'date': row['date'],
-            'game': f"{row['away_name']} @ {row['home_name']}",
-            'pick': pick_name,
-            'moneyline': ml,
-            'edge': round(edge, 1),
-            'won': won,
-            'profit': round(profit, 2)
-        })
+            pending_bets.append(entry)
     
-    # Summary stats
+    # Summary stats (completed bets only)
     total_bets = len(bets)
     wins = sum(1 for b in bets if b['won'])
     total_pl = sum(b['profit'] for b in bets)
@@ -1421,6 +1358,7 @@ def tracker():
     
     return render_template('tracker.html',
                           bets=bets,
+                          pending_bets=pending_bets,
                           total_bets=total_bets,
                           wins=wins,
                           win_rate=win_rate,
