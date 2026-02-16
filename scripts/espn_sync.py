@@ -379,14 +379,28 @@ def sync_date(date_str):
             ex_scores = cur.fetchone()
             if ex_scores and (ex_scores['home_score'] != home_score or ex_scores['away_score'] != away_score):
                 # Different scores = different game (doubleheader)
-                # Find next available suffix
-                for suffix_num in range(2, 5):
-                    dh_id = f"{game_id}_g{suffix_num}"
-                    cur.execute("SELECT id FROM games WHERE id = ?", (dh_id,))
-                    if not cur.fetchone():
-                        game_id = dh_id
-                        existing = None
+                # First check if this score already exists in any suffix
+                already_exists = False
+                for check_num in range(1, 5):
+                    check_id = f"{game_id}_g{check_num}"
+                    cur.execute("SELECT home_score, away_score FROM games WHERE id = ?", (check_id,))
+                    check_row = cur.fetchone()
+                    if check_row and check_row['home_score'] == home_score and check_row['away_score'] == away_score:
+                        # This game already recorded under a suffix
+                        already_exists = True
+                        game_id = check_id
+                        existing = cur.execute("SELECT id, status FROM games WHERE id = ?", (game_id,)).fetchone()
                         break
+                
+                if not already_exists:
+                    # Find next available suffix
+                    for suffix_num in range(1, 5):
+                        dh_id = f"{game_id}_g{suffix_num}"
+                        cur.execute("SELECT id FROM games WHERE id = ?", (dh_id,))
+                        if not cur.fetchone():
+                            game_id = dh_id
+                            existing = None
+                            break
         
         if existing:
             # Update if we have new score data
