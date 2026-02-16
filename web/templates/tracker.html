@@ -164,21 +164,47 @@
 {% if running_pl %}
 <script>
 const ctx = document.getElementById('plChart').getContext('2d');
-const data = {{ running_pl|tojson }};
+const rawData = {{ running_pl|tojson }};
+const betsData = {{ bets|tojson }};
+
+// Aggregate to one point per date (end-of-day P&L)
+const dailyPL = {};
+rawData.forEach(d => { dailyPL[d.date] = d.pl; });
+const dates = Object.keys(dailyPL).sort();
+const plValues = dates.map(d => dailyPL[d]);
+
+// Color line segments: green when positive, red when negative
+const lineColor = plValues[plValues.length - 1] >= 0 ? '#198754' : '#dc3545';
+const fillColor = plValues[plValues.length - 1] >= 0 ? 'rgba(25,135,84,0.1)' : 'rgba(220,53,69,0.1)';
+
+// Point colors: green for winning days, red for losing
+const pointColors = dates.map((date, i) => {
+    const prev = i > 0 ? plValues[i - 1] : 0;
+    return plValues[i] >= prev ? '#198754' : '#dc3545';
+});
+
+// Build tooltip with individual bets for each date
+const betsByDate = {};
+betsData.forEach(b => {
+    if (!betsByDate[b.date]) betsByDate[b.date] = [];
+    betsByDate[b.date].push(b);
+});
 
 new Chart(ctx, {
     type: 'line',
     data: {
-        labels: data.map(d => d.date),
+        labels: dates,
         datasets: [{
             label: 'Cumulative P&L ($)',
-            data: data.map(d => d.pl),
-            borderColor: data[data.length-1].pl >= 0 ? '#198754' : '#dc3545',
-            backgroundColor: data[data.length-1].pl >= 0 ? 'rgba(25,135,84,0.1)' : 'rgba(220,53,69,0.1)',
+            data: plValues,
+            borderColor: lineColor,
+            backgroundColor: fillColor,
             fill: true,
-            tension: 0.3,
-            pointRadius: 2,
-            borderWidth: 2
+            tension: 0,
+            pointRadius: 5,
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            borderWidth: 2.5
         }]
     },
     options: {
@@ -188,15 +214,30 @@ new Chart(ctx, {
             legend: { display: false },
             tooltip: {
                 callbacks: {
+                    title: function(items) {
+                        return items[0].label;
+                    },
                     label: function(ctx) {
-                        return '$' + ctx.parsed.y.toFixed(2);
+                        return 'Cumulative: $' + ctx.parsed.y.toFixed(2);
+                    },
+                    afterBody: function(items) {
+                        const date = items[0].label;
+                        const db = betsByDate[date];
+                        if (!db) return [];
+                        const lines = [''];
+                        db.forEach(b => {
+                            const icon = b.won ? '✅' : '❌';
+                            const sign = b.profit >= 0 ? '+' : '';
+                            lines.push(icon + ' ' + b.pick + ' (' + sign + '$' + b.profit.toFixed(0) + ')');
+                        });
+                        return lines;
                     }
                 }
             }
         },
         scales: {
             x: {
-                ticks: { maxTicksToShow: 10, maxRotation: 45 }
+                ticks: { maxRotation: 45 }
             },
             y: {
                 ticks: {
