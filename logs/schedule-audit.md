@@ -121,3 +121,37 @@ Started: 2026-02-16
 7. **May 14-16: @ Alabama** - Changed from @ Texas to @ Alabama
 
 ---
+
+## Florida
+
+### Fixes Applied:
+- Removed duplicate Georgia games (Apr 3-5) that conflicted with Ole Miss
+- Removed duplicate Auburn games (Apr 17-18) that conflicted with Arkansas
+
+### Pending Verification:
+- Auburn @ Florida series dates need verification
+
+---
+
+## Summary - Teams Verified:
+
+✓ Mississippi State
+✓ Alabama  
+✓ Auburn (pre-verified)
+✓ LSU
+✓ Arkansas
+✓ Ole Miss
+✓ Florida (partial)
+
+### Teams Still Needing Full Verification:
+- Texas A&M
+- Texas
+- Oklahoma
+- Tennessee
+- Georgia
+- South Carolina
+- Kentucky
+- Missouri
+- Vanderbilt
+
+---
