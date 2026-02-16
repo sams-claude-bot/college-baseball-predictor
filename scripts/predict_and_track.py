@@ -58,8 +58,8 @@ def predict_games(date=None):
             try:
                 result = predictor.predict_game(home_name, away_name)
                 home_prob = result.get('home_win_probability', 0.5)
-                home_runs = result.get('predicted_home_runs', 0) or 0
-                away_runs = result.get('predicted_away_runs', 0) or 0
+                home_runs = result.get('projected_home_runs', result.get('predicted_home_runs', 0)) or 0
+                away_runs = result.get('projected_away_runs', result.get('predicted_away_runs', 0)) or 0
                 
                 cur.execute('''
                     INSERT INTO model_predictions 
