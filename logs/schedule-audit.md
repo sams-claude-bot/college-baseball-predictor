@@ -65,3 +65,43 @@ Started: 2026-02-16
 - Removed duplicate Apr 23 single game
 
 ---
+
+## LSU
+
+### Discrepancies Found:
+
+1. **Apr 3-5: @ Tennessee** (SEC series)
+   - DB was missing Apr 5 game
+   - Fix: Added Apr 5 game (12:00 PM CT)
+
+---
+
+## Arkansas
+
+### Official Source: arkansasrazorbacks.com
+
+### Discrepancies Found:
+
+1. **Mar 13-15: vs Mississippi State** (SEC series)
+   - DB had BOTH Florida AND MSU scheduled (double-booked)
+   - Fix: Removed Florida, kept only MSU
+
+2. **Mar 20-22: @ South Carolina** (SEC series)
+   - DB showed: Arkansas home vs Alabama
+   - Official: Arkansas @ South Carolina
+   - Fix: Changed opponent and swapped home/away
+
+3. **Mar 27-29: vs Florida** (SEC series)
+   - DB showed: Arkansas @ Georgia
+   - Official: Florida at Arkansas
+   - Fix: Changed opponent and location
+
+4. **Apr 5: LSU @ Arkansas**
+   - DB had single game on Apr 5 (LSU can't be at Tennessee AND Arkansas)
+   - Fix: Deleted incorrect game
+
+5. **Apr 10-12: @ Alabama** (SEC series)
+   - DB was missing this series entirely
+   - Fix: Added 3-game series at Alabama
+
+---
