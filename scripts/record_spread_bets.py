@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Record and evaluate spread and totals bets.
 
-Uses blended model run projections to find edges on DraftKings spreads and totals.
+Uses the SAME models as the betting page:
+- NN Totals model for over/under picks
+- NN Spread model for spread picks  
+- Falls back to blended ensemble/neural run projections if NN models unavailable
 
 Usage:
-    python3 scripts/record_spread_bets.py record     # Record spread + total bets
-    python3 scripts/record_spread_bets.py evaluate    # Score completed bets
-    python3 scripts/record_spread_bets.py summary     # Print P&L summary
+    python3 scripts/record_spread_bets.py record          # Record bets for upcoming games
+    python3 scripts/record_spread_bets.py evaluate         # Score completed bets
+    python3 scripts/record_spread_bets.py summary          # Print P&L summary
 """
 import sys, os, sqlite3
 from datetime import datetime, timedelta
@@ -14,9 +17,38 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'baseball.db')
-SPREAD_EDGE_THRESHOLD = 1.0  # Minimum run margin beyond the spread to bet
-TOTAL_EDGE_THRESHOLD = 1.0   # Minimum run difference from total line to bet
+SPREAD_EDGE_THRESHOLD = 1.0  # Min run margin beyond spread to bet
+TOTAL_EDGE_THRESHOLD = 1.0   # Min run diff from total line to bet
+TOTAL_PROB_THRESHOLD = 0.55  # Min NN probability to bet (if NN available)
 BET_AMOUNT = 100.0
+
+# Lazy-loaded models
+_nn_totals = None
+_nn_spread = None
+
+def get_nn_totals():
+    global _nn_totals
+    if _nn_totals is None:
+        try:
+            from models.nn_totals_model import NNTotalsModel
+            _nn_totals = NNTotalsModel(use_model_predictions=False)
+            if not _nn_totals.is_trained():
+                _nn_totals = False
+        except:
+            _nn_totals = False
+    return _nn_totals if _nn_totals else None
+
+def get_nn_spread():
+    global _nn_spread
+    if _nn_spread is None:
+        try:
+            from models.nn_spread_model import NNSpreadModel
+            _nn_spread = NNSpreadModel(use_model_predictions=False)
+            if not _nn_spread.is_trained():
+                _nn_spread = False
+        except:
+            _nn_spread = False
+    return _nn_spread if _nn_spread else None
 
 def get_connection():
     conn = sqlite3.connect(DB)
@@ -31,14 +63,12 @@ def american_to_payout(ml, stake=100):
         return stake / abs(ml) * 100
 
 def get_blended_runs(conn, game_id):
-    """Get blended run projections using stored model predictions (60/40 NN/ensemble)."""
+    """Fallback: get blended run projections from stored predictions."""
     c = conn.cursor()
-    
     ens = c.execute(
         'SELECT predicted_home_runs, predicted_away_runs FROM model_predictions WHERE game_id=? AND model_name="ensemble"',
         (game_id,)
     ).fetchone()
-    
     nn = c.execute(
         'SELECT predicted_home_runs, predicted_away_runs FROM model_predictions WHERE game_id=? AND model_name="neural"',
         (game_id,)
@@ -50,19 +80,15 @@ def get_blended_runs(conn, game_id):
     nn_ar = nn['predicted_away_runs'] if nn and nn['predicted_away_runs'] else None
     
     if ens_hr is not None and nn_hr is not None:
-        home_runs = nn_hr * 0.60 + ens_hr * 0.40
-        away_runs = nn_ar * 0.60 + ens_ar * 0.40
+        return nn_hr * 0.60 + ens_hr * 0.40, nn_ar * 0.60 + ens_ar * 0.40
     elif nn_hr is not None:
-        home_runs, away_runs = nn_hr, nn_ar
+        return nn_hr, nn_ar
     elif ens_hr is not None:
-        home_runs, away_runs = ens_hr, ens_ar
-    else:
-        return None, None
-    
-    return home_runs, away_runs
+        return ens_hr, ens_ar
+    return None, None
 
 def record_bets():
-    """Record spread and total bets for upcoming games with DK lines."""
+    """Record spread and total bets using NN models (matching betting page)."""
     conn = get_connection()
     c = conn.cursor()
     
@@ -82,55 +108,70 @@ def record_bets():
     ''', (today, three_days))
     
     lines = [dict(r) for r in c.fetchall()]
+    nn_totals = get_nn_totals()
+    nn_spread = get_nn_spread()
     spread_recorded = 0
     total_recorded = 0
     
+    print(f"Models: nn_totals={'✅' if nn_totals else '❌'} nn_spread={'✅' if nn_spread else '❌'}")
+    
     for line in lines:
-        home_runs, away_runs = get_blended_runs(conn, line['game_id'])
-        if home_runs is None:
-            continue
-        
-        projected_margin = home_runs - away_runs  # positive = home favored
-        projected_total = home_runs + away_runs
+        home_id = line['home_team_id']
+        away_id = line['away_team_id']
         
         # --- SPREAD BET ---
         if line['home_spread'] is not None and line['home_spread'] != 0:
-            # Check if already tracked
             existing = c.execute(
                 'SELECT 1 FROM tracked_bets_spreads WHERE game_id=? AND bet_type="spread"',
                 (line['game_id'],)
             ).fetchone()
             
             if not existing:
-                spread = line['home_spread']  # e.g., -1.5 means home favored by 1.5
-                # Our projected margin vs the spread
-                # If spread is -1.5 and we project home wins by 3, edge = 3 - 1.5 = 1.5 runs
-                home_cover_margin = projected_margin - spread  # positive = home covers
+                proj_margin = None
+                edge = None
+                source = 'blended'
                 
-                if abs(home_cover_margin) >= SPREAD_EDGE_THRESHOLD:
-                    if home_cover_margin > 0:
-                        # Bet home to cover
-                        pick = line['home_name']
-                        bet_line = spread
-                        odds = line['home_spread_odds'] or -110
-                        edge = home_cover_margin
-                    else:
-                        # Bet away to cover
-                        pick = line['away_name']
-                        bet_line = line['away_spread']
-                        odds = line['away_spread_odds'] or -110
-                        edge = abs(home_cover_margin)
+                # Try NN spread model first (matches betting page)
+                if nn_spread:
+                    try:
+                        sp = nn_spread.predict_game(home_id, away_id)
+                        proj_margin = sp.get('projected_margin', 0)
+                        source = 'nn_spread'
+                    except:
+                        pass
+                
+                # Fallback to blended runs
+                if proj_margin is None:
+                    hr, ar = get_blended_runs(conn, line['game_id'])
+                    if hr is not None:
+                        proj_margin = hr - ar
+                
+                if proj_margin is not None:
+                    spread = line['home_spread']
+                    home_cover_margin = proj_margin - spread
                     
-                    c.execute('''
-                        INSERT OR IGNORE INTO tracked_bets_spreads
-                        (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
-                        VALUES (?, ?, 'spread', ?, ?, ?, ?, ?, ?)
-                    ''', (line['game_id'], line['date'], pick, bet_line, odds,
-                          round(projected_margin, 2), round(edge, 2), BET_AMOUNT))
-                    
-                    spread_recorded += 1
-                    print(f"  📊 SPREAD: {pick} {bet_line:+.1f} ({odds:+g}) | "
-                          f"proj margin {projected_margin:+.1f} | edge {edge:.1f} runs")
+                    if abs(home_cover_margin) >= SPREAD_EDGE_THRESHOLD:
+                        if home_cover_margin > 0:
+                            pick = line['home_name']
+                            bet_line = spread
+                            odds = line['home_spread_odds'] or -110
+                            edge = home_cover_margin
+                        else:
+                            pick = line['away_name']
+                            bet_line = line['away_spread']
+                            odds = line['away_spread_odds'] or -110
+                            edge = abs(home_cover_margin)
+                        
+                        c.execute('''
+                            INSERT OR IGNORE INTO tracked_bets_spreads
+                            (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
+                            VALUES (?, ?, 'spread', ?, ?, ?, ?, ?, ?)
+                        ''', (line['game_id'], line['date'], pick, bet_line, odds,
+                              round(proj_margin, 2), round(edge, 2), BET_AMOUNT))
+                        
+                        spread_recorded += 1
+                        print(f"  📊 SPREAD [{source}]: {pick} {bet_line:+.1f} ({odds:+g}) | "
+                              f"proj margin {proj_margin:+.1f} | edge {edge:.1f} runs")
         
         # --- TOTAL BET ---
         if line['over_under'] is not None and line['over_under'] > 0:
@@ -140,27 +181,59 @@ def record_bets():
             ).fetchone()
             
             if not existing:
-                total_line = line['over_under']
-                total_diff = projected_total - total_line
+                proj_total = None
+                pick = None
+                edge = None
+                source = 'blended'
                 
-                if abs(total_diff) >= TOTAL_EDGE_THRESHOLD:
-                    if total_diff > 0:
-                        pick = 'OVER'
-                        odds = line['over_odds'] or -110
-                    else:
-                        pick = 'UNDER'
-                        odds = line['under_odds'] or -110
+                # Try NN totals model first (matches betting page)
+                if nn_totals:
+                    try:
+                        tp = nn_totals.predict_game(home_id, away_id,
+                                                     over_under_line=line['over_under'])
+                        proj_total = tp.get('projected_total')
+                        over_prob = tp.get('over_prob', 0.5)
+                        under_prob = tp.get('under_prob', 0.5)
+                        source = 'nn_totals'
+                        
+                        # Use NN probability-based pick
+                        if over_prob >= TOTAL_PROB_THRESHOLD:
+                            pick = 'OVER'
+                            edge = abs(proj_total - line['over_under']) if proj_total else 1.0
+                        elif under_prob >= TOTAL_PROB_THRESHOLD:
+                            pick = 'UNDER'
+                            edge = abs(proj_total - line['over_under']) if proj_total else 1.0
+                    except:
+                        pass
+                
+                # Fallback to blended runs
+                if pick is None:
+                    hr, ar = get_blended_runs(conn, line['game_id'])
+                    if hr is not None:
+                        proj_total = hr + ar
+                        total_diff = proj_total - line['over_under']
+                        
+                        if abs(total_diff) >= TOTAL_EDGE_THRESHOLD:
+                            pick = 'OVER' if total_diff > 0 else 'UNDER'
+                            edge = abs(total_diff)
+                            source = 'blended'
+                
+                if pick and edge:
+                    odds = line['over_odds'] if pick == 'OVER' else line['under_odds']
+                    odds = odds or -110
                     
                     c.execute('''
                         INSERT OR IGNORE INTO tracked_bets_spreads
                         (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
                         VALUES (?, ?, 'total', ?, ?, ?, ?, ?, ?)
-                    ''', (line['game_id'], line['date'], pick, total_line, odds,
-                          round(projected_total, 2), round(abs(total_diff), 2), BET_AMOUNT))
+                    ''', (line['game_id'], line['date'], pick, line['over_under'], odds,
+                          round(proj_total, 2) if proj_total else 0, round(edge, 2), BET_AMOUNT))
                     
                     total_recorded += 1
-                    print(f"  🎯 TOTAL: {pick} {total_line} ({odds:+g}) | "
-                          f"proj {projected_total:.1f} | edge {abs(total_diff):.1f} runs")
+                    odds_str = f"{odds:+g}" if odds else "—"
+                    proj_str = f"{proj_total:.1f}" if proj_total else "?"
+                    print(f"  🎯 TOTAL [{source}]: {pick} {line['over_under']} ({odds_str}) | "
+                          f"proj {proj_str} | edge {edge:.1f} runs")
     
     conn.commit()
     conn.close()
@@ -190,65 +263,39 @@ def evaluate_bets():
         actual_total = home_score + away_score
         
         if bet['bet_type'] == 'spread':
-            # Did our pick cover?
             spread_line = bet['line']
-            # If pick is home team: home_score + spread > away_score (cover)
-            # If pick is away team: away_score + spread > home_score (cover)
-            # Since line is from the picked team's perspective:
-            # Check: did actual result beat the line?
             
-            # Figure out if pick was home or away
+            # Get team names to figure out which side we picked
             conn2 = get_connection()
             c2 = conn2.cursor()
             home_name = c2.execute('SELECT name FROM teams WHERE id=?', (bet['home_team_id'],)).fetchone()['name']
             conn2.close()
             
             if bet['pick'] == home_name:
-                # Home pick: home wins by more than |spread| (spread is negative for favorite)
-                covered = actual_margin + spread_line > 0  # e.g., margin=3, spread=-1.5 → 3+(-1.5)=1.5 > 0 ✓
+                result = actual_margin + spread_line
             else:
-                # Away pick: away_spread = -home_spread
-                covered = -actual_margin + spread_line > 0
+                result = -actual_margin + spread_line
             
-            # Push
-            if bet['pick'] == home_name:
-                push = (actual_margin + spread_line) == 0
+            if result == 0:
+                won = None; profit = 0; status = "🔄 PUSH"
+            elif result > 0:
+                won = 1; profit = american_to_payout(bet['odds'] or -110); status = "✅ WIN"
             else:
-                push = (-actual_margin + spread_line) == 0
-            
-            if push:
-                won = None
-                profit = 0
-                status = "🔄 PUSH"
-            elif covered:
-                won = 1
-                profit = american_to_payout(bet['odds'] or -110)
-                status = "✅ WIN"
-            else:
-                won = 0
-                profit = -BET_AMOUNT
-                status = "❌ LOSS"
+                won = 0; profit = -BET_AMOUNT; status = "❌ LOSS"
         
         elif bet['bet_type'] == 'total':
             total_line = bet['line']
-            if bet['pick'] == 'OVER':
+            
+            if actual_total == total_line:
+                won = None; profit = 0; status = "🔄 PUSH"
+            elif bet['pick'] == 'OVER':
                 won = 1 if actual_total > total_line else 0
-                push = actual_total == total_line
+                profit = american_to_payout(bet['odds'] or -110) if won else -BET_AMOUNT
+                status = "✅ WIN" if won else "❌ LOSS"
             else:
                 won = 1 if actual_total < total_line else 0
-                push = actual_total == total_line
-            
-            if push:
-                won = None
-                profit = 0
-                status = "🔄 PUSH"
-            elif won:
-                profit = american_to_payout(bet['odds'] or -110)
-                status = "✅ WIN"
-            else:
-                won = 0
-                profit = -BET_AMOUNT
-                status = "❌ LOSS"
+                profit = american_to_payout(bet['odds'] or -110) if won else -BET_AMOUNT
+                status = "✅ WIN" if won else "❌ LOSS"
         
         c.execute('UPDATE tracked_bets_spreads SET won=?, profit=? WHERE id=?',
                   (won, round(profit, 2), bet['id']))
