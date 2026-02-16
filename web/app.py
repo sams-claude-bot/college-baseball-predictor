@@ -800,6 +800,14 @@ def api_predict():
             # Include momentum for ensemble
             if 'momentum' in pred:
                 results[name]['momentum'] = pred['momentum']
+            # Include component predictions and weights for ensemble
+            if 'component_predictions' in pred:
+                results[name]['component_predictions'] = pred['component_predictions']
+            if 'weights' in pred:
+                results[name]['weights'] = pred['weights']
+            # Include model inputs for explainability
+            if 'inputs' in pred:
+                results[name]['inputs'] = pred['inputs']
         except Exception as e:
             results[name] = {'error': str(e)}
     
@@ -842,6 +850,48 @@ def api_predict():
             model_home = results['ensemble']['home_win_prob']
             results['betting_line']['home_edge'] = (model_home - dk_home/total) * 100
             results['betting_line']['away_edge'] = ((1-model_home) - dk_away/total) * 100
+    
+    # Add team context for explainability
+    try:
+        home_record = get_team_record(home_id)
+        away_record = get_team_record(away_id)
+        home_runs_data = get_team_runs(home_id)
+        away_runs_data = get_team_runs(away_id)
+        
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('SELECT rating FROM elo_ratings WHERE team_id = ?', (home_id,))
+        home_elo_row = c.fetchone()
+        c.execute('SELECT rating FROM elo_ratings WHERE team_id = ?', (away_id,))
+        away_elo_row = c.fetchone()
+        c.execute('SELECT current_rank FROM teams WHERE id = ?', (home_id,))
+        home_rank_row = c.fetchone()
+        c.execute('SELECT current_rank FROM teams WHERE id = ?', (away_id,))
+        away_rank_row = c.fetchone()
+        conn.close()
+        
+        results['team_context'] = {
+            'home': {
+                'record': f"{home_record['wins']}-{home_record['losses']}",
+                'wins': home_record['wins'],
+                'losses': home_record['losses'],
+                'runs_scored_avg': round(home_runs_data['runs_scored'] / home_runs_data['games'], 2) if home_runs_data.get('games') else None,
+                'runs_allowed_avg': round(home_runs_data['runs_allowed'] / home_runs_data['games'], 2) if home_runs_data.get('games') else None,
+                'elo': home_elo_row[0] if home_elo_row else None,
+                'rank': home_rank_row[0] if home_rank_row and home_rank_row[0] else None
+            },
+            'away': {
+                'record': f"{away_record['wins']}-{away_record['losses']}",
+                'wins': away_record['wins'],
+                'losses': away_record['losses'],
+                'runs_scored_avg': round(away_runs_data['runs_scored'] / away_runs_data['games'], 2) if away_runs_data.get('games') else None,
+                'runs_allowed_avg': round(away_runs_data['runs_allowed'] / away_runs_data['games'], 2) if away_runs_data.get('games') else None,
+                'elo': away_elo_row[0] if away_elo_row else None,
+                'rank': away_rank_row[0] if away_rank_row and away_rank_row[0] else None
+            }
+        }
+    except Exception as e:
+        results['team_context'] = {'error': str(e)}
     
     return jsonify(results)
 

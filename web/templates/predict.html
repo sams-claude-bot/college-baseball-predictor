@@ -135,6 +135,35 @@
                 </div>
             </div>
 
+            <!-- Key Factors (Explainability) -->
+            <div class="card" id="keyFactorsCard">
+                <div class="card-header">
+                    <i class="bi bi-lightbulb"></i> Why This Prediction?
+                </div>
+                <div class="card-body">
+                    <div id="keyFactorsList">
+                        <!-- Filled by JS -->
+                    </div>
+                    
+                    <!-- Model Agreement -->
+                    <div class="mt-3 pt-3 border-top">
+                        <h6 class="mb-2"><i class="bi bi-bar-chart"></i> Model Agreement</h6>
+                        <div id="modelAgreementBar" class="mb-2">
+                            <!-- Filled by JS -->
+                        </div>
+                        <small class="text-muted" id="modelAgreementText"></small>
+                    </div>
+                    
+                    <!-- Ensemble Weight Breakdown -->
+                    <div class="mt-3 pt-3 border-top">
+                        <h6 class="mb-2"><i class="bi bi-pie-chart"></i> Ensemble Weight Contributions</h6>
+                        <div id="weightBreakdown">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Series Prediction -->
             <div class="card">
                 <div class="card-header">
@@ -356,6 +385,9 @@ function displayResults(data, homeId, awayId) {
         document.getElementById('awaySeriesProb').textContent = (data.series.away_series_probability * 100).toFixed(1) + '%';
     }
     
+    // Key Factors (Explainability)
+    buildKeyFactors(data, homeName, awayName);
+    
     // Betting analysis
     if (data.betting_line) {
         document.getElementById('bettingAnalysis').style.display = 'block';
@@ -387,6 +419,218 @@ function displayResults(data, homeId, awayId) {
     }
     
     document.getElementById('resultsContainer').style.display = 'block';
+}
+
+function buildKeyFactors(data, homeName, awayName) {
+    const factors = [];
+    const ensemble = data.ensemble || {};
+    const ctx = data.team_context || {};
+    const homeCtx = ctx.home || {};
+    const awayCtx = ctx.away || {};
+    
+    const favHome = (ensemble.home_win_prob || 0.5) > 0.5;
+    const favName = favHome ? homeName : awayName;
+    const dogName = favHome ? awayName : homeName;
+    const favProb = favHome ? ensemble.home_win_prob : ensemble.away_win_prob;
+    
+    // 1. Record comparison
+    if (homeCtx.record && awayCtx.record) {
+        const homeWinPct = homeCtx.wins / Math.max(homeCtx.wins + homeCtx.losses, 1);
+        const awayWinPct = awayCtx.wins / Math.max(awayCtx.wins + awayCtx.losses, 1);
+        const diff = Math.abs(homeWinPct - awayWinPct);
+        if (diff > 0.1) {
+            const better = homeWinPct > awayWinPct ? homeName : awayName;
+            const betterRec = homeWinPct > awayWinPct ? homeCtx.record : awayCtx.record;
+            const worseRec = homeWinPct > awayWinPct ? awayCtx.record : homeCtx.record;
+            factors.push({
+                icon: '📊', label: 'Record Edge',
+                text: `${better} (${betterRec}) has a stronger record than opponent (${worseRec})`,
+                impact: diff > 0.3 ? 'high' : 'medium'
+            });
+        }
+    }
+    
+    // 2. Elo rating gap
+    if (homeCtx.elo && awayCtx.elo) {
+        const eloDiff = Math.abs(homeCtx.elo - awayCtx.elo);
+        if (eloDiff > 30) {
+            const higher = homeCtx.elo > awayCtx.elo ? homeName : awayName;
+            factors.push({
+                icon: '⚡', label: 'Elo Rating',
+                text: `${higher} rated ${Math.round(eloDiff)} points higher (${Math.round(homeCtx.elo > awayCtx.elo ? homeCtx.elo : awayCtx.elo)} vs ${Math.round(homeCtx.elo > awayCtx.elo ? awayCtx.elo : homeCtx.elo)})`,
+                impact: eloDiff > 100 ? 'high' : eloDiff > 60 ? 'medium' : 'low'
+            });
+        }
+    }
+    
+    // 3. Ranking mismatch
+    if (homeCtx.rank || awayCtx.rank) {
+        if (homeCtx.rank && !awayCtx.rank) {
+            factors.push({ icon: '🏆', label: 'Ranked vs Unranked', text: `${homeName} is #${homeCtx.rank} — ${awayName} is unranked`, impact: 'high' });
+        } else if (awayCtx.rank && !homeCtx.rank) {
+            factors.push({ icon: '🏆', label: 'Ranked vs Unranked', text: `${awayName} is #${awayCtx.rank} — ${homeName} is unranked`, impact: 'high' });
+        } else if (homeCtx.rank && awayCtx.rank) {
+            factors.push({ icon: '🏆', label: 'Ranked Matchup', text: `#${homeCtx.rank} ${homeName} vs #${awayCtx.rank} ${awayName}`, impact: 'medium' });
+        }
+    }
+    
+    // 4. Scoring differential
+    if (homeCtx.runs_scored_avg && awayCtx.runs_scored_avg) {
+        const homeNetRuns = homeCtx.runs_scored_avg - homeCtx.runs_allowed_avg;
+        const awayNetRuns = awayCtx.runs_scored_avg - awayCtx.runs_allowed_avg;
+        const diff = Math.abs(homeNetRuns - awayNetRuns);
+        if (diff > 1) {
+            const better = homeNetRuns > awayNetRuns ? homeName : awayName;
+            const betterNet = homeNetRuns > awayNetRuns ? homeNetRuns : awayNetRuns;
+            factors.push({
+                icon: '🔥', label: 'Run Differential',
+                text: `${better} averages ${betterNet > 0 ? '+' : ''}${betterNet.toFixed(1)} run differential per game`,
+                impact: diff > 3 ? 'high' : 'medium'
+            });
+        }
+    }
+    
+    // 5. Momentum / streaks
+    if (ensemble.momentum) {
+        const mom = ensemble.momentum;
+        if (Math.abs(mom.adjustment) > 0.005) {
+            const streakTeam = mom.home_momentum > mom.away_momentum ? homeName : awayName;
+            const streak = mom.home_momentum > mom.away_momentum ? mom.home_streak : mom.away_streak;
+            factors.push({
+                icon: '🌊', label: 'Momentum',
+                text: `${streakTeam} riding ${streak} streak (${(mom.adjustment * 100).toFixed(1)}% adjustment)`,
+                impact: Math.abs(mom.adjustment) > 0.02 ? 'medium' : 'low'
+            });
+        }
+    }
+    
+    // 6. Pitching matchup
+    const pitching = data.pitching || {};
+    if (pitching.inputs) {
+        const pi = pitching.inputs;
+        if (pi.home_starter && pi.away_starter && pi.home_starter !== 'Unknown' && pi.away_starter !== 'Unknown') {
+            const homeERA = pi.home_starter_era || 0;
+            const awayERA = pi.away_starter_era || 0;
+            if (Math.abs(homeERA - awayERA) > 1) {
+                const betterP = homeERA < awayERA ? homeName : awayName;
+                const betterName = homeERA < awayERA ? pi.home_starter : pi.away_starter;
+                const betterERA = Math.min(homeERA, awayERA);
+                factors.push({
+                    icon: '⚾', label: 'Pitching Edge',
+                    text: `${betterP} starts ${betterName} (${betterERA.toFixed(2)} ERA) — significant pitching advantage`,
+                    impact: 'high'
+                });
+            }
+        }
+    }
+    
+    // 7. Advanced model SOS
+    const adv = data.advanced || {};
+    if (adv.inputs) {
+        const sosDiff = Math.abs((adv.inputs.home_sos || 0) - (adv.inputs.away_sos || 0));
+        if (sosDiff > 0.15) {
+            const harder = (adv.inputs.home_sos || 0) > (adv.inputs.away_sos || 0) ? homeName : awayName;
+            factors.push({
+                icon: '💪', label: 'Strength of Schedule',
+                text: `${harder} has faced significantly tougher opponents`,
+                impact: 'medium'
+            });
+        }
+    }
+    
+    // 8. Confidence assessment
+    if (favProb > 0.75) {
+        factors.push({ icon: '🎯', label: 'High Confidence', text: `Models strongly favor ${favName} at ${(favProb*100).toFixed(1)}%`, impact: 'high' });
+    } else if (favProb < 0.55) {
+        factors.push({ icon: '⚖️', label: 'Toss-Up', text: `This is a close matchup — models only slightly favor ${favName}`, impact: 'low' });
+    }
+    
+    // Render factors
+    const container = document.getElementById('keyFactorsList');
+    if (factors.length === 0) {
+        container.innerHTML = '<p class="text-muted mb-0">Not enough data yet to explain this prediction. Models are using preseason priors.</p>';
+    } else {
+        const impactColors = { high: '#dc3545', medium: '#fd7e14', low: '#6c757d' };
+        const impactLabels = { high: 'HIGH', medium: 'MED', low: 'LOW' };
+        container.innerHTML = factors.map(f => `
+            <div class="d-flex align-items-start mb-2">
+                <span class="me-2" style="font-size: 1.2em;">${f.icon}</span>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <strong>${f.label}</strong>
+                        <span class="badge" style="background-color: ${impactColors[f.impact]}; font-size: 0.65em;">${impactLabels[f.impact]} IMPACT</span>
+                    </div>
+                    <small class="text-muted">${f.text}</small>
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Model Agreement Bar
+    const modelNames = ['advanced', 'poisson', 'pitching', 'elo', 'log5', 'conference', 'prior', 'pythagorean'];
+    let homeVotes = 0, awayVotes = 0;
+    for (const mn of modelNames) {
+        if (data[mn] && !data[mn].error) {
+            if (data[mn].home_win_prob > 0.5) homeVotes++;
+            else awayVotes++;
+        }
+    }
+    const totalVotes = homeVotes + awayVotes;
+    const homePct = totalVotes > 0 ? (homeVotes / totalVotes * 100) : 50;
+    const awayPct = 100 - homePct;
+    
+    document.getElementById('modelAgreementBar').innerHTML = `
+        <div class="d-flex" style="height: 24px; border-radius: 12px; overflow: hidden;">
+            <div style="width: ${homePct}%; background: #5D1725; display: flex; align-items: center; justify-content: center;">
+                <small class="text-white fw-bold">${homeVotes}</small>
+            </div>
+            <div style="width: ${awayPct}%; background: #777; display: flex; align-items: center; justify-content: center;">
+                <small class="text-white fw-bold">${awayVotes}</small>
+            </div>
+        </div>
+    `;
+    document.getElementById('modelAgreementText').textContent = 
+        homeVotes === totalVotes ? `All ${totalVotes} models pick ${homeName} — unanimous` :
+        awayVotes === totalVotes ? `All ${totalVotes} models pick ${awayName} — unanimous` :
+        `${Math.max(homeVotes, awayVotes)}/${totalVotes} models favor ${homeVotes > awayVotes ? homeName : awayName}`;
+    
+    // Ensemble Weight Contribution Chart
+    const ensembleData = data.ensemble || {};
+    const compPreds = ensembleData.component_predictions || {};
+    const weights = ensembleData.weights || {};
+    
+    const wbContainer = document.getElementById('weightBreakdown');
+    if (Object.keys(compPreds).length > 0) {
+        // Sort by weighted contribution (weight * distance from 0.5)
+        const contributions = Object.entries(compPreds).map(([name, cp]) => {
+            const w = cp.weight || weights[name] || 0;
+            const prob = cp.home_prob || 0.5;
+            const contribution = w * (prob - 0.5);
+            return { name, weight: w, prob, contribution: Math.abs(contribution), favorsHome: prob > 0.5 };
+        }).sort((a, b) => b.contribution - a.contribution);
+        
+        const maxWeight = Math.max(...contributions.map(c => c.weight));
+        
+        wbContainer.innerHTML = contributions.map(c => {
+            const barWidth = (c.weight / maxWeight * 100);
+            const color = c.favorsHome ? '#5D1725' : '#777';
+            const teamPick = c.favorsHome ? homeName : awayName;
+            return `
+                <div class="d-flex align-items-center mb-1" style="font-size: 0.85em;">
+                    <div style="width: 90px;" class="text-end me-2"><small>${c.name}</small></div>
+                    <div class="flex-grow-1 me-2">
+                        <div style="height: 16px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
+                            <div style="width: ${barWidth}%; height: 100%; background: ${color}; border-radius: 3px;"></div>
+                        </div>
+                    </div>
+                    <div style="width: 50px;"><small>${(c.weight*100).toFixed(1)}%</small></div>
+                    <div style="width: 55px;" class="text-end"><small style="color: ${color}">${(c.prob*100).toFixed(0)}%</small></div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        wbContainer.innerHTML = '<small class="text-muted">Weight data unavailable</small>';
+    }
 }
 
 // Pre-select team from URL parameter
