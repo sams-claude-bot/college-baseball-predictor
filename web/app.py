@@ -36,7 +36,7 @@ def get_all_conferences():
     c = conn.cursor()
     c.execute('''
         SELECT DISTINCT conference FROM teams 
-        WHERE conference IS NOT NULL AND conference != ''
+        WHERE conference IS NOT NULL AND conference != '' AND conference != 'Non-D1'
         ORDER BY conference
     ''')
     conferences = [row[0] for row in c.fetchall()]
@@ -108,6 +108,7 @@ def get_all_teams():
                e.rating as elo_rating
         FROM teams t
         LEFT JOIN elo_ratings e ON t.id = e.team_id
+        WHERE t.conference != 'Non-D1'
         ORDER BY t.name
     ''')
     
