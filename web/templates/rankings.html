@@ -130,6 +130,94 @@
     </div>
 </div>
 
+<!-- Model Power Rankings -->
+{% if power_rankings %}
+<div class="card mt-4">
+    <div class="card-header" style="background: linear-gradient(135deg, #059669, #047857); color: white;">
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-lightning-charge-fill"></i> Model Power Rankings</span>
+            <small class="opacity-75">Round-robin simulation • {{ power_rankings|length }} teams • Updated {{ power_rankings_date or 'N/A' }}</small>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;" class="text-center">#</th>
+                        <th>Team</th>
+                        <th class="text-center d-none d-md-table-cell">Record</th>
+                        <th class="text-end">Power Score</th>
+                        <th class="text-end d-none d-sm-table-cell">Run Diff</th>
+                        <th class="text-center d-none d-md-table-cell">Dom%</th>
+                        <th class="text-center" style="width: 70px;">Move</th>
+                        <th class="text-center d-none d-md-table-cell">AP</th>
+                        <th class="text-center d-none d-md-table-cell">Elo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in power_rankings %}
+                    <tr class="{% if team.team_id == featured_team_id %}table-success{% endif %}">
+                        <td class="text-center">
+                            <span class="badge" style="background-color: #059669;">{{ team.rank }}</span>
+                        </td>
+                        <td>
+                            <a href="/team/{{ team.team_id }}" class="team-link"><strong>{{ team.team_name }}</strong></a>
+                            <br><small class="text-muted">{{ team.conference or '' }}</small>
+                        </td>
+                        <td class="text-center d-none d-md-table-cell">
+                            {{ team.wins }}-{{ team.losses }}
+                        </td>
+                        <td class="text-end">
+                            <strong>{{ '%.1f'|format(team.power_score * 100) }}%</strong>
+                            <div class="progress" style="height: 4px; width: 60px; display: inline-block; vertical-align: middle; margin-left: 4px;">
+                                <div class="progress-bar bg-success" style="width: {{ (team.power_score * 100)|round|int }}%"></div>
+                            </div>
+                        </td>
+                        <td class="text-end d-none d-sm-table-cell">
+                            <span class="{% if team.avg_run_diff > 0 %}text-success{% elif team.avg_run_diff < 0 %}text-danger{% endif %}">
+                                {{ '%+.2f'|format(team.avg_run_diff) }}
+                            </span>
+                        </td>
+                        <td class="text-center d-none d-md-table-cell">
+                            {{ '%.0f'|format(team.dominance_pct * 100) }}%
+                        </td>
+                        <td class="text-center">
+                            {% if team.rank_change is not none and team.rank_change != 0 %}
+                                {% if team.rank_change > 0 %}
+                                <span class="text-success"><i class="bi bi-arrow-up"></i> {{ team.rank_change }}</span>
+                                {% else %}
+                                <span class="text-danger"><i class="bi bi-arrow-down"></i> {{ team.rank_change|abs }}</span>
+                                {% endif %}
+                            {% elif team.rank_change == 0 %}
+                                <span class="text-muted">–</span>
+                            {% else %}
+                                <span class="badge bg-success">NEW</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center d-none d-md-table-cell">
+                            {% if team.ap_rank %}
+                            <span class="badge bg-maroon">{{ team.ap_rank }}</span>
+                            {% else %}
+                            <span class="text-muted">NR</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center d-none d-md-table-cell">
+                            {% if team.elo_rank %}
+                            <span class="badge" style="background-color: #2563eb;">{{ team.elo_rank }}</span>
+                            {% else %}
+                            <span class="text-muted">NR</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Legend -->
 <div class="card mt-3">
     <div class="card-body py-2">
@@ -137,6 +225,9 @@
             <strong>Legend:</strong>
             <span><span class="badge bg-warning text-dark">AP only</span> Ranked by D1Baseball but not in Elo Top 25</span>
             <span><span class="badge bg-info text-dark">Elo only</span> In Elo Top 25 but not ranked by D1Baseball</span>
+            {% if power_rankings %}
+            <span><span class="badge" style="background-color: #059669; color: white;">Power</span> Model-simulated round-robin ranking (all teams vs all teams)</span>
+            {% endif %}
         </div>
     </div>
 </div>

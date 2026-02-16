@@ -1232,6 +1232,53 @@ def rankings():
     ap_ids = set(t['id'] for t in top_25)
     elo_ids = set(t['team_id'] for t in elo_top_25)
     
+    # Model Power Rankings
+    power_rankings = []
+    power_rankings_date = None
+    try:
+        conn3 = get_connection()
+        c3 = conn3.cursor()
+        # Get latest power rankings
+        c3.execute('SELECT MAX(date) FROM power_rankings')
+        pr_date_row = c3.fetchone()
+        if pr_date_row and pr_date_row[0]:
+            power_rankings_date = pr_date_row[0]
+            pr_query = '''
+                SELECT pr.*, t.name as team_name, t.conference
+                FROM power_rankings pr
+                JOIN teams t ON pr.team_id = t.id
+                WHERE pr.date = ?
+                ORDER BY pr.rank
+            '''
+            pr_params = [power_rankings_date]
+            c3.execute(pr_query, pr_params)
+            power_rankings = [dict(r) for r in c3.fetchall()]
+            
+            # Add records, AP rank, and Elo rank
+            # Build lookup maps
+            ap_rank_map = {t['id']: t.get('rank') or t.get('current_rank') for t in top_25}
+            elo_rank_map = {t['team_id']: t['elo_rank'] for t in elo_top_25}
+            
+            for pr in power_rankings:
+                record = get_team_record(pr['team_id'])
+                pr['wins'] = record['wins']
+                pr['losses'] = record['losses']
+                pr['ap_rank'] = ap_rank_map.get(pr['team_id'])
+                pr['elo_rank'] = elo_rank_map.get(pr['team_id'])
+            
+            # Filter by conference if specified
+            if conference:
+                power_rankings = [pr for pr in power_rankings if pr.get('conference') == conference]
+                # Re-rank within conference
+                for i, pr in enumerate(power_rankings):
+                    pass  # Keep overall rank visible
+        conn3.close()
+    except Exception:
+        pass  # Table might not exist yet
+    
+    # Get featured team for highlighting
+    featured_team_id = request.args.get('team', 'mississippi-state')
+    
     return render_template('rankings.html',
                           top_25=top_25,
                           elo_top_25=elo_top_25,
@@ -1241,7 +1288,10 @@ def rankings():
                           selected_date=selected_date,
                           historical=historical,
                           conferences=conferences,
-                          selected_conference=conference)
+                          selected_conference=conference,
+                          power_rankings=power_rankings,
+                          power_rankings_date=power_rankings_date,
+                          featured_team_id=featured_team_id)
 
 @app.route('/betting')
 def betting():
