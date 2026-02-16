@@ -171,8 +171,15 @@
                                         <th>Pos</th>
                                         <th>Yr</th>
                                         <th class="text-end">AVG</th>
+                                        <th class="text-end">OPS</th>
+                                        <th class="text-end">G</th>
+                                        <th class="text-end">AB</th>
+                                        <th class="text-end">H</th>
                                         <th class="text-end">HR</th>
                                         <th class="text-end">RBI</th>
+                                        <th class="text-end">BB</th>
+                                        <th class="text-end">SO</th>
+                                        <th class="text-end">SB</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -180,11 +187,18 @@
                                     <tr>
                                         <td>{{ player.number or '' }}</td>
                                         <td>{{ player.name }}</td>
-                                        <td>{{ player.position }}</td>
-                                        <td>{{ player.year }}</td>
+                                        <td><small>{{ player.position or '' }}</small></td>
+                                        <td><small>{{ player.year or '' }}</small></td>
                                         <td class="text-end">{{ '%.3f'|format(player.batting_avg) if player.batting_avg else '.000' }}</td>
+                                        <td class="text-end">{{ '%.3f'|format(player.ops) if player.ops else '.000' }}</td>
+                                        <td class="text-end">{{ player.games or 0 }}</td>
+                                        <td class="text-end">{{ player.at_bats or 0 }}</td>
+                                        <td class="text-end">{{ player.hits or 0 }}</td>
                                         <td class="text-end">{{ player.home_runs or 0 }}</td>
-                                        <td class="text-end">{{ player.rbis or 0 }}</td>
+                                        <td class="text-end">{{ player.rbi or 0 }}</td>
+                                        <td class="text-end">{{ player.walks or 0 }}</td>
+                                        <td class="text-end">{{ player.strikeouts or 0 }}</td>
+                                        <td class="text-end">{{ player.stolen_bases or 0 }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -205,8 +219,13 @@
                                         <th>Yr</th>
                                         <th class="text-end">W-L</th>
                                         <th class="text-end">ERA</th>
+                                        <th class="text-end">WHIP</th>
                                         <th class="text-end">IP</th>
+                                        <th class="text-end">H</th>
+                                        <th class="text-end">BB</th>
                                         <th class="text-end">K</th>
+                                        <th class="text-end">K/9</th>
+                                        <th class="text-end">SV</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -214,11 +233,16 @@
                                     <tr>
                                         <td>{{ player.number or '' }}</td>
                                         <td>{{ player.name }}</td>
-                                        <td>{{ player.year }}</td>
+                                        <td><small>{{ player.year or '' }}</small></td>
                                         <td class="text-end">{{ player.wins or 0 }}-{{ player.losses or 0 }}</td>
                                         <td class="text-end">{{ '%.2f'|format(player.era) if player.era else '0.00' }}</td>
+                                        <td class="text-end">{{ '%.2f'|format(player.whip) if player.whip else '0.00' }}</td>
                                         <td class="text-end">{{ player.innings_pitched or 0 }}</td>
+                                        <td class="text-end">{{ player.hits_allowed or 0 }}</td>
+                                        <td class="text-end">{{ player.walks_allowed or 0 }}</td>
                                         <td class="text-end">{{ player.strikeouts_pitched or 0 }}</td>
+                                        <td class="text-end">{{ '%.1f'|format(player.k_per_9) if player.k_per_9 else '0.0' }}</td>
+                                        <td class="text-end">{{ player.saves or 0 }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
