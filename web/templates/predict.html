@@ -19,12 +19,24 @@
             </div>
             <div class="card-body">
                 <form id="predictForm">
+                    <!-- Conference Filter -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Filter by Conference</label>
+                        <select class="form-select form-select-sm" id="conferenceFilter">
+                            <option value="">All Teams</option>
+                            <option value="__ranked__">⭐ Ranked Only (Top 25)</option>
+                            {% for conf in conferences %}
+                            <option value="{{ conf }}">{{ conf }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Away Team</label>
+                        <input type="text" class="form-control form-control-sm mb-1" id="awaySearch" placeholder="Type to search..." autocomplete="off">
                         <select class="form-select" id="awayTeam" required>
                             <option value="">Select away team...</option>
                             {% for team in teams %}
-                            <option value="{{ team.id }}">
+                            <option value="{{ team.id }}" data-conf="{{ team.conference or '' }}" data-rank="{{ team.current_rank or '' }}">
                                 {% if team.current_rank %}#{{ team.current_rank }} {% endif %}{{ team.name }}
                             </option>
                             {% endfor %}
@@ -35,10 +47,11 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Home Team</label>
+                        <input type="text" class="form-control form-control-sm mb-1" id="homeSearch" placeholder="Type to search..." autocomplete="off">
                         <select class="form-select" id="homeTeam" required>
                             <option value="">Select home team...</option>
                             {% for team in teams %}
-                            <option value="{{ team.id }}">
+                            <option value="{{ team.id }}" data-conf="{{ team.conference or '' }}" data-rank="{{ team.current_rank or '' }}">
                                 {% if team.current_rank %}#{{ team.current_rank }} {% endif %}{{ team.name }}
                             </option>
                             {% endfor %}
@@ -632,6 +645,45 @@ function buildKeyFactors(data, homeName, awayName) {
         wbContainer.innerHTML = '<small class="text-muted">Weight data unavailable</small>';
     }
 }
+
+// Team filtering
+function filterTeamDropdown(selectId, searchText, conference) {
+    const select = document.getElementById(selectId);
+    const currentValue = select.value;
+    const options = select.querySelectorAll('option[value]');
+    const search = searchText.toLowerCase();
+    
+    options.forEach(opt => {
+        if (!opt.value) return; // skip placeholder
+        const text = opt.textContent.toLowerCase();
+        const conf = opt.dataset.conf || '';
+        const rank = opt.dataset.rank || '';
+        
+        let show = true;
+        if (search && !text.includes(search)) show = false;
+        if (conference === '__ranked__' && !rank) show = false;
+        else if (conference && conference !== '__ranked__' && conf !== conference) show = false;
+        
+        opt.style.display = show ? '' : 'none';
+        opt.disabled = !show;
+    });
+    
+    // If current selection is now hidden, reset
+    const selectedOpt = select.querySelector(`option[value="${currentValue}"]`);
+    if (selectedOpt && selectedOpt.disabled) select.value = '';
+}
+
+function applyFilters() {
+    const conf = document.getElementById('conferenceFilter').value;
+    const awaySearch = document.getElementById('awaySearch').value;
+    const homeSearch = document.getElementById('homeSearch').value;
+    filterTeamDropdown('awayTeam', awaySearch, conf);
+    filterTeamDropdown('homeTeam', homeSearch, conf);
+}
+
+document.getElementById('conferenceFilter').addEventListener('change', applyFilters);
+document.getElementById('awaySearch').addEventListener('input', applyFilters);
+document.getElementById('homeSearch').addEventListener('input', applyFilters);
 
 // Pre-select team from URL parameter
 const urlParams = new URLSearchParams(window.location.search);

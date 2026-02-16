@@ -764,8 +764,9 @@ def predict():
     """Prediction tool page"""
     all_teams = get_all_teams()
     all_teams.sort(key=lambda x: x['name'])
+    conferences = get_all_conferences()
     
-    return render_template('predict.html', teams=all_teams)
+    return render_template('predict.html', teams=all_teams, conferences=conferences)
 
 @app.route('/api/predict', methods=['POST'])
 def api_predict():
