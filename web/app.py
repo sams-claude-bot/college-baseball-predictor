@@ -1580,6 +1580,125 @@ def format_edge(value):
     return f"+{value:.1f}%" if value > 0 else f"{value:.1f}%"
 
 # ============================================
+# Debug Page
+# ============================================
+
+@app.route('/debug')
+def debug():
+    conn = get_connection()
+    c = conn.cursor()
+    
+    # Teams with more than 3 games played (final status)
+    c.execute('''
+        SELECT t.id, t.name, t.conference,
+            COUNT(g.id) as games_played,
+            SUM(CASE WHEN g.winner_id = t.id THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN g.winner_id != t.id AND g.winner_id IS NOT NULL THEN 1 ELSE 0 END) as losses
+        FROM teams t
+        JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id) AND g.status = 'final'
+        GROUP BY t.id
+        HAVING games_played > 3
+        ORDER BY games_played DESC
+    ''')
+    teams_over_3 = [dict(row) for row in c.fetchall()]
+    
+    # Load flags from JSON file
+    flags_path = base_dir / 'data' / 'debug_flags.json'
+    flags = {}
+    if flags_path.exists():
+        with open(flags_path) as f:
+            flags = json.load(f)
+    
+    # Data quality audit stats
+    c.execute("SELECT COUNT(*) FROM games WHERE status='final'")
+    total_final = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM games WHERE status='scheduled'")
+    total_scheduled = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM games WHERE status IN ('phantom','postponed','cancelled')")
+    total_other = c.fetchone()[0]
+    
+    # Duplicate check
+    c.execute('''
+        SELECT COUNT(*) FROM (
+            SELECT home_team_id, away_team_id, home_score, away_score, date, COUNT(*) c
+            FROM games WHERE status='final'
+            GROUP BY home_team_id, away_team_id, home_score, away_score, date
+            HAVING c > 1
+        )
+    ''')
+    dupe_count = c.fetchone()[0]
+    
+    # Orphan team IDs
+    c.execute('''
+        SELECT COUNT(*) FROM (
+            SELECT DISTINCT t.id FROM (
+                SELECT home_team_id as id FROM games
+                UNION SELECT away_team_id as id FROM games
+            ) t LEFT JOIN teams ON teams.id = t.id
+            WHERE teams.id IS NULL
+        )
+    ''')
+    orphan_count = c.fetchone()[0]
+    
+    # Recent dates summary
+    c.execute('''
+        SELECT date,
+            SUM(CASE WHEN status='final' THEN 1 ELSE 0 END) as final,
+            SUM(CASE WHEN status='scheduled' THEN 1 ELSE 0 END) as scheduled,
+            SUM(CASE WHEN status NOT IN ('final','scheduled') THEN 1 ELSE 0 END) as other
+        FROM games
+        WHERE date >= date('now', '-7 days') AND date <= date('now', '+1 day')
+        GROUP BY date ORDER BY date
+    ''')
+    recent_dates = [dict(row) for row in c.fetchall()]
+    
+    conn.close()
+    
+    return render_template('debug.html',
+        teams=teams_over_3,
+        flags=flags,
+        total_final=total_final,
+        total_scheduled=total_scheduled,
+        total_other=total_other,
+        dupe_count=dupe_count,
+        orphan_count=orphan_count,
+        recent_dates=recent_dates
+    )
+
+
+@app.route('/api/debug/flag', methods=['POST'])
+def api_debug_flag():
+    """Flag a team as correct/incorrect for review."""
+    data = request.get_json()
+    team_id = data.get('team_id')
+    flag = data.get('flag')  # 'correct', 'incorrect', or 'clear'
+    note = data.get('note', '')
+    
+    if not team_id or not flag:
+        return jsonify({'error': 'team_id and flag required'}), 400
+    
+    flags_path = base_dir / 'data' / 'debug_flags.json'
+    flags = {}
+    if flags_path.exists():
+        with open(flags_path) as f:
+            flags = json.load(f)
+    
+    if flag == 'clear':
+        flags.pop(team_id, None)
+    else:
+        flags[team_id] = {
+            'flag': flag,
+            'note': note,
+            'flagged_at': datetime.now().isoformat()
+        }
+    
+    with open(flags_path, 'w') as f:
+        json.dump(flags, f, indent=2)
+    
+    return jsonify({'ok': True, 'team_id': team_id, 'flag': flag})
+
+
+# ============================================
 # Error Handlers
 # ============================================
 

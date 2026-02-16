@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}Debug - Data Quality{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h2 class="mb-4"><i class="bi bi-bug"></i> Debug — Data Quality</h2>
+
+    <!-- Health Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <h5 class="mb-0">{{ total_final }}</h5>
+                    <small class="text-muted">Final Games</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <h5 class="mb-0">{{ total_scheduled }}</h5>
+                    <small class="text-muted">Scheduled</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <h5 class="mb-0">{{ total_other }}</h5>
+                    <small class="text-muted">Other Status</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 {% if dupe_count > 0 %}text-danger{% else %}text-success{% endif %}">{{ dupe_count }}</h5>
+                    <small class="text-muted">Duplicates</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <h5 class="mb-0 {% if orphan_count > 0 %}text-danger{% else %}text-success{% endif %}">{{ orphan_count }}</h5>
+                    <small class="text-muted">Orphan Teams</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <h5 class="mb-0">{{ teams|length }}</h5>
+                    <small class="text-muted">Teams >3 Games</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Dates -->
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-calendar3"></i> Recent Dates</div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Date</th><th>Final</th><th>Scheduled</th><th>Other</th></tr></thead>
+                <tbody>
+                {% for d in recent_dates %}
+                <tr>
+                    <td>{{ d.date }}</td>
+                    <td>{{ d.final }}</td>
+                    <td>{{ d.scheduled }}</td>
+                    <td>{% if d.other > 0 %}<span class="text-warning">{{ d.other }}</span>{% else %}0{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Teams with >3 Games -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-exclamation-triangle"></i> Teams with More Than 3 Games Played</span>
+            <div>
+                <span class="badge bg-secondary me-2" id="count-all">{{ teams|length }} total</span>
+                <span class="badge bg-danger me-1" id="count-flagged">{{ flags|length }} flagged</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleFilter('all')">All</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="toggleFilter('incorrect')">Flagged</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleFilter('unflagged')">Unflagged</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover table-sm mb-0" id="teams-table">
+                <thead>
+                    <tr>
+                        <th>Team</th>
+                        <th>Conference</th>
+                        <th>Games</th>
+                        <th>Record</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for team in teams %}
+                <tr data-team="{{ team.id }}" 
+                    data-flag="{{ flags.get(team.id, {}).get('flag', 'none') }}"
+                    class="{% if flags.get(team.id, {}).get('flag') == 'incorrect' %}table-danger{% elif flags.get(team.id, {}).get('flag') == 'correct' %}table-success{% endif %}">
+                    <td>
+                        <a href="/team/{{ team.id }}">{{ team.name or team.id }}</a>
+                    </td>
+                    <td>{{ team.conference or '—' }}</td>
+                    <td><strong>{{ team.games_played }}</strong></td>
+                    <td>{{ team.wins }}-{{ team.losses }}</td>
+                    <td>
+                        {% if flags.get(team.id) %}
+                            {% if flags[team.id].flag == 'incorrect' %}
+                                <span class="badge bg-danger">⚠️ Flagged</span>
+                            {% elif flags[team.id].flag == 'correct' %}
+                                <span class="badge bg-success">✅ OK</span>
+                            {% endif %}
+                            {% if flags[team.id].note %}
+                                <small class="text-muted d-block">{{ flags[team.id].note }}</small>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-success" onclick="flagTeam('{{ team.id }}', 'correct')" 
+                                    title="Mark correct">✅</button>
+                            <button class="btn btn-outline-danger" onclick="flagTeam('{{ team.id }}', 'incorrect')" 
+                                    title="Flag as incorrect">⚠️</button>
+                            <button class="btn btn-outline-secondary" onclick="flagTeam('{{ team.id }}', 'clear')" 
+                                    title="Clear flag">✖</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function flagTeam(teamId, flag) {
+    let note = '';
+    if (flag === 'incorrect') {
+        note = prompt('What looks wrong? (optional)', '') || '';
+    }
+    
+    fetch('/api/debug/flag', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({team_id: teamId, flag: flag, note: note})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            // Update row styling
+            const row = document.querySelector(`tr[data-team="${teamId}"]`);
+            row.classList.remove('table-danger', 'table-success');
+            row.dataset.flag = flag === 'clear' ? 'none' : flag;
+            
+            if (flag === 'incorrect') {
+                row.classList.add('table-danger');
+                row.querySelector('td:nth-child(5)').innerHTML = 
+                    `<span class="badge bg-danger">⚠️ Flagged</span>${note ? `<small class="text-muted d-block">${note}</small>` : ''}`;
+            } else if (flag === 'correct') {
+                row.classList.add('table-success');
+                row.querySelector('td:nth-child(5)').innerHTML = 
+                    '<span class="badge bg-success">✅ OK</span>';
+            } else {
+                row.querySelector('td:nth-child(5)').innerHTML = 
+                    '<span class="text-muted">—</span>';
+            }
+            updateCounts();
+        }
+    });
+}
+
+function toggleFilter(filter) {
+    const rows = document.querySelectorAll('#teams-table tbody tr');
+    rows.forEach(row => {
+        const flag = row.dataset.flag;
+        if (filter === 'all') {
+            row.style.display = '';
+        } else if (filter === 'incorrect') {
+            row.style.display = flag === 'incorrect' ? '' : 'none';
+        } else if (filter === 'unflagged') {
+            row.style.display = flag === 'none' ? '' : 'none';
+        }
+    });
+}
+
+function updateCounts() {
+    const rows = document.querySelectorAll('#teams-table tbody tr');
+    let flagged = 0;
+    rows.forEach(row => {
+        if (row.dataset.flag === 'incorrect') flagged++;
+    });
+    document.getElementById('count-flagged').textContent = flagged + ' flagged';
+}
+</script>
+{% endblock %}

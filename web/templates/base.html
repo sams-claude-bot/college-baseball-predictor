@@ -320,6 +320,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'debug' %}active{% endif %}" href="/debug">
+                            <i class="bi bi-bug"></i> Debug
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="/calendar">
                             <i class="bi bi-calendar3"></i> Calendar
                         </a>
