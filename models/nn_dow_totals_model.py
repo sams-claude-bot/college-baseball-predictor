@@ -24,6 +24,7 @@ from models.base_model import BaseModel
 from models.nn_features import FeatureComputer
 
 MODEL_PATH = Path(__file__).parent.parent / "data" / "nn_dow_totals_model.pt"
+FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_dow_totals_model_finetuned.pt"
 
 
 class DoWTotalsNet(nn.Module):
@@ -94,9 +95,11 @@ class NNDoWTotalsModel(BaseModel):
         self._feature_mean = None
         self._feature_std = None
 
-        if MODEL_PATH.exists():
+        # Prefer finetuned weights if available, fall back to base
+        _load_path = FINETUNED_PATH if FINETUNED_PATH.exists() else MODEL_PATH
+        if _load_path.exists():
             try:
-                checkpoint = torch.load(MODEL_PATH, map_location='cpu',
+                checkpoint = torch.load(_load_path, map_location='cpu',
                                         weights_only=False)
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                     saved_size = checkpoint.get('input_size', self.base_input_size)

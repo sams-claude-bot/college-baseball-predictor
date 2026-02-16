@@ -22,6 +22,7 @@ from models.nn_features import FeatureComputer
 
 # Paths
 MODEL_PATH = Path(__file__).parent.parent / "data" / "nn_model.pt"
+FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_model_finetuned.pt"
 
 
 class BaseballNet(nn.Module):
@@ -78,10 +79,11 @@ class NeuralModel(BaseModel):
         self.model.eval()
         self._loaded = False
 
-        # Try to load saved weights
-        if MODEL_PATH.exists():
+        # Try to load saved weights (prefer finetuned if available)
+        _load_path = FINETUNED_PATH if FINETUNED_PATH.exists() else MODEL_PATH
+        if _load_path.exists():
             try:
-                checkpoint = torch.load(MODEL_PATH, map_location='cpu',
+                checkpoint = torch.load(_load_path, map_location='cpu',
                                         weights_only=False)
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                     # Rebuild model with saved input_size if different
