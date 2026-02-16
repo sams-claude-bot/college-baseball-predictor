@@ -316,10 +316,48 @@
         }
         /* Auburn dark mode combo */
         [data-team="auburn"][data-theme="dark"] {
-            --maroon: #3a6ba5;
-            --maroon-dark: #0C2340;
+            --maroon: #DD550C;
+            --maroon-dark: #c44a0a;
+            --bg-body: #0f1520;
+            --bg-card: #162033;
+            --bg-card-header: #162033;
+            --light-grey: #1e2d45;
+            --border-color: #2a3f5f;
         }
+        [data-team="auburn"][data-theme="dark"] .bg-maroon,
+        [data-team="auburn"][data-theme="dark"] .card-header.bg-maroon {
+            background-color: #1a3158 !important;
+            border-bottom: 2px solid #DD550C;
+        }
+        [data-team="auburn"][data-theme="dark"] .stat-card .stat-value { color: #DD550C; }
+        [data-team="auburn"][data-theme="dark"] .btn-maroon {
+            background-color: #DD550C; border-color: #DD550C; color: white;
+        }
+        [data-team="auburn"][data-theme="dark"] .btn-maroon:hover {
+            background-color: #c44a0a; border-color: #c44a0a;
+        }
+        [data-team="auburn"][data-theme="dark"] .card-header { border-bottom-color: #DD550C; }
+        [data-team="auburn"][data-theme="dark"] .table thead th { 
+            border-bottom-color: #DD550C; background-color: #1e2d45;
+        }
+        [data-team="auburn"][data-theme="dark"] .badge.bg-maroon { background-color: #DD550C !important; }
+        [data-team="auburn"][data-theme="dark"] a.team-link:hover { color: #DD550C; }
         [data-team="auburn"][data-theme="dark"] .navbar-brand .icon { color: #DD550C; }
+        [data-team="auburn"][data-theme="dark"] .navbar .nav-link:hover,
+        [data-team="auburn"][data-theme="dark"] .navbar .nav-link.active {
+            background-color: #DD550C;
+        }
+        [data-team="auburn"][data-theme="dark"] .progress-bar { background-color: #DD550C; }
+        [data-team="auburn"][data-theme="dark"] .card .nav-link.active {
+            background-color: #DD550C !important; border-color: #DD550C;
+        }
+        
+        /* MSU dark mode improvements */
+        [data-team="mississippi-state"][data-theme="dark"] .stat-card .stat-value,
+        [data-theme="dark"] .stat-card .stat-value { color: #c46475; }
+        [data-theme="dark"] .card-header.bg-maroon {
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
         
         /* Team toggle button */
         .team-toggle {
