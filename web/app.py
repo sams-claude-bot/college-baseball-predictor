@@ -172,17 +172,24 @@ def get_team_detail(team_id):
     ''', (team_id,))
     team['roster'] = [dict(r) for r in c.fetchall()]
     
-    # Get Elo history (if exists)
+    # Get Elo history (game-by-game)
     c.execute('''
-        SELECT rating, games_played, updated_at
-        FROM elo_ratings
-        WHERE team_id = ?
+        SELECT eh.rating, eh.game_date, eh.opponent_id, eh.rating_change,
+               t.name as opponent_name
+        FROM elo_history eh
+        LEFT JOIN teams t ON eh.opponent_id = t.id
+        WHERE eh.team_id = ?
+        ORDER BY eh.game_date, eh.id
     ''', (team_id,))
-    elo_row = c.fetchone()
-    if elo_row:
-        team['elo_history'] = [dict(elo_row)]
-    else:
-        team['elo_history'] = []
+    team['elo_history'] = [dict(r) for r in c.fetchall()]
+    
+    # Add starting point at 1500
+    if team['elo_history']:
+        first_date = team['elo_history'][0]['game_date']
+        team['elo_history'].insert(0, {
+            'rating': 1500, 'game_date': first_date, 
+            'opponent_name': 'Start', 'rating_change': 0
+        })
     
     conn.close()
     return team

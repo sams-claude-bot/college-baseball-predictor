@@ -105,11 +105,25 @@ class EloModel(BaseModel):
         conn.commit()
         conn.close()
     
+    def _log_history(self, team_id, rating, opponent_id, rating_change, game_id=None, game_date=None):
+        """Log Elo rating change for historical charts."""
+        try:
+            conn = get_connection()
+            c = conn.cursor()
+            c.execute('''
+                INSERT INTO elo_history (team_id, rating, game_id, game_date, opponent_id, rating_change)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (team_id, round(rating, 1), game_id, game_date, opponent_id, round(rating_change, 1)))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass  # Don't break rating updates if history logging fails
+
     def _expected_score(self, rating_a, rating_b):
         """Calculate expected score (win probability) for team A"""
         return 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
     
-    def update_ratings(self, home_team_id, away_team_id, home_won, margin=None):
+    def update_ratings(self, home_team_id, away_team_id, home_won, margin=None, game_id=None, game_date=None):
         """
         Update ratings after a game
         
@@ -145,6 +159,10 @@ class EloModel(BaseModel):
         
         self._save_rating(home_team_id, new_home)
         self._save_rating(away_team_id, new_away)
+        
+        # Log history for charts
+        self._log_history(home_team_id, new_home, away_team_id, new_home - home_rating, game_id, game_date)
+        self._log_history(away_team_id, new_away, home_team_id, new_away - away_rating, game_id, game_date)
         
         return {
             "home_old": round(home_rating, 1),

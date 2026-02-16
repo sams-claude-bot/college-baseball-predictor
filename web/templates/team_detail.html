@@ -342,31 +342,75 @@
 
 {% block extra_js %}
 <script>
-{% if team.elo_history %}
-// Simple Elo chart (would be more useful with actual history data)
+{% if team.elo_history and team.elo_history|length > 1 %}
 const ctx = document.getElementById('eloChart').getContext('2d');
+const eloData = {{ team.elo_history | tojson }};
+const labels = eloData.map((d, i) => {
+    if (i === 0) return 'Start';
+    const opp = d.opponent_name || '?';
+    const change = d.rating_change > 0 ? '+' + d.rating_change.toFixed(0) : d.rating_change.toFixed(0);
+    return opp + ' (' + change + ')';
+});
+const ratings = eloData.map(d => d.rating);
+const minR = Math.min(...ratings);
+const maxR = Math.max(...ratings);
+const padding = 30;
+
 new Chart(ctx, {
     type: 'line',
     data: {
-        labels: ['Start', 'Current'],
+        labels: labels,
         datasets: [{
             label: 'Elo Rating',
-            data: [1500, {{ team.elo_rating or 1500 }}],
-            borderColor: '#5D1725',
+            data: ratings,
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725',
             backgroundColor: 'rgba(93, 23, 37, 0.1)',
             fill: true,
-            tension: 0.4
+            tension: 0.3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: ratings.map((r, i) => {
+                if (i === 0) return '#6c757d';
+                return eloData[i].rating_change >= 0 ? '#198754' : '#dc3545';
+            })
         }]
     },
     options: {
         responsive: true,
         plugins: {
-            legend: { display: false }
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const d = eloData[context.dataIndex];
+                        let label = 'Elo: ' + d.rating.toFixed(0);
+                        if (d.rating_change) {
+                            label += ' (' + (d.rating_change > 0 ? '+' : '') + d.rating_change.toFixed(1) + ')';
+                        }
+                        return label;
+                    },
+                    afterLabel: function(context) {
+                        const d = eloData[context.dataIndex];
+                        if (d.game_date && d.opponent_name !== 'Start') {
+                            return 'vs ' + d.opponent_name + ' • ' + d.game_date;
+                        }
+                        return '';
+                    }
+                }
+            }
         },
         scales: {
+            x: {
+                ticks: { 
+                    maxRotation: 45,
+                    autoSkip: true,
+                    maxTicksLimit: 15,
+                    font: { size: 10 }
+                }
+            },
             y: {
-                min: 1300,
-                max: 1800
+                min: Math.floor((minR - padding) / 10) * 10,
+                max: Math.ceil((maxR + padding) / 10) * 10
             }
         }
     }

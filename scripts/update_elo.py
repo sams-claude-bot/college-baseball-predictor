@@ -51,7 +51,7 @@ def update_elo_ratings(date=None):
         margin = abs(home_score - away_score)
         
         try:
-            elo.update_ratings(home_id, away_id, home_won, margin=margin)
+            elo.update_ratings(home_id, away_id, home_won, margin=margin, game_id=game_id, game_date=game_date)
             updated += 1
         except Exception as e:
             print(f"  Error updating {game_id}: {e}")
