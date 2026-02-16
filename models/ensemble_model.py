@@ -78,13 +78,19 @@ class EnsembleModel(BaseModel):
     description = "Dynamic weighted ensemble with accuracy-based weight adjustment"
     
     # Minimum weight any model can have
-    MIN_WEIGHT = 0.05
+    MIN_WEIGHT = 0.03
     
     # Number of recent predictions to track for accuracy
-    ROLLING_WINDOW = 50
+    ROLLING_WINDOW = 100
     
     # How quickly weights adjust (0-1, lower = slower adjustment)
-    ADJUSTMENT_RATE = 0.15
+    ADJUSTMENT_RATE = 0.4
+    
+    # Models that should decay as season data accumulates
+    PRESEASON_MODELS = {"prior", "conference"}
+    
+    # Games threshold where preseason models fully decay to MIN_WEIGHT
+    PRESEASON_DECAY_GAMES = 200
     
     def __init__(self, weights=None):
         """
@@ -173,72 +179,124 @@ class EnsembleModel(BaseModel):
     
     def _update_weights_from_history(self):
         """
-        Update weights based on recent model accuracy from SQLite database.
-        Models with better recent accuracy get higher weights.
+        Update weights based on recency-weighted model accuracy.
+        
+        Key features:
+        - Recent predictions count more than old ones (exponential decay)
+        - Preseason models (prior, conference) decay as real data accumulates
+        - Accuracy^3 amplification rewards consistently good models
+        - Aggressive adjustment rate for fast convergence
         """
         try:
             from scripts.database import get_connection
             conn = get_connection()
             c = conn.cursor()
             
-            # Get accuracy from SQLite (single source of truth)
+            # Get per-prediction accuracy with recency weighting
+            # More recent predictions get higher weight
             c.execute('''
-                SELECT model_name,
-                       SUM(was_correct) as correct,
-                       COUNT(*) as total
+                SELECT model_name, was_correct, game_id,
+                       ROW_NUMBER() OVER (PARTITION BY model_name ORDER BY predicted_at DESC) as recency_rank
                 FROM model_predictions 
                 WHERE was_correct IS NOT NULL
-                GROUP BY model_name
-            ''')
+                AND model_name IN ({})
+            '''.format(','.join('?' * len(self.models))), list(self.models.keys()))
             
-            recent_accuracy = {}
-            total_predictions = 0
+            # Build recency-weighted accuracy per model
+            model_scores = {name: {'weighted_correct': 0.0, 'weighted_total': 0.0, 'count': 0} 
+                          for name in self.models}
+            
             for row in c.fetchall():
-                model_name, correct, total = row
-                if model_name in self.models:
-                    recent_accuracy[model_name] = correct / total if total > 0 else 0.5
-                    total_predictions += total
+                model_name = row['model_name']
+                if model_name not in self.models:
+                    continue
+                rank = row['recency_rank']
+                # Exponential decay: recent games weight ~3x more than old ones
+                # Half-life of ~30 predictions
+                weight = 0.977 ** (rank - 1)  # 0.977^30 ≈ 0.5
+                
+                model_scores[model_name]['weighted_correct'] += row['was_correct'] * weight
+                model_scores[model_name]['weighted_total'] += weight
+                model_scores[model_name]['count'] += 1
+            
+            # Total evaluated predictions (for preseason decay calculation)
+            total_evaluated = max(s['count'] for s in model_scores.values()) if model_scores else 0
             
             conn.close()
             
-            # Fill in defaults for models without predictions
-            for name in self.models:
-                if name not in recent_accuracy:
-                    recent_accuracy[name] = 0.5
-            
         except Exception as e:
-            # Fallback to JSON if database fails
-            model_stats = self.accuracy_history.get("model_stats", {})
-            recent_accuracy = {}
-            for name in self.models:
-                stats = model_stats.get(name, {"recent": []})
-                recent = stats.get("recent", [])[-self.ROLLING_WINDOW:]
-                recent_accuracy[name] = sum(recent) / len(recent) if len(recent) >= 10 else 0.5
-            total_predictions = sum(len(model_stats.get(n, {}).get("recent", []))
-                                   for n in self.models)
+            return  # Can't update without data
         
-        if total_predictions < 50:
+        if total_evaluated < 20:
             return  # Not enough data to adjust yet
         
-        # Calculate new weights based on accuracy
-        # Use accuracy^2 to amplify differences
-        accuracy_scores = {n: max(a, 0.3) ** 2 for n, a in recent_accuracy.items()}
+        # Calculate recency-weighted accuracy
+        recent_accuracy = {}
+        for name in self.models:
+            s = model_scores[name]
+            if s['weighted_total'] > 0:
+                recent_accuracy[name] = s['weighted_correct'] / s['weighted_total']
+            else:
+                recent_accuracy[name] = 0.5
+        
+        # Apply preseason decay: prior and conference models fade as season data grows
+        # At 0 games: full weight. At PRESEASON_DECAY_GAMES: drops to MIN_WEIGHT
+        decay_factor = max(0.0, 1.0 - (total_evaluated / self.PRESEASON_DECAY_GAMES))
+        
+        # Calculate target weights using accuracy^3 (amplifies differences)
+        accuracy_scores = {}
+        for name in self.models:
+            acc = max(recent_accuracy[name], 0.3)
+            score = acc ** 3
+            
+            # Apply preseason decay to prior/conference models
+            if name in self.PRESEASON_MODELS:
+                score *= decay_factor
+                score = max(score, self.MIN_WEIGHT)
+            
+            accuracy_scores[name] = score
+        
         total_score = sum(accuracy_scores.values())
         
         if total_score > 0:
             target_weights = {n: s / total_score for n, s in accuracy_scores.items()}
             
-            # Blend current weights toward target (gradual adjustment)
+            # Blend current weights toward target
             for name in self.models:
                 current = self.weights.get(name, self.MIN_WEIGHT)
                 target = target_weights.get(name, self.MIN_WEIGHT)
-                
-                # Gradual adjustment
                 new_weight = current + (target - current) * self.ADJUSTMENT_RATE
                 self.weights[name] = max(new_weight, self.MIN_WEIGHT)
             
             # Re-normalize
             self.weights = self._normalize_weights(self.weights)
+            
+            # Log weight changes for tracking
+            self._log_weight_update(recent_accuracy, decay_factor, total_evaluated)
+    
+    def _log_weight_update(self, accuracy, decay_factor, total_games):
+        """Log weight updates to ensemble_weights_history table."""
+        try:
+            from scripts.database import get_connection
+            conn = get_connection()
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS ensemble_weight_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                    total_games INTEGER,
+                    decay_factor REAL,
+                    weights_json TEXT,
+                    accuracy_json TEXT
+                )
+            ''')
+            conn.execute('''
+                INSERT INTO ensemble_weight_log (total_games, decay_factor, weights_json, accuracy_json)
+                VALUES (?, ?, ?, ?)
+            ''', (total_games, decay_factor, json.dumps(self.weights), json.dumps(accuracy)))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass  # Non-critical
     
     def record_prediction(self, game_id, predictions, actual_winner_id):
         """
