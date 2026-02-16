@@ -155,3 +155,17 @@ Started: 2026-02-16
 - Vanderbilt
 
 ---
+
+## Cross-Reference Conflict Resolution
+
+Found and fixed scheduling conflicts where teams were double-booked:
+
+1. **Mar 13-15**: Removed Oklahoma vs Texas (kept Ole Miss @ Texas per verification)
+2. **Apr 5**: Removed Texas vs Tennessee (kept Tennessee @ LSU per verification)
+3. **Apr 24-26**: Removed Oklahoma vs Florida (kept Auburn @ Oklahoma)
+4. **May 8-10**: Removed Ole Miss vs Texas A&M (kept Arkansas @ Texas A&M as original)
+5. **May 14-16**: Removed Ole Miss @ Alabama (kept Alabama vs Florida as original)
+
+Note: Some of these deletions may need re-verification to find correct dates for those series.
+
+---
