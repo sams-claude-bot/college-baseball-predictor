@@ -140,16 +140,27 @@ def espn_display_to_slug(display_name):
     
     # Common multi-word mascots to strip
     multi_mascots = [
-        "Nittany Lions", "Horned Frogs", "Golden Eagles", "Thundering Herd",
-        "Mean Green", "Blue Devils", "Demon Deacons", "Yellow Jackets",
-        "Crimson Tide", "Fighting Irish", "Golden Gophers", "Scarlet Knights",
-        "Red Storm", "Blue Jays", "Red Raiders", "Sun Devils", "Aztecs",
-        "Tar Heels", "Boilermakers", "Hoosiers", "Buckeyes", "Wolverines",
-        "Spartans", "Badgers", "Hawkeyes", "Cornhuskers", "Wildcats",
-        "Golden Flashes", "Runnin' Bulldogs", "River Hawks", "Beach",
-        "Screaming Eagles", "Golden Lions", "Delta Devils", "Rainbow Warriors",
-        "Saluki", "Redbirds", "Leathernecks", "Fighting Illini",
-        "Ragin' Cajuns", "Hilltoppers", "Blazers", "49ers",
+        # Two-word mascots (alphabetical for maintainability)
+        "Black Bears", "Black Knights", "Blue Demons", "Blue Devils",
+        "Blue Hens", "Blue Hose", "Blue Jays", "Blue Raiders",
+        "Crimson Tide", "Delta Devils", "Demon Deacons",
+        "Fighting Camels", "Fighting Hawks", "Fighting Illini", "Fighting Irish",
+        "Golden Eagles", "Golden Flashes", "Golden Gophers", "Golden Griffins",
+        "Golden Grizzlies", "Golden Hurricane", "Golden Lions",
+        "Green Wave", "Horned Frogs",
+        "Mean Green", "Mountain Hawks",
+        "Nittany Lions",
+        "Purple Eagles",
+        "Ragin' Cajuns", "Rainbow Warriors", "Red Flash", "Red Foxes",
+        "Red Raiders", "Red Storm", "River Hawks", "Runnin' Bulldogs",
+        "Scarlet Knights", "Screaming Eagles", "Sun Devils",
+        "Tar Heels", "Thundering Herd", "Wolf Pack",
+        "Yellow Jackets",
+        # Single-word but commonly confused
+        "Aztecs", "Beach", "Blazers", "Boilermakers", "Buckeyes",
+        "Cornhuskers", "Hawkeyes", "Hilltoppers", "Hoosiers",
+        "Leathernecks", "Redbirds", "Saluki", "Spartans",
+        "Volunteers", "Wolverines", "Wildcats", "Badgers", "49ers",
     ]
     
     for mascot in multi_mascots:
