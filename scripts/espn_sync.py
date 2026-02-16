@@ -78,6 +78,7 @@ NAME_OVERRIDES = {
     "Little Rock Trojans": "little-rock",
     "Tarleton State Texans": "tarleton-state",
     "Seattle U Redhawks": "seattle",
+    "Tulane Green Wave": "tulane",
     "Purdue Fort Wayne Mastodons": "purdue-fort-wayne",
     "Southern University Jaguars": "southern",
     "Grambling Tigers": "grambling",
