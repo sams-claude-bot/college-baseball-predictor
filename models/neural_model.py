@@ -38,6 +38,7 @@ class BaseballNet(nn.Module):
 
     def __init__(self, input_size):
         super().__init__()
+        self.input_size = input_size
         self.net = nn.Sequential(
             nn.Linear(input_size, 128),
             nn.BatchNorm1d(128),
@@ -83,6 +84,12 @@ class NeuralModel(BaseModel):
                 checkpoint = torch.load(MODEL_PATH, map_location='cpu',
                                         weights_only=False)
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+                    # Rebuild model with saved input_size if different
+                    saved_size = checkpoint.get('input_size', self.input_size)
+                    if saved_size != self.input_size:
+                        self.input_size = saved_size
+                        self.model = BaseballNet(saved_size)
+                        self.model.eval()
                     self.model.load_state_dict(checkpoint['model_state_dict'])
                     self._feature_mean = checkpoint.get('feature_mean')
                     self._feature_std = checkpoint.get('feature_std')
@@ -288,6 +295,7 @@ class Trainer:
             'model_state_dict': self.model.state_dict(),
             'feature_mean': self.feature_mean,
             'feature_std': self.feature_std,
+            'input_size': self.model.input_size,
         }, MODEL_PATH)
 
     def _load_best_checkpoint(self):
