@@ -1736,6 +1736,13 @@ def debug():
     
     conn.close()
     
+    # Bug reports
+    reports_path = base_dir / 'data' / 'bug_reports.json'
+    bug_reports = []
+    if reports_path.exists():
+        with open(reports_path) as f:
+            bug_reports = json.load(f)
+    
     return render_template('debug.html',
         teams=teams_over_3,
         flags=flags,
@@ -1744,7 +1751,8 @@ def debug():
         total_other=total_other,
         dupe_count=dupe_count,
         orphan_count=orphan_count,
-        recent_dates=recent_dates
+        recent_dates=recent_dates,
+        bug_reports=bug_reports
     )
 
 
@@ -1778,6 +1786,60 @@ def api_debug_flag():
         json.dump(flags, f, indent=2)
     
     return jsonify({'ok': True, 'team_id': team_id, 'flag': flag})
+
+
+@app.route('/api/bug-report', methods=['POST'])
+def api_bug_report():
+    """Submit a bug report."""
+    data = request.get_json()
+    description = data.get('description', '').strip()
+    page = data.get('page', '')
+    
+    if not description:
+        return jsonify({'error': 'Description required'}), 400
+    
+    reports_path = base_dir / 'data' / 'bug_reports.json'
+    reports = []
+    if reports_path.exists():
+        with open(reports_path) as f:
+            reports = json.load(f)
+    
+    reports.append({
+        'id': len(reports) + 1,
+        'description': description,
+        'page': page,
+        'status': 'open',
+        'submitted_at': datetime.now().isoformat()
+    })
+    
+    with open(reports_path, 'w') as f:
+        json.dump(reports, f, indent=2)
+    
+    return jsonify({'ok': True, 'id': len(reports)})
+
+
+@app.route('/api/bug-report/<int:bug_id>', methods=['PATCH'])
+def api_bug_update(bug_id):
+    """Update bug report status."""
+    data = request.get_json()
+    status = data.get('status', 'closed')
+    
+    reports_path = base_dir / 'data' / 'bug_reports.json'
+    if not reports_path.exists():
+        return jsonify({'error': 'No reports'}), 404
+    
+    with open(reports_path) as f:
+        reports = json.load(f)
+    
+    for r in reports:
+        if r['id'] == bug_id:
+            r['status'] = status
+            break
+    
+    with open(reports_path, 'w') as f:
+        json.dump(reports, f, indent=2)
+    
+    return jsonify({'ok': True})
 
 
 # ============================================

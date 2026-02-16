@@ -58,6 +58,52 @@
         </div>
     </div>
 
+    <!-- Bug Reports -->
+    <div class="card mb-4">
+        <div class="card-header bg-maroon">
+            <i class="bi bi-bug"></i> Bug Reports
+            <span class="badge bg-light text-dark ms-2">{{ bug_reports|selectattr('status', 'equalto', 'open')|list|length }} open</span>
+        </div>
+        <div class="card-body p-0">
+            {% set open_bugs = bug_reports|selectattr('status', 'equalto', 'open')|list %}
+            {% set closed_bugs = bug_reports|selectattr('status', 'equalto', 'closed')|list %}
+            {% if open_bugs %}
+            <table class="table table-sm mb-0">
+                <thead><tr><th>#</th><th>Description</th><th>Page</th><th>Submitted</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for bug in open_bugs|reverse %}
+                <tr id="bug-{{ bug.id }}">
+                    <td>{{ bug.id }}</td>
+                    <td>{{ bug.description }}</td>
+                    <td><small class="text-muted">{{ bug.page }}</small></td>
+                    <td><small>{{ bug.submitted_at[:16] }}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-success" onclick="closeBug({{ bug.id }})">✅ Resolve</button>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center text-muted py-3">
+                <i class="bi bi-check-circle"></i> No open bugs
+            </div>
+            {% endif %}
+            {% if closed_bugs %}
+            <details class="p-3">
+                <summary class="text-muted" style="cursor:pointer;">{{ closed_bugs|length }} resolved</summary>
+                <table class="table table-sm mt-2 mb-0">
+                    <tbody>
+                    {% for bug in closed_bugs|reverse %}
+                    <tr class="text-muted"><td>{{ bug.id }}</td><td><s>{{ bug.description }}</s></td><td><small>{{ bug.page }}</small></td><td><small>{{ bug.submitted_at[:16] }}</small></td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Recent Dates -->
     <div class="card mb-4">
         <div class="card-header"><i class="bi bi-calendar3"></i> Recent Dates</div>
@@ -148,6 +194,19 @@
 </div>
 
 <script>
+function closeBug(bugId) {
+    fetch(`/api/bug-report/${bugId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: 'closed'})
+    }).then(r => r.json()).then(data => {
+        if (data.ok) {
+            const row = document.getElementById(`bug-${bugId}`);
+            if (row) row.remove();
+        }
+    });
+}
+
 function flagTeam(teamId, flag) {
     let note = '';
     if (flag === 'incorrect') {
