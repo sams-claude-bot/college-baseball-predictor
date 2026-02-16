@@ -108,6 +108,30 @@ class NeuralModel(BaseModel):
             self._feature_mean = None
             self._feature_std = None
 
+    # Calibration parameters (updated periodically from prediction history)
+    # Stretches probabilities away from 0.5 to match observed win rates
+    CALIBRATION_STRENGTH = 1.5  # >1 stretches, <1 compresses, 1.0 = no change
+
+    def _calibrate(self, prob):
+        """
+        Apply calibration to raw model output.
+        
+        Uses power-based stretching: maps 0.5 to 0.5, but stretches
+        predictions toward 0 and 1 based on CALIBRATION_STRENGTH.
+        """
+        if self.CALIBRATION_STRENGTH == 1.0:
+            return prob
+        
+        # Center around 0.5, apply power scaling, re-center
+        centered = prob - 0.5  # range [-0.5, 0.5]
+        sign = 1 if centered >= 0 else -1
+        magnitude = abs(centered) * 2  # range [0, 1]
+        
+        # Power < 1 stretches toward extremes
+        stretched = magnitude ** (1.0 / self.CALIBRATION_STRENGTH)
+        
+        return 0.5 + sign * stretched / 2
+
     def is_trained(self):
         """Check if model weights have been loaded."""
         return self._loaded
@@ -146,17 +170,23 @@ class NeuralModel(BaseModel):
 
         with torch.no_grad():
             x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
-            prob = self.model(x).item()
+            raw_prob = self.model(x).item()
 
-        # Clamp to reasonable range
+        # Calibration: stretch predictions toward extremes
+        # Based on empirical observation that model is under-confident
+        # Applies sigmoid-based stretching centered at 0.5
+        prob = self._calibrate(raw_prob)
         prob = max(0.05, min(0.95, prob))
 
-        # Estimate runs from probability (rough mapping)
-        # Use log5-style: stronger team scores ~5, weaker ~3.5
-        avg_runs = 4.5
-        run_diff = (prob - 0.5) * 4.0  # scale prob diff to run diff
+        # Estimate runs from probability
+        # College baseball averages ~6 runs per team (12 total)
+        avg_runs = 6.0
+        run_diff = (prob - 0.5) * 6.0  # scale prob diff to run diff
         home_runs = avg_runs + run_diff / 2
         away_runs = avg_runs - run_diff / 2
+        # Floor at 1 run
+        home_runs = max(home_runs, 1.0)
+        away_runs = max(away_runs, 1.0)
 
         # Confidence based on how far from 0.5
         deviation = abs(prob - 0.5)

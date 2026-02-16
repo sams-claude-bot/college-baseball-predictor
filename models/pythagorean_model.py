@@ -23,7 +23,7 @@ class PythagoreanModel(BaseModel):
     description = "Bill James Pythagorean expectation based on runs scored/allowed"
     
     EXPONENT = 1.83  # Baseball standard
-    HOME_ADVANTAGE = 0.54
+    HOME_ADVANTAGE = 0.03  # Additive home advantage (~3%)
     NEUTRAL_ADVANTAGE = 0.50
     
     def __init__(self):
@@ -78,8 +78,8 @@ class PythagoreanModel(BaseModel):
         if neutral_site:
             home_prob = base_prob
         else:
-            # Shift toward home advantage
-            home_prob = base_prob * 0.8 + self.HOME_ADVANTAGE * 0.2
+            # Additive home advantage
+            home_prob = base_prob + self.HOME_ADVANTAGE
         
         home_prob = max(0.1, min(0.9, home_prob))
         

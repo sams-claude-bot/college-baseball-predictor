@@ -903,19 +903,30 @@ def rankings():
     # Get Elo Top 25
     conn2 = get_connection()
     c2 = conn2.cursor()
-    c2.execute('''
+    elo_limit = 200 if conference else 25
+    elo_query = '''
         SELECT e.team_id, e.rating, t.name, t.conference, t.current_rank
         FROM elo_ratings e
         JOIN teams t ON e.team_id = t.id
-        ORDER BY e.rating DESC
-        LIMIT 25
-    ''')
+    '''
+    elo_params = []
+    if conference:
+        elo_query += ' WHERE t.conference = ?'
+        elo_params.append(conference)
+    elo_query += ' ORDER BY e.rating DESC LIMIT ?'
+    elo_params.append(elo_limit)
+    
+    c2.execute(elo_query, elo_params)
     elo_top_25 = [dict(row) for row in c2.fetchall()]
     for i, team in enumerate(elo_top_25):
         team['elo_rank'] = i + 1
         record = get_team_record(team['team_id'])
         team['wins'] = record['wins']
         team['losses'] = record['losses']
+        # Add SOS if available
+        sos_row = c2.execute('SELECT past_sos, overall_sos FROM team_sos WHERE team_id = ?', 
+                            (team['team_id'],)).fetchone()
+        team['sos'] = round(sos_row['past_sos']) if sos_row else None
     conn2.close()
     
     # Find disagreements - teams in AP but not Elo top 25, and vice versa

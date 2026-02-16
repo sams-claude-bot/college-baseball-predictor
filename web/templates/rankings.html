@@ -89,6 +89,7 @@
                                 <th>Team</th>
                                 <th class="text-center">Record</th>
                                 <th class="text-end">Elo</th>
+                                <th class="text-center">SOS</th>
                                 <th class="text-center">AP</th>
                             </tr>
                         </thead>
@@ -107,6 +108,11 @@
                                 </td>
                                 <td class="text-center">{{ team.wins }}-{{ team.losses }}</td>
                                 <td class="text-end"><strong>{{ team.rating|round(0)|int }}</strong></td>
+                                <td class="text-center">
+                                    {% if team.sos %}
+                                    <span class="{% if team.sos >= 1550 %}text-danger{% elif team.sos >= 1500 %}text-warning{% else %}text-muted{% endif %}">{{ team.sos }}</span>
+                                    {% else %}—{% endif %}
+                                </td>
                                 <td class="text-center">
                                     {% if team.current_rank %}
                                     <span class="badge bg-maroon">{{ team.current_rank }}</span>
