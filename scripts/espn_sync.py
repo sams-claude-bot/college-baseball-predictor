@@ -478,6 +478,7 @@ def main():
     parser.add_argument('--date', help='Sync specific date (YYYY-MM-DD)')
     parser.add_argument('--range', nargs=2, metavar=('START', 'END'), help='Sync date range')
     parser.add_argument('--sync-teams', action='store_true', help='Sync all D1 teams from ESPN')
+    parser.add_argument('--backfill', action='store_true', help='After sync, backfill missing scores via team schedules')
     args = parser.parse_args()
     
     # Load existing ESPN ID mapping
@@ -529,6 +530,12 @@ def main():
     print(f"\n{'='*50}")
     print(f"TOTAL: {totals['games_created']} games created, {totals['games_updated']} updated, "
           f"{totals['teams_created']} new teams")
+    
+    # Run backfill if requested — catches games the scoreboard API missed
+    if args.backfill:
+        print("\n--- Running backfill for missing scores ---")
+        from espn_backfill import backfill
+        backfill()
 
 
 if __name__ == '__main__':
