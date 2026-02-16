@@ -1,0 +1,281 @@
+GAME CONFLICTS REPORT - 485 total
+Past (played): 17
+Future (scheduled): 468
+
+=== PAST CONFLICTS (need resolution) ===
+
+2026-02-13 | evansville (2 opponents, 2 played)
+  [ESPN] AWAY vs kennesaw-state (11-3) [final] 2026-02-13_evansville_kennesaw-state
+  [ESPN] AWAY vs marshall (5-2) [final] 2026-02-13_evansville_marshall
+
+2026-02-13 | florida-state (2 opponents, 2 played)
+  [SCRAPER] HOME vs uab (7-9) [completed] 2026-02-13-florida-state-vs-uab
+  [ESPN] HOME vs james-madison (5-1) [final] 2026-02-13_james-madison_florida-state
+
+2026-02-13 | purdue (2 opponents, 2 played)
+  [SCRAPER] HOME vs portland-state (3-9) [completed] 2026-02-13-purdue-vs-portland-state
+  [ESPN] HOME vs portland (3-9) [final] 2026-02-13_portland_purdue
+
+2026-02-13 | uab (2 opponents, 2 played)
+  [SCRAPER] AWAY vs florida-state (7-9) [completed] 2026-02-13-florida-state-vs-uab
+  [ESPN] AWAY vs florida (7-9) [final] 2026-02-13_uab_florida
+
+2026-02-14 | ball-state (2 opponents, 2 played)
+  [ESPN] AWAY vs stetson (2-5) [final] 2026-02-14_ball-state_stetson
+  [ESPN] HOME vs st-johns (8-2) [final] 2026-02-14_st-johns_ball-state
+
+2026-02-14 | boston-college (2 opponents, 2 played)
+  [SCRAPER] AWAY vs seton-hall (4-6) [completed] 2026-02-14-seton-hall-vs-boston-college
+  [ESPN] HOME vs houston (1-5) [final] 2026-02-14_boston-college_houston
+
+2026-02-14 | florida-state (2 opponents, 2 played)
+  [SCRAPER] HOME vs uab (11-0) [completed] 2026-02-14-florida-state-vs-uab
+  [ESPN] HOME vs james-madison (16-5) [final] 2026-02-14_james-madison_florida-state
+
+2026-02-14 | grand-canyon (2 opponents, 2 played)
+  [SCRAPER] HOME vs northeastern (10-0) [completed] 2026-02-14-grand-canyon-lopes-vs-northeastern
+  [ESPN] HOME vs penn-state (3-9) [final] 2026-02-14_grand-canyon_penn-state
+
+2026-02-14 | marshall (2 opponents, 2 played)
+  [ESPN] AWAY vs evansville (11-18) [final] 2026-02-14_marshall_evansville-purple
+  [ESPN] AWAY vs kennesaw-state (10-9) [final] 2026-02-14_marshall_kennesaw-state
+
+2026-02-14 | northeastern (2 opponents, 2 played)
+  [SCRAPER] AWAY vs grand-canyon (10-0) [completed] 2026-02-14-grand-canyon-lopes-vs-northeastern
+  [ESPN] HOME vs nebraska (4-7) [final] 2026-02-14_nebraska_northeastern
+
+2026-02-14 | purdue (2 opponents, 2 played)
+  [SCRAPER] HOME vs portland-state (2-1) [completed] 2026-02-14-purdue-vs-portland-state
+  [ESPN] HOME vs portland (2-1) [final] 2026-02-14_portland_purdue
+
+2026-02-14 | seton-hall (2 opponents, 2 played)
+  [SCRAPER] HOME vs boston-college (4-6) [completed] 2026-02-14-seton-hall-vs-boston-college
+  [ESPN] AWAY vs manhattan (2-7) [final] 2026-02-14_seton-hall_manhattan
+
+2026-02-14 | st-johns (2 opponents, 2 played)
+  [ESPN] HOME vs minnesota (0-8) [final] 2026-02-14_minnesota_st-johns
+  [ESPN] AWAY vs ball-state (8-2) [final] 2026-02-14_st-johns_ball-state
+
+2026-02-14 | uab (2 opponents, 3 played)
+  [SCRAPER] AWAY vs florida-state (11-0) [completed] 2026-02-14-florida-state-vs-uab
+  [ESPN] AWAY vs florida (6-1) [final] 2026-02-14_uab_florida
+  [ESPN] AWAY vs florida (11-0) [final] 2026-02-14_uab_florida_g2
+
+2026-02-15 | nebraska (2 opponents, 2 played)
+  [SCRAPER] AWAY vs northeastern (4-7) [completed] 2026-02-15-northeastern-vs-nebraska
+  [ESPN] AWAY vs grand-canyon (1-9) [final] 2026-02-15_nebraska_grand-canyon
+
+2026-02-15 | northeastern (2 opponents, 2 played)
+  [SCRAPER] HOME vs nebraska (4-7) [completed] 2026-02-15-northeastern-vs-nebraska
+  [ESPN] AWAY vs iowa (21-13) [final] 2026-02-15_northeastern_iowa
+
+2026-02-15 | purdue (2 opponents, 2 played)
+  [SCRAPER] HOME vs portland-state (10-7) [completed] 2026-02-15-purdue-vs-portland-state
+  [ESPN] HOME vs portland (10-7) [final] 2026-02-15_portland_purdue
+
+
+=== FUTURE CONFLICTS (schedule disagreements) ===
+
+2026-02-17 | charlotte (2 opponents)
+  [ESPN] vs clemson 2026-02-17_charlotte_clemson
+  [ESPN] vs coastal-carolina 2026-02-17_charlotte_coastal-carolina
+
+2026-02-17 | coastal-carolina (2 opponents)
+  [SCRAPER] vs charleston 2026-02-17-coastal-carolina-vs-charleston
+  [ESPN] vs charlotte 2026-02-17_charlotte_coastal-carolina
+
+2026-02-17 | duke (2 opponents)
+  [SCRAPER] vs appalachian-state 2026-02-17-duke-vs-appalachian-state
+  [ESPN] vs unc-asheville 2026-02-17_unc-asheville_duke
+
+2026-02-17 | florida-state (2 opponents)
+  [SCRAPER] vs stetson 2026-02-17-stetson-hatters-vs-florida-state
+  [ESPN] vs jacksonville 2026-02-17_florida-state_jacksonville
+
+2026-02-17 | georgia-tech (2 opponents)
+  [SCRAPER] vs georgia-southern 2026-02-17-georgia-southern-vs-georgia-tech-yellow-jackets
+  [ESPN] vs kennesaw-state 2026-02-17_kennesaw-state_georgia-tech
+
+2026-02-17 | jacksonville-state (2 opponents)
+  [SCRAPER] vs georgia-state 2026-02-17-jacksonville-state-vs-georgia-state
+  [ESPN] vs ole-miss 2026-02-17_jacksonville-state_ole-miss
+
+2026-02-17 | kennesaw-state (2 opponents)
+  [SCRAPER] vs west-georgia 2026-02-17-kennesaw-state-vs-west-georgia
+  [ESPN] vs georgia-tech 2026-02-17_kennesaw-state_georgia-tech
+
+2026-02-17 | louisville (2 opponents)
+  [SCRAPER] vs xavier 2026-02-17-louisville-vs-xavier
+  [ESPN] vs northern-kentucky 2026-02-17_northern-kentucky_louisville
+
+2026-02-17 | missouri-state (2 opponents)
+  [SCRAPER] vs florida-atlantic 2026-02-17-florida-atlantic-vs-missouri-state
+  [SCRAPER] vs oral-roberts 2026-02-17-oral-roberts-vs-missouri-state
+
+2026-02-17 | new-mexico-state (2 opponents)
+  [SCRAPER] vs oklahoma-state 2026-02-17-oklahoma-state-vs-new-mexico-state
+  [ESPN] vs texas-tech 2026-02-17_new-mexico-state_texas-tech
+
+2026-02-17 | north-carolina (2 opponents)
+  [SCRAPER] vs richmond 2026-02-17-north-carolina-vs-richmond
+  [ESPN] vs longwood 2026-02-17_longwood_north-carolina
+
+2026-02-17 | northern-kentucky (2 opponents)
+  [SCRAPER] vs eastern-kentucky 2026-02-17-eastern-kentucky-vs-northern-kentucky
+  [ESPN] vs louisville 2026-02-17_northern-kentucky_louisville
+
+2026-02-17 | oklahoma-state (2 opponents)
+  [SCRAPER] vs new-mexico-state 2026-02-17-oklahoma-state-vs-new-mexico-state
+  [ESPN] vs new-mexico 2026-02-17_new-mexico_oklahoma-state
+
+2026-02-17 | ole-miss (2 opponents)
+  [SCRAPER] vs arkansas-state 2026-02-17-ole-miss-vs-arkansas-state
+  [ESPN] vs jacksonville-state 2026-02-17_jacksonville-state_ole-miss
+
+2026-02-17 | stetson (2 opponents)
+  [SCRAPER] vs florida-state 2026-02-17-stetson-hatters-vs-florida-state
+  [ESPN] vs florida 2026-02-17_florida_stetson
+
+2026-02-17 | unc-greensboro (2 opponents)
+  [ESPN] vs nc-state 2026-02-17_unc-greensboro_nc-state
+  [ESPN] vs wake-forest 2026-02-17_unc-greensboro_wake-forest
+
+2026-02-18 | nicholls (2 opponents)
+  [SCRAPER] vs south-alabama 2026-02-18-nicholls-colonels-vs-south-alabama-jaguars
+  [ESPN] vs lsu 2026-02-18_nicholls_lsu
+
+2026-02-20 | arkansas-state (2 opponents)
+  [SCRAPER] vs eastern-illinois 2026-02-20-arkansas-state-vs-eastern-illinois
+  [SCRAPER] vs xavier 2026-02-20-arkansas-state-vs-xavier
+
+2026-02-20 | coastal-carolina (2 opponents)
+  [ESPN] vs illinois 2026-02-20_illinois_coastal-carolina
+  [ESPN] vs vcu 2026-02-20_vcu_coastal-carolina
+
+2026-02-20 | east-carolina (2 opponents)
+  [SCRAPER] vs north-carolina 2026-02-20-east-carolina-vs-north-carolina
+  [ESPN] vs ole-miss 2026-02-20_east-carolina_ole-miss
+
+2026-02-20 | eastern-illinois (2 opponents)
+  [SCRAPER] vs arkansas-state 2026-02-20-arkansas-state-vs-eastern-illinois
+  [ESPN] vs illinois 2026-02-20_eastern-illinois_illinois
+
+2026-02-20 | florida-state (2 opponents)
+  [SCRAPER] vs kennesaw-state 2026-02-20-florida-state-vs-kennesaw-state
+  [ESPN] vs michigan 2026-02-20_florida-state_michigan
+
+2026-02-20 | georgia-tech (2 opponents)
+  [SCRAPER] vs stony-brook 2026-02-20-georgia-tech-vs-stony-brook
+  [ESPN] vs uic 2026-02-20_uic_georgia-tech
+
+2026-02-20 | illinois (3 opponents)
+  [SCRAPER] vs vcu 2026-02-20-vcu-vs-illinois
+  [ESPN] vs eastern-illinois 2026-02-20_eastern-illinois_illinois
+  [ESPN] vs coastal-carolina 2026-02-20_illinois_coastal-carolina
+
+2026-02-20 | james-madison (2 opponents)
+  [SCRAPER] vs le-moyne 2026-02-20-james-madison-vs-le-moyne
+  [ESPN] vs penn-state 2026-02-20_penn-state_james-madison
+
+2026-02-20 | north-florida (2 opponents)
+  [SCRAPER] vs quinnipiac 2026-02-20-north-florida-ospreys-vs-quinnipiac
+  [ESPN] vs rutgers 2026-02-20_rutgers_north-florida
+
+2026-02-20 | ohio-state (3 opponents)
+  [SCRAPER] vs louisiana-tech 2026-02-20-louisiana-tech-vs-ohio-state
+  [SCRAPER] vs memphis 2026-02-20-memphis-vs-ohio-state
+  [ESPN] vs sacramento-state 2026-02-20_ohio-state_sacramento-state
+
+2026-02-20 | ole-miss (2 opponents)
+  [SCRAPER] vs missouri-state 2026-02-20-ole-miss-vs-missouri-state
+  [ESPN] vs east-carolina 2026-02-20_east-carolina_ole-miss
+
+2026-02-20 | penn-state (2 opponents)
+  [SCRAPER] vs richmond 2026-02-20-richmond-vs-penn-state
+  [ESPN] vs james-madison 2026-02-20_penn-state_james-madison
+
+2026-02-20 | purdue (2 opponents)
+  [ESPN] vs lsu 2026-02-20_purdue_lsu
+  [ESPN] vs southern-miss 2026-02-20_purdue_southern-miss
+
+2026-02-20 | southern-illinois (2 opponents)
+  [SCRAPER] vs north-carolina-at 2026-02-20-north-carolina-at-vs-southern-illinois
+  [ESPN] vs alabama 2026-02-20_southern-illinois_alabama
+
+2026-02-20 | stetson (2 opponents)
+  [SCRAPER] vs north-dakota-state 2026-02-20-stetson-hatters-vs-north-dakota-state
+  [ESPN] vs miami-fl 2026-02-20_stetson_miami-fl
+
+2026-02-20 | uconn (2 opponents)
+  [SCRAPER] vs arizona-state 2026-02-20-arizona-state-vs-uconn
+  [ESPN] vs florida 2026-02-20_uconn_florida
+
+2026-02-20 | vcu (2 opponents)
+  [SCRAPER] vs illinois 2026-02-20-vcu-vs-illinois
+  [ESPN] vs coastal-carolina 2026-02-20_vcu_coastal-carolina
+
+2026-02-20 | virginia (2 opponents)
+  [SCRAPER] vs monmouth 2026-02-20-virginia-vs-monmouth
+  [ESPN] vs william-mary 2026-02-20_william-mary_virginia
+
+2026-02-20 | william-mary (2 opponents)
+  [SCRAPER] vs binghamton 2026-02-20-william-mary-tribe-vs-binghamton-bearcats
+  [ESPN] vs virginia 2026-02-20_william-mary_virginia
+
+2026-02-21 | arizona-state (2 opponents)
+  [SCRAPER] vs st-johns 2026-02-21-arizona-state-vs-st-johns
+  [SCRAPER] vs uconn 2026-02-21-arizona-state-vs-uconn
+
+2026-02-21 | arkansas-state (2 opponents)
+  [SCRAPER] vs eastern-illinois 2026-02-21-arkansas-state-vs-eastern-illinois
+  [SCRAPER] vs xavier 2026-02-21-arkansas-state-vs-xavier
+
+2026-02-21 | coastal-carolina (2 opponents)
+  [ESPN] vs illinois 2026-02-21_illinois_coastal-carolina
+  [ESPN] vs vcu 2026-02-21_vcu_coastal-carolina
+
+2026-02-21 | east-carolina (2 opponents)
+  [SCRAPER] vs north-carolina 2026-02-21-east-carolina-vs-north-carolina
+  [ESPN] vs ole-miss 2026-02-21_east-carolina_ole-miss
+
+2026-02-21 | eastern-illinois (2 opponents)
+  [SCRAPER] vs arkansas-state 2026-02-21-arkansas-state-vs-eastern-illinois
+  [ESPN] vs illinois 2026-02-21_eastern-illinois_illinois
+
+2026-02-21 | florida-state (2 opponents)
+  [SCRAPER] vs kennesaw-state 2026-02-21-florida-state-vs-kennesaw-state
+  [ESPN] vs auburn 2026-02-21_auburn_florida-state
+
+2026-02-21 | georgia-tech (2 opponents)
+  [SCRAPER] vs stony-brook 2026-02-21-georgia-tech-vs-stony-brook
+  [ESPN] vs uic 2026-02-21_uic_georgia-tech
+
+2026-02-21 | illinois (3 opponents)
+  [SCRAPER] vs vcu 2026-02-21-vcu-vs-illinois
+  [ESPN] vs eastern-illinois 2026-02-21_eastern-illinois_illinois
+  [ESPN] vs coastal-carolina 2026-02-21_illinois_coastal-carolina
+
+2026-02-21 | james-madison (2 opponents)
+  [SCRAPER] vs le-moyne 2026-02-21-james-madison-vs-le-moyne
+  [ESPN] vs penn-state 2026-02-21_penn-state_james-madison
+
+2026-02-21 | louisiana-tech (2 opponents)
+  [SCRAPER] vs ohio-state 2026-02-21-louisiana-tech-vs-ohio-state
+  [SCRAPER] vs memphis 2026-02-21-memphis-vs-louisiana-tech
+
+2026-02-21 | maryland (2 opponents)
+  [SCRAPER] vs louisiana 2026-02-21-louisiana-vs-maryland
+  [ESPN] vs nc-state 2026-02-21_maryland_nc-state
+
+2026-02-21 | minnesota (2 opponents)
+  [SCRAPER] vs northeastern 2026-02-21-northeastern-vs-minnesota-golden-gophers
+  [ESPN] vs new-mexico 2026-02-21_minnesota_new-mexico
+
+2026-02-21 | north-carolina (2 opponents)
+  [SCRAPER] vs east-carolina 2026-02-21-east-carolina-vs-north-carolina
+  [ESPN] vs duke 2026-02-21_north-carolina_duke
+
+2026-02-21 | north-florida (2 opponents)
+  [SCRAPER] vs quinnipiac 2026-02-21-north-florida-ospreys-vs-quinnipiac
+  [ESPN] vs rutgers 2026-02-21_rutgers_north-florida
+
