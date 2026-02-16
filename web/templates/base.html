@@ -437,17 +437,10 @@
                             <li><a class="dropdown-item" href="/tracker"><i class="bi bi-graph-up-arrow"></i> P&L Tracker</a></li>
                             <li><a class="dropdown-item" href="/models"><i class="bi bi-gear"></i> Models</a></li>
                             <li><a class="dropdown-item" href="/debug"><i class="bi bi-bug"></i> Debug</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="#" onclick="toggleTeam(); return false;"><i class="bi bi-arrow-left-right"></i> Switch to <span id="teamToggleSwitchTo">Auburn</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="toggleDarkMode(); return false;"><i class="bi bi-moon-fill" id="darkModeIcon"></i> <span id="darkModeLabel">Dark Mode</span></a></li>
                         </ul>
-                    </li>
-                    <li class="nav-item d-flex align-items-center me-2">
-                        <button class="team-toggle" onclick="toggleTeam()" title="Switch team" id="teamToggleBtn">
-                            <span id="teamToggleLabel">MSU</span>
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">
-                            <i class="bi bi-moon-fill" id="darkModeIcon"></i>
-                        </button>
                     </li>
                 </ul>
             </div>
@@ -484,6 +477,8 @@
         if (icon) {
             icon.className = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
         }
+        const label = document.getElementById('darkModeLabel');
+        if (label) label.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
     }
     // Team toggle
     const TEAM_CONFIG = {
@@ -504,8 +499,11 @@
     }
     
     function updateTeamLabel(team) {
-        const label = document.getElementById('teamToggleLabel');
-        if (label) label.textContent = TEAM_CONFIG[team]?.label || 'MSU';
+        const nextTeam = TEAM_CONFIG[team]?.next || 'auburn';
+        const switchLabel = document.getElementById('teamToggleSwitchTo');
+        if (switchLabel) {
+            switchLabel.textContent = nextTeam === 'auburn' ? 'Auburn' : 'Mississippi State';
+        }
     }
     
     // Load saved preferences
