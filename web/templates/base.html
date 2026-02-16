@@ -285,6 +285,52 @@
             .value-indicator { font-size: 0.75rem; padding: 0.15rem 0.5rem; }
         }
         
+        /* Auburn theme */
+        [data-team="auburn"] {
+            --maroon: #0C2340;
+            --maroon-dark: #091a2e;
+        }
+        [data-team="auburn"] .bg-maroon,
+        [data-team="auburn"] .card-header.bg-maroon {
+            background-color: #0C2340 !important;
+        }
+        [data-team="auburn"] .btn-maroon {
+            background-color: #0C2340; border-color: #0C2340;
+        }
+        [data-team="auburn"] .btn-maroon:hover {
+            background-color: #091a2e; border-color: #091a2e;
+        }
+        [data-team="auburn"] .navbar .nav-link:hover,
+        [data-team="auburn"] .navbar .nav-link.active {
+            background-color: #DD550C;
+        }
+        [data-team="auburn"] .stat-card .stat-value { color: #0C2340; }
+        [data-team="auburn"] .card-header { border-bottom-color: #DD550C; }
+        [data-team="auburn"] .table thead th { border-bottom-color: #DD550C; }
+        [data-team="auburn"] .badge.bg-maroon { background-color: #DD550C !important; }
+        [data-team="auburn"] a.team-link:hover { color: #DD550C; }
+        [data-team="auburn"] .progress-bar { background-color: #0C2340; }
+        [data-team="auburn"] .navbar-brand .icon { color: #DD550C; }
+        [data-team="auburn"] .card .nav-link.active {
+            background-color: #0C2340 !important; border-color: #0C2340;
+        }
+        /* Auburn dark mode combo */
+        [data-team="auburn"][data-theme="dark"] {
+            --maroon: #3a6ba5;
+            --maroon-dark: #0C2340;
+        }
+        [data-team="auburn"][data-theme="dark"] .navbar-brand .icon { color: #DD550C; }
+        
+        /* Team toggle button */
+        .team-toggle {
+            background: none; border: 2px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.85);
+            font-size: 0.75rem; cursor: pointer; padding: 0.3rem 0.6rem; border-radius: 20px;
+            font-weight: 600; letter-spacing: 0.5px; transition: all 0.2s;
+        }
+        .team-toggle:hover { border-color: rgba(255,255,255,0.7); color: white; }
+        [data-team="auburn"] .team-toggle { border-color: #DD550C; color: #DD550C; }
+        [data-team="auburn"] .team-toggle:hover { background-color: #DD550C; color: white; }
+        
         @media (max-width: 576px) {
             .stat-card .stat-value { font-size: 1.4rem; }
             .stat-card .stat-label { font-size: 0.7rem; }
@@ -355,6 +401,11 @@
                             <li><a class="dropdown-item" href="/debug"><i class="bi bi-bug"></i> Debug</a></li>
                         </ul>
                     </li>
+                    <li class="nav-item d-flex align-items-center me-2">
+                        <button class="team-toggle" onclick="toggleTeam()" title="Switch team" id="teamToggleBtn">
+                            <span id="teamToggleLabel">MSU</span>
+                        </button>
+                    </li>
                     <li class="nav-item">
                         <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">
                             <i class="bi bi-moon-fill" id="darkModeIcon"></i>
@@ -396,11 +447,41 @@
             icon.className = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
         }
     }
-    // Load saved preference
+    // Team toggle
+    const TEAM_CONFIG = {
+        'mississippi-state': { label: 'MSU', next: 'auburn' },
+        'auburn': { label: 'AUB', next: 'mississippi-state' }
+    };
+    
+    function toggleTeam() {
+        const current = localStorage.getItem('featured_team') || 'mississippi-state';
+        const next = TEAM_CONFIG[current]?.next || 'mississippi-state';
+        localStorage.setItem('featured_team', next);
+        document.documentElement.setAttribute('data-team', next);
+        updateTeamLabel(next);
+        // Reload dashboard if we're on it to swap featured team
+        if (window.location.pathname === '/') {
+            window.location.href = '/?team=' + next;
+        }
+    }
+    
+    function updateTeamLabel(team) {
+        const label = document.getElementById('teamToggleLabel');
+        if (label) label.textContent = TEAM_CONFIG[team]?.label || 'MSU';
+    }
+    
+    // Load saved preferences
     (function() {
-        const saved = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', saved);
-        updateIcon(saved);
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateIcon(savedTheme);
+        
+        // Check URL param first (overrides localStorage)
+        const urlTeam = new URLSearchParams(window.location.search).get('team');
+        const savedTeam = urlTeam || localStorage.getItem('featured_team') || 'mississippi-state';
+        if (urlTeam) localStorage.setItem('featured_team', urlTeam);
+        document.documentElement.setAttribute('data-team', savedTeam);
+        updateTeamLabel(savedTeam);
     })();
     </script>
     

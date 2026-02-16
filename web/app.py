@@ -593,9 +593,8 @@ def get_model_accuracy():
 # Routes
 # ============================================
 
-def get_msstate_info():
-    """Get Mississippi State focus data for dashboard"""
-    team_id = 'mississippi-state'
+def get_featured_team_info(team_id='mississippi-state'):
+    """Get featured team focus data for dashboard"""
     conn = get_connection()
     c = conn.cursor()
     
@@ -656,8 +655,16 @@ def get_msstate_info():
         else:
             next_game = {'opponent': r['home_name'], 'location': '@', 'date': r['date'], 'time': r['time']}
     
+    # Team name
+    c2 = conn.cursor()
+    c2.execute('SELECT name FROM teams WHERE id = ?', (team_id,))
+    name_row = c2.fetchone()
+    team_name = name_row[0] if name_row else team_id.replace('-', ' ').title()
+    
     conn.close()
     return {
+        'team_id': team_id,
+        'team_name': team_name,
         'record': record,
         'elo': elo,
         'rank': rank,
@@ -690,10 +697,11 @@ def get_model_accuracy_summary():
 @app.route('/')
 def dashboard():
     """Main dashboard page"""
+    featured_team = request.args.get('team', 'mississippi-state')
     todays_games = get_todays_games()
     value_picks = get_value_picks(5)
     stats = get_quick_stats()
-    msstate = get_msstate_info()
+    featured = get_featured_team_info(featured_team)
     accuracy = get_model_accuracy_summary()
     
     # Model snapshot - all models
@@ -703,7 +711,7 @@ def dashboard():
                           todays_games=todays_games,
                           value_picks=value_picks,
                           stats=stats,
-                          msstate=msstate,
+                          featured=featured,
                           accuracy=accuracy,
                           all_accuracy=all_accuracy,
                           today=datetime.now().strftime('%B %d, %Y'))
