@@ -87,8 +87,8 @@ def get_blended_runs(conn, game_id):
         return ens_hr, ens_ar
     return None, None
 
-def record_bets():
-    """Record spread and total bets using NN models (matching betting page)."""
+def record_bets(max_spread=6, max_total=6):
+    """Record top spread and total bets by edge using NN models (matching betting page)."""
     conn = get_connection()
     c = conn.cursor()
     
@@ -110,16 +110,18 @@ def record_bets():
     lines = [dict(r) for r in c.fetchall()]
     nn_totals = get_nn_totals()
     nn_spread = get_nn_spread()
-    spread_recorded = 0
-    total_recorded = 0
     
     print(f"Models: nn_totals={'✅' if nn_totals else '❌'} nn_spread={'✅' if nn_spread else '❌'}")
+    
+    # Collect all candidates first, then pick top N by edge
+    spread_candidates = []
+    total_candidates = []
     
     for line in lines:
         home_id = line['home_team_id']
         away_id = line['away_team_id']
         
-        # --- SPREAD BET ---
+        # --- SPREAD CANDIDATE ---
         if line['home_spread'] is not None and line['home_spread'] != 0:
             existing = c.execute(
                 'SELECT 1 FROM tracked_bets_spreads WHERE game_id=? AND bet_type="spread"',
@@ -128,10 +130,8 @@ def record_bets():
             
             if not existing:
                 proj_margin = None
-                edge = None
                 source = 'blended'
                 
-                # Try NN spread model first (matches betting page)
                 if nn_spread:
                     try:
                         sp = nn_spread.predict_game(home_id, away_id)
@@ -140,7 +140,6 @@ def record_bets():
                     except:
                         pass
                 
-                # Fallback to blended runs
                 if proj_margin is None:
                     hr, ar = get_blended_runs(conn, line['game_id'])
                     if hr is not None:
@@ -152,28 +151,21 @@ def record_bets():
                     
                     if abs(home_cover_margin) >= SPREAD_EDGE_THRESHOLD:
                         if home_cover_margin > 0:
-                            pick = line['home_name']
-                            bet_line = spread
-                            odds = line['home_spread_odds'] or -110
-                            edge = home_cover_margin
+                            spread_candidates.append({
+                                'game_id': line['game_id'], 'date': line['date'],
+                                'pick': line['home_name'], 'line': spread,
+                                'odds': line['home_spread_odds'] or -110,
+                                'proj': proj_margin, 'edge': home_cover_margin, 'source': source
+                            })
                         else:
-                            pick = line['away_name']
-                            bet_line = line['away_spread']
-                            odds = line['away_spread_odds'] or -110
-                            edge = abs(home_cover_margin)
-                        
-                        c.execute('''
-                            INSERT OR IGNORE INTO tracked_bets_spreads
-                            (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
-                            VALUES (?, ?, 'spread', ?, ?, ?, ?, ?, ?)
-                        ''', (line['game_id'], line['date'], pick, bet_line, odds,
-                              round(proj_margin, 2), round(edge, 2), BET_AMOUNT))
-                        
-                        spread_recorded += 1
-                        print(f"  📊 SPREAD [{source}]: {pick} {bet_line:+.1f} ({odds:+g}) | "
-                              f"proj margin {proj_margin:+.1f} | edge {edge:.1f} runs")
+                            spread_candidates.append({
+                                'game_id': line['game_id'], 'date': line['date'],
+                                'pick': line['away_name'], 'line': line['away_spread'],
+                                'odds': line['away_spread_odds'] or -110,
+                                'proj': proj_margin, 'edge': abs(home_cover_margin), 'source': source
+                            })
         
-        # --- TOTAL BET ---
+        # --- TOTAL CANDIDATE ---
         if line['over_under'] is not None and line['over_under'] > 0:
             existing = c.execute(
                 'SELECT 1 FROM tracked_bets_spreads WHERE game_id=? AND bet_type="total"',
@@ -186,7 +178,6 @@ def record_bets():
                 edge = None
                 source = 'blended'
                 
-                # Try NN totals model first (matches betting page)
                 if nn_totals:
                     try:
                         tp = nn_totals.predict_game(home_id, away_id,
@@ -196,7 +187,6 @@ def record_bets():
                         under_prob = tp.get('under_prob', 0.5)
                         source = 'nn_totals'
                         
-                        # Use NN probability-based pick
                         if over_prob >= TOTAL_PROB_THRESHOLD:
                             pick = 'OVER'
                             edge = abs(proj_total - line['over_under']) if proj_total else 1.0
@@ -206,13 +196,11 @@ def record_bets():
                     except:
                         pass
                 
-                # Fallback to blended runs
                 if pick is None:
                     hr, ar = get_blended_runs(conn, line['game_id'])
                     if hr is not None:
                         proj_total = hr + ar
                         total_diff = proj_total - line['over_under']
-                        
                         if abs(total_diff) >= TOTAL_EDGE_THRESHOLD:
                             pick = 'OVER' if total_diff > 0 else 'UNDER'
                             edge = abs(total_diff)
@@ -220,20 +208,49 @@ def record_bets():
                 
                 if pick and edge:
                     odds = line['over_odds'] if pick == 'OVER' else line['under_odds']
-                    odds = odds or -110
-                    
-                    c.execute('''
-                        INSERT OR IGNORE INTO tracked_bets_spreads
-                        (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
-                        VALUES (?, ?, 'total', ?, ?, ?, ?, ?, ?)
-                    ''', (line['game_id'], line['date'], pick, line['over_under'], odds,
-                          round(proj_total, 2) if proj_total else 0, round(edge, 2), BET_AMOUNT))
-                    
-                    total_recorded += 1
-                    odds_str = f"{odds:+g}" if odds else "—"
-                    proj_str = f"{proj_total:.1f}" if proj_total else "?"
-                    print(f"  🎯 TOTAL [{source}]: {pick} {line['over_under']} ({odds_str}) | "
-                          f"proj {proj_str} | edge {edge:.1f} runs")
+                    total_candidates.append({
+                        'game_id': line['game_id'], 'date': line['date'],
+                        'pick': pick, 'line': line['over_under'],
+                        'odds': odds or -110, 'proj': proj_total or 0,
+                        'edge': edge, 'source': source
+                    })
+    
+    # Sort by edge and take top N
+    spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
+    total_candidates.sort(key=lambda x: x['edge'], reverse=True)
+    
+    top_spreads = spread_candidates[:max_spread]
+    top_totals = total_candidates[:max_total]
+    
+    spread_recorded = 0
+    for s in top_spreads:
+        c.execute('''
+            INSERT OR IGNORE INTO tracked_bets_spreads
+            (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
+            VALUES (?, ?, 'spread', ?, ?, ?, ?, ?, ?)
+        ''', (s['game_id'], s['date'], s['pick'], s['line'], s['odds'],
+              round(s['proj'], 2), round(s['edge'], 2), BET_AMOUNT))
+        spread_recorded += 1
+        print(f"  📊 SPREAD [{s['source']}]: {s['pick']} {s['line']:+.1f} ({s['odds']:+g}) | "
+              f"proj margin {s['proj']:+.1f} | edge {s['edge']:.1f} runs")
+    
+    total_recorded = 0
+    for t in top_totals:
+        c.execute('''
+            INSERT OR IGNORE INTO tracked_bets_spreads
+            (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
+            VALUES (?, ?, 'total', ?, ?, ?, ?, ?, ?)
+        ''', (t['game_id'], t['date'], t['pick'], t['line'], t['odds'],
+              round(t['proj'], 2), round(t['edge'], 2), BET_AMOUNT))
+        total_recorded += 1
+        proj_str = f"{t['proj']:.1f}" if t['proj'] else "?"
+        print(f"  🎯 TOTAL [{t['source']}]: {t['pick']} {t['line']} ({t['odds']:+g}) | "
+              f"proj {proj_str} | edge {t['edge']:.1f} runs")
+    
+    if spread_candidates:
+        print(f"\n  ({len(spread_candidates)} spread candidates found, took top {max_spread})")
+    if total_candidates:
+        print(f"  ({len(total_candidates)} total candidates found, took top {max_total})")
     
     conn.commit()
     conn.close()

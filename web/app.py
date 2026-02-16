@@ -1371,11 +1371,11 @@ def tracker():
     # Combined P&L
     all_completed = []
     for b in bets:
-        all_completed.append({'date': b['date'], 'profit': b['profit'], 'type': 'ML', 'pick': b['pick']})
+        all_completed.append({'date': b['date'], 'profit': b['profit'], 'won': b['won'], 'type': 'ML', 'pick': b['pick']})
     for b in spread_bets:
-        all_completed.append({'date': b['date'], 'profit': b['profit'], 'type': 'SPR', 'pick': b['pick']})
+        all_completed.append({'date': b['date'], 'profit': b['profit'], 'won': b['won'], 'type': 'SPR', 'pick': b['pick']})
     for b in total_bets_list:
-        all_completed.append({'date': b['date'], 'profit': b['profit'], 'type': 'TOT', 'pick': b['pick']})
+        all_completed.append({'date': b['date'], 'profit': b['profit'], 'won': b['won'], 'type': 'TOT', 'pick': b['pick']})
     all_completed.sort(key=lambda x: x['date'])
     
     combined_stats = calc_stats(all_completed)
