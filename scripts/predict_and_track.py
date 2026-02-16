@@ -77,12 +77,23 @@ def predict_games(date=None):
             try:
                 t_pred = nn_totals.predict_game(home_id, away_id)
                 proj_total = t_pred.get('projected_total', 0)
+                # Look up DK over/under line
+                cur.execute('''
+                    SELECT over_under FROM betting_lines 
+                    WHERE home_team_id = ? AND away_team_id = ? 
+                    ORDER BY captured_at DESC LIMIT 1
+                ''', (home_id, away_id))
+                dk_row = cur.fetchone()
+                dk_line = dk_row[0] if dk_row and dk_row[0] else 0
+                prediction = 'OVER' if proj_total > dk_line and dk_line > 0 else ('UNDER' if dk_line > 0 else ('OVER' if proj_total > 13 else 'UNDER'))
+                edge = abs(proj_total - dk_line) / dk_line * 100 if dk_line > 0 else 0
                 cur.execute('''
                     INSERT OR IGNORE INTO totals_predictions 
-                    (game_id, over_under_line, projected_total, prediction, model_name)
-                    VALUES (?, 0, ?, ?, 'nn_totals')
-                ''', (game_id, proj_total, 'OVER' if proj_total > 13 else 'UNDER'))
-                print(f"  {'nn_totals':12}: projected total {proj_total:.1f}")
+                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
+                    VALUES (?, ?, ?, ?, ?, 'nn_totals')
+                ''', (game_id, dk_line, proj_total, prediction, edge))
+                line_str = f" (line {dk_line})" if dk_line > 0 else ""
+                print(f"  {'nn_totals':12}: projected total {proj_total:.1f}{line_str} → {prediction}")
             except Exception as e:
                 print(f"  {'nn_totals':12}: ERROR - {e}")
         
