@@ -105,3 +105,19 @@ Started: 2026-02-16
    - Fix: Added 3-game series at Alabama
 
 ---
+
+## Ole Miss
+
+### Official Source: olemisssports.com
+
+### Discrepancies Found:
+
+1. **Mar 13-15: @ Texas** - Fixed to all 3 games at Texas
+2. **Mar 19-21: vs Kentucky** - Fixed to Kentucky (was mixed with Florida)
+3. **Apr 2-4: @ Florida** - Changed from @ Alabama to @ Florida
+4. **Apr 25: vs Georgia** - Added missing 3rd game of series
+5. **May 1-3: @ Arkansas** - Changed from vs Oklahoma to @ Arkansas
+6. **May 8-10: vs Texas A&M** - Added missing series
+7. **May 14-16: @ Alabama** - Changed from @ Texas to @ Alabama
+
+---
