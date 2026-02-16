@@ -197,8 +197,18 @@ def run_collection(date_str, delay=15, max_games=50):
     
     stats = {'espn': 0, 'statbroadcast': 0, 'errors': 0}
     
-    # 1. ESPN Scoreboard
-    log("\n=== ESPN Collection ===")
+    # 0. ESPN API Sync — auto-creates teams and games for ALL D1
+    log("\n=== ESPN API Sync (all D1) ===")
+    try:
+        from scripts.espn_sync import sync_date, load_espn_id_map
+        load_espn_id_map()
+        sync_result = sync_date(date_str)
+        log(f"ESPN sync: {sync_result['games_created']} created, {sync_result['games_updated']} updated, {sync_result['teams_created']} new teams")
+    except Exception as e:
+        log(f"ESPN sync error: {e}")
+    
+    # 1. ESPN Scoreboard (legacy — box score details)
+    log("\n=== ESPN Box Score Collection ===")
     espn_ids = fetch_espn_scoreboard(date_str, delay)
     
     for i, gid in enumerate(espn_ids[:max_games]):

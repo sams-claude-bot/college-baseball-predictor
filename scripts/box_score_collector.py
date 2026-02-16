@@ -72,11 +72,11 @@ def fetch_json(url):
         return None
 
 
-def resolve_team_id(espn_name):
-    """Resolve ESPN team display name to our team_id."""
+def resolve_team_id(espn_name, espn_id=None):
+    """Resolve ESPN team display name to our team_id. Auto-creates if needed."""
     name_lower = espn_name.lower()
 
-    # Direct match
+    # Direct match in local cache
     if name_lower in ESPN_TEAM_MAP:
         return ESPN_TEAM_MAP[name_lower]
 
@@ -92,7 +92,25 @@ def resolve_team_id(espn_name):
         if partial in ESPN_TEAM_MAP:
             return ESPN_TEAM_MAP[partial]
 
-    return None
+    # Auto-create via espn_sync if we have an ESPN ID
+    if espn_id:
+        try:
+            from scripts.espn_sync import resolve_team, load_espn_id_map, get_conn
+            load_espn_id_map()
+            conn = get_conn()
+            team_id = resolve_team(espn_id, espn_name, "", conn)
+            conn.close()
+            ESPN_TEAM_MAP[name_lower] = team_id
+            return team_id
+        except Exception:
+            pass
+
+    # Fallback: generate slug from display name
+    try:
+        from scripts.espn_sync import espn_display_to_slug
+        return espn_display_to_slug(espn_name)
+    except Exception:
+        return None
 
 
 def get_games_for_date(date_str):
@@ -114,7 +132,8 @@ def get_games_for_date(date_str):
         teams = []
         for c in competitors:
             team_name = c['team'].get('displayName', '')
-            team_id = resolve_team_id(team_name)
+            espn_id = c['team'].get('id', '')
+            team_id = resolve_team_id(team_name, espn_id=espn_id)
             teams.append({
                 'espn_name': team_name,
                 'team_id': team_id,
@@ -122,9 +141,9 @@ def get_games_for_date(date_str):
                 'score': c.get('score', '0'),
             })
 
-        # Only collect if at least one P4 team
-        p4_teams = [t for t in teams if t['team_id']]
-        if p4_teams:
+        # Collect all D1 games (both teams must resolve)
+        resolved_teams = [t for t in teams if t['team_id']]
+        if len(resolved_teams) >= 2:
             games.append({
                 'game_id': event['id'],
                 'teams': teams,
@@ -152,8 +171,12 @@ def collect_box_score(game_id, db):
         team_id = resolve_team_id(espn_name)
 
         if not team_id:
-            # Not a P4 team - skip
-            continue
+            # Try auto-create
+            espn_id = team_info.get('id', '')
+            team_id = resolve_team_id(espn_name, espn_id=espn_id)
+            if not team_id:
+                log.warning(f"  Could not resolve team: {espn_name}")
+                continue
 
         for stat_group in team_data.get('statistics', []):
             stat_type = stat_group.get('type', '')
