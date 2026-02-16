@@ -1281,7 +1281,7 @@ def tracker():
     conn = get_connection()
     c = conn.cursor()
     
-    # Read all tracked bets (both pending and completed)
+    # --- MONEYLINE BETS ---
     c.execute('''
         SELECT tb.*, g.status, g.home_score, g.away_score
         FROM tracked_bets tb
@@ -1289,9 +1289,7 @@ def tracker():
         ORDER BY tb.date, tb.game_id
     ''')
     all_bets = [dict(r) for r in c.fetchall()]
-    conn.close()
     
-    # Split into completed (scored) and pending
     bets = []
     pending_bets = []
     for b in all_bets:
@@ -1311,21 +1309,86 @@ def tracker():
         else:
             pending_bets.append(entry)
     
-    # Summary stats (completed bets only)
-    total_bets = len(bets)
-    wins = sum(1 for b in bets if b['won'])
-    total_pl = sum(b['profit'] for b in bets)
-    win_rate = round(wins / total_bets * 100, 1) if total_bets > 0 else 0
-    roi = round(total_pl / (total_bets * 100) * 100, 1) if total_bets > 0 else 0
+    # --- SPREAD & TOTAL BETS ---
+    spread_bets = []
+    total_bets_list = []
+    pending_spread = []
+    pending_totals = []
     
-    # Running P&L for chart
+    c.execute('''
+        SELECT tb.*, g.home_score, g.away_score,
+               ht.name as home_name, at.name as away_name
+        FROM tracked_bets_spreads tb
+        LEFT JOIN games g ON tb.game_id = g.id
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        ORDER BY tb.date, tb.game_id
+    ''')
+    all_spread_bets = [dict(r) for r in c.fetchall()]
+    conn.close()
+    
+    for b in all_spread_bets:
+        game_label = f"{b.get('away_name', '?')} @ {b.get('home_name', '?')}"
+        entry = {
+            'date': b['date'],
+            'game': game_label,
+            'pick': b['pick'],
+            'line': b['line'],
+            'odds': b['odds'],
+            'model_projection': b['model_projection'],
+            'edge': round(b['edge'], 1),
+            'won': b['won'],
+            'profit': b.get('profit', 0) or 0,
+            'bet_type': b['bet_type'],
+        }
+        if b['bet_type'] == 'spread':
+            if b['won'] is not None:
+                spread_bets.append(entry)
+            else:
+                pending_spread.append(entry)
+        else:
+            if b['won'] is not None:
+                total_bets_list.append(entry)
+            else:
+                pending_totals.append(entry)
+    
+    def calc_stats(bet_list):
+        total = len(bet_list)
+        wins = sum(1 for b in bet_list if b['won'])
+        pl = sum(b['profit'] for b in bet_list)
+        return {
+            'total': total,
+            'wins': wins,
+            'win_rate': round(wins / total * 100, 1) if total > 0 else 0,
+            'pl': round(pl, 2),
+            'roi': round(pl / (total * 100) * 100, 1) if total > 0 else 0,
+        }
+    
+    ml_stats = calc_stats(bets)
+    spread_stats = calc_stats(spread_bets)
+    totals_stats = calc_stats(total_bets_list)
+    
+    # Combined P&L
+    all_completed = []
+    for b in bets:
+        all_completed.append({'date': b['date'], 'profit': b['profit'], 'type': 'ML', 'pick': b['pick']})
+    for b in spread_bets:
+        all_completed.append({'date': b['date'], 'profit': b['profit'], 'type': 'SPR', 'pick': b['pick']})
+    for b in total_bets_list:
+        all_completed.append({'date': b['date'], 'profit': b['profit'], 'type': 'TOT', 'pick': b['pick']})
+    all_completed.sort(key=lambda x: x['date'])
+    
+    combined_stats = calc_stats(all_completed)
+    
+    # Running P&L for chart (combined)
     running_pl = []
     cumulative = 0
-    for b in bets:
+    for b in all_completed:
         cumulative += b['profit']
-        running_pl.append({'date': b['date'], 'pl': round(cumulative, 2)})
+        running_pl.append({'date': b['date'], 'pl': round(cumulative, 2), 
+                          'type': b['type'], 'pick': b['pick'], 'profit': b['profit']})
     
-    # Edge buckets
+    # Edge buckets (moneyline only for backward compat)
     buckets = {
         '5-10%': {'bets': [], 'label': '5-10%'},
         '10-20%': {'bets': [], 'label': '10-20%'},
@@ -1359,11 +1422,19 @@ def tracker():
     return render_template('tracker.html',
                           bets=bets,
                           pending_bets=pending_bets,
-                          total_bets=total_bets,
-                          wins=wins,
-                          win_rate=win_rate,
-                          total_pl=round(total_pl, 2),
-                          roi=roi,
+                          spread_bets=spread_bets,
+                          pending_spread=pending_spread,
+                          total_bets_list=total_bets_list,
+                          pending_totals=pending_totals,
+                          ml_stats=ml_stats,
+                          spread_stats=spread_stats,
+                          totals_stats=totals_stats,
+                          combined_stats=combined_stats,
+                          total_bets=ml_stats['total'],
+                          wins=ml_stats['wins'],
+                          win_rate=ml_stats['win_rate'],
+                          total_pl=ml_stats['pl'],
+                          roi=ml_stats['roi'],
                           running_pl=running_pl,
                           bucket_stats=bucket_stats)
 

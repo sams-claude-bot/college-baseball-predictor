@@ -5,39 +5,96 @@
 {% block content %}
 <div class="mb-4">
     <h1 class="h3"><i class="bi bi-graph-up-arrow"></i> P&L Tracker</h1>
-    <p class="text-muted">Simulated flat $100 bets on all value picks with 5%+ edge</p>
+    <p class="text-muted">Simulated flat $100 bets on value picks • Moneylines (5%+ edge) • Spreads & Totals (1+ run edge)</p>
 </div>
 
-<!-- Summary Cards -->
+<!-- Combined Summary Cards -->
 <div class="row mb-4">
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value">{{ total_bets }}</div>
+            <div class="stat-value">{{ combined_stats.total }}</div>
             <div class="stat-label">Total Bets</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value {% if win_rate >= 55 %}text-success{% elif win_rate < 50 %}text-danger{% endif %}">
-                {{ win_rate }}%
+            <div class="stat-value {% if combined_stats.win_rate >= 55 %}text-success{% elif combined_stats.win_rate < 50 %}text-danger{% endif %}">
+                {{ combined_stats.win_rate }}%
             </div>
-            <div class="stat-label">Win Rate ({{ wins }}/{{ total_bets }})</div>
+            <div class="stat-label">Win Rate ({{ combined_stats.wins }}/{{ combined_stats.total }})</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value {% if total_pl > 0 %}text-success{% elif total_pl < 0 %}text-danger{% endif %}">
-                {{ '+' if total_pl > 0 else '' }}${{ total_pl }}
+            <div class="stat-value {% if combined_stats.pl > 0 %}text-success{% elif combined_stats.pl < 0 %}text-danger{% endif %}">
+                {{ '+' if combined_stats.pl > 0 else '' }}${{ combined_stats.pl }}
             </div>
             <div class="stat-label">Total P&L</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card stat-card">
-            <div class="stat-value {% if roi > 0 %}text-success{% elif roi < 0 %}text-danger{% endif %}">
-                {{ '+' if roi > 0 else '' }}{{ roi }}%
+            <div class="stat-value {% if combined_stats.roi > 0 %}text-success{% elif combined_stats.roi < 0 %}text-danger{% endif %}">
+                {{ '+' if combined_stats.roi > 0 else '' }}{{ combined_stats.roi }}%
             </div>
             <div class="stat-label">ROI</div>
+        </div>
+    </div>
+</div>
+
+<!-- Bet Type Breakdown -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-1"><i class="bi bi-currency-dollar"></i> Moneylines</h6>
+                <div class="h4 mb-0 {% if ml_stats.pl > 0 %}text-success{% elif ml_stats.pl < 0 %}text-danger{% endif %}">
+                    {{ '+' if ml_stats.pl > 0 else '' }}${{ ml_stats.pl }}
+                </div>
+                <small class="text-muted">{{ ml_stats.wins }}/{{ ml_stats.total }} ({{ ml_stats.win_rate }}%) • ROI {{ '+' if ml_stats.roi > 0 else '' }}{{ ml_stats.roi }}%</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-1"><i class="bi bi-arrows-expand"></i> Spreads</h6>
+                <div class="h4 mb-0 {% if spread_stats.pl > 0 %}text-success{% elif spread_stats.pl < 0 %}text-danger{% endif %}">
+                    {% if spread_stats.total > 0 %}
+                    {{ '+' if spread_stats.pl > 0 else '' }}${{ spread_stats.pl }}
+                    {% else %}
+                    —
+                    {% endif %}
+                </div>
+                <small class="text-muted">
+                    {% if spread_stats.total > 0 %}
+                    {{ spread_stats.wins }}/{{ spread_stats.total }} ({{ spread_stats.win_rate }}%) • ROI {{ '+' if spread_stats.roi > 0 else '' }}{{ spread_stats.roi }}%
+                    {% else %}
+                    No completed bets yet
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted mb-1"><i class="bi bi-bullseye"></i> Totals</h6>
+                <div class="h4 mb-0 {% if totals_stats.pl > 0 %}text-success{% elif totals_stats.pl < 0 %}text-danger{% endif %}">
+                    {% if totals_stats.total > 0 %}
+                    {{ '+' if totals_stats.pl > 0 else '' }}${{ totals_stats.pl }}
+                    {% else %}
+                    —
+                    {% endif %}
+                </div>
+                <small class="text-muted">
+                    {% if totals_stats.total > 0 %}
+                    {{ totals_stats.wins }}/{{ totals_stats.total }} ({{ totals_stats.win_rate }}%) • ROI {{ '+' if totals_stats.roi > 0 else '' }}{{ totals_stats.roi }}%
+                    {% else %}
+                    No completed bets yet
+                    {% endif %}
+                </small>
+            </div>
         </div>
     </div>
 </div>
@@ -47,7 +104,7 @@
         <!-- P&L Chart -->
         <div class="card">
             <div class="card-header bg-maroon">
-                <i class="bi bi-graph-up"></i> Running P&L
+                <i class="bi bi-graph-up"></i> Running P&L (All Bet Types)
             </div>
             <div class="card-body">
                 {% if running_pl %}
@@ -60,10 +117,10 @@
     </div>
     
     <div class="col-lg-4">
-        <!-- Edge Buckets -->
+        <!-- Edge Buckets (ML only) -->
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-bar-chart-steps"></i> Performance by Edge
+                <i class="bi bi-bar-chart-steps"></i> ML Performance by Edge
             </div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
@@ -99,63 +156,209 @@
     </div>
 </div>
 
-<!-- Bet History Table -->
+<!-- Tabs for bet type history -->
 <div class="card mt-4">
     <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-journal-text"></i> Bet History</span>
-            <span class="badge bg-secondary">{{ bets|length }} bets</span>
-        </div>
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ml-tab" type="button">
+                    <i class="bi bi-currency-dollar"></i> Moneylines
+                    <span class="badge bg-secondary ms-1">{{ bets|length }}{% if pending_bets %}<span class="text-warning">+{{ pending_bets|length }}</span>{% endif %}</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#spread-tab" type="button">
+                    <i class="bi bi-arrows-expand"></i> Spreads
+                    <span class="badge bg-secondary ms-1">{{ spread_bets|length }}{% if pending_spread %}<span class="text-warning">+{{ pending_spread|length }}</span>{% endif %}</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#totals-tab" type="button">
+                    <i class="bi bi-bullseye"></i> Totals
+                    <span class="badge bg-secondary ms-1">{{ total_bets_list|length }}{% if pending_totals %}<span class="text-warning">+{{ pending_totals|length }}</span>{% endif %}</span>
+                </button>
+            </li>
+        </ul>
     </div>
     <div class="card-body p-0">
-        {% if bets %}
-        <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Game</th>
-                        <th>Pick</th>
-                        <th class="text-center">ML</th>
-                        <th class="text-center">Edge</th>
-                        <th class="text-center">Result</th>
-                        <th class="text-end">P&L</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for bet in bets|reverse %}
-                    <tr>
-                        <td><small>{{ bet.date }}</small></td>
-                        <td>{{ bet.game }}</td>
-                        <td><strong>{{ bet.pick }}</strong></td>
-                        <td class="text-center">{{ bet.moneyline|format_odds }}</td>
-                        <td class="text-center">
-                            <span class="badge {% if bet.edge >= 10 %}bg-success{% else %}bg-secondary{% endif %}">
-                                +{{ bet.edge }}%
-                            </span>
-                        </td>
-                        <td class="text-center">
-                            {% if bet.won %}
-                            <span class="badge bg-success">W</span>
-                            {% else %}
-                            <span class="badge bg-danger">L</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-end {% if bet.profit > 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
-                            {{ '+' if bet.profit > 0 else '' }}${{ bet.profit }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="tab-content">
+            <!-- Moneyline Tab -->
+            <div class="tab-pane fade show active" id="ml-tab">
+                {% if bets or pending_bets %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Game</th>
+                                <th>Pick</th>
+                                <th class="text-center">ML</th>
+                                <th class="text-center">Edge</th>
+                                <th class="text-center">Result</th>
+                                <th class="text-end">P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bet in pending_bets|reverse %}
+                            <tr class="table-warning">
+                                <td><small>{{ bet.date }}</small></td>
+                                <td>{{ bet.game }}</td>
+                                <td><strong>{{ bet.pick }}</strong></td>
+                                <td class="text-center">{{ bet.moneyline|format_odds }}</td>
+                                <td class="text-center"><span class="badge bg-warning text-dark">+{{ bet.edge }}%</span></td>
+                                <td class="text-center"><span class="badge bg-secondary">PENDING</span></td>
+                                <td class="text-end">—</td>
+                            </tr>
+                            {% endfor %}
+                            {% for bet in bets|reverse %}
+                            <tr>
+                                <td><small>{{ bet.date }}</small></td>
+                                <td>{{ bet.game }}</td>
+                                <td><strong>{{ bet.pick }}</strong></td>
+                                <td class="text-center">{{ bet.moneyline|format_odds }}</td>
+                                <td class="text-center">
+                                    <span class="badge {% if bet.edge >= 10 %}bg-success{% else %}bg-secondary{% endif %}">+{{ bet.edge }}%</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if bet.won %}<span class="badge bg-success">W</span>
+                                    {% else %}<span class="badge bg-danger">L</span>{% endif %}
+                                </td>
+                                <td class="text-end {% if bet.profit > 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                    {{ '+' if bet.profit > 0 else '' }}${{ bet.profit }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox display-4"></i>
+                    <p class="mt-3">No moneyline bets yet</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Spread Tab -->
+            <div class="tab-pane fade" id="spread-tab">
+                {% if spread_bets or pending_spread %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Game</th>
+                                <th>Pick</th>
+                                <th class="text-center">Line</th>
+                                <th class="text-center">Odds</th>
+                                <th class="text-center">Edge</th>
+                                <th class="text-center">Result</th>
+                                <th class="text-end">P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bet in pending_spread|reverse %}
+                            <tr class="table-warning">
+                                <td><small>{{ bet.date }}</small></td>
+                                <td>{{ bet.game }}</td>
+                                <td><strong>{{ bet.pick }}</strong></td>
+                                <td class="text-center">{{ '%+.1f'|format(bet.line) }}</td>
+                                <td class="text-center">{{ bet.odds|format_odds if bet.odds else '—' }}</td>
+                                <td class="text-center"><span class="badge bg-warning text-dark">{{ bet.edge }} runs</span></td>
+                                <td class="text-center"><span class="badge bg-secondary">PENDING</span></td>
+                                <td class="text-end">—</td>
+                            </tr>
+                            {% endfor %}
+                            {% for bet in spread_bets|reverse %}
+                            <tr>
+                                <td><small>{{ bet.date }}</small></td>
+                                <td>{{ bet.game }}</td>
+                                <td><strong>{{ bet.pick }}</strong></td>
+                                <td class="text-center">{{ '%+.1f'|format(bet.line) }}</td>
+                                <td class="text-center">{{ bet.odds|format_odds if bet.odds else '—' }}</td>
+                                <td class="text-center"><span class="badge bg-secondary">{{ bet.edge }} runs</span></td>
+                                <td class="text-center">
+                                    {% if bet.won %}<span class="badge bg-success">W</span>
+                                    {% elif bet.won == 0 %}<span class="badge bg-danger">L</span>
+                                    {% else %}<span class="badge bg-secondary">PUSH</span>{% endif %}
+                                </td>
+                                <td class="text-end {% if bet.profit > 0 %}text-success{% elif bet.profit < 0 %}text-danger{% endif %} fw-bold">
+                                    {{ '+' if bet.profit > 0 else '' }}${{ bet.profit }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox display-4"></i>
+                    <p class="mt-3">No spread bets yet</p>
+                    <small>Spread bets are recorded when DK lines are scraped with 1+ run edge</small>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Totals Tab -->
+            <div class="tab-pane fade" id="totals-tab">
+                {% if total_bets_list or pending_totals %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Game</th>
+                                <th>Pick</th>
+                                <th class="text-center">Line</th>
+                                <th class="text-center">Odds</th>
+                                <th class="text-center">Proj</th>
+                                <th class="text-center">Result</th>
+                                <th class="text-end">P&L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bet in pending_totals|reverse %}
+                            <tr class="table-warning">
+                                <td><small>{{ bet.date }}</small></td>
+                                <td>{{ bet.game }}</td>
+                                <td><strong>{{ bet.pick }}</strong></td>
+                                <td class="text-center">{{ bet.line }}</td>
+                                <td class="text-center">{{ bet.odds|format_odds if bet.odds else '—' }}</td>
+                                <td class="text-center">{{ '%.1f'|format(bet.model_projection) }}</td>
+                                <td class="text-center"><span class="badge bg-secondary">PENDING</span></td>
+                                <td class="text-end">—</td>
+                            </tr>
+                            {% endfor %}
+                            {% for bet in total_bets_list|reverse %}
+                            <tr>
+                                <td><small>{{ bet.date }}</small></td>
+                                <td>{{ bet.game }}</td>
+                                <td><strong class="{% if bet.pick == 'OVER' %}text-success{% else %}text-danger{% endif %}">{{ bet.pick }}</strong></td>
+                                <td class="text-center">{{ bet.line }}</td>
+                                <td class="text-center">{{ bet.odds|format_odds if bet.odds else '—' }}</td>
+                                <td class="text-center">{{ '%.1f'|format(bet.model_projection) }}</td>
+                                <td class="text-center">
+                                    {% if bet.won %}<span class="badge bg-success">W</span>
+                                    {% elif bet.won == 0 %}<span class="badge bg-danger">L</span>
+                                    {% else %}<span class="badge bg-secondary">PUSH</span>{% endif %}
+                                </td>
+                                <td class="text-end {% if bet.profit > 0 %}text-success{% elif bet.profit < 0 %}text-danger{% endif %} fw-bold">
+                                    {{ '+' if bet.profit > 0 else '' }}${{ bet.profit }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox display-4"></i>
+                    <p class="mt-3">No totals bets yet</p>
+                    <small>Totals bets are recorded when DK lines are scraped with 1+ run edge</small>
+                </div>
+                {% endif %}
+            </div>
         </div>
-        {% else %}
-        <div class="text-center py-5 text-muted">
-            <i class="bi bi-inbox display-4"></i>
-            <p class="mt-3">No completed bets to show yet</p>
-            <small>Bets will appear here as games with value picks are completed</small>
-        </div>
-        {% endif %}
     </div>
 </div>
 {% endblock %}
@@ -165,7 +368,6 @@
 <script>
 const ctx = document.getElementById('plChart').getContext('2d');
 const rawData = {{ running_pl|tojson }};
-const betsData = {{ bets|tojson }};
 
 // Aggregate to one point per date (end-of-day P&L)
 const dailyPL = {};
@@ -173,11 +375,9 @@ rawData.forEach(d => { dailyPL[d.date] = d.pl; });
 const dates = Object.keys(dailyPL).sort();
 const plValues = dates.map(d => dailyPL[d]);
 
-// Color line segments: green when positive, red when negative
 const lineColor = plValues[plValues.length - 1] >= 0 ? '#198754' : '#dc3545';
 const fillColor = plValues[plValues.length - 1] >= 0 ? 'rgba(25,135,84,0.1)' : 'rgba(220,53,69,0.1)';
 
-// Point colors: green for winning days, red for losing
 const pointColors = dates.map((date, i) => {
     const prev = i > 0 ? plValues[i - 1] : 0;
     return plValues[i] >= prev ? '#198754' : '#dc3545';
@@ -185,7 +385,7 @@ const pointColors = dates.map((date, i) => {
 
 // Build tooltip with individual bets for each date
 const betsByDate = {};
-betsData.forEach(b => {
+rawData.forEach(b => {
     if (!betsByDate[b.date]) betsByDate[b.date] = [];
     betsByDate[b.date].push(b);
 });
@@ -214,21 +414,17 @@ new Chart(ctx, {
             legend: { display: false },
             tooltip: {
                 callbacks: {
-                    title: function(items) {
-                        return items[0].label;
-                    },
-                    label: function(ctx) {
-                        return 'Cumulative: $' + ctx.parsed.y.toFixed(2);
-                    },
+                    title: function(items) { return items[0].label; },
+                    label: function(ctx) { return 'Cumulative: $' + ctx.parsed.y.toFixed(2); },
                     afterBody: function(items) {
                         const date = items[0].label;
                         const db = betsByDate[date];
                         if (!db) return [];
                         const lines = [''];
                         db.forEach(b => {
-                            const icon = b.won ? '✅' : '❌';
+                            const icon = b.profit >= 0 ? '✅' : '❌';
                             const sign = b.profit >= 0 ? '+' : '';
-                            lines.push(icon + ' ' + b.pick + ' (' + sign + '$' + b.profit.toFixed(0) + ')');
+                            lines.push(icon + ' [' + b.type + '] ' + b.pick + ' (' + sign + '$' + b.profit.toFixed(0) + ')');
                         });
                         return lines;
                     }
@@ -236,14 +432,8 @@ new Chart(ctx, {
             }
         },
         scales: {
-            x: {
-                ticks: { maxRotation: 45 }
-            },
-            y: {
-                ticks: {
-                    callback: function(val) { return '$' + val; }
-                }
-            }
+            x: { ticks: { maxRotation: 45 } },
+            y: { ticks: { callback: function(val) { return '$' + val; } } }
         }
     }
 });
