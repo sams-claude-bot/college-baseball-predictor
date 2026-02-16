@@ -23,6 +23,7 @@ from models.ensemble_model import EnsembleModel, PoissonModelWrapper
 from models.neural_model import NeuralModel
 from models.nn_totals_model import NNTotalsModel
 from models.nn_spread_model import NNSpreadModel
+from models.nn_dow_totals_model import NNDoWTotalsModel
 from models.momentum_model import get_momentum_score
 from scripts.database import get_connection
 
@@ -39,6 +40,7 @@ MODELS = {
     "neural": NeuralModel(use_model_predictions=False),
     "nn_totals": NNTotalsModel(use_model_predictions=False),
     "nn_spread": NNSpreadModel(use_model_predictions=False),
+    "nn_dow_totals": NNDoWTotalsModel(use_model_predictions=False),
     "ensemble": EnsembleModel()
 }
 
