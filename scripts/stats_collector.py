@@ -148,10 +148,20 @@ def parse_sidearm_nuxt3(html):
     return None, None
 
 
+def normalize_player_name(name):
+    """Convert 'Last, First' to 'First Last' format."""
+    if not name:
+        return name
+    if ',' in name:
+        parts = name.split(',', 1)
+        return f"{parts[1].strip()} {parts[0].strip()}"
+    return name.strip()
+
+
 def extract_player_batting(raw_stat, team_id):
     if not isinstance(raw_stat, dict):
         return None
-    name = raw_stat.get('playerName', '')
+    name = normalize_player_name(raw_stat.get('playerName', ''))
     if not name or name in ('Totals', 'Opponents') or raw_stat.get('isAFooterStat'):
         return None
 
@@ -185,7 +195,7 @@ def extract_player_batting(raw_stat, team_id):
 def extract_player_pitching(raw_stat, team_id):
     if not isinstance(raw_stat, dict):
         return None
-    name = raw_stat.get('playerName', '')
+    name = normalize_player_name(raw_stat.get('playerName', ''))
     if not name or name in ('Totals', 'Opponents') or raw_stat.get('isAFooterStat'):
         return None
 
