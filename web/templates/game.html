@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}{{ away.name }} @ {{ home.name }} - Game Detail{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="javascript:history.back()" class="text-muted"><i class="bi bi-arrow-left"></i> Back</a>
+</div>
+
+<!-- Matchup Header -->
+<div class="card">
+    <div class="card-header bg-maroon text-center">
+        <div class="d-flex justify-content-center align-items-center gap-3">
+            <span class="fs-5">
+                {% if away.rank %}<small class="text-white-50">#{{ away.rank }}</small> {% endif %}{{ away.name }}
+            </span>
+            <span class="text-white-50">@</span>
+            <span class="fs-5">
+                {% if home.rank %}<small class="text-white-50">#{{ home.rank }}</small> {% endif %}{{ home.name }}
+            </span>
+        </div>
+        <small class="text-white-50">{{ game.date }} {{ game.time or '' }} {% if game.venue %}• {{ game.venue }}{% endif %}</small>
+    </div>
+    <div class="card-body">
+        {% if game.status == 'final' %}
+        <div class="row text-center">
+            <div class="col-5">
+                <div class="display-4 {% if game.away_score > game.home_score %}fw-bold{% else %}text-muted{% endif %}">{{ game.away_score }}</div>
+                <div class="text-muted">{{ away.record }}</div>
+            </div>
+            <div class="col-2 d-flex align-items-center justify-content-center">
+                <div>
+                    <span class="badge bg-success">Final</span>
+                    {% if game.innings and game.innings != 9 %}<br><small class="text-muted">({{ game.innings }})</small>{% endif %}
+                </div>
+            </div>
+            <div class="col-5">
+                <div class="display-4 {% if game.home_score > game.away_score %}fw-bold{% else %}text-muted{% endif %}">{{ game.home_score }}</div>
+                <div class="text-muted">{{ home.record }}</div>
+            </div>
+        </div>
+        {% else %}
+        <div class="row text-center">
+            <div class="col-5">
+                <div class="h4">{{ away.record }}</div>
+                <div class="text-muted">Elo: {{ away.elo|round(0)|int }}</div>
+            </div>
+            <div class="col-2 d-flex align-items-center justify-content-center">
+                <span class="text-muted">vs</span>
+            </div>
+            <div class="col-5">
+                <div class="h4">{{ home.record }}</div>
+                <div class="text-muted">Elo: {{ home.elo|round(0)|int }}</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if prediction %}
+<!-- Prediction -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-star-fill"></i> Ensemble Prediction
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-5">
+                <div class="h2 {% if prediction.away_win_prob > 0.5 %}text-success{% else %}text-muted{% endif %}">{{ (prediction.away_win_prob * 100)|round(1) }}%</div>
+                <div class="text-muted">{{ (prediction.projected_away_runs)|round(1) }} runs</div>
+            </div>
+            <div class="col-2 d-flex align-items-center justify-content-center flex-column">
+                <small class="text-muted">Total</small>
+                <div class="fw-bold">{{ (prediction.projected_total)|round(1) }}</div>
+            </div>
+            <div class="col-5">
+                <div class="h2 {% if prediction.home_win_prob > 0.5 %}text-success{% else %}text-muted{% endif %}">{{ (prediction.home_win_prob * 100)|round(1) }}%</div>
+                <div class="text-muted">{{ (prediction.projected_home_runs)|round(1) }} runs</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- All Models -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-list-check"></i> Model Breakdown
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr><th>Model</th><th class="text-center">{{ away.name }}</th><th class="text-center">{{ home.name }}</th><th class="text-center">Runs</th><th class="text-center">Pick</th></tr>
+                </thead>
+                <tbody>
+                {% for m in models %}
+                <tr {% if m.name == 'ensemble' %}class="table-active fw-bold"{% endif %}>
+                    <td>{% if m.name == 'ensemble' %}★ {% endif %}{{ m.name }}</td>
+                    <td class="text-center">{{ (m.away_prob * 100)|round(1) }}%</td>
+                    <td class="text-center">{{ (m.home_prob * 100)|round(1) }}%</td>
+                    <td class="text-center">{{ m.away_runs|round(1) }}-{{ m.home_runs|round(1) }}</td>
+                    <td class="text-center">{{ home.name if m.home_prob > 0.5 else away.name }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if betting_line %}
+<!-- DraftKings Lines -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-currency-dollar"></i> DraftKings Lines
+    </div>
+    <div class="card-body">
+        <div class="row text-center">
+            <div class="col-4">
+                <small class="text-muted">{{ away.name }} ML</small>
+                <div class="h5">{{ betting_line.away_ml|format_odds }}</div>
+            </div>
+            <div class="col-4">
+                <small class="text-muted">Total</small>
+                <div class="h5">{{ betting_line.over_under or '—' }}</div>
+            </div>
+            <div class="col-4">
+                <small class="text-muted">{{ home.name }} ML</small>
+                <div class="h5">{{ betting_line.home_ml|format_odds }}</div>
+            </div>
+        </div>
+        {% if prediction and betting_line.home_edge %}
+        <hr>
+        <div class="row text-center">
+            <div class="col-6">
+                <small class="text-muted">{{ away.name }} Edge</small>
+                <div class="h5 {% if betting_line.away_edge > 5 %}text-success{% elif betting_line.away_edge < -5 %}text-danger{% endif %}">
+                    {{ '%+.1f'|format(betting_line.away_edge) }}%
+                </div>
+            </div>
+            <div class="col-6">
+                <small class="text-muted">{{ home.name }} Edge</small>
+                <div class="h5 {% if betting_line.home_edge > 5 %}text-success{% elif betting_line.home_edge < -5 %}text-danger{% endif %}">
+                    {{ '%+.1f'|format(betting_line.home_edge) }}%
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if h2h_games %}
+<!-- Head-to-Head History -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-clock-history"></i> Head-to-Head History
+        <span class="badge bg-secondary ms-2">{{ h2h_record.away_wins }}-{{ h2h_record.home_wins }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Date</th><th class="text-center">Score</th><th>Winner</th></tr></thead>
+                <tbody>
+                {% for g in h2h_games %}
+                <tr>
+                    <td>{{ g.date }}</td>
+                    <td class="text-center">{{ g.away_score }}-{{ g.home_score }}</td>
+                    <td>
+                        {% if g.winner == 'home' %}
+                        <strong>{{ home.name }}</strong>
+                        {% elif g.winner == 'away' %}
+                        <strong>{{ away.name }}</strong>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="text-center mt-3">
+    <a href="/predict?home={{ home.id }}&away={{ away.id }}" class="btn btn-maroon">
+        <i class="bi bi-calculator"></i> Full Prediction Tool
+    </a>
+    <a href="/team/{{ home.id }}" class="btn btn-outline-secondary">{{ home.name }}</a>
+    <a href="/team/{{ away.id }}" class="btn btn-outline-secondary">{{ away.name }}</a>
+</div>
+{% endblock %}

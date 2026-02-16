@@ -767,6 +767,221 @@ def team_detail(team_id):
                           pitchers=pitchers,
                           recent_form=recent_form)
 
+@app.route('/game/<game_id>')
+def game_detail(game_id):
+    """Individual game detail page with predictions and H2H history"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT g.*, ht.name as home_name, at.name as away_name,
+               ht.current_rank as home_rank, at.current_rank as away_rank,
+               ht.conference as home_conf, at.conference as away_conf,
+               he.rating as home_elo, ae.rating as away_elo
+        FROM games g
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
+        LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
+        WHERE g.id = ?
+    ''', (game_id,))
+    game = c.fetchone()
+    if not game:
+        conn.close()
+        return render_template('404.html', message="Game not found"), 404
+    game = dict(game)
+    
+    home_id = game['home_team_id']
+    away_id = game['away_team_id']
+    home_record = get_team_record(home_id)
+    away_record = get_team_record(away_id)
+    
+    home = {'id': home_id, 'name': game['home_name'], 'rank': game['home_rank'],
+            'elo': game['home_elo'] or 1500, 'record': f"{home_record['wins']}-{home_record['losses']}"}
+    away = {'id': away_id, 'name': game['away_name'], 'rank': game['away_rank'],
+            'elo': game['away_elo'] or 1500, 'record': f"{away_record['wins']}-{away_record['losses']}"}
+    
+    # Predictions from all models
+    prediction = None
+    models_list = []
+    try:
+        for name, model in MODELS.items():
+            if name in ('nn_totals', 'nn_spread', 'nn_dow_totals'):
+                continue
+            try:
+                pred = model.predict_game(home_id, away_id)
+                entry = {
+                    'name': name,
+                    'home_prob': pred['home_win_probability'],
+                    'away_prob': pred['away_win_probability'],
+                    'home_runs': pred['projected_home_runs'],
+                    'away_runs': pred['projected_away_runs']
+                }
+                models_list.append(entry)
+                if name == 'ensemble':
+                    prediction = {
+                        'home_win_prob': pred['home_win_probability'],
+                        'away_win_prob': pred['away_win_probability'],
+                        'projected_home_runs': pred['projected_home_runs'],
+                        'projected_away_runs': pred['projected_away_runs'],
+                        'projected_total': pred.get('projected_total',
+                            pred['projected_home_runs'] + pred['projected_away_runs'])
+                    }
+            except:
+                pass
+    except:
+        pass
+    
+    # Sort: ensemble first, then by home_prob desc
+    models_list.sort(key=lambda x: (0 if x['name'] == 'ensemble' else 1, -x['home_prob']))
+    
+    # DK lines
+    c.execute('''
+        SELECT * FROM betting_lines 
+        WHERE home_team_id = ? AND away_team_id = ?
+        ORDER BY captured_at DESC LIMIT 1
+    ''', (home_id, away_id))
+    line_row = c.fetchone()
+    betting_line = None
+    if line_row:
+        bl = dict(line_row)
+        betting_line = bl
+        if prediction and bl.get('home_ml') and bl.get('away_ml'):
+            dk_home = american_to_implied_prob(bl['home_ml'])
+            dk_away = american_to_implied_prob(bl['away_ml'])
+            total = dk_home + dk_away
+            betting_line['home_edge'] = (prediction['home_win_prob'] - dk_home/total) * 100
+            betting_line['away_edge'] = (prediction['away_win_prob'] - dk_away/total) * 100
+    
+    # Head-to-head history
+    c.execute('''
+        SELECT date, home_score, away_score, winner_id, home_team_id
+        FROM games 
+        WHERE ((home_team_id = ? AND away_team_id = ?) OR (home_team_id = ? AND away_team_id = ?))
+        AND status = 'final'
+        ORDER BY date DESC
+        LIMIT 20
+    ''', (home_id, away_id, away_id, home_id))
+    
+    h2h_games = []
+    h2h_record = {'home_wins': 0, 'away_wins': 0}
+    for row in c.fetchall():
+        r = dict(row)
+        # Normalize so away/home match the current game
+        if r['home_team_id'] == home_id:
+            winner = 'home' if r['winner_id'] == home_id else 'away'
+            h2h_games.append({'date': r['date'], 'home_score': r['home_score'], 
+                            'away_score': r['away_score'], 'winner': winner})
+        else:
+            winner = 'home' if r['winner_id'] == away_id else 'away'
+            # Flip scores since home/away are reversed
+            h2h_games.append({'date': r['date'], 'home_score': r['away_score'],
+                            'away_score': r['home_score'], 'winner': 'away' if winner == 'home' else 'home'})
+        if winner == 'home':
+            h2h_record['home_wins'] += 1
+        else:
+            h2h_record['away_wins'] += 1
+    
+    conn.close()
+    
+    return render_template('game.html',
+        game=game, home=home, away=away,
+        prediction=prediction, models=models_list,
+        betting_line=betting_line,
+        h2h_games=h2h_games, h2h_record=h2h_record)
+
+
+@app.route('/standings')
+def standings():
+    """Conference standings page"""
+    selected_conf = request.args.get('conference', '')
+    
+    conferences_to_show = ['SEC', 'Big Ten', 'ACC', 'Big 12']
+    if selected_conf:
+        conferences_to_show = [selected_conf]
+    
+    conn = get_connection()
+    c = conn.cursor()
+    
+    standings_data = {}
+    for conf in conferences_to_show:
+        c.execute('''
+            SELECT t.id, t.name, t.current_rank, e.rating as elo
+            FROM teams t
+            LEFT JOIN elo_ratings e ON t.id = e.team_id
+            WHERE t.conference = ?
+            ORDER BY t.name
+        ''', (conf,))
+        
+        teams = []
+        for row in c.fetchall():
+            t = dict(row)
+            record = get_team_record(t['id'])
+            runs = get_team_runs(t['id'])
+            games = runs['games'] or 1
+            
+            # Conference record
+            c.execute('''
+                SELECT 
+                    SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) as wins,
+                    SUM(CASE WHEN winner_id != ? AND winner_id IS NOT NULL THEN 1 ELSE 0 END) as losses
+                FROM games
+                WHERE ((home_team_id = ? AND away_team_id IN (SELECT id FROM teams WHERE conference = ?))
+                    OR (away_team_id = ? AND home_team_id IN (SELECT id FROM teams WHERE conference = ?)))
+                AND status = 'final' AND is_conference_game = 1
+            ''', (t['id'], t['id'], t['id'], conf, t['id'], conf))
+            conf_rec = c.fetchone()
+            
+            # Streak
+            c.execute('''
+                SELECT winner_id FROM games
+                WHERE (home_team_id = ? OR away_team_id = ?) AND status = 'final'
+                ORDER BY date DESC, id DESC LIMIT 10
+            ''', (t['id'], t['id']))
+            streak_rows = c.fetchall()
+            streak = ''
+            if streak_rows:
+                streak_type = 'W' if streak_rows[0]['winner_id'] == t['id'] else 'L'
+                streak_count = 0
+                for sr in streak_rows:
+                    if (sr['winner_id'] == t['id']) == (streak_type == 'W'):
+                        streak_count += 1
+                    else:
+                        break
+                streak = f"{streak_type}{streak_count}"
+            
+            rs_avg = round(runs['runs_scored'] / games, 1)
+            ra_avg = round(runs['runs_allowed'] / games, 1)
+            
+            teams.append({
+                'id': t['id'],
+                'name': t['name'],
+                'rank': t['current_rank'],
+                'wins': record['wins'],
+                'losses': record['losses'],
+                'win_pct': f".{int(record['pct']*1000):03d}" if record['pct'] < 1 else '1.000',
+                'conf_wins': conf_rec['wins'] or 0 if conf_rec else 0,
+                'conf_losses': conf_rec['losses'] or 0 if conf_rec else 0,
+                'rs_avg': rs_avg,
+                'ra_avg': ra_avg,
+                'run_diff': round(rs_avg - ra_avg, 1),
+                'elo': t['elo'] or 1500,
+                'streak': streak
+            })
+        
+        teams.sort(key=lambda x: (-x['wins'], x['losses'], -x['elo']))
+        standings_data[conf] = teams
+    
+    conn.close()
+    
+    all_conferences = get_all_conferences()
+    
+    return render_template('standings.html',
+        standings=standings_data,
+        conferences=all_conferences,
+        selected_conf=selected_conf)
+
+
 @app.route('/predict')
 def predict():
     """Prediction tool page"""
@@ -901,6 +1116,31 @@ def api_predict():
         }
     except Exception as e:
         results['team_context'] = {'error': str(e)}
+    
+    # Head-to-head history
+    try:
+        conn2 = get_connection()
+        c2 = conn2.cursor()
+        c2.execute('''
+            SELECT date, home_team_id, home_score, away_score, winner_id
+            FROM games 
+            WHERE ((home_team_id = ? AND away_team_id = ?) OR (home_team_id = ? AND away_team_id = ?))
+            AND status = 'final'
+            ORDER BY date DESC LIMIT 10
+        ''', (home_id, away_id, away_id, home_id))
+        h2h = []
+        for row in c2.fetchall():
+            r = dict(row)
+            if r['home_team_id'] == home_id:
+                h2h.append({'date': r['date'], 'home_score': r['home_score'], 
+                           'away_score': r['away_score'], 'home_won': r['winner_id'] == home_id})
+            else:
+                h2h.append({'date': r['date'], 'home_score': r['away_score'],
+                           'away_score': r['home_score'], 'home_won': r['winner_id'] == away_id})
+        conn2.close()
+        results['h2h'] = h2h
+    except:
+        results['h2h'] = []
     
     return jsonify(results)
 

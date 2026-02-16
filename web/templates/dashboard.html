@@ -111,7 +111,7 @@
                         </thead>
                         <tbody>
                             {% for game in todays_games[:20] %}
-                            <tr>
+                            <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
                                 <td>
                                     {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
                                     <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>

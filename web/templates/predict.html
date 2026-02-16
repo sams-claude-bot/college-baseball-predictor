@@ -177,6 +177,22 @@
                 </div>
             </div>
 
+            <!-- Head-to-Head History -->
+            <div class="card" id="h2hCard" style="display: none;">
+                <div class="card-header">
+                    <i class="bi bi-clock-history"></i> Head-to-Head History
+                    <span class="badge bg-secondary ms-2" id="h2hRecord"></span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Date</th><th class="text-center">Score</th><th>Winner</th></tr></thead>
+                            <tbody id="h2hBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Series Prediction -->
             <div class="card">
                 <div class="card-header">
@@ -400,6 +416,23 @@ function displayResults(data, homeId, awayId) {
     
     // Key Factors (Explainability)
     buildKeyFactors(data, homeName, awayName);
+    
+    // Head-to-Head History
+    const h2h = data.h2h || [];
+    const h2hCard = document.getElementById('h2hCard');
+    if (h2h.length > 0) {
+        h2hCard.style.display = 'block';
+        let homeWins = 0, awayWins = 0;
+        const tbody = document.getElementById('h2hBody');
+        tbody.innerHTML = h2h.map(g => {
+            if (g.home_won) homeWins++; else awayWins++;
+            const winner = g.home_won ? homeName : awayName;
+            return `<tr><td>${g.date}</td><td class="text-center">${g.away_score}-${g.home_score}</td><td><strong>${winner}</strong></td></tr>`;
+        }).join('');
+        document.getElementById('h2hRecord').textContent = `${awayWins}-${homeWins}`;
+    } else {
+        h2hCard.style.display = 'none';
+    }
     
     // Betting analysis
     if (data.betting_line) {

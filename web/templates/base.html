@@ -420,6 +420,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'standings' %}active{% endif %}" href="/standings">
+                            <i class="bi bi-trophy"></i> Standings
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'betting' %}active{% endif %}" href="/betting">
                             <i class="bi bi-currency-dollar"></i> Betting
                         </a>

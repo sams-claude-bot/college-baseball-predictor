@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Standings - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0"><i class="bi bi-trophy"></i> Conference Standings</h1>
+    <div>
+        {% for conf in conferences %}
+        <a href="/standings?conference={{ conf }}" class="btn btn-sm {% if selected_conf == conf %}btn-maroon{% else %}btn-outline-secondary{% endif %}">{{ conf }}</a>
+        {% endfor %}
+    </div>
+</div>
+
+{% for conf_name, teams in standings.items() %}
+<div class="card">
+    <div class="card-header bg-maroon">
+        <i class="bi bi-trophy"></i> {{ conf_name }}
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:30px;">#</th>
+                        <th>Team</th>
+                        <th class="text-center">W</th>
+                        <th class="text-center">L</th>
+                        <th class="text-center">Win%</th>
+                        <th class="text-center hide-mobile">Conf</th>
+                        <th class="text-center">RS/G</th>
+                        <th class="text-center">RA/G</th>
+                        <th class="text-center">Diff</th>
+                        <th class="text-center hide-mobile">Elo</th>
+                        <th class="text-center hide-mobile">Streak</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for team in teams %}
+                <tr>
+                    <td class="text-center text-muted">{{ loop.index }}</td>
+                    <td>
+                        {% if team.rank %}<small class="text-muted">#{{ team.rank }}</small> {% endif %}
+                        <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
+                    </td>
+                    <td class="text-center fw-bold">{{ team.wins }}</td>
+                    <td class="text-center">{{ team.losses }}</td>
+                    <td class="text-center">{{ team.win_pct }}</td>
+                    <td class="text-center hide-mobile">{{ team.conf_wins }}-{{ team.conf_losses }}</td>
+                    <td class="text-center">{{ team.rs_avg }}</td>
+                    <td class="text-center">{{ team.ra_avg }}</td>
+                    <td class="text-center {% if team.run_diff > 0 %}text-success{% elif team.run_diff < 0 %}text-danger{% endif %}">
+                        {{ '%+.1f'|format(team.run_diff) }}
+                    </td>
+                    <td class="text-center hide-mobile">{{ team.elo|round(0)|int }}</td>
+                    <td class="text-center hide-mobile">
+                        {% if team.streak %}
+                        <span class="badge {% if team.streak.startswith('W') %}bg-success{% else %}bg-danger{% endif %}">{{ team.streak }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}
