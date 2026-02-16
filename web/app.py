@@ -1588,19 +1588,42 @@ def debug():
     conn = get_connection()
     c = conn.cursor()
     
-    # Teams with more than 3 games played (final status)
-    c.execute('''
-        SELECT t.id, t.name, t.conference,
-            COUNT(g.id) as games_played,
-            SUM(CASE WHEN g.winner_id = t.id THEN 1 ELSE 0 END) as wins,
-            SUM(CASE WHEN g.winner_id != t.id AND g.winner_id IS NOT NULL THEN 1 ELSE 0 END) as losses
-        FROM teams t
-        JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id) AND g.status = 'final'
-        GROUP BY t.id
-        HAVING games_played > 3
-        ORDER BY games_played DESC
-    ''')
-    teams_over_3 = [dict(row) for row in c.fetchall()]
+    # Teams with more than 5 games in any Mon-Sun week
+    # Get all weeks that have final games
+    c.execute("SELECT DISTINCT date FROM games WHERE status='final' ORDER BY date")
+    all_dates = [row[0] for row in c.fetchall()]
+    
+    # Build Monday-Sunday week boundaries
+    from datetime import date as date_type
+    weeks = set()
+    for d_str in all_dates:
+        d = datetime.strptime(d_str, '%Y-%m-%d').date()
+        monday = d - timedelta(days=d.weekday())
+        weeks.add(monday.strftime('%Y-%m-%d'))
+    
+    suspicious_teams = []
+    for monday_str in sorted(weeks):
+        monday = datetime.strptime(monday_str, '%Y-%m-%d').date()
+        sunday = monday + timedelta(days=6)
+        
+        c.execute('''
+            SELECT t.id, t.name, t.conference,
+                COUNT(g.id) as games_this_week,
+                SUM(CASE WHEN g.winner_id = t.id THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN g.winner_id != t.id AND g.winner_id IS NOT NULL THEN 1 ELSE 0 END) as losses
+            FROM teams t
+            JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id) AND g.status = 'final'
+            WHERE g.date >= ? AND g.date <= ?
+            GROUP BY t.id
+            HAVING games_this_week > 5
+            ORDER BY games_this_week DESC
+        ''', (monday_str, sunday.strftime('%Y-%m-%d')))
+        
+        for row in c.fetchall():
+            entry = dict(row)
+            entry['week'] = f"{monday_str} to {sunday.strftime('%Y-%m-%d')}"
+            suspicious_teams.append(entry)
+    teams_over_3 = suspicious_teams
     
     # Load flags from JSON file
     flags_path = base_dir / 'data' / 'debug_flags.json'
