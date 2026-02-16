@@ -222,13 +222,28 @@ class EloModel(BaseModel):
     
     def initialize_from_rankings(self, rankings):
         """
-        Initialize Elo ratings from preseason rankings
+        Initialize Elo ratings from preseason rankings.
+        
+        Uses max(ranking-based Elo, conference tier) so a ranked team
+        never starts below their conference default.
         
         rankings: list of team_ids in rank order
         """
-        # Spread ratings from 1700 (#1) to 1400 (#25)
+        # Spread ratings from 1700 (#1) down by 12 per rank
         for i, team_id in enumerate(rankings):
-            rating = 1700 - (i * 12)  # ~12 points per rank
+            rank_rating = 1700 - (i * 12)
+            
+            # Get conference tier floor
+            try:
+                conn = get_connection()
+                row = conn.execute("SELECT conference FROM teams WHERE id = ?", (team_id,)).fetchone()
+                conn.close()
+                conf = row['conference'] if row and row['conference'] else ''
+                conf_floor = self.CONF_ELO.get(conf, self.BASE_RATING)
+            except Exception:
+                conf_floor = self.BASE_RATING
+            
+            rating = max(rank_rating, conf_floor)
             self.ratings[team_id] = rating
             self._save_rating(team_id, rating)
         
