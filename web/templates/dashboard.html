@@ -105,8 +105,8 @@
                                 <th>Away</th>
                                 <th class="text-center">Score/Time</th>
                                 <th>Home</th>
-                                <th class="text-center">Pred</th>
-                                <th class="text-center">Lines</th>
+                                <th class="text-center hide-mobile">Pred</th>
+                                <th class="text-center hide-mobile">Lines</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -130,12 +130,12 @@
                                     {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
                                     <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center hide-mobile">
                                     {% if game.prediction %}
                                     <small>{{ (game.prediction.projected_away_runs|round(1)) }}-{{ (game.prediction.projected_home_runs|round(1)) }}</small>
                                     {% else %}—{% endif %}
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center hide-mobile">
                                     {% if game.home_ml %}
                                     <small>{{ game.away_ml|format_odds }}/{{ game.home_ml|format_odds }}</small>
                                     {% else %}—{% endif %}
@@ -162,45 +162,56 @@
 
     <!-- Sidebar -->
     <div class="col-lg-4">
-        <!-- Top Value Picks -->
+        <!-- Today's Best Bets (Plain English) -->
         <div class="card">
-            <div class="card-header">
-                <i class="bi bi-lightning-charge text-warning"></i> Top Value Picks
+            <div class="card-header bg-maroon">
+                <i class="bi bi-lightning-charge"></i> Today's Best Bets
             </div>
             <div class="card-body p-0">
                 {% if value_picks %}
                 <div class="list-group list-group-flush">
                     {% for pick in value_picks %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <strong>{{ pick.pick }}</strong>
-                                <div class="small text-muted">{{ pick.game }}</div>
+                    <div class="list-group-item px-3 py-3">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="flex-shrink-0">
+                                {% if pick.edge > 10 %}
+                                <span style="font-size: 1.5em;">🔥</span>
+                                {% elif pick.edge > 5 %}
+                                <span style="font-size: 1.5em;">✅</span>
+                                {% else %}
+                                <span style="font-size: 1.5em;">👀</span>
+                                {% endif %}
                             </div>
-                            <div class="text-end">
-                                <span class="value-indicator positive">+{{ pick.edge|round(1) }}%</span>
-                                <div class="small text-muted mt-1">{{ pick.moneyline|format_odds }}</div>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">{{ pick.pick }} {{ pick.moneyline|format_odds }}</div>
+                                <div class="small text-muted mb-1">{{ pick.game }}</div>
+                                <div class="small">
+                                    {% if pick.edge > 10 %}
+                                    <span class="text-success fw-bold">Strong value.</span> Our models give {{ pick.pick }} a {{ (pick.model_prob * 100)|round(0)|int }}% chance — DraftKings implies only {{ (pick.dk_implied * 100)|round(0)|int }}%. That's a <strong>{{ pick.edge|round(1) }}% edge</strong>.
+                                    {% elif pick.edge > 5 %}
+                                    <span class="text-success">Good value.</span> Models say {{ (pick.model_prob * 100)|round(0)|int }}% vs DK's {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>+{{ pick.edge|round(1) }}% edge.</strong>
+                                    {% else %}
+                                    Slight edge — {{ (pick.model_prob * 100)|round(0)|int }}% model vs {{ (pick.dk_implied * 100)|round(0)|int }}% DK. <strong>+{{ pick.edge|round(1) }}%.</strong>
+                                    {% endif %}
+                                </div>
                             </div>
-                        </div>
-                        <div class="progress mt-2" style="height: 6px;">
-                            <div class="progress-bar bg-success" style="width: {{ pick.model_prob * 100 }}%"></div>
-                        </div>
-                        <div class="d-flex justify-content-between small text-muted mt-1">
-                            <span>Model: {{ (pick.model_prob * 100)|round(1) }}%</span>
-                            <span>DK: {{ (pick.dk_implied * 100)|round(1) }}%</span>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
                 <div class="text-center text-muted py-4">
-                    <p>No value picks available</p>
+                    <i class="bi bi-calendar-x" style="font-size: 1.5em;"></i>
+                    <p class="mt-2 mb-0">No DraftKings lines loaded today</p>
+                    <small>Lines get scraped each morning at 8 AM</small>
                 </div>
                 {% endif %}
             </div>
+            {% if value_picks %}
             <div class="card-footer text-center">
-                <a href="/betting" class="btn btn-sm btn-maroon">View All Betting Analysis</a>
+                <a href="/betting" class="btn btn-sm btn-maroon">Full Betting Analysis</a>
             </div>
+            {% endif %}
         </div>
 
         <!-- Model Snapshot -->

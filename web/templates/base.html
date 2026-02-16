@@ -261,9 +261,35 @@
         
         /* Mobile */
         @media (max-width: 768px) {
-            .stat-card .stat-value { font-size: 2rem; }
-            .table-responsive { font-size: 0.9rem; }
-            .navbar-brand { font-size: 1rem; }
+            .stat-card { padding: 1rem 0.5rem; }
+            .stat-card .stat-value { font-size: 1.6rem; }
+            .stat-card .stat-label { font-size: 0.75rem; }
+            .table-responsive { font-size: 0.82rem; }
+            .table-responsive th, .table-responsive td { padding: 0.4rem 0.35rem; white-space: nowrap; }
+            .navbar-brand { font-size: 0.95rem; }
+            .card { margin-bottom: 1rem; border-radius: 10px; }
+            .card-header { padding: 0.75rem 1rem; font-size: 0.9rem; }
+            .card-body { padding: 0.75rem; }
+            .container { padding-left: 0.75rem; padding-right: 0.75rem; }
+            h1.h3, .h3 { font-size: 1.3rem; }
+            .display-4 { font-size: 2rem; }
+            .btn-sm { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+            .list-group-item { padding: 0.6rem 0.75rem; }
+            /* Stack columns that are too wide */
+            .col-md-4.text-center { margin-bottom: 0.5rem; }
+            /* Hide less important table columns on mobile */
+            .hide-mobile { display: none; }
+            /* Prediction page mobile */
+            .col-lg-4, .col-lg-8 { padding-left: 0; padding-right: 0; }
+            /* Tighter spacing for value picks */
+            .value-indicator { font-size: 0.75rem; padding: 0.15rem 0.5rem; }
+        }
+        
+        @media (max-width: 576px) {
+            .stat-card .stat-value { font-size: 1.4rem; }
+            .stat-card .stat-label { font-size: 0.7rem; }
+            .navbar .nav-link { padding: 0.4rem 0.75rem !important; font-size: 0.9rem; }
+            .fs-2 { font-size: 1.5rem !important; }
         }
         
         /* Footer */
@@ -315,24 +341,19 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'tracker' %}active{% endif %}" href="/tracker">
-                            <i class="bi bi-graph-up-arrow"></i> P&L Tracker
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'debug' %}active{% endif %}" href="/debug">
-                            <i class="bi bi-bug"></i> Debug
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="/calendar">
                             <i class="bi bi-calendar3"></i> Calendar
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'models' %}active{% endif %}" href="/models">
-                            <i class="bi bi-gear"></i> Models
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.endpoint in ('tracker', 'models', 'debug') %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots"></i> More
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/tracker"><i class="bi bi-graph-up-arrow"></i> P&L Tracker</a></li>
+                            <li><a class="dropdown-item" href="/models"><i class="bi bi-gear"></i> Models</a></li>
+                            <li><a class="dropdown-item" href="/debug"><i class="bi bi-bug"></i> Debug</a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <button class="dark-mode-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">
