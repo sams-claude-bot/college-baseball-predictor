@@ -21,6 +21,7 @@ SPREAD_EDGE_THRESHOLD = 1.0  # Min run margin beyond spread to bet
 TOTAL_EDGE_THRESHOLD = 1.0   # Min run diff from total line to bet
 TOTAL_PROB_THRESHOLD = 0.55  # Min NN probability to bet (if NN available)
 BET_AMOUNT = 100.0
+AGREEMENT_BONUS = 1.5        # Multiply edge by this when NN and ensemble agree
 
 # Lazy-loaded models
 _nn_totals = None
@@ -129,40 +130,69 @@ def record_bets(max_spread=6, max_total=6):
             ).fetchone()
             
             if not existing:
-                proj_margin = None
-                source = 'blended'
+                nn_margin = None
+                ens_margin = None
                 
+                # Get NN spread projection
                 if nn_spread:
                     try:
                         sp = nn_spread.predict_game(home_id, away_id)
-                        proj_margin = sp.get('projected_margin', 0)
-                        source = 'nn_spread'
+                        nn_margin = sp.get('projected_margin', 0)
                     except:
                         pass
                 
-                if proj_margin is None:
-                    hr, ar = get_blended_runs(conn, line['game_id'])
-                    if hr is not None:
-                        proj_margin = hr - ar
+                # Get ensemble/blended projection
+                hr, ar = get_blended_runs(conn, line['game_id'])
+                if hr is not None:
+                    ens_margin = hr - ar
                 
-                if proj_margin is not None:
+                # Need at least one projection
+                if nn_margin is not None or ens_margin is not None:
                     spread = line['home_spread']
-                    home_cover_margin = proj_margin - spread
                     
-                    if abs(home_cover_margin) >= SPREAD_EDGE_THRESHOLD:
+                    # Determine agreement and pick best projection
+                    if nn_margin is not None and ens_margin is not None:
+                        nn_covers_home = (nn_margin - spread) > 0
+                        ens_covers_home = (ens_margin - spread) > 0
+                        agree = nn_covers_home == ens_covers_home
+                        # Use NN as primary, ensemble as confirmation
+                        proj_margin = nn_margin
+                        source = 'AGREE' if agree else 'nn_spread'
+                    elif nn_margin is not None:
+                        proj_margin = nn_margin
+                        agree = False
+                        source = 'nn_spread'
+                    else:
+                        proj_margin = ens_margin
+                        agree = False
+                        source = 'blended'
+                    
+                    home_cover_margin = proj_margin - spread
+                    raw_edge = abs(home_cover_margin)
+                    
+                    # Boost edge when models agree
+                    scored_edge = raw_edge * AGREEMENT_BONUS if agree else raw_edge
+                    
+                    if raw_edge >= SPREAD_EDGE_THRESHOLD:
                         if home_cover_margin > 0:
                             spread_candidates.append({
                                 'game_id': line['game_id'], 'date': line['date'],
                                 'pick': line['home_name'], 'line': spread,
                                 'odds': line['home_spread_odds'] or -110,
-                                'proj': proj_margin, 'edge': home_cover_margin, 'source': source
+                                'proj': round(proj_margin, 2), 'edge': round(raw_edge, 2),
+                                'scored_edge': round(scored_edge, 2),
+                                'agree': agree, 'source': source,
+                                'nn_margin': nn_margin, 'ens_margin': ens_margin
                             })
                         else:
                             spread_candidates.append({
                                 'game_id': line['game_id'], 'date': line['date'],
                                 'pick': line['away_name'], 'line': line['away_spread'],
                                 'odds': line['away_spread_odds'] or -110,
-                                'proj': proj_margin, 'edge': abs(home_cover_margin), 'source': source
+                                'proj': round(proj_margin, 2), 'edge': round(raw_edge, 2),
+                                'scored_edge': round(scored_edge, 2),
+                                'agree': agree, 'source': source,
+                                'nn_margin': nn_margin, 'ens_margin': ens_margin
                             })
         
         # --- TOTAL CANDIDATE ---
@@ -173,51 +203,58 @@ def record_bets(max_spread=6, max_total=6):
             ).fetchone()
             
             if not existing:
-                proj_total = None
-                pick = None
-                edge = None
-                source = 'blended'
+                nn_total = None
+                nn_pick = None
+                ens_total = None
+                ens_pick = None
+                ou_line = line['over_under']
                 
+                # Get NN totals projection
                 if nn_totals:
                     try:
-                        tp = nn_totals.predict_game(home_id, away_id,
-                                                     over_under_line=line['over_under'])
-                        proj_total = tp.get('projected_total')
+                        tp = nn_totals.predict_game(home_id, away_id, over_under_line=ou_line)
+                        nn_total = tp.get('projected_total')
                         over_prob = tp.get('over_prob', 0.5)
                         under_prob = tp.get('under_prob', 0.5)
-                        source = 'nn_totals'
-                        
                         if over_prob >= TOTAL_PROB_THRESHOLD:
-                            pick = 'OVER'
-                            edge = abs(proj_total - line['over_under']) if proj_total else 1.0
+                            nn_pick = 'OVER'
                         elif under_prob >= TOTAL_PROB_THRESHOLD:
-                            pick = 'UNDER'
-                            edge = abs(proj_total - line['over_under']) if proj_total else 1.0
+                            nn_pick = 'UNDER'
                     except:
                         pass
                 
-                if pick is None:
-                    hr, ar = get_blended_runs(conn, line['game_id'])
-                    if hr is not None:
-                        proj_total = hr + ar
-                        total_diff = proj_total - line['over_under']
-                        if abs(total_diff) >= TOTAL_EDGE_THRESHOLD:
-                            pick = 'OVER' if total_diff > 0 else 'UNDER'
-                            edge = abs(total_diff)
-                            source = 'blended'
+                # Get ensemble/blended projection
+                hr, ar = get_blended_runs(conn, line['game_id'])
+                if hr is not None:
+                    ens_total = hr + ar
+                    diff = ens_total - ou_line
+                    if abs(diff) >= TOTAL_EDGE_THRESHOLD:
+                        ens_pick = 'OVER' if diff > 0 else 'UNDER'
                 
-                if pick and edge:
+                # Need at least one model to have a pick
+                if nn_pick or ens_pick:
+                    agree = nn_pick is not None and ens_pick is not None and nn_pick == ens_pick
+                    
+                    # Use NN as primary pick, fall back to ensemble
+                    pick = nn_pick or ens_pick
+                    proj = nn_total if nn_total else ens_total
+                    raw_edge = abs(proj - ou_line) if proj else 1.0
+                    scored_edge = raw_edge * AGREEMENT_BONUS if agree else raw_edge
+                    source = 'AGREE' if agree else ('nn_totals' if nn_pick else 'blended')
+                    
                     odds = line['over_odds'] if pick == 'OVER' else line['under_odds']
                     total_candidates.append({
                         'game_id': line['game_id'], 'date': line['date'],
-                        'pick': pick, 'line': line['over_under'],
-                        'odds': odds or -110, 'proj': proj_total or 0,
-                        'edge': edge, 'source': source
+                        'pick': pick, 'line': ou_line,
+                        'odds': odds or -110, 'proj': round(proj, 2) if proj else 0,
+                        'edge': round(raw_edge, 2), 'scored_edge': round(scored_edge, 2),
+                        'agree': agree, 'source': source,
+                        'nn_total': nn_total, 'ens_total': ens_total
                     })
     
-    # Sort by edge and take top N
-    spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
-    total_candidates.sort(key=lambda x: x['edge'], reverse=True)
+    # Sort by scored_edge (agreement-boosted) and take top N
+    spread_candidates.sort(key=lambda x: x['scored_edge'], reverse=True)
+    total_candidates.sort(key=lambda x: x['scored_edge'], reverse=True)
     
     top_spreads = spread_candidates[:max_spread]
     top_totals = total_candidates[:max_total]
@@ -229,10 +266,13 @@ def record_bets(max_spread=6, max_total=6):
             (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
             VALUES (?, ?, 'spread', ?, ?, ?, ?, ?, ?)
         ''', (s['game_id'], s['date'], s['pick'], s['line'], s['odds'],
-              round(s['proj'], 2), round(s['edge'], 2), BET_AMOUNT))
+              s['proj'], s['edge'], BET_AMOUNT))
         spread_recorded += 1
-        print(f"  📊 SPREAD [{s['source']}]: {s['pick']} {s['line']:+.1f} ({s['odds']:+g}) | "
-              f"proj margin {s['proj']:+.1f} | edge {s['edge']:.1f} runs")
+        agree_tag = " ✅ AGREE" if s['agree'] else ""
+        nn_str = f"NN={s['nn_margin']:+.1f}" if s['nn_margin'] is not None else "NN=—"
+        ens_str = f"Ens={s['ens_margin']:+.1f}" if s['ens_margin'] is not None else "Ens=—"
+        print(f"  📊 SPREAD: {s['pick']} {s['line']:+.1f} ({s['odds']:+g}) | "
+              f"{nn_str} {ens_str} | edge {s['edge']:.1f} (score {s['scored_edge']:.1f}){agree_tag}")
     
     total_recorded = 0
     for t in top_totals:
@@ -241,16 +281,20 @@ def record_bets(max_spread=6, max_total=6):
             (game_id, date, bet_type, pick, line, odds, model_projection, edge, bet_amount)
             VALUES (?, ?, 'total', ?, ?, ?, ?, ?, ?)
         ''', (t['game_id'], t['date'], t['pick'], t['line'], t['odds'],
-              round(t['proj'], 2), round(t['edge'], 2), BET_AMOUNT))
+              t['proj'], t['edge'], BET_AMOUNT))
         total_recorded += 1
-        proj_str = f"{t['proj']:.1f}" if t['proj'] else "?"
-        print(f"  🎯 TOTAL [{t['source']}]: {t['pick']} {t['line']} ({t['odds']:+g}) | "
-              f"proj {proj_str} | edge {t['edge']:.1f} runs")
+        agree_tag = " ✅ AGREE" if t['agree'] else ""
+        nn_str = f"NN={t['nn_total']:.1f}" if t.get('nn_total') else "NN=—"
+        ens_str = f"Ens={t['ens_total']:.1f}" if t.get('ens_total') else "Ens=—"
+        print(f"  🎯 TOTAL: {t['pick']} {t['line']} ({t['odds']:+g}) | "
+              f"{nn_str} {ens_str} | edge {t['edge']:.1f} (score {t['scored_edge']:.1f}){agree_tag}")
     
+    agree_spreads = sum(1 for s in top_spreads if s['agree'])
+    agree_totals = sum(1 for t in top_totals if t['agree'])
     if spread_candidates:
-        print(f"\n  ({len(spread_candidates)} spread candidates found, took top {max_spread})")
+        print(f"\n  Spreads: {len(spread_candidates)} candidates → top {max_spread} ({agree_spreads} with agreement)")
     if total_candidates:
-        print(f"  ({len(total_candidates)} total candidates found, took top {max_total})")
+        print(f"  Totals: {len(total_candidates)} candidates → top {max_total} ({agree_totals} with agreement)")
     
     conn.commit()
     conn.close()
