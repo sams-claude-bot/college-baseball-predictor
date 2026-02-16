@@ -349,8 +349,9 @@ def sync_date(date_str):
         away_id = resolve_team(away_team['id'], away_team['displayName'],
                               away_team['abbreviation'], conn)
         
-        # Build game_id
+        # Build game_id — also check for swapped version from schedule loader
         game_id = f"{date_str}_{away_id}_{home_id}"
+        swapped_id = f"{date_str}_{home_id}_{away_id}"
         
         # Get scores if final
         home_score = None
@@ -380,9 +381,27 @@ def sync_date(date_str):
         if home_comp.get('linescores'):
             innings = len(home_comp['linescores'])
         
-        # Check if game exists — handle doubleheaders
+        # Check if game exists — also check swapped home/away from schedule loader
         cur.execute("SELECT id, status FROM games WHERE id = ?", (game_id,))
         existing = cur.fetchone()
+        
+        if not existing:
+            # Check for swapped version (schedule loader may have home/away reversed)
+            cur.execute("SELECT id, status FROM games WHERE id = ? OR id LIKE ?", 
+                       (swapped_id, swapped_id + '_g%'))
+            swapped = cur.fetchone()
+            if swapped:
+                # Update the existing swapped game with correct home/away from ESPN
+                cur.execute('''
+                    UPDATE games SET home_team_id = ?, away_team_id = ?,
+                    home_score = ?, away_score = ?, winner_id = ?,
+                    status = ?, innings = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (home_id, away_id, home_score, away_score, winner_id,
+                      game_status, innings, swapped['id']))
+                if game_status == 'final':
+                    stats["games_updated"] += 1
+                continue  # Skip to next game
         
         # If game exists and is final with different scores, it's a doubleheader
         if existing and existing['status'] == 'final' and game_status == 'final':
