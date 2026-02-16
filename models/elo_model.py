@@ -62,11 +62,32 @@ class EloModel(BaseModel):
         
         conn.close()
     
+    # Conference-tiered starting Elo for new teams
+    CONF_ELO = {
+        'SEC': 1600, 'ACC': 1580, 'Big 12': 1560, 'Big Ten': 1550,
+        'AAC': 1520, 'Sun Belt': 1510, 'C-USA': 1500, 'MWC': 1490,
+        'Big East': 1490, 'WCC': 1480, 'A-10': 1470, 'CAA': 1470,
+        'MVC': 1460, 'SoCon': 1460, 'ASUN': 1460, 'Big West': 1460,
+        'MAC': 1450, 'OVC': 1430, 'Southland': 1430, 'Summit': 1420,
+        'WAC': 1420, 'Big South': 1420, 'NEC': 1410, 'Patriot': 1410,
+        'Horizon': 1410, 'America East': 1400, 'Ivy': 1400,
+        'MEAC': 1380, 'SWAC': 1370,
+    }
+
     def _get_rating(self, team_id):
-        """Get team's Elo rating, initialize if new"""
+        """Get team's Elo rating, initialize with conference-tiered default if new"""
         if team_id not in self.ratings:
-            self.ratings[team_id] = self.BASE_RATING
-            self._save_rating(team_id, self.BASE_RATING)
+            # Look up conference for tiered starting Elo
+            try:
+                conn = get_connection()
+                row = conn.execute("SELECT conference FROM teams WHERE id = ?", (team_id,)).fetchone()
+                conn.close()
+                conf = row['conference'] if row and row['conference'] else ''
+                start_elo = self.CONF_ELO.get(conf, self.BASE_RATING)
+            except Exception:
+                start_elo = self.BASE_RATING
+            self.ratings[team_id] = start_elo
+            self._save_rating(team_id, start_elo)
         return self.ratings[team_id]
     
     def _save_rating(self, team_id, rating):
