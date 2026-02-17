@@ -784,36 +784,69 @@ def get_games_for_date_with_predictions(date_str):
     games = [dict(row) for row in c.fetchall()]
     conn.close()
     
-    # Add predictions
+    # Load pre-game predictions from model_predictions table (recorded BEFORE games)
+    conn2 = get_connection()
+    c2 = conn2.cursor()
+    c2.execute('''
+        SELECT game_id, model_name, predicted_home_prob
+        FROM model_predictions
+        WHERE model_name IN ('ensemble', 'neural')
+          AND game_id IN (SELECT id FROM games WHERE date = ?)
+    ''', (date_str,))
+    stored_preds = {}
+    for row in c2.fetchall():
+        key = (row['game_id'], row['model_name'])
+        stored_preds[key] = row['predicted_home_prob']
+    conn2.close()
+    
+    # Fall back to live predictions only for scheduled (future) games
     ensemble = MODELS.get('ensemble')
     correct_count = 0
     total_preds = 0
     
     for game in games:
         game['is_upset'] = False
-        try:
-            if ensemble and game.get('home_team_id') and game.get('away_team_id'):
+        game_id = game['id']
+        
+        # Try stored pre-game prediction first
+        stored_ens = stored_preds.get((game_id, 'ensemble'))
+        
+        if stored_ens is not None:
+            # Use the pre-game prediction (honest accuracy)
+            game['pred_home_prob'] = stored_ens
+            game['pred_winner'] = game['home_team_id'] if stored_ens > 0.5 else game['away_team_id']
+            game['pred_confidence'] = max(stored_ens, 1 - stored_ens)
+            game['pred_source'] = 'pre-game'
+        elif ensemble and game.get('home_team_id') and game.get('away_team_id'):
+            # No stored prediction — use live model (for future/untracked games)
+            try:
                 pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
                 game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
                 game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
                 game['pred_confidence'] = max(game['pred_home_prob'], 1 - game['pred_home_prob'])
-                
-                if game['status'] == 'final' and game.get('winner_id'):
-                    game['pred_correct'] = game['pred_winner'] == game['winner_id']
-                    total_preds += 1
-                    if game['pred_correct']:
-                        correct_count += 1
-                    
-                    # Check for upset
-                    winner_rank = game['home_rank'] if game['winner_id'] == game['home_team_id'] else game['away_rank']
-                    loser_rank = game['away_rank'] if game['winner_id'] == game['home_team_id'] else game['home_rank']
-                    if winner_rank and loser_rank and winner_rank > loser_rank:
-                        game['is_upset'] = True
-                    elif loser_rank and not winner_rank:
-                        game['is_upset'] = True
-        except Exception:
+                game['pred_source'] = 'live'
+            except Exception:
+                game['pred_winner'] = None
+                game['pred_correct'] = None
+                continue
+        else:
             game['pred_winner'] = None
             game['pred_correct'] = None
+            continue
+        
+        if game['status'] == 'final' and game.get('winner_id'):
+            game['pred_correct'] = game['pred_winner'] == game['winner_id']
+            total_preds += 1
+            if game['pred_correct']:
+                correct_count += 1
+            
+            # Check for upset
+            winner_rank = game['home_rank'] if game['winner_id'] == game['home_team_id'] else game['away_rank']
+            loser_rank = game['away_rank'] if game['winner_id'] == game['home_team_id'] else game['home_rank']
+            if winner_rank and loser_rank and winner_rank > loser_rank:
+                game['is_upset'] = True
+            elif loser_rank and not winner_rank:
+                game['is_upset'] = True
     
     return games, correct_count, total_preds
 
@@ -1799,6 +1832,18 @@ def scores():
         }
     conn.close()
     
+    # Load stored pre-game predictions for neural model
+    conn2 = get_connection()
+    c2 = conn2.cursor()
+    c2.execute('''
+        SELECT game_id, predicted_home_prob
+        FROM model_predictions
+        WHERE model_name = 'neural'
+          AND game_id IN (SELECT id FROM games WHERE date = ?)
+    ''', (date_str,))
+    stored_nn = {row['game_id']: row['predicted_home_prob'] for row in c2.fetchall()}
+    conn2.close()
+    
     # Add neural predictions, nn_totals, nn_spread, and betting lines to each game
     neural = MODELS.get('neural')
     nn_totals_model = MODELS.get('nn_totals')
@@ -1815,23 +1860,33 @@ def scores():
             game['away_ml'] = betting_lines_map[key]['away_ml']
             game['over_under'] = betting_lines_map[key]['over_under']
         
-        # Neural model prediction
-        try:
-            if neural and game.get('home_team_id') and game.get('away_team_id'):
+        # Neural model prediction — use stored pre-game prediction for completed games
+        game_id = game.get('id')
+        stored_nn_prob = stored_nn.get(game_id)
+        
+        if stored_nn_prob is not None:
+            game['nn_home_prob'] = stored_nn_prob
+            game['nn_winner'] = game['home_team_id'] if stored_nn_prob > 0.5 else game['away_team_id']
+            game['nn_confidence'] = max(stored_nn_prob, 1 - stored_nn_prob)
+            game['nn_source'] = 'pre-game'
+        elif neural and game.get('home_team_id') and game.get('away_team_id'):
+            # Fall back to live for future/untracked games
+            try:
                 nn_pred = neural.predict_game(game['home_team_id'], game['away_team_id'])
                 game['nn_home_prob'] = nn_pred.get('home_win_probability', 0.5)
                 game['nn_winner'] = game['home_team_id'] if game['nn_home_prob'] > 0.5 else game['away_team_id']
                 game['nn_confidence'] = max(game['nn_home_prob'], 1 - game['nn_home_prob'])
-                
-                if game['status'] == 'final' and game.get('winner_id'):
-                    game['nn_correct'] = game['nn_winner'] == game['winner_id']
-                    nn_total += 1
-                    if game['nn_correct']:
-                        nn_correct += 1
-        except Exception:
-            game['nn_winner'] = None
+                game['nn_source'] = 'live'
+            except Exception:
+                game['nn_winner'] = None
         
-        # NN Totals prediction
+        if game.get('nn_winner') and game['status'] == 'final' and game.get('winner_id'):
+            game['nn_correct'] = game['nn_winner'] == game['winner_id']
+            nn_total += 1
+            if game['nn_correct']:
+                nn_correct += 1
+        
+        # NN Totals prediction (always live — no stored totals predictions per-game)
         try:
             if nn_totals_model and nn_totals_model.is_trained() and game.get('home_team_id') and game.get('away_team_id'):
                 t_pred = nn_totals_model.predict_game(game['home_team_id'], game['away_team_id'])
@@ -1839,7 +1894,7 @@ def scores():
         except Exception:
             pass
         
-        # NN Spread prediction
+        # NN Spread prediction (always live)
         try:
             if nn_spread_model and nn_spread_model.is_trained() and game.get('home_team_id') and game.get('away_team_id'):
                 s_pred = nn_spread_model.predict_game(game['home_team_id'], game['away_team_id'])
