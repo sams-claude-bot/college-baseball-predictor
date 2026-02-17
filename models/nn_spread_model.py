@@ -128,6 +128,13 @@ class NNSpreadModel(BaseModel):
             home_team_id, away_team_id, neutral_site=neutral_site
         )
 
+        # Truncate or pad features to match model's expected input size
+        if len(features) > self.input_size:
+            features = features[:self.input_size]
+        elif len(features) < self.input_size:
+            import numpy as np
+            features = np.pad(features, (0, self.input_size - len(features)))
+
         if self._feature_mean is not None and self._feature_std is not None:
             features = (features - self._feature_mean) / (self._feature_std + 1e-8)
 

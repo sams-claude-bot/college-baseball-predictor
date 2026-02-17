@@ -99,6 +99,26 @@ class FeatureComputer:
                 f'{prefix}days_rest',
                 f'{prefix}sos',
             ])
+            # Advanced batting
+            names.extend([
+                f'{prefix}adv_wrc_plus',
+                f'{prefix}adv_woba',
+                f'{prefix}adv_iso',
+                f'{prefix}adv_babip',
+                f'{prefix}adv_k_pct',
+                f'{prefix}adv_bb_pct',
+                f'{prefix}adv_gb_pct',
+                f'{prefix}adv_fb_pct',
+                f'{prefix}adv_ld_pct',
+            ])
+            # Advanced pitching
+            names.extend([
+                f'{prefix}adv_fip',
+                f'{prefix}adv_xfip',
+                f'{prefix}adv_siera',
+                f'{prefix}adv_gb_pct_pitch',
+                f'{prefix}adv_fb_pct_pitch',
+            ])
         # Situational (game-level)
         names.extend([
             'is_neutral_site',
@@ -148,6 +168,8 @@ class FeatureComputer:
             features.extend(self._batting_features(conn, team_id, game_date))
             features.extend(self._pitching_features(conn, team_id, game_date))
             features.extend(self._situational_team_features(conn, team_id, game_date))
+            features.extend(self._advanced_batting_features(conn, team_id))
+            features.extend(self._advanced_pitching_features(conn, team_id))
 
         # Game-level situational
         features.append(1.0 if neutral_site else 0.0)
@@ -332,6 +354,68 @@ class FeatureComputer:
 
         return [float(days_rest), sos]
 
+    # ---- Advanced Stats ----
+
+    # League-average defaults
+    _ADV_BAT_DEFAULTS = [100.0, 0.320, 0.140, 0.300, 20.0, 8.5, 43.0, 36.0, 21.0]
+    _ADV_PITCH_DEFAULTS = [4.00, 4.00, 4.00, 43.0, 36.0]
+
+    def _advanced_batting_features(self, conn, team_id):
+        """Team advanced batting stats aggregated from player_stats (AB-weighted)."""
+        c = conn.cursor()
+        c.execute("""
+            SELECT
+                SUM(at_bats * wrc_plus) / NULLIF(SUM(CASE WHEN wrc_plus IS NOT NULL THEN at_bats END), 0) as wrc_plus,
+                SUM(at_bats * woba) / NULLIF(SUM(CASE WHEN woba IS NOT NULL THEN at_bats END), 0) as woba,
+                SUM(at_bats * iso) / NULLIF(SUM(CASE WHEN iso IS NOT NULL THEN at_bats END), 0) as iso,
+                SUM(at_bats * babip) / NULLIF(SUM(CASE WHEN babip IS NOT NULL THEN at_bats END), 0) as babip,
+                SUM(at_bats * k_pct) / NULLIF(SUM(CASE WHEN k_pct IS NOT NULL THEN at_bats END), 0) as k_pct,
+                SUM(at_bats * bb_pct) / NULLIF(SUM(CASE WHEN bb_pct IS NOT NULL THEN at_bats END), 0) as bb_pct,
+                SUM(at_bats * gb_pct) / NULLIF(SUM(CASE WHEN gb_pct IS NOT NULL THEN at_bats END), 0) as gb_pct,
+                SUM(at_bats * fb_pct) / NULLIF(SUM(CASE WHEN fb_pct IS NOT NULL THEN at_bats END), 0) as fb_pct,
+                SUM(at_bats * ld_pct) / NULLIF(SUM(CASE WHEN ld_pct IS NOT NULL THEN at_bats END), 0) as ld_pct
+            FROM player_stats
+            WHERE team_id = ? AND at_bats > 0
+        """, (team_id,))
+        row = c.fetchone()
+        if row and row['wrc_plus'] is not None:
+            return [
+                row['wrc_plus'] or 100.0,
+                row['woba'] or 0.320,
+                row['iso'] or 0.140,
+                row['babip'] or 0.300,
+                row['k_pct'] or 20.0,
+                row['bb_pct'] or 8.5,
+                row['gb_pct'] or 43.0,
+                row['fb_pct'] or 36.0,
+                row['ld_pct'] or 21.0,
+            ]
+        return list(self._ADV_BAT_DEFAULTS)
+
+    def _advanced_pitching_features(self, conn, team_id):
+        """Team advanced pitching stats aggregated from player_stats (IP-weighted)."""
+        c = conn.cursor()
+        c.execute("""
+            SELECT
+                SUM(innings_pitched * fip) / NULLIF(SUM(CASE WHEN fip IS NOT NULL THEN innings_pitched END), 0) as fip,
+                SUM(innings_pitched * xfip) / NULLIF(SUM(CASE WHEN xfip IS NOT NULL THEN innings_pitched END), 0) as xfip,
+                SUM(innings_pitched * siera) / NULLIF(SUM(CASE WHEN siera IS NOT NULL THEN innings_pitched END), 0) as siera,
+                SUM(innings_pitched * gb_pct_pitch) / NULLIF(SUM(CASE WHEN gb_pct_pitch IS NOT NULL THEN innings_pitched END), 0) as gb_pct_pitch,
+                SUM(innings_pitched * fb_pct_pitch) / NULLIF(SUM(CASE WHEN fb_pct_pitch IS NOT NULL THEN innings_pitched END), 0) as fb_pct_pitch
+            FROM player_stats
+            WHERE team_id = ? AND innings_pitched > 0
+        """, (team_id,))
+        row = c.fetchone()
+        if row and row['fip'] is not None:
+            return [
+                row['fip'] or 4.00,
+                row['xfip'] or 4.00,
+                row['siera'] or 4.00,
+                row['gb_pct_pitch'] or 43.0,
+                row['fb_pct_pitch'] or 36.0,
+            ]
+        return list(self._ADV_PITCH_DEFAULTS)
+
     # ---- Meta (model stacking) ----
 
     def _meta_features(self, home_team_id, away_team_id, neutral_site):
@@ -482,6 +566,11 @@ class HistoricalFeatureComputer:
             else:
                 sos = DEFAULT_ELO
             features.append(sos)
+
+            # Advanced batting defaults (no player_stats in historical)
+            features.extend([100.0, 0.320, 0.140, 0.300, 20.0, 8.5, 43.0, 36.0, 21.0])
+            # Advanced pitching defaults
+            features.extend([4.00, 4.00, 4.00, 43.0, 36.0])
 
         # Game-level
         features.append(1.0 if neutral else 0.0)
