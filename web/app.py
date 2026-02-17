@@ -211,7 +211,9 @@ def get_todays_games():
                b.home_spread as run_line, b.home_spread_odds as run_line_odds,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
                at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
-               he.rating as home_elo, ae.rating as away_elo
+               he.rating as home_elo, ae.rating as away_elo,
+               gw.temp_f as temperature, gw.wind_speed_mph as wind_speed, gw.wind_direction_deg as wind_direction, 
+               gw.humidity_pct as humidity, gw.precip_prob_pct as precipitation_prob
         FROM games g
         LEFT JOIN betting_lines b ON g.home_team_id = b.home_team_id 
             AND g.away_team_id = b.away_team_id AND g.date = b.date
@@ -219,6 +221,7 @@ def get_todays_games():
         LEFT JOIN teams at ON g.away_team_id = at.id
         LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
         LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
+        LEFT JOIN game_weather gw ON g.id = gw.game_id
         WHERE g.date = ?
         
         UNION
@@ -230,7 +233,8 @@ def get_todays_games():
                b.home_spread as run_line, b.home_spread_odds as run_line_odds,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
                at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
-               he.rating as home_elo, ae.rating as away_elo
+               he.rating as home_elo, ae.rating as away_elo,
+               NULL as temperature, NULL as wind_speed, NULL as wind_direction, NULL as humidity, NULL as precipitation_prob
         FROM betting_lines b
         LEFT JOIN teams ht ON b.home_team_id = ht.id
         LEFT JOIN teams at ON b.away_team_id = at.id

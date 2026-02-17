@@ -187,6 +187,7 @@
                                 <th class="text-center">Score/Time</th>
                                 <th>Home</th>
                                 <th class="text-center hide-mobile">Pred</th>
+                                <th class="text-center hide-mobile">Wx</th>
                                 <th class="text-center hide-mobile">Lines</th>
                             </tr>
                         </thead>
@@ -214,6 +215,15 @@
                                 <td class="text-center hide-mobile">
                                     {% if game.prediction %}
                                     <small>{{ (game.prediction.projected_away_runs|round(1)) }}-{{ (game.prediction.projected_home_runs|round(1)) }}</small>
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="text-center hide-mobile">
+                                    {% if game.temperature %}
+                                    <small title="{{ game.wind_speed|int }}mph wind{% if game.precipitation_prob %}, {{ game.precipitation_prob|int }}% rain{% endif %}">
+                                        {{ game.temperature|int }}°
+                                        {% if game.wind_speed and game.wind_speed >= 10 %}💨{% endif %}
+                                        {% if game.precipitation_prob and game.precipitation_prob >= 30 %}🌧️{% endif %}
+                                    </small>
                                     {% else %}—{% endif %}
                                 </td>
                                 <td class="text-center hide-mobile">
