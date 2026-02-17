@@ -103,6 +103,23 @@ NAME_OVERRIDES = {
     "Lindenwood Lions": "lindenwood",
     "Southern Indiana Screaming Eagles": "southern-indiana",
     "West Georgia Wolves": "west-georgia",
+    # Frequently misgenerated slugs (mascot fragments leak into name)
+    "Lehigh Mountain Hawks": "lehigh",
+    "Maine Black Bears": "maine",
+    "Evansville Purple Aces": "evansville",
+    "Middle Tennessee Blue Raiders": "middle-tennessee",
+    "Delaware Blue Hens": "delaware",
+    "Tulsa Golden Hurricane": "tulsa",
+    "DePaul Blue Demons": "depaul",
+    "Arkansas State Red Wolves": "arkansas-state",
+    "Louisiana Ragin' Cajuns": "louisiana",
+    "Louisiana-Lafayette Ragin' Cajuns": "louisiana",
+    "Louisiana Lafayette Ragin' Cajuns": "louisiana",
+    "Little Rock Trojans": "little-rock",
+    "Appalachian State Mountaineers": "appalachian-state",
+    "William & Mary Tribe": "william-mary",
+    "Chicago State Cougars": "chicago-state",
+    "Stony Brook Seawolves": "stony-brook",
 }
 
 # Reverse lookup: ESPN ID -> our team_id (built at runtime)
@@ -153,7 +170,7 @@ def espn_display_to_slug(display_name):
         "Green Wave", "Horned Frogs",
         "Mean Green", "Mountain Hawks",
         "Nittany Lions",
-        "Purple Eagles",
+        "Purple Aces", "Purple Eagles",
         "Ragin' Cajuns", "Rainbow Warriors", "Red Flash", "Red Foxes",
         "Red Raiders", "Red Storm", "River Hawks", "Runnin' Bulldogs",
         "Scarlet Knights", "Screaming Eagles", "Sun Devils",
@@ -220,6 +237,21 @@ def resolve_team(espn_id, display_name, abbreviation, conn):
     
     # Generate slug from display name
     team_id = espn_display_to_slug(display_name)
+    
+    # SAFETY: Check if generated slug looks like it has mascot fragments
+    # If we'd create a NEW team and a shorter prefix exists, prefer the prefix
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM teams WHERE id = ?", (team_id,))
+    if not cur.fetchone():
+        # Try progressively shorter prefixes to find an existing team
+        parts = team_id.split('-')
+        for end in range(len(parts) - 1, 0, -1):
+            prefix = '-'.join(parts[:end])
+            cur.execute("SELECT id FROM teams WHERE id = ?", (prefix,))
+            if cur.fetchone():
+                print(f"  WARNING: Generated slug '{team_id}' not in DB, using existing '{prefix}' for '{display_name}'")
+                team_id = prefix
+                break
     
     # Check if this team_id already exists in DB
     cur = conn.cursor()
@@ -519,16 +551,35 @@ def main():
         if len(dates) > 1:
             time.sleep(1.5)  # Rate limit between dates
     
-    # Save updated ESPN ID mapping
+    # Save updated ESPN ID mapping (deduplicated: one our_id per ESPN ID)
     if _espn_id_cache:
-        mapping = {v: k for k, v in _espn_id_cache.items()}  # flip: our_id -> espn_id
-        # Merge with existing
+        # Load existing mapping
         existing = {}
         if ESPN_TEAMS_PATH.exists():
             with open(ESPN_TEAMS_PATH) as f:
                 existing = json.load(f)
-        existing.update(mapping)
-        save_espn_id_map(existing)
+        
+        # Build reverse: ESPN ID -> our_id (from cache, which has correct resolutions)
+        espn_to_ours = {}
+        for espn_id_str, our_id in _espn_id_cache.items():
+            espn_to_ours[espn_id_str] = our_id
+        
+        # Rebuild forward map, preferring cache entries (freshest resolution)
+        new_mapping = {}
+        for our_id, espn_id_str in existing.items():
+            # If this ESPN ID was resolved in this run, use the cached (correct) our_id
+            if espn_id_str in espn_to_ours:
+                correct_id = espn_to_ours[espn_id_str]
+                new_mapping[correct_id] = espn_id_str
+            else:
+                new_mapping[our_id] = espn_id_str
+        
+        # Add any new mappings from cache not already present
+        for espn_id_str, our_id in _espn_id_cache.items():
+            if our_id not in new_mapping:
+                new_mapping[our_id] = espn_id_str
+        
+        save_espn_id_map(new_mapping)
     
     print(f"\n{'='*50}")
     print(f"TOTAL: {totals['games_created']} games created, {totals['games_updated']} updated, "
