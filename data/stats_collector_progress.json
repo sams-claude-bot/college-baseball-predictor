@@ -1,7 +1,10 @@
 {
-  "completed": [],
-  "failed": [
+  "completed": [
     "virginia-tech"
   ],
-  "last_run": "2026-02-17T07:11:10.559445"
+  "failed": [],
+  "last_run": "2026-02-17T07:12:36.194531",
+  "sources": {
+    "virginia-tech": "browser"
+  }
 }

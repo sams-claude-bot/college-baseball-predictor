@@ -677,12 +677,13 @@ def collect_stats_with_browser(team_id, url, db, dry_run=False):
                         wmt_url = f"https://wmt.games{wmt_path}"
                         log.info(f"    Found WMT component with path: {wmt_path}")
                 
-                # Also check for WMT URL in page JSON (SIDEARM sites embed this)
+                # Also check for WMT URL directly in page content
                 if not wmt_url:
-                    wmt_match = re.search(r'wmt_stats2_iframe_url["\s:]+(["\'])?(https://wmt\.games/[^"\'<>\s]+)', html)
+                    # Look for baseball-specific WMT stats URL (not charts)
+                    wmt_match = re.search(r'(https://wmt\.games/[^"\'<>\s]+/stats/season/\d+)(?!/charts)', html)
                     if wmt_match:
-                        wmt_url = wmt_match.group(2)
-                        log.info(f"    Found WMT URL in JSON: {wmt_url}")
+                        wmt_url = wmt_match.group(1)
+                        log.info(f"    Found WMT URL in page: {wmt_url}")
                 
                 if wmt_url:
                     log.info(f"    Found WMT iframe, navigating to {wmt_url}")
