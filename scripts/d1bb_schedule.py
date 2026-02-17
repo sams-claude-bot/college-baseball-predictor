@@ -124,10 +124,15 @@ def extract_games_for_date(page, date_str, verbose=False):
                     }
                 }
                 
-                // Get game time/status from the tile
-                const statusEl = container.querySelector('.game-status, .status, .time');
-                if (statusEl) {
-                    game.time_text = statusEl.textContent.trim();
+                // Get game time/status from the tile - time is first line
+                const tileText = container.innerText.trim();
+                const firstLine = tileText.split(String.fromCharCode(10))[0].trim();
+                // Check if first line looks like a time (e.g., "2:00 PM", "11:30 AM")
+                if (firstLine.includes(':') && (firstLine.toUpperCase().includes('AM') || firstLine.toUpperCase().includes('PM'))) {
+                    game.time_text = firstLine;
+                } else if (firstLine.match(/^(Top|Bottom|Final|Middle)/i)) {
+                    // In-progress or completed game
+                    game.status_text = firstLine;
                 }
                 
                 // Check container class for game status
