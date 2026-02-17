@@ -9,6 +9,7 @@ Usage:
     python3 scripts/d1bb_advanced_scraper.py --team mississippi-state
     python3 scripts/d1bb_advanced_scraper.py --conference SEC
     python3 scripts/d1bb_advanced_scraper.py --all-p4
+    python3 scripts/d1bb_advanced_scraper.py --all-d1      # All 311 D1 teams
     python3 scripts/d1bb_advanced_scraper.py --all-p4 --dry-run
 """
 
@@ -53,6 +54,11 @@ def get_conference_teams(db, conference):
         SELECT id FROM teams WHERE conference = ? ORDER BY id
     """, (conference,))
     return [row[0] for row in cursor.fetchall()]
+
+
+def get_all_d1_teams(slug_map):
+    """Get all D1 team IDs that have slug mappings."""
+    return sorted(slug_map.keys())
 
 
 def extract_team_stats(page, team_slug, verbose=False):
@@ -167,13 +173,14 @@ def main():
     parser.add_argument('--team', '-t', help='Single team ID to scrape')
     parser.add_argument('--conference', '-c', help='Conference to scrape (e.g., SEC)')
     parser.add_argument('--all-p4', action='store_true', help='Scrape all Power 4 teams')
+    parser.add_argument('--all-d1', action='store_true', help='Scrape all D1 teams (~311)')
     parser.add_argument('--dry-run', action='store_true', help='Extract but do not save to DB')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
     parser.add_argument('--output-json', '-o', help='Save extracted data to JSON file')
     args = parser.parse_args()
     
-    if not any([args.team, args.conference, args.all_p4]):
-        parser.error("Must specify --team, --conference, or --all-p4")
+    if not any([args.team, args.conference, args.all_p4, args.all_d1]):
+        parser.error("Must specify --team, --conference, --all-p4, or --all-d1")
     
     # Load slug mapping
     slug_map = load_slug_map()
@@ -185,6 +192,8 @@ def main():
         teams = [args.team]
     elif args.conference:
         teams = get_conference_teams(db, args.conference)
+    elif args.all_d1:
+        teams = get_all_d1_teams(slug_map)
     elif args.all_p4:
         teams = get_p4_teams(db)
     
