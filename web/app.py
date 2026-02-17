@@ -324,15 +324,16 @@ def get_value_picks(limit=5):
             home_edge = (model_home_prob - dk_home_fair) * 100
             away_edge = ((1 - model_home_prob) - (1 - dk_home_fair)) * 100
             
-            # Determine best pick
-            if home_edge > abs(away_edge):
+            # Determine best pick - pick the side with POSITIVE edge
+            # (home_edge and away_edge always sum to ~0, so one is positive, one negative)
+            if home_edge > 0:
                 raw_edge = home_edge
                 best_pick = line['home_team_name']
                 best_ml = line['home_ml']
                 model_prob = model_home_prob
                 dk_implied = dk_home_fair
             else:
-                raw_edge = abs(away_edge)
+                raw_edge = away_edge  # This will be positive when home_edge is negative
                 best_pick = line['away_team_name']
                 best_ml = line['away_ml']
                 model_prob = 1 - model_home_prob
