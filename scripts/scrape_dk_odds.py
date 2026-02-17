@@ -24,170 +24,23 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.parent
 DB_PATH = BASE_DIR / "data" / "baseball.db"
 
-# DraftKings team name -> our team_id
-DK_TEAM_MAP = {
-    "air force": "air-force",
-    "akron": "akron",
-    "alabama": "alabama",
-    "appalachian state": "appalachian-state",
-    "app state": "appalachian-state",
-    "arizona": "arizona",
-    "arizona state": "arizona-state",
-    "arkansas": "arkansas",
-    "arkansas state": "arkansas-state",
-    "auburn": "auburn",
-    "ball state": "ball-state",
-    "baylor": "baylor",
-    "byu": "byu",
-    "boston college": "boston-college",
-    "cal state bakersfield": "cal-state-bakersfield",
-    "cal state fullerton": "cal-state-fullerton",
-    "cal state northridge": "cal-state-northridge",
-    "california": "california",
-    "cal": "california",
-    "central arkansas": "central-arkansas",
-    "charleston": "charleston",
-    "cincinnati": "cincinnati",
-    "clemson": "clemson",
-    "coastal carolina": "coastal-carolina",
-    "connecticut": "uconn",
-    "uconn": "uconn",
-    "creighton": "creighton",
-    "dallas baptist": "dallas-baptist",
-    "duke": "duke",
-    "east carolina": "east-carolina",
-    "ecu": "east-carolina",
-    "east tennessee state": "east-tennessee-state",
-    "etsu": "east-tennessee-state",
-    "florida": "florida",
-    "florida atlantic": "florida-atlantic",
-    "fau": "florida-atlantic",
-    "florida international": "florida-international",
-    "fiu": "florida-international",
-    "florida state": "florida-state",
-    "fresno state": "fresno-state",
-    "george mason": "george-mason",
-    "georgia": "georgia",
-    "georgia southern": "georgia-southern",
-    "georgia state": "georgia-state",
-    "georgia tech": "georgia-tech",
-    "gonzaga": "gonzaga",
-    "grand canyon": "grand-canyon",
-    "hawaii": "hawaii",
-    "hawai'i": "hawaii",
-    "houston": "houston",
-    "illinois": "illinois",
-    "indiana": "indiana",
-    "iowa": "iowa",
-    "iowa state": "iowa-state",
-    "jacksonville": "jacksonville",
-    "jacksonville state": "jacksonville-state",
-    "kansas": "kansas",
-    "kansas state": "kansas-state",
-    "kent state": "kent-state",
-    "kentucky": "kentucky",
-    "liberty": "liberty",
-    "long beach state": "long-beach-state",
-    "louisiana": "louisiana",
-    "louisiana tech": "louisiana-tech",
-    "louisville": "louisville",
-    "lsu": "lsu",
-    "maryland": "maryland",
-    "memphis": "memphis",
-    "miami": "miami-fl",
-    "miami (fl)": "miami-fl",
-    "miami fl": "miami-fl",
-    "michigan": "michigan",
-    "michigan state": "michigan-state",
-    "minnesota": "minnesota",
-    "mississippi state": "mississippi-state",
-    "miss state": "mississippi-state",
-    "missouri": "missouri",
-    "nebraska": "nebraska",
-    "nevada": "nevada",
-    "nicholls": "nicholls",
-    "nicholls state": "nicholls",
-    "north carolina": "north-carolina",
-    "unc": "north-carolina",
-    "nc state": "nc-state",
-    "northwestern": "northwestern",
-    "notre dame": "notre-dame",
-    "ohio state": "ohio-state",
-    "oklahoma": "oklahoma",
-    "oklahoma state": "oklahoma-state",
-    "ole miss": "ole-miss",
-    "oregon": "oregon",
-    "oregon state": "oregon-state",
-    "penn state": "penn-state",
-    "pittsburgh": "pittsburgh",
-    "purdue": "purdue",
-    "rice": "rice",
-    "rutgers": "rutgers",
-    "saint mary's": "saint-marys",
-    "sam houston": "sam-houston",
-    "san diego": "san-diego",
-    "san jose state": "san-jose-state",
-    "smu": "smu",
-    "south alabama": "south-alabama",
-    "south carolina": "south-carolina",
-    "south carolina upstate": "south-carolina-upstate",
-    "usc upstate": "south-carolina-upstate",
-    "south florida": "south-florida",
-    "usf": "south-florida",
-    "southeast missouri": "southeast-missouri",
-    "southeast missouri state": "southeast-missouri",
-    "semo": "southeast-missouri",
-    "siu edwardsville": "siu-edwardsville",
-    "siue": "siu-edwardsville",
-    "southern miss": "southern-miss",
-    "stanford": "stanford",
-    "stetson": "stetson",
-    "stony brook": "stony-brook",
-    "syracuse": "syracuse",
-    "tcu": "tcu",
-    "tennessee": "tennessee",
-    "texas": "texas",
-    "texas a&m": "texas-am",
-    "texas am": "texas-am",
-    "texas state": "texas-state",
-    "texas tech": "texas-tech",
-    "troy": "troy",
-    "tulane": "tulane",
-    "uc riverside": "uc-riverside",
-    "uc san diego": "uc-san-diego",
-    "uc santa barbara": "uc-santa-barbara",
-    "ucf": "ucf",
-    "ucla": "ucla",
-    "usc": "usc",
-    "utah": "utah",
-    "utah tech": "utah-tech",
-    "utsa": "utsa",
-    "vanderbilt": "vanderbilt",
-    "virginia": "virginia",
-    "virginia tech": "virginia-tech",
-    "wake forest": "wake-forest",
-    "washington": "washington",
-    "washington state": "washington-state",
-    "west virginia": "west-virginia",
-    "western kentucky": "western-kentucky",
-    "wichita state": "wichita-state",
-    "wku": "western-kentucky",
-}
+# Import database-backed team resolver
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
+from team_resolver import resolve_team as db_resolve_team, add_alias
 
+# DraftKings team name -> our team_id
+
+# Team aliases are now stored in the database (team_aliases table).
+# Use: python3 scripts/team_resolver.py --add <alias> <team_id> draftkings
 
 def resolve_team(name):
-    """Resolve a DraftKings team name to our team_id."""
-    key = name.lower().strip()
-    if key in DK_TEAM_MAP:
-        return DK_TEAM_MAP[key]
-    # Try without common suffixes
-    for suffix in [' st', ' state']:
-        if key.endswith(suffix):
-            base = key[:-len(suffix)]
-            if base in DK_TEAM_MAP:
-                return DK_TEAM_MAP[base]
-    # Fallback: slugify
-    slug = key.replace(' ', '-').replace("'", "").replace('&', 'and')
+    """Resolve a DraftKings team name to our team_id using database."""
+    result = db_resolve_team(name)
+    if result:
+        return result
+    # Fallback: slugify for unknown teams
+    slug = name.lower().strip().replace(' ', '-').replace("'", '').replace('&', 'and')
     return slug
 
 
