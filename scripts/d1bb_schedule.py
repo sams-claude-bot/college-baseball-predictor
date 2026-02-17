@@ -45,12 +45,18 @@ def load_slug_reverse_map():
 
 def resolve_team(db, name, slug_map):
     """Resolve team name to our database ID."""
+    if not name or not name.strip():
+        return None
+    
     # Try slug map first
     name_lower = name.lower().strip()
     name_slug = re.sub(r'[^a-z0-9]+', '', name_lower)
     
+    if not name_slug:  # Don't match empty slugs
+        return None
+    
     for slug, team_id in slug_map.items():
-        if slug == name_slug or name_slug in slug:
+        if slug == name_slug or (len(name_slug) >= 3 and name_slug in slug):
             return team_id
     
     # Try database resolver
@@ -71,8 +77,9 @@ def extract_games_for_date(page, date_str, verbose=False):
     page.goto(url, wait_until='domcontentloaded', timeout=45000)
     time.sleep(2)  # Let content load
     
-    # Extract game data from the page
+    # Extract game data from the page (D1BB shows each game twice, once per conference)
     games = page.evaluate("""() => {
+        const seen = new Set();  // Track seen matchups to dedupe
         const results = [];
         
         // D1Baseball structure: .d1-score-tile containers with .team-1 (away) and .team-2 (home)
@@ -131,7 +138,12 @@ def extract_games_for_date(page, date_str, verbose=False):
                 }
                 
                 if (game.away_slug && game.home_slug) {
-                    results.push(game);
+                    // Dedupe: D1BB shows each game twice (once per conference)
+                    const key = [game.away_slug, game.home_slug].sort().join('_');
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        results.push(game);
+                    }
                 }
             } catch (e) {
                 // Skip malformed
@@ -167,8 +179,8 @@ def parse_time(time_text, date_str):
 def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_score=None, status=None):
     """Insert or update a game."""
     
-    # Generate game ID
-    game_id = f"{date}-{away_id}-vs-{home_id}"
+    # Generate game ID - match existing format: YYYY-MM-DD_away_home
+    game_id = f"{date}_{away_id}_{home_id}"
     
     # Check if exists
     cursor = db.execute("SELECT id, home_score, away_score FROM games WHERE id = ?", (game_id,))
