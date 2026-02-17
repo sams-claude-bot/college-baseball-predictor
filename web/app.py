@@ -2162,16 +2162,71 @@ def api_teams():
 
 @app.route('/api/best-bets')
 def api_best_bets():
-    """Return best bets for a date — same logic as the Betting page.
-    Used by record_daily_bets.py to populate the P&L tracker.
+    """Return best bets for a date with adjusted edge calculation.
+    
+    v2 Logic:
+    - Underdog edges discounted 50% (market usually right)
+    - Consensus bonus: +1% per model above 5 (max +5%)
+    - Spreads DISABLED (0/5 historical)
+    - Stricter thresholds: 8% favorites, 15% underdogs
+    
     Query param: ?date=YYYY-MM-DD (defaults to today)
     """
     date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     games = get_betting_games(date_str)
     
-    # Best moneyline bets (5%+ edge, top 6)
-    ml_candidates = [g for g in games if g.get('best_edge', 0) >= 5]
-    ml_candidates.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
+    # === v2 THRESHOLDS ===
+    ML_EDGE_FAVORITE = 8.0
+    ML_EDGE_UNDERDOG = 15.0
+    UNDERDOG_DISCOUNT = 0.5
+    CONSENSUS_BONUS_PER_MODEL = 1.0  # +1% per model above 5
+    ML_MAX_FAVORITE = -200
+    ML_MAX_FAVORITE_CONSENSUS = -300
+    ML_MIN_UNDERDOG = 250
+    SPREADS_ENABLED = False
+    
+    def calc_adjusted_edge(raw_edge, ml, models_agree=5):
+        """Calculate adjusted edge with underdog discount and consensus bonus."""
+        adj = raw_edge
+        if ml and ml > 0:  # Underdog
+            adj = raw_edge * UNDERDOG_DISCOUNT
+        bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
+        return adj + bonus
+    
+    # Build consensus lookup
+    consensus_lookup = {}
+    for g in games:
+        if g.get('model_agreement') and g['model_agreement']['count'] >= 7:
+            consensus_lookup[g['game_id']] = g['model_agreement']['count']
+    
+    # Best moneyline bets with adjusted edge
+    ml_candidates = []
+    for g in games:
+        raw_edge = g.get('best_edge', 0)
+        if g['best_pick'] == 'home':
+            ml = g.get('home_ml')
+        else:
+            ml = g.get('away_ml')
+        
+        if ml is None:
+            continue
+            
+        is_underdog = ml > 0
+        threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_FAVORITE
+        
+        if raw_edge < threshold:
+            continue
+        if ml < ML_MAX_FAVORITE:
+            continue
+        if ml > ML_MIN_UNDERDOG:
+            continue
+            
+        models = consensus_lookup.get(g['game_id'], 5)
+        adj_edge = calc_adjusted_edge(raw_edge, ml, models)
+        
+        ml_candidates.append({**g, 'adjusted_edge': adj_edge, 'models_agree': models})
+    
+    ml_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     best_ml = ml_candidates[:6]
     
     ml_bets = []
@@ -2197,12 +2252,19 @@ def api_best_bets():
             'pick_team_id': pick_id, 'pick_team_name': pick_name,
             'opponent_name': opp_name, 'is_home': is_home,
             'moneyline': ml, 'model_prob': round(prob, 4),
-            'dk_implied': round(dk_imp, 4), 'edge': round(g['best_edge'], 2)
+            'dk_implied': round(dk_imp, 4), 
+            'edge': round(g['best_edge'], 2),
+            'adjusted_edge': round(g.get('adjusted_edge', g['best_edge']), 2),
+            'models_agree': g.get('models_agree', 5),
+            'is_underdog': ml > 0 if ml else False
         })
     
-    # Best totals (15%+ edge, top 6)
-    totals_candidates = [g for g in games if g.get('total_edge', 0) >= 15 and g.get('over_under')]
-    totals_candidates.sort(key=lambda x: x.get('total_edge', 0), reverse=True)
+    # Best totals (3+ runs edge, top 6)
+    TOTALS_EDGE_RUNS = 3.0
+    totals_candidates = [g for g in games 
+                        if abs(g.get('total_diff', 0)) >= TOTALS_EDGE_RUNS 
+                        and g.get('over_under')]
+    totals_candidates.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
     best_totals = totals_candidates[:6]
     
     totals_bets = []
@@ -2241,7 +2303,7 @@ def api_best_bets():
                     'edge': round(diff, 2)
                 })
     spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
-    best_spreads = spread_candidates[:6]
+    best_spreads = spread_candidates[:6] if SPREADS_ENABLED else []
     
     # Confident bets (7/10+ models agree, sorted by confidence score)
     confident_candidates = [g for g in games 
@@ -2280,10 +2342,19 @@ def api_best_bets():
     
     return jsonify({
         'date': date_str,
+        'version': 2,
+        'thresholds': {
+            'ml_favorite': ML_EDGE_FAVORITE,
+            'ml_underdog': ML_EDGE_UNDERDOG,
+            'totals_runs': TOTALS_EDGE_RUNS,
+            'underdog_discount': UNDERDOG_DISCOUNT,
+            'spreads_enabled': SPREADS_ENABLED
+        },
         'confident_bets': confident_bets,
         'moneylines': ml_bets,
         'totals': totals_bets,
-        'spreads': best_spreads
+        'spreads': best_spreads,
+        'spreads_disabled_reason': 'Model not calibrated (0/5 historical)' if not SPREADS_ENABLED else None
     })
 
 # ============================================
