@@ -10,39 +10,28 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-# sys.path.insert(0, str(Path(__file__).parent))  # Removed by cleanup
+# Import database-backed team resolver
+sys.path.insert(0, str(Path(__file__).parent))
+from team_resolver import resolve_team as db_resolve_team
 
 from scripts.database import (
     get_connection, add_ranking, get_current_top_25, 
     get_ranking_history, init_rankings_table, add_team
 )
 
-# Common team name mappings
-TEAM_ALIASES = {
-    "miss state": "mississippi-state",
-    "mississippi state": "mississippi-state",
-    "ole miss": "ole-miss",
-    "texas a&m": "texas-am",
-    "south carolina": "south-carolina",
-    "usc": "southern-california",
-    "unc": "north-carolina",
-    "nc state": "nc-state",
-    "miami (fl)": "miami-fl",
-    "miami": "miami-fl",
-    "louisville": "louisville",
-    "wake forest": "wake-forest",
-    "virginia tech": "virginia-tech",
-    "florida state": "florida-state",
-    "east carolina": "east-carolina",
-    "oregon state": "oregon-state",
-    "arizona state": "arizona-state",
-}
+# Team aliases are now in the database (team_aliases table)
+# Use: python3 scripts/team_resolver.py --add 'alias' team-id d1baseball
 
 def normalize_team_id(name):
-    """Convert team name to ID format"""
+    """Convert team name to ID format using database resolver"""
     name_lower = name.lower().strip()
-    if name_lower in TEAM_ALIASES:
-        return TEAM_ALIASES[name_lower]
+    
+    # Use database resolver
+    result = db_resolve_team(name_lower)
+    if result:
+        return result
+    
+    # Fallback: slugify
     return name_lower.replace(" ", "-").replace("(", "").replace(")", "")
 
 def set_rankings(rankings_list, poll="d1baseball", week=None):

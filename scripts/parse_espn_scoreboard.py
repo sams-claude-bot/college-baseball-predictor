@@ -15,10 +15,13 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 from scripts.database import get_connection
+from team_resolver import resolve_team as db_resolve_team
 
-# Team name normalizations
-TEAM_ALIASES = {
+# Team aliases are now in the database (team_aliases table)
+# Legacy dict kept for reference but not used
+_LEGACY_ALIASES = {
     'miss state': 'mississippi-state',
     'mississippi state': 'mississippi-state',
     'ole miss': 'ole-miss',
@@ -130,15 +133,16 @@ TEAM_ALIASES = {
 
 
 def normalize_team_id(name):
-    """Convert team name to standardized team_id format"""
+    """Convert team name to standardized team_id format using database resolver"""
     if not name:
         return None
     
     lower = name.lower().strip()
     
-    # Check aliases first
-    if lower in TEAM_ALIASES:
-        return TEAM_ALIASES[lower]
+    # Use database resolver
+    result = db_resolve_team(lower)
+    if result:
+        return result
     
     # Clean up: remove parentheses, periods, extra spaces
     result = lower.replace('(', '').replace(')', '').replace('.', '')
