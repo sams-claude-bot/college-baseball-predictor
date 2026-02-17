@@ -832,6 +832,49 @@ def find_game_id(db, team1_id, team2_id, date_str):
     return row['id'] if row else None
 
 
+def find_or_create_game(db, home_team_id, away_team_id, date_str, home_score=None, away_score=None):
+    """
+    Find existing game or create a new one. Returns game_id.
+    """
+    # Normalize date
+    if '/' in date_str:
+        parts = date_str.split('/')
+        if len(parts) == 3:
+            month, day, year = parts
+            date_str = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+
+    game_id = find_game_id(db, home_team_id, away_team_id, date_str)
+    if game_id:
+        # Update scores if we have them and the game doesn't
+        if home_score is not None and away_score is not None:
+            db.execute("""
+                UPDATE games SET home_score = ?, away_score = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND home_score IS NULL
+            """, (home_score, away_score, game_id))
+            db.commit()
+        return game_id
+
+    # Create new game
+    import hashlib
+    game_id = hashlib.md5(f"{date_str}-{away_team_id}-{home_team_id}".encode()).hexdigest()[:12]
+    game_id = f"d1bb-{date_str}-{game_id}"
+
+    try:
+        db.execute("""
+            INSERT INTO games (id, date, home_team_id, away_team_id, home_score, away_score,
+                             status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        """, (game_id, date_str, home_team_id, away_team_id, home_score, away_score,
+              'final' if home_score is not None else 'scheduled'))
+        db.commit()
+        log.info(f"    Created game {game_id}: {away_team_id} @ {home_team_id} ({date_str})")
+    except sqlite3.IntegrityError:
+        # Race condition or duplicate — try find again
+        game_id = find_game_id(db, home_team_id, away_team_id, date_str)
+
+    return game_id
+
+
 def scrape_box_score(page, url, retry_on_fail=True):
     """
     Scrape a single SIDEARM box score page.
@@ -1313,6 +1356,31 @@ def main():
         
         db = get_db()
         
+        # First pass: create/update game records from scores page
+        games_created = 0
+        games_updated = 0
+        for box_url, info in game_info.items():
+            away_id = normalize_team_name(info.get('away_team', ''))
+            home_id = normalize_team_name(info.get('home_team', ''))
+            if not away_id or not home_id:
+                continue
+            existing = find_game_id(db, home_id, away_id, date)
+            if existing:
+                # Update scores if missing
+                if info.get('home_score') is not None:
+                    updated = db.execute("""
+                        UPDATE games SET home_score=?, away_score=?, status='final', updated_at=CURRENT_TIMESTAMP
+                        WHERE id=? AND home_score IS NULL
+                    """, (info['home_score'], info['away_score'], existing)).rowcount
+                    if updated:
+                        games_updated += 1
+            else:
+                gid = find_or_create_game(db, home_id, away_id, date,
+                                          info.get('home_score'), info.get('away_score'))
+                if gid:
+                    games_created += 1
+        log.info(f"Game records: {games_created} created, {games_updated} scores updated from D1BB scores page")
+        
         # Stats tracking
         total_urls = len(url_list)
         success_count = 0
@@ -1354,11 +1422,11 @@ def main():
                     home_team_id = normalize_team_name(info['home_team'])
                     
                     if away_team_id and home_team_id:
-                        game_id = find_game_id(db, home_team_id, away_team_id, date)
-                        if game_id and info.get('home_score') is not None and info.get('away_score') is not None:
-                            if update_game_scores(db, game_id, info['home_score'], info['away_score']):
-                                log.info(f"    Fallback: Updated scores for game {game_id} ({info['away_score']}-{info['home_score']})")
-                                fallback_count += 1
+                        game_id = find_or_create_game(db, home_team_id, away_team_id, date,
+                                                       info.get('home_score'), info.get('away_score'))
+                        if game_id:
+                            log.info(f"    Fallback: Scores recorded for game {game_id} ({info.get('away_score')}-{info.get('home_score')})")
+                            fallback_count += 1
                 
                 if i < total_urls:
                     time.sleep(BOX_SCORE_DELAY)
@@ -1393,11 +1461,25 @@ def main():
                         break
             
             if not game_id:
-                log.warning(f"    No matching game found for {team_ids} on {game_date}")
-                no_match_count += 1
-                if i < total_urls:
-                    time.sleep(BOX_SCORE_DELAY)
-                continue
+                # Create game record — determine home/away from box score or game_info
+                home_id, away_id = team_ids[0], team_ids[1]
+                home_score, away_score = None, None
+                # Try to get scores from game_info
+                if url in game_info:
+                    info = game_info[url]
+                    h_id = normalize_team_name(info.get('home_team', ''))
+                    a_id = normalize_team_name(info.get('away_team', ''))
+                    if h_id and a_id:
+                        home_id, away_id = h_id, a_id
+                    home_score = info.get('home_score')
+                    away_score = info.get('away_score')
+                game_id = find_or_create_game(db, home_id, away_id, game_date, home_score, away_score)
+                if not game_id:
+                    log.warning(f"    Failed to create game for {team_ids} on {game_date}")
+                    no_match_count += 1
+                    if i < total_urls:
+                        time.sleep(BOX_SCORE_DELAY)
+                    continue
             
             # Store the stats
             batting_count, pitching_count = store_box_score(db, game_id, box_score)
