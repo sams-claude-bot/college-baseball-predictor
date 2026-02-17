@@ -23,7 +23,7 @@ DB_TO_D1_SLUG = {
     'arizona-state': 'arizonastate',
     'iowa-state': 'iowastate',
     'kansas-state': 'kansasstate',
-    'oklahoma-state': 'oklahomastate',
+    'oklahoma-state': 'okstate',
     'texas-tech': 'texastech',
     'west-virginia': 'westvirginia',
     # Big Ten

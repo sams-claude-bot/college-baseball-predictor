@@ -26,11 +26,16 @@ except ImportError:
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
 
+# Import database-backed team resolver
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from team_resolver import resolve_team as db_resolve_team, add_alias
+
 # Holdout teams that need stats
 # D1Baseball slugs for holdout teams (smu/syracuse have no baseball program)
 HOLDOUT_SLUGS = ['gatech', 'kentucky', 'vandy']
 
 # D1Baseball slug -> DB team_id mapping (when slug differs from DB id)
+# Note: Most mappings are now in the database (team_aliases table)
 SLUG_TO_TEAM_ID = {
     'gatech': 'georgia-tech',
     'vandy': 'vanderbilt',
@@ -93,18 +98,27 @@ def get_db():
 def resolve_team_id(db, slug):
     """Find the team_id in the DB for a given slug."""
     _load_slug_map()
-    # Check explicit mapping first
+    
+    # Check explicit mapping first (for D1BB-specific slugs)
     if slug in SLUG_TO_TEAM_ID:
         return SLUG_TO_TEAM_ID[slug]
-    # Try direct match
+    
+    # Use database resolver (checks team_aliases table)
+    result = db_resolve_team(slug)
+    if result:
+        return result
+    
+    # Try direct match in teams table
     row = db.execute("SELECT id FROM teams WHERE id = ?", (slug,)).fetchone()
     if row:
         return row['id']
+    
     # Try name match
     name_guess = slug.replace('-', ' ').title()
     row = db.execute("SELECT id FROM teams WHERE name LIKE ?", (f'%{name_guess}%',)).fetchone()
     if row:
         return row['id']
+    
     return None
 
 
