@@ -180,6 +180,12 @@
                                         <th class="text-end">BB</th>
                                         <th class="text-end">SO</th>
                                         <th class="text-end">SB</th>
+                                        <th class="text-end text-info">wRC+</th>
+                                        <th class="text-end text-info">wOBA</th>
+                                        <th class="text-end text-info">ISO</th>
+                                        <th class="text-end text-info">BABIP</th>
+                                        <th class="text-end text-info">K%</th>
+                                        <th class="text-end text-info">BB%</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -199,6 +205,12 @@
                                         <td class="text-end">{{ player.walks or 0 }}</td>
                                         <td class="text-end">{{ player.strikeouts or 0 }}</td>
                                         <td class="text-end">{{ player.stolen_bases or 0 }}</td>
+                                        <td class="text-end text-info">{{ '%d'|format(player.wrc_plus) if player.wrc_plus is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.3f'|format(player.woba) if player.woba is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.3f'|format(player.iso) if player.iso is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.3f'|format(player.babip) if player.babip is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.1f'|format(player.k_pct * 100) if player.k_pct is not none else '' }}{{ '%' if player.k_pct is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.1f'|format(player.bb_pct * 100) if player.bb_pct is not none else '' }}{{ '%' if player.bb_pct is not none else '' }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -226,6 +238,12 @@
                                         <th class="text-end">K</th>
                                         <th class="text-end">K/9</th>
                                         <th class="text-end">SV</th>
+                                        <th class="text-end text-info">FIP</th>
+                                        <th class="text-end text-info">xFIP</th>
+                                        <th class="text-end text-info">SIERA</th>
+                                        <th class="text-end text-info">K%</th>
+                                        <th class="text-end text-info">BB%</th>
+                                        <th class="text-end text-info">BABIP</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -243,6 +261,12 @@
                                         <td class="text-end">{{ player.strikeouts_pitched or 0 }}</td>
                                         <td class="text-end">{{ '%.1f'|format(player.k_per_9) if player.k_per_9 else '0.0' }}</td>
                                         <td class="text-end">{{ player.saves or 0 }}</td>
+                                        <td class="text-end text-info">{{ '%.2f'|format(player.fip) if player.fip is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.2f'|format(player.xfip) if player.xfip is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.2f'|format(player.siera) if player.siera is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.1f'|format(player.k_pct_pitch * 100) if player.k_pct_pitch is not none else '' }}{{ '%' if player.k_pct_pitch is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.1f'|format(player.bb_pct_pitch * 100) if player.bb_pct_pitch is not none else '' }}{{ '%' if player.bb_pct_pitch is not none else '' }}</td>
+                                        <td class="text-end text-info">{{ '%.3f'|format(player.babip_pitch) if player.babip_pitch is not none else '' }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>

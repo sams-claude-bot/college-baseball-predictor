@@ -5,5 +5,12 @@
     "page": "/",
     "status": "closed",
     "submitted_at": "2026-02-16T14:29:57.229214"
+  },
+  {
+    "id": 2,
+    "description": "too many games in the elo calculation. should match games played",
+    "page": "/team/north-carolina",
+    "status": "open",
+    "submitted_at": "2026-02-17T10:14:09.517043"
   }
 ]

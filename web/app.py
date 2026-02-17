@@ -1023,9 +1023,16 @@ def team_detail(team_id):
     
     # Split roster into batters and pitchers
     pitcher_positions = ('P', 'RHP', 'LHP')
-    pitchers = [p for p in team['roster'] if (p.get('position') or '') in pitcher_positions 
-                or (p.get('position') or '').startswith(('RHP', 'LHP'))]
-    batters = [p for p in team['roster'] if p not in pitchers]
+    def is_pitcher(p):
+        pos = (p.get('position') or '')
+        if pos in pitcher_positions or pos.startswith(('RHP', 'LHP')):
+            return True
+        # If no position set but has pitching stats, treat as pitcher
+        if not pos and (p.get('innings_pitched') or 0) > 0 and (p.get('at_bats') or 0) == 0:
+            return True
+        return False
+    pitchers = [p for p in team['roster'] if is_pitcher(p)]
+    batters = [p for p in team['roster'] if not is_pitcher(p)]
     
     # Get recent form (last 10 games)
     completed_games = [g for g in team['schedule'] if g['status'] == 'final']
