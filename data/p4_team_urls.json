@@ -8,8 +8,8 @@
       "ACC",
       "Big 12"
     ],
-    "last_updated": "2026-02-15",
-    "notes": "Removed colorado, iowa-state, smu, syracuse (no baseball programs). Miami uses WordPress cumestats format."
+    "last_updated": "2026-02-17",
+    "notes": "Removed colorado, iowa-state, smu, syracuse (no baseball programs). Miami uses WordPress cumestats format. Virginia Tech URL added. Many schools have 404s or WMT/JS-rendered pages needing browser automation."
   },
   "teams": {
     "alabama": "https://rolltide.com/sports/baseball/stats/2026",
@@ -74,6 +74,7 @@
     "texas-tech": "https://texastech.com/sports/baseball/stats/2026",
     "ucf": "https://ucfknights.com/sports/baseball/stats/2026",
     "utah": "https://utahutes.com/sports/baseball/stats/2026",
-    "west-virginia": "https://wvusports.com/sports/baseball/stats/2026"
+    "west-virginia": "https://wvusports.com/sports/baseball/stats/2026",
+    "virginia-tech": "https://hokiesports.com/sports/baseball/stats/2026"
   }
 }
