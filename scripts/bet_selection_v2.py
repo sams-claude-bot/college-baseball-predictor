@@ -38,6 +38,9 @@ ML_MIN_UNDERDOG = 250         # Don't bet extreme underdogs (unlikely to hit)
 ML_MAX_MODEL_PROB = 0.88      # Cap model probability (avoid overconfidence)
 ML_MIN_MODEL_PROB = 0.55      # Don't bet near coin-flips
 
+# Underdog skepticism: market is usually right, discount underdog edges
+UNDERDOG_EDGE_DISCOUNT = 0.5  # Cut underdog edge in half (model overconfident on dogs)
+
 TOTALS_EDGE_THRESHOLD = 3.0   # Runs diff (was 15%, now 3 runs)
 TOTALS_MIN_CONFIDENCE = 0.6   # Model confidence in the pick
 
@@ -104,9 +107,14 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
         'spreads_disabled': True,
     }
     
-    # ===== CONFIDENT BETS (Model Consensus) - HIGHEST PRIORITY =====
-    # These are games where 7+ models agree - much more reliable
-    confident_lookup = {g['game_id']: g for g in data.get('confident_bets', [])}
+    # Build consensus lookup from confident_bets
+    # This lets us add consensus bonus to ANY bet type
+    consensus_lookup = {}
+    for g in data.get('confident_bets', []):
+        consensus_lookup[g['game_id']] = {
+            'models_agree': g['models_agree'],
+            'avg_prob': g['avg_prob']
+        }
     
     for game in data.get('confident_bets', []):
         ml = game.get('moneyline')
@@ -170,6 +178,10 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
         model_prob = game['model_prob']
         is_underdog = ml > 0
         
+        # Get consensus info if available (for bonus calculation)
+        consensus = consensus_lookup.get(game['game_id'], {})
+        models_agree = consensus.get('models_agree', 5)  # Default 5 = no bonus
+        
         rejection_reasons = []
         
         # Different edge threshold for underdogs (markets are usually right)
@@ -218,6 +230,7 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'model_prob': model_prob,
                 'dk_implied': game['dk_implied'],
                 'edge': edge,
+                'models_agree': models_agree,  # For consensus bonus
                 'kelly_mult': kelly_mult,
                 'bet_amount': bet_size,
             })
@@ -264,19 +277,28 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'reasons': ['SPREADS DISABLED - model not calibrated (0/5 historical)']
             })
     
-    # Sort bets: CONSENSUS first (most reliable), then by edge descending
-    def bet_priority(b):
-        # Consensus bets get priority (sorted by model count, then edge)
-        if b['type'] == 'CONSENSUS':
-            return (0, -b.get('models_agree', 0), -b.get('edge', 0))
-        # Totals second (our only profitable category historically)
-        elif b['type'] == 'TOTAL':
-            return (1, 0, -b.get('edge', 0))
-        # EV ML bets last (underperforming)
-        else:
-            return (2, 0, -b.get('edge', 0))
+    # Sort by ADJUSTED edge: consensus adds bonus, underdogs get discounted
+    # This keeps EV as primary but rewards model agreement and distrusts underdog edges
+    CONSENSUS_BONUS = 5.0  # +5% edge bonus for 10/10 models
     
-    results['bets'].sort(key=bet_priority)
+    def adjusted_edge(b):
+        base_edge = b.get('edge', 0)
+        ml = b.get('moneyline') or b.get('odds') or -110
+        
+        # Underdog discount: market is usually right about favorites
+        if ml > 0:  # Underdog
+            base_edge = base_edge * UNDERDOG_EDGE_DISCOUNT
+        
+        # Consensus bonus: +1% for each model above 5 agreeing (max +5%)
+        models = b.get('models_agree', 5)
+        bonus = max(0, (models - 5)) * (CONSENSUS_BONUS / 5)
+        
+        return base_edge + bonus
+    
+    for b in results['bets']:
+        b['adjusted_edge'] = adjusted_edge(b)
+    
+    results['bets'].sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     if len(results['bets']) > MAX_BETS_PER_DAY:
         overflow = results['bets'][MAX_BETS_PER_DAY:]
         results['bets'] = results['bets'][:MAX_BETS_PER_DAY]
@@ -306,14 +328,17 @@ def print_analysis(results: dict):
         for bet in results['bets']:
             if bet['type'] == 'CONSENSUS':
                 sign = '+' if bet['moneyline'] > 0 else ''
-                print(f"  🎯 CONSENSUS: {bet['pick_team_name']} ({sign}{bet['moneyline']})")
-                print(f"       Models: {bet['models_agree']}/10 agree | Avg: {bet['model_prob']*100:.0f}%")
-                print(f"       Edge: {bet['edge']:.1f}% | Bet: ${bet['bet_amount']:.0f}")
+                bonus = bet['adjusted_edge'] - bet['edge']
+                print(f"  🎯 {bet['pick_team_name']} ({sign}{bet['moneyline']})")
+                print(f"       Models: {bet['models_agree']}/10 | Edge: {bet['edge']:.1f}% + {bonus:.1f}% bonus = {bet['adjusted_edge']:.1f}%")
+                print(f"       Bet: ${bet['bet_amount']:.0f}")
             elif bet['type'] == 'ML':
                 sign = '+' if bet['moneyline'] > 0 else ''
-                print(f"  💰 ML: {bet['pick_team_name']} ({sign}{bet['moneyline']})")
-                print(f"       Edge: {bet['edge']:.1f}% | Model: {bet['model_prob']*100:.0f}%")
-                print(f"       Bet: ${bet['bet_amount']:.0f} (Kelly: {bet['kelly_mult']:.2f}x)")
+                bonus = bet.get('adjusted_edge', bet['edge']) - bet['edge']
+                adj_str = f" + {bonus:.1f}% bonus = {bet['adjusted_edge']:.1f}%" if bonus > 0 else ""
+                print(f"  💰 {bet['pick_team_name']} ({sign}{bet['moneyline']})")
+                print(f"       Edge: {bet['edge']:.1f}%{adj_str} | Model: {bet['model_prob']*100:.0f}%")
+                print(f"       Bet: ${bet['bet_amount']:.0f}")
             elif bet['type'] == 'TOTAL':
                 print(f"  📊 TOTAL: {bet['pick']} {bet['line']} ({bet['odds']:+d})")
                 print(f"       Edge: {bet['edge']:.1f} runs | Proj: {bet['model_projection']:.1f}")
