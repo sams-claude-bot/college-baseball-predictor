@@ -90,6 +90,87 @@
             </div>
         </div>
 
+        <!-- Recent Results -->
+        {% if recent_results %}
+        <div class="card">
+            <div class="card-header bg-maroon">
+                <i class="bi bi-clipboard-check"></i> Recent Results
+                <a href="/scores" class="btn btn-sm btn-light float-end">View All</a>
+            </div>
+            <div class="card-body p-0">
+                {% for day in recent_results[:2] %}
+                <div class="px-3 py-2 {% if not loop.first %}border-top{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>{{ day.display_date }}</strong>
+                        {% if day.accuracy is not none %}
+                        <span class="badge {% if day.accuracy >= 55 %}bg-success{% elif day.accuracy >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
+                            {{ day.correct }}/{{ day.total }} ({{ day.accuracy }}%)
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="row g-2">
+                        {% for game in day.games[:6] %}
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded p-2 {% if game.is_upset %}border-warning{% endif %}" 
+                                 style="cursor:pointer; {% if game.is_upset %}background: rgba(255,193,7,0.1);{% endif %}"
+                                 onclick="window.location='/game/{{ game.id }}'">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="flex-grow-1">
+                                        <!-- Away team -->
+                                        <div class="d-flex align-items-center {% if game.winner_id == game.away_team_id %}fw-bold{% endif %}">
+                                            {% if game.away_rank %}
+                                            <small class="text-muted me-1">#{{ game.away_rank }}</small>
+                                            {% endif %}
+                                            <span class="{% if game.winner_id == game.away_team_id %}text-success{% endif %}">
+                                                {{ game.away_team_name[:15] }}{% if game.away_team_name|length > 15 %}…{% endif %}
+                                            </span>
+                                            <span class="ms-auto {% if game.winner_id == game.away_team_id %}fw-bold text-success{% endif %}">
+                                                {{ game.away_score }}
+                                            </span>
+                                        </div>
+                                        <!-- Home team -->
+                                        <div class="d-flex align-items-center {% if game.winner_id == game.home_team_id %}fw-bold{% endif %}">
+                                            {% if game.home_rank %}
+                                            <small class="text-muted me-1">#{{ game.home_rank }}</small>
+                                            {% endif %}
+                                            <span class="{% if game.winner_id == game.home_team_id %}text-success{% endif %}">
+                                                {{ game.home_team_name[:15] }}{% if game.home_team_name|length > 15 %}…{% endif %}
+                                            </span>
+                                            <span class="ms-auto {% if game.winner_id == game.home_team_id %}fw-bold text-success{% endif %}">
+                                                {{ game.home_score }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-2 text-center" style="min-width: 40px;">
+                                        {% if game.pred_correct is not none %}
+                                            {% if game.pred_correct %}
+                                            <span class="badge bg-success"><i class="bi bi-check"></i></span>
+                                            {% else %}
+                                            <span class="badge bg-danger"><i class="bi bi-x"></i></span>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if game.is_upset %}
+                                        <div><small class="text-warning">⚡ Upset</small></div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if day.games|length > 6 %}
+                    <div class="text-center mt-2">
+                        <a href="/scores?date={{ day.date }}" class="text-muted small">
+                            +{{ day.games|length - 6 }} more games
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Today's Games -->
         <div class="card">
             <div class="card-header">
@@ -158,6 +239,57 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Tomorrow's Games Preview -->
+        {% if tomorrow_games %}
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-calendar-plus"></i> Tomorrow's Games
+                <span class="badge bg-secondary ms-2">{{ tomorrow_games|length }}{% if tomorrow_games|length == 10 %}+{% endif %}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Away</th>
+                                <th class="text-center">vs</th>
+                                <th>Home</th>
+                                <th class="text-center hide-mobile">Prediction</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in tomorrow_games %}
+                            <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
+                                <td>
+                                    {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
+                                    <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
+                                </td>
+                                <td class="text-center text-muted">@</td>
+                                <td>
+                                    {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
+                                    <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
+                                </td>
+                                <td class="text-center hide-mobile">
+                                    {% if game.pred_winner %}
+                                    {% set pick_name = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
+                                    {% set conf_pct = (game.pred_confidence * 100)|round(0)|int %}
+                                    <span class="badge bg-secondary">{{ pick_name[:3]|upper }} {{ conf_pct }}%</span>
+                                    {% else %}—{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer text-center">
+                    <a href="/calendar?date={{ tomorrow_date }}" class="btn btn-sm btn-outline-secondary">
+                        View Full Schedule
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Sidebar -->

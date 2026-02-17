@@ -601,6 +601,147 @@ def get_model_accuracy():
 # Routes
 # ============================================
 
+def get_recent_results(days_back=3):
+    """Get completed games from the last N days with scores and prediction accuracy"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    today = datetime.now()
+    start_date = (today - timedelta(days=days_back)).strftime('%Y-%m-%d')
+    today_str = today.strftime('%Y-%m-%d')
+    
+    c.execute('''
+        SELECT g.id, g.date, g.time, g.status,
+               g.home_team_id, g.away_team_id,
+               g.home_score, g.away_score, g.winner_id, g.innings,
+               g.is_conference_game,
+               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
+               he.rating as home_elo, ae.rating as away_elo
+        FROM games g
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
+        LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
+        WHERE g.date >= ? AND g.date < ? AND g.status = 'final'
+        ORDER BY g.date DESC, g.time DESC, g.id DESC
+    ''', (start_date, today_str))
+    
+    games = [dict(row) for row in c.fetchall()]
+    conn.close()
+    
+    # Add predictions and check correctness
+    ensemble = MODELS.get('ensemble')
+    
+    for game in games:
+        game['is_upset'] = False
+        try:
+            if ensemble and game.get('home_team_id') and game.get('away_team_id'):
+                pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
+                game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
+                game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
+                game['pred_confidence'] = max(game['pred_home_prob'], 1 - game['pred_home_prob'])
+                
+                # Check if prediction was correct
+                if game.get('winner_id'):
+                    game['pred_correct'] = game['pred_winner'] == game['winner_id']
+                    
+                    # Check for upset (lower rank beat higher rank)
+                    winner_rank = game['home_rank'] if game['winner_id'] == game['home_team_id'] else game['away_rank']
+                    loser_rank = game['away_rank'] if game['winner_id'] == game['home_team_id'] else game['home_rank']
+                    if winner_rank and loser_rank and winner_rank > loser_rank:
+                        game['is_upset'] = True
+                    # Unranked beat ranked
+                    elif loser_rank and not winner_rank:
+                        game['is_upset'] = True
+        except Exception:
+            game['pred_winner'] = None
+            game['pred_correct'] = None
+    
+    # Group by date
+    from collections import defaultdict
+    by_date = defaultdict(list)
+    for game in games:
+        by_date[game['date']].append(game)
+    
+    # Calculate accuracy per date
+    results_by_date = []
+    for date in sorted(by_date.keys(), reverse=True):
+        date_games = by_date[date]
+        correct = sum(1 for g in date_games if g.get('pred_correct'))
+        total_with_preds = sum(1 for g in date_games if g.get('pred_correct') is not None)
+        
+        results_by_date.append({
+            'date': date,
+            'display_date': datetime.strptime(date, '%Y-%m-%d').strftime('%A, %b %d'),
+            'games': date_games,
+            'correct': correct,
+            'total': total_with_preds,
+            'accuracy': round(correct / total_with_preds * 100, 1) if total_with_preds > 0 else None
+        })
+    
+    return results_by_date
+
+
+def get_games_for_date_with_predictions(date_str):
+    """Get all games for a date with predictions - for scores page"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT g.id, g.date, g.time, g.status,
+               g.home_team_id, g.away_team_id,
+               g.home_score, g.away_score, g.winner_id, g.innings,
+               g.is_conference_game,
+               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
+               he.rating as home_elo, ae.rating as away_elo
+        FROM games g
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
+        LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
+        WHERE g.date = ?
+        ORDER BY g.time, g.id
+    ''', (date_str,))
+    
+    games = [dict(row) for row in c.fetchall()]
+    conn.close()
+    
+    # Add predictions
+    ensemble = MODELS.get('ensemble')
+    correct_count = 0
+    total_preds = 0
+    
+    for game in games:
+        game['is_upset'] = False
+        try:
+            if ensemble and game.get('home_team_id') and game.get('away_team_id'):
+                pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
+                game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
+                game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
+                game['pred_confidence'] = max(game['pred_home_prob'], 1 - game['pred_home_prob'])
+                
+                if game['status'] == 'final' and game.get('winner_id'):
+                    game['pred_correct'] = game['pred_winner'] == game['winner_id']
+                    total_preds += 1
+                    if game['pred_correct']:
+                        correct_count += 1
+                    
+                    # Check for upset
+                    winner_rank = game['home_rank'] if game['winner_id'] == game['home_team_id'] else game['away_rank']
+                    loser_rank = game['away_rank'] if game['winner_id'] == game['home_team_id'] else game['home_rank']
+                    if winner_rank and loser_rank and winner_rank > loser_rank:
+                        game['is_upset'] = True
+                    elif loser_rank and not winner_rank:
+                        game['is_upset'] = True
+        except Exception:
+            game['pred_winner'] = None
+            game['pred_correct'] = None
+    
+    return games, correct_count, total_preds
+
+
 def get_featured_team_info(team_id='mississippi-state'):
     """Get featured team focus data for dashboard"""
     conn = get_connection()
@@ -715,6 +856,15 @@ def dashboard():
     # Model snapshot - all models
     all_accuracy = get_model_accuracy()
     
+    # Recent results (last 3 days)
+    recent_results = get_recent_results(days_back=3)
+    
+    # Tomorrow's games preview
+    tomorrow_str = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+    tomorrow_games, _, _ = get_games_for_date_with_predictions(tomorrow_str)
+    # Only show scheduled games for tomorrow
+    tomorrow_games = [g for g in tomorrow_games if g['status'] == 'scheduled'][:10]
+    
     return render_template('dashboard.html',
                           todays_games=todays_games,
                           value_picks=value_picks,
@@ -722,6 +872,9 @@ def dashboard():
                           featured=featured,
                           accuracy=accuracy,
                           all_accuracy=all_accuracy,
+                          recent_results=recent_results,
+                          tomorrow_games=tomorrow_games,
+                          tomorrow_date=tomorrow_str,
                           today=datetime.now().strftime('%B %d, %Y'))
 
 @app.route('/teams')
@@ -1627,6 +1780,74 @@ def calendar():
                           nn_accuracy=round((nn_correct / nn_total) * 100) if nn_total > 0 else None,
                           nn_correct=nn_correct,
                           nn_total=nn_total)
+
+@app.route('/scores')
+def scores():
+    """Scores page - focused on completed games with results"""
+    # Default to yesterday
+    default_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    date_str = request.args.get('date', default_date)
+    conference = request.args.get('conference', '')
+    
+    # Parse date
+    try:
+        display_date = datetime.strptime(date_str, '%Y-%m-%d')
+    except:
+        display_date = datetime.now() - timedelta(days=1)
+        date_str = display_date.strftime('%Y-%m-%d')
+    
+    # Get games for the date
+    games, correct_count, total_preds = get_games_for_date_with_predictions(date_str)
+    
+    # Filter by conference if specified
+    if conference:
+        games = [g for g in games if g.get('home_conf') == conference or g.get('away_conf') == conference]
+        # Recalculate accuracy for filtered games
+        correct_count = sum(1 for g in games if g.get('pred_correct'))
+        total_preds = sum(1 for g in games if g.get('pred_correct') is not None)
+    
+    # Split into completed and scheduled
+    completed_games = [g for g in games if g['status'] == 'final']
+    scheduled_games = [g for g in games if g['status'] == 'scheduled']
+    
+    # Calculate prev/next dates
+    prev_date = (display_date - timedelta(days=1)).strftime('%Y-%m-%d')
+    next_date = (display_date + timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    # Get conferences for filter
+    conferences = get_all_conferences()
+    
+    # Stats
+    total_runs = sum((g.get('home_score') or 0) + (g.get('away_score') or 0) for g in completed_games)
+    avg_runs = round(total_runs / len(completed_games), 1) if completed_games else 0
+    upsets = sum(1 for g in completed_games if g.get('is_upset'))
+    home_wins = sum(1 for g in completed_games if g.get('winner_id') == g.get('home_team_id'))
+    home_win_pct = round(home_wins / len(completed_games) * 100) if completed_games else 0
+    
+    accuracy_pct = round(correct_count / total_preds * 100, 1) if total_preds > 0 else None
+    
+    # Quick links - get dates with completed games
+    available_dates = get_available_dates()
+    
+    return render_template('scores.html',
+                          completed_games=completed_games,
+                          scheduled_games=scheduled_games,
+                          selected_date=date_str,
+                          display_date=display_date,
+                          prev_date=prev_date,
+                          next_date=next_date,
+                          conferences=conferences,
+                          selected_conference=conference,
+                          available_dates=available_dates,
+                          total_completed=len(completed_games),
+                          total_scheduled=len(scheduled_games),
+                          avg_runs=avg_runs,
+                          upsets=upsets,
+                          home_win_pct=home_win_pct,
+                          accuracy_pct=accuracy_pct,
+                          correct_count=correct_count,
+                          total_preds=total_preds)
+
 
 @app.route('/tracker')
 def tracker():

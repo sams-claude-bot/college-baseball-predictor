@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Scores - College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h3 mb-0">
+        <i class="bi bi-clipboard-check"></i> Scores & Results
+    </h1>
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;"
+                onchange="updateFilters()">
+            <option value="">All Conferences</option>
+            {% for conf in conferences %}
+            <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Date Navigation -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <a href="/scores?date={{ prev_date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
+                   class="btn btn-outline-secondary">
+                    <i class="bi bi-chevron-left"></i> Prev
+                </a>
+            </div>
+            <div class="col text-center">
+                <h4 class="mb-1">{{ display_date.strftime('%A, %B %d, %Y') }}</h4>
+                <div class="d-flex justify-content-center gap-4 text-muted flex-wrap">
+                    <span><strong>{{ total_completed }}</strong> completed</span>
+                    {% if total_scheduled > 0 %}
+                    <span class="text-primary"><strong>{{ total_scheduled }}</strong> scheduled</span>
+                    {% endif %}
+                    {% if accuracy_pct is not none %}
+                    <span class="{% if accuracy_pct >= 55 %}text-success{% elif accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                        <strong>{{ correct_count }}/{{ total_preds }}</strong> predictions ({{ accuracy_pct }}%)
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-auto">
+                <a href="/scores?date={{ next_date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
+                   class="btn btn-outline-secondary">
+                    Next <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+        </div>
+        
+        <!-- Date picker -->
+        <div class="row mt-3 justify-content-center">
+            <div class="col-auto">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-calendar"></i></span>
+                    <input type="date" class="form-control" id="datePicker" value="{{ selected_date }}"
+                           onchange="goToDate(this.value)">
+                    <button class="btn btn-maroon" onclick="goToDate(document.getElementById('datePicker').value)">
+                        Go
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Date Links -->
+<div class="mb-4 text-center">
+    <span class="text-muted me-2">Recent dates:</span>
+    {% for date_info in available_dates[:7] %}
+    {% if date_info.completed > 0 %}
+    <a href="/scores?date={{ date_info.date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
+       class="btn btn-sm {% if date_info.date == selected_date %}btn-maroon{% else %}btn-outline-secondary{% endif %} me-1 mb-1">
+        {{ date_info.date[5:] }} ({{ date_info.completed }})
+    </a>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Summary Stats -->
+{% if total_completed > 0 %}
+<div class="row mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ total_completed }}</div>
+            <div class="stat-label">Games Completed</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ avg_runs }}</div>
+            <div class="stat-label">Avg Total Runs</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ home_win_pct }}%</div>
+            <div class="stat-label">Home Win %</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card stat-card">
+            <div class="stat-value {% if upsets > 0 %}text-warning{% endif %}">{{ upsets }}</div>
+            <div class="stat-label">Upsets</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Completed Games -->
+{% if completed_games %}
+<div class="card mb-4">
+    <div class="card-header bg-maroon text-white">
+        <i class="bi bi-check-circle"></i> Final Scores
+        <span class="badge bg-light text-dark ms-2">{{ completed_games|length }}</span>
+        {% if accuracy_pct is not none %}
+        <span class="badge {% if accuracy_pct >= 55 %}bg-success{% elif accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
+            {{ accuracy_pct }}% Correct
+        </span>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        <div class="row g-0">
+            {% for game in completed_games %}
+            <div class="col-12 col-md-6 col-lg-4 p-2">
+                <div class="border rounded p-3 h-100 {% if game.is_upset %}border-warning{% endif %}" 
+                     style="cursor:pointer; {% if game.is_upset %}background: rgba(255,193,7,0.1);{% endif %}"
+                     onclick="window.location='/game/{{ game.id }}'">
+                    
+                    <!-- Game header with time/status -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">
+                            {% if game.time %}{{ game.time }}{% endif %}
+                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
+                        </small>
+                        <div>
+                            {% if game.pred_correct is not none %}
+                                {% if game.pred_correct %}
+                                <span class="badge bg-success" title="Prediction correct"><i class="bi bi-check"></i> ✅</span>
+                                {% else %}
+                                <span class="badge bg-danger" title="Prediction wrong"><i class="bi bi-x"></i> ❌</span>
+                                {% endif %}
+                            {% endif %}
+                            {% if game.is_upset %}
+                            <span class="badge bg-warning text-dark" title="Upset!">⚡</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Away team -->
+                    <div class="d-flex justify-content-between align-items-center mb-1 {% if game.winner_id == game.away_team_id %}fw-bold{% endif %}">
+                        <div class="d-flex align-items-center">
+                            {% if game.away_rank %}
+                            <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
+                            {% endif %}
+                            <a href="/team/{{ game.away_team_id }}" class="team-link {% if game.winner_id == game.away_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
+                                {{ game.away_team_name }}
+                            </a>
+                        </div>
+                        <span class="fs-5 {% if game.winner_id == game.away_team_id %}text-success fw-bold{% endif %}">
+                            {{ game.away_score }}
+                        </span>
+                    </div>
+                    
+                    <!-- Home team -->
+                    <div class="d-flex justify-content-between align-items-center {% if game.winner_id == game.home_team_id %}fw-bold{% endif %}">
+                        <div class="d-flex align-items-center">
+                            {% if game.home_rank %}
+                            <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
+                            {% endif %}
+                            <a href="/team/{{ game.home_team_id }}" class="team-link {% if game.winner_id == game.home_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
+                                {{ game.home_team_name }}
+                            </a>
+                        </div>
+                        <span class="fs-5 {% if game.winner_id == game.home_team_id %}text-success fw-bold{% endif %}">
+                            {{ game.home_score }}
+                        </span>
+                    </div>
+                    
+                    <!-- Footer with innings and conference -->
+                    <div class="mt-2 d-flex justify-content-between">
+                        <small class="text-muted">
+                            {% if game.innings and game.innings != 9 %}({{ game.innings }} inn){% endif %}
+                            Final
+                        </small>
+                        <small class="text-muted">
+                            {% if game.home_conf == game.away_conf %}
+                            {{ game.home_conf or '' }}
+                            {% else %}
+                            {{ game.away_conf or '?' }} @ {{ game.home_conf or '?' }}
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Scheduled Games (if any on this date) -->
+{% if scheduled_games %}
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-clock"></i> Scheduled
+        <span class="badge bg-secondary ms-2">{{ scheduled_games|length }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">Time</th>
+                    <th>Away</th>
+                    <th class="text-center">vs</th>
+                    <th>Home</th>
+                    <th class="text-center hide-mobile">Prediction</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for game in scheduled_games %}
+                <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
+                    <td class="text-muted">{{ game.time or 'TBD' }}</td>
+                    <td>
+                        {% if game.away_rank %}
+                        <span class="badge bg-maroon me-1">{{ game.away_rank }}</span>
+                        {% endif %}
+                        <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
+                    </td>
+                    <td class="text-center text-muted">@</td>
+                    <td>
+                        {% if game.home_rank %}
+                        <span class="badge bg-maroon me-1">{{ game.home_rank }}</span>
+                        {% endif %}
+                        <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
+                    </td>
+                    <td class="text-center hide-mobile">
+                        {% if game.pred_winner %}
+                        {% set pick_name = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
+                        {% set conf_pct = (game.pred_confidence * 100)|round(0)|int %}
+                        <span class="badge bg-secondary">{{ pick_name[:3]|upper }} {{ conf_pct }}%</span>
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- No Games Found -->
+{% if not completed_games and not scheduled_games %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-calendar-x display-1 text-muted"></i>
+        <h4 class="mt-3">No Games Found</h4>
+        <p class="text-muted">
+            No games on {{ display_date.strftime('%B %d, %Y') }}
+            {% if selected_conference %}in {{ selected_conference }}{% endif %}
+        </p>
+        <a href="/scores?date={{ prev_date }}" class="btn btn-maroon">
+            <i class="bi bi-chevron-left"></i> Check Previous Day
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function goToDate(dateStr) {
+    const conf = document.getElementById('conferenceFilter').value;
+    let url = '/scores?date=' + dateStr;
+    if (conf) {
+        url += '&conference=' + encodeURIComponent(conf);
+    }
+    window.location.href = url;
+}
+
+function updateFilters() {
+    const date = '{{ selected_date }}';
+    goToDate(date);
+}
+</script>
+{% endblock %}
