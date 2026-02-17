@@ -163,33 +163,43 @@
 <!-- All Games Table -->
 <div class="card">
     <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="bi bi-list"></i> All Games with Lines</span>
-            <span class="badge bg-secondary">{{ games|length }} games</span>
+            <div class="d-flex gap-1 flex-wrap">
+                <span class="text-muted small me-1 align-self-center">Sort:</span>
+                <button class="btn btn-sm btn-outline-primary active" onclick="sortTable('consensus', this)" title="Model agreement">Consensus</button>
+                <button class="btn btn-sm btn-outline-success" onclick="sortTable('edge', this)" title="Edge over DK line">Edge</button>
+                <button class="btn btn-sm btn-outline-info" onclick="sortTable('ev', this)" title="Expected value per $100">EV</button>
+                <button class="btn btn-sm btn-outline-warning" onclick="sortTable('confidence', this)" title="Blended model confidence">Confidence</button>
+                <span class="badge bg-secondary align-self-center">{{ games|length }} games</span>
+            </div>
         </div>
     </div>
     <div class="card-body p-0">
         {% if games %}
         <div class="table-responsive">
-            <table class="table table-hover mb-0">
+            <table class="table table-hover mb-0" id="allGamesTable">
                 <thead>
                     <tr>
                         <th>Matchup</th>
                         <th class="text-center">DK Lines</th>
-                        <th class="text-center">Consensus</th>
-                        <th class="text-center">Blended</th>
+                        <th class="text-center" style="cursor:pointer" onclick="sortTable('consensus', null)">Consensus ↕</th>
+                        <th class="text-center" style="cursor:pointer" onclick="sortTable('confidence', null)">Blended ↕</th>
                         <th class="text-center">Neural</th>
                         <th class="text-center">Ensemble</th>
-                        <th class="text-center">Edge</th>
+                        <th class="text-center" style="cursor:pointer" onclick="sortTable('edge', null)">Edge ↕</th>
                         <th class="text-center">O/U</th>
                         <th class="text-center">NN Total</th>
                         <th class="text-center">NN Spread</th>
-                        <th class="text-center">EV/100</th>
+                        <th class="text-center" style="cursor:pointer" onclick="sortTable('ev', null)">EV/100 ↕</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for game in games %}
-                    <tr>
+                    <tr data-consensus="{{ game.model_agreement.count if game.model_agreement else 0 }}"
+                        data-confidence="{{ game.model_agreement.confidence|round(1) if game.model_agreement and game.model_agreement.confidence else 0 }}"
+                        data-edge="{{ game.best_edge|round(1) if game.best_edge else 0 }}"
+                        data-ev="{{ game.ev_per_100|round(1) if game.ev_per_100 else -999 }}">
                         <td>
                             <div class="d-flex flex-column">
                                 <span>
@@ -333,4 +343,51 @@
         </div>
     </div>
 </div>
+
+<script>
+function sortTable(criterion, btn) {
+    const table = document.getElementById('allGamesTable');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aVal, bVal;
+        switch(criterion) {
+            case 'consensus':
+                aVal = parseFloat(a.dataset.consensus) || 0;
+                bVal = parseFloat(b.dataset.consensus) || 0;
+                if (aVal === bVal) {
+                    aVal = parseFloat(a.dataset.confidence) || 0;
+                    bVal = parseFloat(b.dataset.confidence) || 0;
+                }
+                break;
+            case 'edge':
+                aVal = parseFloat(a.dataset.edge) || 0;
+                bVal = parseFloat(b.dataset.edge) || 0;
+                break;
+            case 'ev':
+                aVal = parseFloat(a.dataset.ev) || -999;
+                bVal = parseFloat(b.dataset.ev) || -999;
+                break;
+            case 'confidence':
+                aVal = parseFloat(a.dataset.confidence) || 0;
+                bVal = parseFloat(b.dataset.confidence) || 0;
+                break;
+        }
+        return bVal - aVal;
+    });
+    
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Update button states
+    if (btn) {
+        document.querySelectorAll('.card-header .btn-sm').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+}
+
+// Sort by consensus on page load
+document.addEventListener('DOMContentLoaded', () => sortTable('consensus', document.querySelector('.btn-sm.active')));
+</script>
 {% endblock %}
