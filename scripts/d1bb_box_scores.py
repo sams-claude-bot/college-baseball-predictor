@@ -356,6 +356,89 @@ TEAM_MAPPING = {
     'grambling state': 'grambling-state',
     'southeast missouri state': 'southeast-missouri',
     'abilene christian': 'abilene-christian',
+    
+    # StatBroadcast abbreviations
+    'mich': 'michigan',
+    'osu': 'ohio-state',
+    'ark': 'arkansas',
+    'tsu': 'texas-southern',
+    'stan': 'stanford',
+    'neb': 'nebraska',
+    'tex': 'texas',
+    'lsu': 'lsu',
+    'fla': 'florida',
+    'uga': 'georgia',
+    'aub': 'auburn',
+    'bama': 'alabama',
+    'tenn': 'tennessee',
+    'uk': 'kentucky',
+    'msu': 'mississippi-state',
+    'miss': 'ole-miss',
+    'scar': 'south-carolina',
+    'mizzou': 'missouri',
+    'vandy': 'vanderbilt',
+    'tamu': 'texas-am',
+    'ou': 'oklahoma',
+    'okst': 'oklahoma-state',
+    'ttu': 'texas-tech',
+    'byu': 'byu',
+    'tcu': 'tcu',
+    'ucf': 'ucf',
+    'isu': 'iowa-state',
+    'wvu': 'west-virginia',
+    'ku': 'kansas',
+    'ksu': 'kansas-state',
+    'bay': 'baylor',
+    'hou': 'houston',
+    'cin': 'cincinnati',
+    'asu': 'arizona-state',
+    'ariz': 'arizona',
+    'colo': 'colorado',
+    'unc': 'north-carolina',
+    'ncst': 'nc-state',
+    'clem': 'clemson',
+    'duke': 'duke',
+    'uva': 'virginia',
+    'vt': 'virginia-tech',
+    'fsu': 'florida-state',
+    'pitt': 'pittsburgh',
+    'bc': 'boston-college',
+    'gt': 'georgia-tech',
+    'nd': 'notre-dame',
+    'lou': 'louisville',
+    'wf': 'wake-forest',
+    'syr': 'syracuse',
+    'cal': 'california',
+    'ucla': 'ucla',
+    'usc': 'usc',
+    'ore': 'oregon',
+    'orst': 'oregon-state',
+    'wash': 'washington',
+    'wisc': 'wisconsin',
+    'minn': 'minnesota',
+    'iowa': 'iowa',
+    'ill': 'illinois',
+    'ind': 'indiana',
+    'pur': 'purdue',
+    'rut': 'rutgers',
+    'psu': 'penn-state',
+    'md': 'maryland',
+    'nw': 'northwestern',
+    'ccu': 'coastal-carolina',
+    'usm': 'southern-miss',
+    'app': 'appalachian-state',
+    'ecu': 'east-carolina',
+    'rice': 'rice',
+    'mem': 'memphis',
+    'tulane': 'tulane',
+    'uab': 'uab',
+    'utsa': 'utsa',
+    'char': 'charlotte',
+    'fau': 'florida-atlantic',
+    'usf': 'south-florida',
+    'wku': 'western-kentucky',
+    'lt': 'louisiana-tech',
+    'mtsu': 'middle-tennessee',
 }
 
 # Request delay between box score pages (seconds)
@@ -843,6 +926,16 @@ def scrape_statbroadcast_box_score(page, url):
         
         # Give extra time for dynamic content
         page.wait_for_timeout(3000)
+        
+        # Dismiss any bootbox modal dialogs (cookie consent, alerts, etc.)
+        try:
+            modal_ok = page.locator('.bootbox .btn-primary, .bootbox .bootbox-accept, .bootbox-alert .btn')
+            if modal_ok.count() > 0:
+                modal_ok.first.click(timeout=3000)
+                page.wait_for_timeout(500)
+                log.info(f"    Dismissed modal dialog")
+        except:
+            pass  # No modal, that's fine
         
     except Exception as e:
         log.warning(f"    Failed to navigate: {e}")
