@@ -55,6 +55,13 @@ def _load_slug_map():
     else:
         TEAM_ID_TO_D1BB = {}
 
+def get_all_d1_slugs():
+    """Get D1Baseball slugs for ALL D1 teams."""
+    _load_slug_map()
+    return list(TEAM_ID_TO_D1BB.values())
+
+P4_CONFERENCES = {'SEC', 'ACC', 'Big 12', 'Big Ten'}
+
 def get_p4_slugs(conference=None):
     """Get D1Baseball slugs for P4 conference teams."""
     _load_slug_map()
@@ -67,7 +74,8 @@ def get_p4_slugs(conference=None):
     if conference:
         team_ids = conferences.get(conference, [])
     else:
-        team_ids = [tid for teams in conferences.values() for tid in teams]
+        team_ids = [tid for conf, teams in conferences.items() 
+                    for tid in teams if conf in P4_CONFERENCES]
     return [TEAM_ID_TO_D1BB.get(tid, tid) for tid in team_ids]
 
 CLASS_MAP = {'FR': 'FR', 'So.': 'SO', 'SO': 'SO', 'Jr.': 'JR', 'JR': 'JR', 
@@ -449,14 +457,18 @@ def scrape_team(slug, db, dry_run=False):
 def main():
     parser = argparse.ArgumentParser(description='Scrape D1Baseball.com stats')
     parser.add_argument('slugs', nargs='*', help='Team slug(s)')
-    parser.add_argument('--all', action='store_true', help='Scrape all holdout teams')
+    parser.add_argument('--all', action='store_true', help='Scrape all holdout teams (legacy)')
+    parser.add_argument('--all-d1', action='store_true', help='Scrape ALL D1 teams on D1Baseball (~311 teams)')
     parser.add_argument('--p4', action='store_true', help='Scrape all P4 conference teams')
-    parser.add_argument('--conference', type=str, help='Scrape a specific conference (SEC, ACC, Big 12, Big Ten)')
+    parser.add_argument('--conference', type=str, help='Scrape a specific conference (SEC, ACC, Big 12, Big Ten, etc.)')
     parser.add_argument('--dry-run', action='store_true', help='Print without DB writes')
     parser.add_argument('--delay', type=float, default=4.0, help='Seconds between requests (default: 4)')
     args = parser.parse_args()
     
-    if args.p4:
+    if args.all_d1:
+        _load_slug_map()
+        slugs = get_all_d1_slugs()
+    elif args.p4:
         _load_slug_map()
         slugs = get_p4_slugs(conference=args.conference)
     elif args.conference:
