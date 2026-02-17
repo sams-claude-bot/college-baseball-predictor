@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}Scores - College Baseball Predictor{% endblock %}
+{% block title %}Scores & Schedule - College Baseball Predictor{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">
-        <i class="bi bi-clipboard-check"></i> Scores & Results
+        <i class="bi bi-clipboard-check"></i> Scores & Schedule
     </h1>
     <div class="d-flex gap-2 align-items-center">
         <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;"
@@ -37,7 +37,12 @@
                     {% endif %}
                     {% if accuracy_pct is not none %}
                     <span class="{% if accuracy_pct >= 55 %}text-success{% elif accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
-                        <strong>{{ correct_count }}/{{ total_preds }}</strong> predictions ({{ accuracy_pct }}%)
+                        <strong>Ens: {{ correct_count }}/{{ total_preds }}</strong> ({{ accuracy_pct }}%)
+                    </span>
+                    {% endif %}
+                    {% if nn_accuracy_pct is not none %}
+                    <span class="{% if nn_accuracy_pct >= 55 %}text-success{% elif nn_accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                        <strong>NN: {{ nn_correct }}/{{ nn_total }}</strong> ({{ nn_accuracy_pct }}%)
                     </span>
                     {% endif %}
                 </div>
@@ -117,7 +122,12 @@
         <span class="badge bg-light text-dark ms-2">{{ completed_games|length }}</span>
         {% if accuracy_pct is not none %}
         <span class="badge {% if accuracy_pct >= 55 %}bg-success{% elif accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
-            {{ accuracy_pct }}% Correct
+            Ens {{ accuracy_pct }}%
+        </span>
+        {% endif %}
+        {% if nn_accuracy_pct is not none %}
+        <span class="badge {% if nn_accuracy_pct >= 55 %}bg-success{% elif nn_accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
+            NN {{ nn_accuracy_pct }}%
         </span>
         {% endif %}
     </div>
@@ -179,19 +189,48 @@
                         </span>
                     </div>
                     
-                    <!-- Footer with innings and conference -->
-                    <div class="mt-2 d-flex justify-content-between">
-                        <small class="text-muted">
-                            {% if game.innings and game.innings != 9 %}({{ game.innings }} inn){% endif %}
-                            Final
-                        </small>
-                        <small class="text-muted">
-                            {% if game.home_conf == game.away_conf %}
-                            {{ game.home_conf or '' }}
-                            {% else %}
-                            {{ game.away_conf or '?' }} @ {{ game.home_conf or '?' }}
+                    <!-- Model predictions footer -->
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                {% if game.innings and game.innings != 9 %}({{ game.innings }} inn) {% endif %}Final
+                            </small>
+                            <div class="d-flex gap-2">
+                                <!-- Ensemble prediction -->
+                                {% if game.pred_winner %}
+                                {% set ens_picked_winner = game.pred_winner == game.winner_id %}
+                                {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
+                                <small class="{% if ens_picked_winner %}text-success{% else %}text-danger{% endif %}" 
+                                       title="Ensemble: picked {{ 'home' if game.pred_winner == game.home_team_id else 'away' }} at {{ ens_pct }}%">
+                                    Ens: {{ ens_pct }}% {% if ens_picked_winner %}✓{% else %}✗{% endif %}
+                                </small>
+                                {% endif %}
+                                
+                                <!-- Neural prediction -->
+                                {% if game.nn_winner %}
+                                {% set nn_picked_winner = game.nn_winner == game.winner_id %}
+                                {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
+                                <small class="{% if nn_picked_winner %}text-success{% else %}text-danger{% endif %}"
+                                       title="Neural: picked {{ 'home' if game.nn_winner == game.home_team_id else 'away' }} at {{ nn_pct }}%">
+                                    NN: {{ nn_pct }}% {% if nn_picked_winner %}✓{% else %}✗{% endif %}
+                                </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Betting lines & totals if available -->
+                        {% if game.over_under or game.nn_projected_total %}
+                        <div class="d-flex justify-content-between mt-1">
+                            {% if game.over_under %}
+                            <small class="text-muted">O/U: {{ game.over_under }}</small>
                             {% endif %}
-                        </small>
+                            {% if game.nn_projected_total %}
+                            <small class="text-muted">Proj: {{ game.nn_projected_total|round(1) }}</small>
+                            {% endif %}
+                            {% set actual_total = (game.home_score or 0) + (game.away_score or 0) %}
+                            <small class="text-muted">Actual: {{ actual_total }}</small>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -201,52 +240,104 @@
 </div>
 {% endif %}
 
-<!-- Scheduled Games (if any on this date) -->
+<!-- Scheduled Games -->
 {% if scheduled_games %}
 <div class="card">
     <div class="card-header">
         <i class="bi bi-clock"></i> Scheduled
         <span class="badge bg-secondary ms-2">{{ scheduled_games|length }}</span>
     </div>
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead>
-                <tr>
-                    <th style="width: 80px;">Time</th>
-                    <th>Away</th>
-                    <th class="text-center">vs</th>
-                    <th>Home</th>
-                    <th class="text-center hide-mobile">Prediction</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for game in scheduled_games %}
-                <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
-                    <td class="text-muted">{{ game.time or 'TBD' }}</td>
-                    <td>
-                        {% if game.away_rank %}
-                        <span class="badge bg-maroon me-1">{{ game.away_rank }}</span>
+    <div class="card-body p-0">
+        <div class="row g-0">
+            {% for game in scheduled_games %}
+            <div class="col-12 col-md-6 col-lg-4 p-2">
+                <div class="border rounded p-3 h-100" 
+                     style="cursor:pointer;"
+                     onclick="window.location='/game/{{ game.id }}'">
+                    
+                    <!-- Game header -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">
+                            {{ game.time or 'TBD' }}
+                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
+                        </small>
+                        <span class="badge bg-primary">Scheduled</span>
+                    </div>
+                    
+                    <!-- Away team -->
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="d-flex align-items-center">
+                            {% if game.away_rank %}
+                            <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
+                            {% endif %}
+                            <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
+                                {{ game.away_team_name }}
+                            </a>
+                        </div>
+                        {% if game.away_ml %}
+                        <small class="text-muted">{{ game.away_ml|format_odds }}</small>
                         {% endif %}
-                        <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
-                    </td>
-                    <td class="text-center text-muted">@</td>
-                    <td>
-                        {% if game.home_rank %}
-                        <span class="badge bg-maroon me-1">{{ game.home_rank }}</span>
+                    </div>
+                    
+                    <!-- Home team -->
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            {% if game.home_rank %}
+                            <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
+                            {% endif %}
+                            <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
+                                {{ game.home_team_name }}
+                            </a>
+                        </div>
+                        {% if game.home_ml %}
+                        <small class="text-muted">{{ game.home_ml|format_odds }}</small>
                         {% endif %}
-                        <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
-                    </td>
-                    <td class="text-center hide-mobile">
-                        {% if game.pred_winner %}
-                        {% set pick_name = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
-                        {% set conf_pct = (game.pred_confidence * 100)|round(0)|int %}
-                        <span class="badge bg-secondary">{{ pick_name[:3]|upper }} {{ conf_pct }}%</span>
-                        {% else %}—{% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </div>
+                    
+                    <!-- Model predictions footer -->
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                            <!-- Ensemble prediction -->
+                            {% if game.pred_winner %}
+                            {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
+                            {% set ens_pick = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
+                            <span class="badge bg-secondary" title="Ensemble picks {{ ens_pick }}">
+                                <strong>Ens:</strong> {{ ens_pick[:10] }} {{ ens_pct }}%
+                            </span>
+                            {% endif %}
+                            
+                            <!-- Neural prediction -->
+                            {% if game.nn_winner %}
+                            {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
+                            {% set nn_pick = game.home_team_name if game.nn_winner == game.home_team_id else game.away_team_name %}
+                            <span class="badge bg-info" title="Neural picks {{ nn_pick }}">
+                                <strong>NN:</strong> {{ nn_pick[:10] }} {{ nn_pct }}%
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Projected totals/margin -->
+                        <div class="d-flex justify-content-between mt-1 flex-wrap gap-1">
+                            {% if game.over_under %}
+                            <small class="text-muted">O/U: {{ game.over_under }}</small>
+                            {% endif %}
+                            {% if game.nn_projected_total %}
+                            <small class="{% if game.over_under and game.nn_projected_total > game.over_under %}text-success{% elif game.over_under and game.nn_projected_total < game.over_under %}text-danger{% else %}text-muted{% endif %}"
+                                   title="Projected total">
+                                Proj: {{ game.nn_projected_total|round(1) }}
+                            </small>
+                            {% endif %}
+                            {% if game.nn_projected_margin is not none %}
+                            <small class="text-muted" title="Projected home margin">
+                                Margin: {{ '%+.1f'|format(game.nn_projected_margin) }}
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 </div>
 {% endif %}

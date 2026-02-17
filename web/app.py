@@ -15,7 +15,7 @@ base_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(base_dir))  # Project root for models.* imports
 sys.path.insert(0, str(base_dir / "scripts"))  # For database.py etc
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 
 from database import (
     get_connection, get_team_record, get_team_runs, 
@@ -1746,73 +1746,76 @@ def models():
 
 @app.route('/calendar')
 def calendar():
-    """Calendar view for historical game data"""
-    # Get date from query param, default to today
-    date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    """Redirect calendar to scores page (merged functionality)"""
+    date_str = request.args.get('date', '')
     conference = request.args.get('conference', '')
     
-    # Get games for selected date
-    games = get_games_by_date(date_str, conference if conference else None)
+    # Build redirect URL with same params
+    params = []
+    if date_str:
+        params.append(f'date={date_str}')
+    if conference:
+        params.append(f'conference={conference}')
     
-    # Get available dates for navigation
-    available_dates = get_available_dates()
+    redirect_url = '/scores'
+    if params:
+        redirect_url += '?' + '&'.join(params)
     
-    # Get conferences for filter
-    conferences = get_all_conferences()
+    return redirect(redirect_url)
+
+@app.route('/scores')
+def scores():
+    """Scores & Schedule page - merged scores + calendar with full model predictions"""
+    # Default to yesterday
+    default_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    date_str = request.args.get('date', default_date)
+    conference = request.args.get('conference', '')
     
-    # Parse date for display
+    # Parse date
     try:
         display_date = datetime.strptime(date_str, '%Y-%m-%d')
     except:
-        display_date = datetime.now()
+        display_date = datetime.now() - timedelta(days=1)
+        date_str = display_date.strftime('%Y-%m-%d')
     
-    # Calculate prev/next dates
-    prev_date = (display_date - timedelta(days=1)).strftime('%Y-%m-%d')
-    next_date = (display_date + timedelta(days=1)).strftime('%Y-%m-%d')
+    # Get games for the date (base predictions from ensemble)
+    games, correct_count, total_preds = get_games_for_date_with_predictions(date_str)
     
-    # Add predictions to each game
-    ensemble = MODELS.get('ensemble')
+    # Get betting lines for the date
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute('''
+        SELECT home_team_id, away_team_id, home_ml, away_ml, over_under
+        FROM betting_lines
+        WHERE date = ?
+    ''', (date_str,))
+    betting_lines_map = {}
+    for row in c.fetchall():
+        key = (row['home_team_id'], row['away_team_id'])
+        betting_lines_map[key] = {
+            'home_ml': row['home_ml'],
+            'away_ml': row['away_ml'],
+            'over_under': row['over_under']
+        }
+    conn.close()
+    
+    # Add neural predictions, nn_totals, nn_spread, and betting lines to each game
     neural = MODELS.get('neural')
-    correct_predictions = 0
-    total_predictions = 0
+    nn_totals_model = MODELS.get('nn_totals')
+    nn_spread_model = MODELS.get('nn_spread')
+    
     nn_correct = 0
     nn_total = 0
     
     for game in games:
-        try:
-            if ensemble and game.get('home_team_id') and game.get('away_team_id'):
-                pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
-                game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
-                game['pred_away_prob'] = pred.get('away_win_probability', 0.5)
-                game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
-                game['pred_confidence'] = max(game['pred_home_prob'], game['pred_away_prob'])
-                
-                # Check if prediction was correct for final games
-                if game['status'] == 'final' and game.get('winner_id'):
-                    game['pred_correct'] = game['pred_winner'] == game['winner_id']
-                    total_predictions += 1
-                    if game['pred_correct']:
-                        correct_predictions += 1
-        except Exception:
-            game['pred_winner'] = None
-            game['pred_confidence'] = None
+        # Add betting lines
+        key = (game.get('home_team_id'), game.get('away_team_id'))
+        if key in betting_lines_map:
+            game['home_ml'] = betting_lines_map[key]['home_ml']
+            game['away_ml'] = betting_lines_map[key]['away_ml']
+            game['over_under'] = betting_lines_map[key]['over_under']
         
-        # NN Totals and Spread predictions
-        try:
-            nn_totals_model = MODELS.get('nn_totals')
-            nn_spread_model = MODELS.get('nn_spread')
-            if game.get('home_team_id') and game.get('away_team_id'):
-                if nn_totals_model and nn_totals_model.is_trained():
-                    t_pred = nn_totals_model.predict_game(game['home_team_id'], game['away_team_id'])
-                    game['nn_projected_total'] = t_pred.get('projected_total')
-                if nn_spread_model and nn_spread_model.is_trained():
-                    s_pred = nn_spread_model.predict_game(game['home_team_id'], game['away_team_id'])
-                    game['nn_projected_margin'] = s_pred.get('projected_margin')
-                    game['nn_cover_prob'] = s_pred.get('cover_prob')
-        except Exception:
-            pass
-        
-        # Neural model prediction (independent)
+        # Neural model prediction
         try:
             if neural and game.get('home_team_id') and game.get('away_team_id'):
                 nn_pred = neural.predict_game(game['home_team_id'], game['away_team_id'])
@@ -1827,61 +1830,22 @@ def calendar():
                         nn_correct += 1
         except Exception:
             game['nn_winner'] = None
-    
-    # Model accuracy for the day
-    model_accuracy = round((correct_predictions / total_predictions) * 100) if total_predictions > 0 else None
-    
-    # Stats for the day
-    total_games = len(games)
-    completed = sum(1 for g in games if g['status'] == 'final')
-    scheduled = sum(1 for g in games if g['status'] == 'scheduled')
-    
-    # Calculate aggregate stats
-    final_games = [g for g in games if g['status'] == 'final']
-    total_runs = sum((g.get('home_score') or 0) + (g.get('away_score') or 0) for g in final_games)
-    avg_runs = round(total_runs / completed, 1) if completed > 0 else 0
-    
-    home_wins = sum(1 for g in final_games if g.get('winner_id') == g.get('home_team_id'))
-    home_win_pct = round((home_wins / completed) * 100) if completed > 0 else 0
-    
-    return render_template('calendar.html',
-                          games=games,
-                          selected_date=date_str,
-                          display_date=display_date,
-                          prev_date=prev_date,
-                          next_date=next_date,
-                          available_dates=available_dates,
-                          conferences=conferences,
-                          selected_conference=conference,
-                          total_games=total_games,
-                          completed=completed,
-                          scheduled=scheduled,
-                          avg_runs=avg_runs,
-                          home_win_pct=home_win_pct,
-                          model_accuracy=model_accuracy,
-                          correct_predictions=correct_predictions,
-                          total_predictions=total_predictions,
-                          nn_accuracy=round((nn_correct / nn_total) * 100) if nn_total > 0 else None,
-                          nn_correct=nn_correct,
-                          nn_total=nn_total)
-
-@app.route('/scores')
-def scores():
-    """Scores page - focused on completed games with results"""
-    # Default to yesterday
-    default_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-    date_str = request.args.get('date', default_date)
-    conference = request.args.get('conference', '')
-    
-    # Parse date
-    try:
-        display_date = datetime.strptime(date_str, '%Y-%m-%d')
-    except:
-        display_date = datetime.now() - timedelta(days=1)
-        date_str = display_date.strftime('%Y-%m-%d')
-    
-    # Get games for the date
-    games, correct_count, total_preds = get_games_for_date_with_predictions(date_str)
+        
+        # NN Totals prediction
+        try:
+            if nn_totals_model and nn_totals_model.is_trained() and game.get('home_team_id') and game.get('away_team_id'):
+                t_pred = nn_totals_model.predict_game(game['home_team_id'], game['away_team_id'])
+                game['nn_projected_total'] = t_pred.get('projected_total')
+        except Exception:
+            pass
+        
+        # NN Spread prediction
+        try:
+            if nn_spread_model and nn_spread_model.is_trained() and game.get('home_team_id') and game.get('away_team_id'):
+                s_pred = nn_spread_model.predict_game(game['home_team_id'], game['away_team_id'])
+                game['nn_projected_margin'] = s_pred.get('projected_margin')
+        except Exception:
+            pass
     
     # Filter by conference if specified
     if conference:
@@ -1889,6 +1853,8 @@ def scores():
         # Recalculate accuracy for filtered games
         correct_count = sum(1 for g in games if g.get('pred_correct'))
         total_preds = sum(1 for g in games if g.get('pred_correct') is not None)
+        nn_correct = sum(1 for g in games if g.get('nn_correct'))
+        nn_total = sum(1 for g in games if g.get('nn_correct') is not None)
     
     # Split into completed and scheduled
     completed_games = [g for g in games if g['status'] == 'final']
@@ -1909,6 +1875,7 @@ def scores():
     home_win_pct = round(home_wins / len(completed_games) * 100) if completed_games else 0
     
     accuracy_pct = round(correct_count / total_preds * 100, 1) if total_preds > 0 else None
+    nn_accuracy_pct = round(nn_correct / nn_total * 100, 1) if nn_total > 0 else None
     
     # Quick links - get dates with completed games
     available_dates = get_available_dates()
@@ -1930,7 +1897,10 @@ def scores():
                           home_win_pct=home_win_pct,
                           accuracy_pct=accuracy_pct,
                           correct_count=correct_count,
-                          total_preds=total_preds)
+                          total_preds=total_preds,
+                          nn_accuracy_pct=nn_accuracy_pct,
+                          nn_correct=nn_correct,
+                          nn_total=nn_total)
 
 
 @app.route('/tracker')

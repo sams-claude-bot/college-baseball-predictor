@@ -430,13 +430,8 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'scores' %}active{% endif %}" href="/scores">
+                        <a class="nav-link {% if request.endpoint == 'scores' or request.endpoint == 'calendar' %}active{% endif %}" href="/scores">
                             <i class="bi bi-clipboard-check"></i> Scores
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'calendar' %}active{% endif %}" href="/calendar">
-                            <i class="bi bi-calendar3"></i> Calendar
                         </a>
                     </li>
                     <li class="nav-item dropdown">
