@@ -1572,35 +1572,73 @@ def rankings():
 
 @app.route('/betting')
 def betting():
-    """Betting analysis page"""
+    """Betting analysis page - v2 logic with adjusted edges"""
     conference = request.args.get('conference', '')
     conferences = get_all_conferences()
     
     games = get_betting_games()
+    
+    # === v2 THRESHOLDS ===
+    ML_EDGE_FAVORITE = 8.0
+    ML_EDGE_UNDERDOG = 15.0
+    UNDERDOG_DISCOUNT = 0.5
+    CONSENSUS_BONUS_PER_MODEL = 1.0
+    TOTALS_EDGE_RUNS = 3.0
+    SPREADS_ENABLED = False
+    
+    def calc_adjusted_edge(raw_edge, ml, models_agree=5):
+        adj = raw_edge
+        if ml and ml > 0:  # Underdog discount
+            adj = raw_edge * UNDERDOG_DISCOUNT
+        bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
+        return adj + bonus
     
     # Filter by conference if specified
     if conference:
         games = [g for g in games 
                 if g.get('home_conf') == conference or g.get('away_conf') == conference]
     
-    # Sort by edge
-    games_with_edge = [g for g in games if g.get('best_edge')]
-    games_with_edge.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
+    # Build consensus lookup
+    consensus_lookup = {}
+    for g in games:
+        if g.get('model_agreement') and g['model_agreement']['count'] >= 7:
+            consensus_lookup[g['game_id']] = g['model_agreement']['count']
     
-    # Confident bets (7/10+ models agree, sorted by confidence score)
+    # Add adjusted_edge to all games
+    for g in games:
+        if g.get('best_edge'):
+            ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
+            models = consensus_lookup.get(g['game_id'], 5)
+            g['adjusted_edge'] = calc_adjusted_edge(g['best_edge'], ml, models)
+            g['models_agree'] = models
+            g['is_underdog'] = ml > 0 if ml else False
+    
+    # Sort by adjusted edge
+    games_with_edge = [g for g in games if g.get('adjusted_edge')]
+    games_with_edge.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
+    
+    # Confident bets (7/10+ models agree, sorted by adjusted edge)
     confident_candidates = [g for g in games 
                            if g.get('model_agreement') 
                            and g['model_agreement']['count'] >= 7]
-    confident_candidates.sort(key=lambda x: x['model_agreement']['confidence'], reverse=True)
+    confident_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     confident_bets = confident_candidates[:6]
     
-    # EV bets (edge > 5%, current "best bets" logic)
-    ev_bets = [g for g in games_with_edge if g.get('best_edge', 0) >= 5]
+    # EV bets with v2 thresholds
+    ev_bets = []
+    for g in games_with_edge:
+        ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
+        if ml is None:
+            continue
+        is_underdog = ml > 0
+        threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_FAVORITE
+        if g.get('best_edge', 0) >= threshold:
+            ev_bets.append(g)
     
-    # Best totals (edge > 15% on over/under)
-    games_with_totals = [g for g in games if g.get('total_edge') and g.get('over_under')]
-    games_with_totals.sort(key=lambda x: x.get('total_edge', 0), reverse=True)
-    best_totals = [g for g in games_with_totals if g.get('total_edge', 0) >= 15]
+    # Best totals (3+ runs edge)
+    games_with_totals = [g for g in games if g.get('over_under')]
+    games_with_totals.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
+    best_totals = [g for g in games_with_totals if abs(g.get('total_diff', 0)) >= TOTALS_EDGE_RUNS]
     
     return render_template('betting.html',
                           games=games_with_edge,
@@ -1608,7 +1646,14 @@ def betting():
                           ev_bets=ev_bets,
                           best_totals=best_totals,
                           conferences=conferences,
-                          selected_conference=conference)
+                          selected_conference=conference,
+                          spreads_enabled=SPREADS_ENABLED,
+                          v2_thresholds={
+                              'ml_favorite': ML_EDGE_FAVORITE,
+                              'ml_underdog': ML_EDGE_UNDERDOG,
+                              'totals_runs': TOTALS_EDGE_RUNS,
+                              'underdog_discount': UNDERDOG_DISCOUNT
+                          })
 
 @app.route('/models')
 def models():

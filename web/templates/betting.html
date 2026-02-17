@@ -36,7 +36,7 @@
     <div class="card-header bg-maroon">
         <div class="d-flex justify-content-between align-items-center">
             <span><i class="bi bi-people-fill"></i> Best Bets — Model Consensus</span>
-            <small class="text-white-50">Where our models agree (7/10+ required)</small>
+            <small class="text-white-50">7/10+ models agree | +1% bonus per model above 5</small>
         </div>
     </div>
     <div class="card-body">
@@ -49,6 +49,9 @@
                             <small class="text-muted">{{ game.date }}</small>
                             <div>
                                 <span class="badge bg-primary">{{ game.model_agreement.count }}/{{ game.model_agreement.total }} models</span>
+                                {% if game.adjusted_edge %}
+                                <span class="badge bg-success">{{ game.adjusted_edge|round(1) }}% adj</span>
+                                {% endif %}
                             </div>
                         </div>
                         <h6 class="mb-1">
@@ -77,8 +80,8 @@
 <div class="card mb-4">
     <div class="card-header" style="background-color: #10b981; color: white;">
         <div class="d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-lightning-charge-fill"></i> Highest EV — Edge Over DK</span>
-            <small class="text-white-50">5%+ edge over DraftKings implied odds</small>
+            <span><i class="bi bi-lightning-charge-fill"></i> Best EV Bets (v2)</span>
+            <small class="text-white-50">{{ v2_thresholds.ml_favorite|default(8) }}%+ favorites, {{ v2_thresholds.ml_underdog|default(15) }}%+ underdogs | Sorted by adjusted edge</small>
         </div>
     </div>
     <div class="card-body">
@@ -90,15 +93,16 @@
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
                             <div>
-                                <span class="badge bg-success">+{{ game.best_edge|round(1) }}% edge</span>
-                                {% if game.nn_prob is not none and game.ens_prob is not none %}
-                                    {% set nn_home_fav = game.nn_prob > 0.5 %}
-                                    {% set ens_home_fav = game.ens_prob > 0.5 %}
-                                    {% if nn_home_fav == ens_home_fav and (game.nn_prob > 0.6 or game.nn_prob < 0.4) and (game.ens_prob > 0.6 or game.ens_prob < 0.4) %}
-                                    <span class="badge bg-success">AGREE</span>
-                                    {% elif nn_home_fav != ens_home_fav %}
-                                    <span class="badge bg-danger">SPLIT</span>
-                                    {% endif %}
+                                {% if game.adjusted_edge and game.adjusted_edge != game.best_edge %}
+                                <span class="badge bg-success" title="Raw: {{ game.best_edge|round(1) }}%">{{ game.adjusted_edge|round(1) }}% adj</span>
+                                {% else %}
+                                <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
+                                {% endif %}
+                                {% if game.models_agree and game.models_agree >= 7 %}
+                                <span class="badge bg-primary">{{ game.models_agree }}/10</span>
+                                {% endif %}
+                                {% if game.is_underdog %}
+                                <span class="badge bg-warning text-dark" title="50% edge discount applied">🐕</span>
                                 {% endif %}
                             </div>
                         </div>
