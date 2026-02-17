@@ -112,9 +112,9 @@ def extract_games_for_date(page, date_str, verbose=False):
                     }
                 }
                 
-                // Get scores
-                const score1 = team1El.querySelector('.score');
-                const score2 = team2El.querySelector('.score');
+                // Get scores (D1BB uses .score-runs for the actual run total)
+                const score1 = team1El.querySelector('.score-runs');
+                const score2 = team2El.querySelector('.score-runs');
                 if (score1 && score2) {
                     const awayScore = parseInt(score1.textContent.trim());
                     const homeScore = parseInt(score2.textContent.trim());
@@ -130,9 +130,10 @@ def extract_games_for_date(page, date_str, verbose=False):
                 // Check if first line looks like a time (e.g., "2:00 PM", "11:30 AM")
                 if (firstLine.includes(':') && (firstLine.toUpperCase().includes('AM') || firstLine.toUpperCase().includes('PM'))) {
                     game.time_text = firstLine;
-                } else if (firstLine.match(/^(Top|Bottom|Final|Middle)/i)) {
-                    // In-progress or completed game
-                    game.status_text = firstLine;
+                } else if (firstLine.toUpperCase() === 'FINAL') {
+                    game.status = 'final';
+                } else if (firstLine.match(/^(Top|Bottom|Middle)/i)) {
+                    game.status = 'in-progress';
                 }
                 
                 // Check container class for game status
@@ -200,18 +201,22 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
             updates.append("time = ?")
             params.append(time)
         
-        if home_score is not None and existing['home_score'] is None:
+        # Update scores if we have them and existing doesn't (or if game is final)
+        if home_score is not None and (existing['home_score'] is None or status == 'final'):
             updates.append("home_score = ?")
             params.append(home_score)
             updates.append("away_score = ?")
             params.append(away_score)
-            # Determine winner
-            if home_score > away_score:
-                updates.append("winner_id = ?")
-                params.append(home_id)
-            elif away_score > home_score:
-                updates.append("winner_id = ?")
-                params.append(away_id)
+            # Determine winner for final games
+            if status == 'final':
+                updates.append("status = ?")
+                params.append('final')
+                if home_score > away_score:
+                    updates.append("winner_id = ?")
+                    params.append(home_id)
+                elif away_score > home_score:
+                    updates.append("winner_id = ?")
+                    params.append(away_id)
         
         if updates:
             params.append(game_id)
@@ -302,7 +307,8 @@ def main():
                             db, date_str, home_id, away_id,
                             time=game_time,
                             home_score=game.get('home_score'),
-                            away_score=game.get('away_score')
+                            away_score=game.get('away_score'),
+                            status=game.get('status')
                         )
                         stats[result] += 1
                         
