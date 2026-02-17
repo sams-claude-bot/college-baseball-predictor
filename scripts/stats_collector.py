@@ -3,6 +3,7 @@
 Unified P4 Stats Collector - Collects batting and pitching stats from SIDEARM Sports sites.
 
 Parses embedded Nuxt 3 JSON payload from SIDEARM-powered athletics sites.
+Falls back to Playwright browser automation for JS-rendered sites (WMT Digital, etc.)
 
 Usage:
     python3 scripts/stats_collector.py --all                    # All P4 teams
@@ -39,17 +40,27 @@ logging.basicConfig(
 log = logging.getLogger('stats_collector')
 
 REQUEST_DELAY = 2
+BROWSER_DELAY = 2  # Extra delay between browser requests to be polite
 
 # ESPN team ID mapping (for future use when ESPN adds college baseball stats)
 ESPN_IDS_FILE = DATA_DIR / 'espn_team_ids.json'
 
-# WMT iframe URLs for WordPress-based sites
-WMT_URLS = {
-    'miami-fl': 'https://wmt.games/miamihurricanes/stats/season/614661',
-}
-
 # Teams that don't have baseball programs (included in P4 conferences but no team)
 NO_BASEBALL = {'colorado', 'iowa-state', 'smu', 'syracuse'}
+
+# Teams known to require browser automation (WMT Digital / JS-rendered)
+# These skip the SIDEARM parser and go straight to Playwright
+BROWSER_REQUIRED = {
+    # SEC
+    'arkansas', 'auburn', 'kentucky', 'lsu', 'south-carolina', 'vanderbilt',
+    # Big Ten
+    'illinois', 'iowa', 'maryland', 'nebraska', 'penn-state', 'purdue',
+    # ACC
+    'california', 'clemson', 'georgia-tech', 'miami-fl', 'notre-dame', 
+    'stanford', 'virginia', 'virginia-tech',
+    # Big 12
+    'arizona', 'arizona-state', 'byu', 'cincinnati', 'kansas-state', 'ucf',
+}
 
 
 def get_db():
@@ -339,143 +350,435 @@ def upsert_player_stats(db, player):
     """, player)
 
 
-def collect_wmt_stats(team_id, wmt_url, db, dry_run=False):
-    """Collect stats from WMT (Web Management Tool) iframe used by WordPress sites."""
-    log.info(f"  Trying WMT scraper for {team_id}...")
+def _safe_int(val, default=0):
+    """Safely convert to int, handling dashes and empty strings."""
+    if val is None or val == '' or val == '—' or val == '-':
+        return default
+    try:
+        # Handle percentage strings
+        if isinstance(val, str):
+            val = val.replace('%', '').strip()
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(val, default=0.0):
+    """Safely convert to float."""
+    if val is None or val == '' or val == '—' or val == '-':
+        return default
+    try:
+        if isinstance(val, str):
+            val = val.replace('%', '').strip()
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
+def parse_table_headers(headers):
+    """Parse table headers and return column mapping."""
+    header_map = {}
+    normalized_headers = []
+    
+    for i, h in enumerate(headers):
+        h_lower = h.lower().strip()
+        normalized_headers.append(h_lower)
+        
+        # Batting columns
+        if h_lower in ('name', 'player'):
+            header_map['name'] = i
+        elif h_lower in ('#', 'no', 'no.', 'number'):
+            header_map['number'] = i
+        elif h_lower in ('avg', 'ba', 'batting avg'):
+            header_map['avg'] = i
+        elif h_lower in ('gp', 'g', 'games'):
+            header_map['games'] = i
+        elif h_lower in ('ab', 'at bats'):
+            header_map['at_bats'] = i
+        elif h_lower in ('r', 'runs'):
+            header_map['runs'] = i
+        elif h_lower in ('h', 'hits'):
+            header_map['hits'] = i
+        elif h_lower in ('2b', 'doubles'):
+            header_map['doubles'] = i
+        elif h_lower in ('3b', 'triples'):
+            header_map['triples'] = i
+        elif h_lower in ('hr', 'home runs'):
+            header_map['home_runs'] = i
+        elif h_lower in ('rbi',):
+            header_map['rbi'] = i
+        elif h_lower in ('bb', 'walks'):
+            header_map['walks'] = i
+        elif h_lower in ('so', 'k', 'strikeouts'):
+            header_map['strikeouts'] = i
+        elif h_lower in ('sb', 'stolen bases'):
+            header_map['stolen_bases'] = i
+        elif h_lower in ('cs', 'caught stealing'):
+            header_map['caught_stealing'] = i
+        
+        # Pitching columns
+        elif h_lower in ('era',):
+            header_map['era'] = i
+        elif h_lower in ('w', 'wins'):
+            header_map['wins'] = i
+        elif h_lower in ('l', 'losses'):
+            header_map['losses'] = i
+        elif h_lower in ('app', 'appearances'):
+            header_map['appearances'] = i
+        elif h_lower in ('gs', 'games started'):
+            header_map['games_started'] = i
+        elif h_lower in ('sv', 'saves'):
+            header_map['saves'] = i
+        elif h_lower in ('ip', 'innings', 'innings pitched'):
+            header_map['innings_pitched'] = i
+        elif h_lower in ('ha', 'hits allowed'):
+            header_map['hits_allowed'] = i
+        elif h_lower in ('ra', 'runs allowed'):
+            header_map['runs_allowed'] = i
+        elif h_lower in ('er', 'earned runs'):
+            header_map['earned_runs'] = i
+        elif h_lower in ('bba', 'walks allowed', 'bb'):
+            header_map['walks_allowed'] = i
+        elif h_lower in ('so', 'k', 'strikeouts') and 'era' in header_map:
+            # Pitching strikeouts if we already have ERA
+            header_map['strikeouts_pitched'] = i
+    
+    return header_map, normalized_headers
+
+
+def parse_batting_from_table(rows, header_map, team_id):
+    """Parse batting stats from table rows using header mapping."""
+    players = []
+    
+    for row in rows:
+        # Skip totals/opponents rows
+        if not row or len(row) <= max(header_map.values()):
+            continue
+        
+        name_idx = header_map.get('name', 0)
+        name = row[name_idx].strip() if name_idx < len(row) else ''
+        
+        if not name or name.lower() in ('totals', 'opponents', 'team', ''):
+            continue
+        
+        # Normalize name
+        name = normalize_player_name(name)
+        
+        player = {
+            'team_id': team_id,
+            'name': name,
+            'number': _safe_int(row[header_map['number']]) if 'number' in header_map and header_map['number'] < len(row) else 0,
+            'games': _safe_int(row[header_map['games']]) if 'games' in header_map and header_map['games'] < len(row) else 0,
+            'at_bats': _safe_int(row[header_map['at_bats']]) if 'at_bats' in header_map and header_map['at_bats'] < len(row) else 0,
+            'runs': _safe_int(row[header_map['runs']]) if 'runs' in header_map and header_map['runs'] < len(row) else 0,
+            'hits': _safe_int(row[header_map['hits']]) if 'hits' in header_map and header_map['hits'] < len(row) else 0,
+            'doubles': _safe_int(row[header_map['doubles']]) if 'doubles' in header_map and header_map['doubles'] < len(row) else 0,
+            'triples': _safe_int(row[header_map['triples']]) if 'triples' in header_map and header_map['triples'] < len(row) else 0,
+            'home_runs': _safe_int(row[header_map['home_runs']]) if 'home_runs' in header_map and header_map['home_runs'] < len(row) else 0,
+            'rbi': _safe_int(row[header_map['rbi']]) if 'rbi' in header_map and header_map['rbi'] < len(row) else 0,
+            'walks': _safe_int(row[header_map['walks']]) if 'walks' in header_map and header_map['walks'] < len(row) else 0,
+            'strikeouts': _safe_int(row[header_map['strikeouts']]) if 'strikeouts' in header_map and header_map['strikeouts'] < len(row) else 0,
+            'stolen_bases': _safe_int(row[header_map['stolen_bases']]) if 'stolen_bases' in header_map and header_map['stolen_bases'] < len(row) else 0,
+            'caught_stealing': _safe_int(row[header_map['caught_stealing']]) if 'caught_stealing' in header_map and header_map['caught_stealing'] < len(row) else 0,
+        }
+        
+        players.append(player)
+    
+    return players
+
+
+def parse_pitching_from_table(rows, header_map, team_id):
+    """Parse pitching stats from table rows using header mapping."""
+    players = []
+    
+    for row in rows:
+        if not row or len(row) <= max(header_map.values()):
+            continue
+        
+        name_idx = header_map.get('name', 0)
+        name = row[name_idx].strip() if name_idx < len(row) else ''
+        
+        if not name or name.lower() in ('totals', 'opponents', 'team', ''):
+            continue
+        
+        name = normalize_player_name(name)
+        
+        player = {
+            'name': name,
+            'number': _safe_int(row[header_map['number']]) if 'number' in header_map and header_map['number'] < len(row) else 0,
+            'wins': _safe_int(row[header_map['wins']]) if 'wins' in header_map and header_map['wins'] < len(row) else 0,
+            'losses': _safe_int(row[header_map['losses']]) if 'losses' in header_map and header_map['losses'] < len(row) else 0,
+            'games_pitched': _safe_int(row[header_map['appearances']]) if 'appearances' in header_map and header_map['appearances'] < len(row) else 0,
+            'games_started': _safe_int(row[header_map['games_started']]) if 'games_started' in header_map and header_map['games_started'] < len(row) else 0,
+            'saves': _safe_int(row[header_map['saves']]) if 'saves' in header_map and header_map['saves'] < len(row) else 0,
+            'innings_pitched': _safe_float(row[header_map['innings_pitched']]) if 'innings_pitched' in header_map and header_map['innings_pitched'] < len(row) else 0,
+            'hits_allowed': _safe_int(row[header_map['hits_allowed']]) if 'hits_allowed' in header_map and header_map['hits_allowed'] < len(row) else 0,
+            'runs_allowed': _safe_int(row[header_map['runs_allowed']]) if 'runs_allowed' in header_map and header_map['runs_allowed'] < len(row) else 0,
+            'earned_runs': _safe_int(row[header_map['earned_runs']]) if 'earned_runs' in header_map and header_map['earned_runs'] < len(row) else 0,
+            'walks_allowed': _safe_int(row[header_map['walks_allowed']]) if 'walks_allowed' in header_map and header_map['walks_allowed'] < len(row) else 0,
+            'strikeouts_pitched': _safe_int(row[header_map['strikeouts_pitched']]) if 'strikeouts_pitched' in header_map and header_map['strikeouts_pitched'] < len(row) else 0,
+        }
+        
+        players.append(player)
+    
+    return players
+
+
+def collect_stats_with_browser(team_id, url, db, dry_run=False):
+    """
+    Use Playwright to render JS-heavy stats pages and extract data.
+    Works for WMT Digital sites and other JS-rendered pages.
+    """
+    log.info(f"  Using browser automation for {team_id}...")
     
     try:
-        import subprocess as sp
-        from wmt_scraper import parse_wmt_batting_text, parse_wmt_pitching_text
-        
-        # Fetch batting page
-        batting_url = wmt_url
-        if '?' not in batting_url:
-            batting_url += '?overall=Batting'
-        
-        # WMT requires a browser - try curl first as a quick check
-        result = sp.run(
-            ['curl', '-s', '--max-time', '15', '-L',
-             '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-             batting_url],
-            capture_output=True, text=True, timeout=20
-        )
-        
-        batting_html = result.stdout
-        pitching_html = ""
-        
-        # If curl got data with stats
-        if 'AVG' in batting_html and 'NAME' in batting_html:
-            # Extract text content (simple HTML strip)
-            import re
-            text = re.sub(r'<[^>]+>', '\n', batting_html)
-            batting_players = parse_wmt_batting_text(text)
-        else:
-            log.warning(f"  WMT batting page needs browser (JS-rendered)")
-            return None
-        
-        # Fetch pitching
-        pitching_url = wmt_url.split('?')[0] + '?overall=Pitching'
-        result = sp.run(
-            ['curl', '-s', '--max-time', '15', '-L',
-             '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-             pitching_url],
-            capture_output=True, text=True, timeout=20
-        )
-        
-        pitching_html = result.stdout
-        pitching_players = []
-        if 'ERA' in pitching_html and 'NAME' in pitching_html:
-            text = re.sub(r'<[^>]+>', '\n', pitching_html)
-            pitching_players = parse_wmt_pitching_text(text)
-        
-        if not batting_players:
-            log.error(f"  WMT: No batting data parsed for {team_id}")
-            return None
-        
-        # Build pitching lookup
-        pitching_by_name = {p['name']: p for p in pitching_players}
-        
-        batting_count = 0
-        for bp in batting_players:
-            player = {
-                'team_id': team_id,
-                **bp,
-            }
-            for k, v in PITCHING_DEFAULTS.items():
-                player.setdefault(k, v)
-            if player['name'] in pitching_by_name:
-                ps = pitching_by_name.pop(player['name'])
-                for k in PITCHING_DEFAULTS:
-                    player[k] = ps[k]
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        log.error("  Playwright not installed. Run: pip install playwright && playwright install chromium")
+        return None
+    
+    batting_players = []
+    pitching_players = []
+    
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+            page = context.new_page()
             
-            calculate_derived_stats(player)
+            # Try multiple URL patterns
+            base = url.rsplit('/stats', 1)[0] + '/stats'
+            urls_to_try = [url]
+            
+            # Add variants without year suffix for SIDEARM sites
+            if url.endswith('/2026'):
+                urls_to_try.extend([url.replace('/2026', '/2025'), base])
+            elif url.endswith('/2025'):
+                urls_to_try.extend([url.replace('/2025', '/2026'), base])
+            else:
+                urls_to_try.extend([base + '/2026', base + '/2025'])
+            
+            page_loaded = False
+            final_url = None
+            
+            for try_url in urls_to_try:
+                try:
+                    log.info(f"    Trying {try_url}")
+                    response = page.goto(try_url, wait_until='domcontentloaded', timeout=20000)
+                    
+                    if response and response.status == 200:
+                        # Wait for tables to potentially render
+                        time.sleep(2)
+                        
+                        # Try to wait for table or stats content
+                        try:
+                            page.wait_for_selector('table, .stats-table, [class*="stats"], wmt-stats-iframe', timeout=8000)
+                        except:
+                            pass
+                        
+                        # Check if we have stats content
+                        content = page.content()
+                        if ('individualHittingStats' in content or 
+                            '<table' in content.lower() or
+                            'wmt_stats2_iframe_url' in content or
+                            'wmt-stats-iframe' in content):
+                            page_loaded = True
+                            final_url = try_url
+                            break
+                except Exception as e:
+                    log.debug(f"    URL {try_url} failed: {e}")
+                    continue
+            
+            if not page_loaded:
+                log.error(f"  Browser: Failed to load any URL for {team_id}")
+                browser.close()
+                return None
+            
+            log.info(f"    Loaded {final_url}")
+            
+            # Get the page content
+            html = page.content()
+            
+            # First try SIDEARM Nuxt parsing (some sites have JS but still embed data)
+            batting_raw, pitching_raw = parse_sidearm_nuxt3(html)
+            
+            if batting_raw:
+                log.info(f"    Found SIDEARM data via browser")
+                browser.close()
+                # Process using existing SIDEARM flow
+                return _process_sidearm_data(batting_raw, pitching_raw, team_id, db, dry_run)
+            
+            # Otherwise, try to extract from rendered tables
+            log.info(f"    Parsing rendered tables...")
+            
+            # Look for stat tables in the DOM
+            tables = page.query_selector_all('table')
+            
+            batting_table_found = False
+            pitching_table_found = False
+            
+            for table in tables:
+                try:
+                    # Get headers
+                    headers = []
+                    header_cells = table.query_selector_all('th')
+                    if not header_cells:
+                        header_cells = table.query_selector_all('thead td')
+                    
+                    for th in header_cells:
+                        headers.append(th.inner_text().strip())
+                    
+                    if not headers or len(headers) < 5:
+                        continue
+                    
+                    header_map, normalized = parse_table_headers(headers)
+                    
+                    # Determine if this is batting or pitching
+                    is_pitching = 'era' in header_map or 'innings_pitched' in header_map
+                    is_batting = 'at_bats' in header_map or 'avg' in header_map
+                    
+                    # Get rows
+                    rows = []
+                    row_elements = table.query_selector_all('tbody tr')
+                    for row_el in row_elements:
+                        cells = row_el.query_selector_all('td')
+                        row = [c.inner_text().strip() for c in cells]
+                        if row and len(row) >= 3:
+                            rows.append(row)
+                    
+                    if is_batting and not batting_table_found and rows:
+                        batting_players = parse_batting_from_table(rows, header_map, team_id)
+                        if batting_players:
+                            batting_table_found = True
+                            log.info(f"    Found batting table with {len(batting_players)} players")
+                    
+                    if is_pitching and not pitching_table_found and rows:
+                        pitching_players = parse_pitching_from_table(rows, header_map, team_id)
+                        if pitching_players:
+                            pitching_table_found = True
+                            log.info(f"    Found pitching table with {len(pitching_players)} pitchers")
+                
+                except Exception as e:
+                    log.debug(f"    Table parsing error: {e}")
+                    continue
+            
+            # Check for WMT iframe (component or JSON data)
+            if not batting_table_found:
+                wmt_url = None
+                log.info(f"    No tables found, checking for WMT iframe...")
+                
+                # Try to find WMT iframe component
+                wmt_iframe = page.query_selector('wmt-stats-iframe')
+                if wmt_iframe:
+                    wmt_path = wmt_iframe.get_attribute('path')
+                    if wmt_path:
+                        wmt_url = f"https://wmt.games{wmt_path}"
+                        log.info(f"    Found WMT component with path: {wmt_path}")
+                
+                # Also check for WMT URL in page JSON (SIDEARM sites embed this)
+                if not wmt_url:
+                    wmt_match = re.search(r'wmt_stats2_iframe_url["\s:]+(["\'])?(https://wmt\.games/[^"\'<>\s]+)', html)
+                    if wmt_match:
+                        wmt_url = wmt_match.group(2)
+                        log.info(f"    Found WMT URL in JSON: {wmt_url}")
+                
+                if wmt_url:
+                    log.info(f"    Found WMT iframe, navigating to {wmt_url}")
+                    
+                    try:
+                        page.goto(wmt_url, wait_until='networkidle', timeout=15000)
+                        time.sleep(3)  # Wait for JS rendering
+                        
+                        # Re-try table extraction
+                        tables = page.query_selector_all('table')
+                        for table in tables:
+                            try:
+                                headers = [th.inner_text().strip() for th in table.query_selector_all('th')]
+                                if not headers or len(headers) < 5:
+                                    continue
+                                
+                                header_map, _ = parse_table_headers(headers)
+                                is_pitching = 'era' in header_map or 'innings_pitched' in header_map
+                                is_batting = 'at_bats' in header_map or 'avg' in header_map
+                                
+                                rows = []
+                                for row_el in table.query_selector_all('tbody tr'):
+                                    row = [c.inner_text().strip() for c in row_el.query_selector_all('td')]
+                                    if row and len(row) >= 3:
+                                        rows.append(row)
+                                
+                                if is_batting and not batting_table_found and rows:
+                                    batting_players = parse_batting_from_table(rows, header_map, team_id)
+                                    if batting_players:
+                                        batting_table_found = True
+                                
+                                if is_pitching and not pitching_table_found and rows:
+                                    pitching_players = parse_pitching_from_table(rows, header_map, team_id)
+                                    if pitching_players:
+                                        pitching_table_found = True
+                            
+                            except Exception as e:
+                                continue
+                    except Exception as e:
+                        log.warning(f"    WMT navigation failed: {e}")
+            
+            browser.close()
+            
+            if not batting_players:
+                log.error(f"  Browser: No batting data found for {team_id}")
+                return None
+            
+            # Merge batting and pitching
+            pitching_by_name = {p['name']: p for p in pitching_players}
+            
+            batting_count = 0
+            for bp in batting_players:
+                for k, v in PITCHING_DEFAULTS.items():
+                    bp.setdefault(k, v)
+                
+                if bp['name'] in pitching_by_name:
+                    ps = pitching_by_name.pop(bp['name'])
+                    for k in PITCHING_DEFAULTS:
+                        bp[k] = ps.get(k, 0)
+                
+                calculate_derived_stats(bp)
+                if not dry_run:
+                    upsert_player_stats(db, bp)
+                batting_count += 1
+            
+            # Pitch-only players
+            pitching_only = 0
+            for name, ps in pitching_by_name.items():
+                player = {
+                    'team_id': team_id, 'name': name, 'number': ps.get('number', 0),
+                    'games': 0, 'at_bats': 0, 'runs': 0, 'hits': 0, 'doubles': 0,
+                    'triples': 0, 'home_runs': 0, 'rbi': 0, 'walks': 0, 'strikeouts': 0,
+                    'stolen_bases': 0, 'caught_stealing': 0,
+                }
+                for k in PITCHING_DEFAULTS:
+                    player[k] = ps.get(k, 0)
+                calculate_derived_stats(player)
+                if not dry_run:
+                    upsert_player_stats(db, player)
+                pitching_only += 1
+            
             if not dry_run:
-                upsert_player_stats(db, player)
-            batting_count += 1
-        
-        # Pitch-only players
-        pitching_only = 0
-        for name, ps in pitching_by_name.items():
-            player = {
-                'team_id': team_id, 'name': name, 'number': ps['number'],
-                'games': 0, 'at_bats': 0, 'runs': 0, 'hits': 0, 'doubles': 0,
-                'triples': 0, 'home_runs': 0, 'rbi': 0, 'walks': 0, 'strikeouts': 0,
-                'stolen_bases': 0, 'caught_stealing': 0,
-            }
-            for k in PITCHING_DEFAULTS:
-                player[k] = ps[k]
-            calculate_derived_stats(player)
-            if not dry_run:
-                upsert_player_stats(db, player)
-            pitching_only += 1
-        
-        if not dry_run:
-            db.commit()
-        
-        total_pitchers = len(pitching_players)
-        log.info(f"  {team_id} (WMT): {batting_count} batters, {total_pitchers} pitchers ({pitching_only} pitch-only)")
-        return {'batting': batting_count, 'pitching': total_pitchers, 'status': 'ok', 'source': 'wmt'}
-        
+                db.commit()
+            
+            log.info(f"  {team_id} (browser): {batting_count} batters, {len(pitching_players)} pitchers ({pitching_only} pitch-only)")
+            return {'batting': batting_count, 'pitching': len(pitching_players), 'status': 'ok', 'source': 'browser'}
+    
     except Exception as e:
-        log.error(f"  WMT scraper failed for {team_id}: {e}")
+        log.error(f"  Browser error for {team_id}: {e}")
         import traceback
         traceback.print_exc()
         return None
 
 
-def collect_team_stats(team_id, url, db, dry_run=False):
-    """Collect batting + pitching stats for one team."""
-    log.info(f"  Fetching {team_id}...")
-
-    # Try multiple URL patterns
-    base = url.rsplit('/stats', 1)[0] + '/stats'
-    urls_to_try = [url]
-    if url.endswith('/2026'):
-        urls_to_try.extend([url.replace('/2026', '/2025'), base])
-    elif url.endswith('/2025'):
-        urls_to_try.extend([url.replace('/2025', '/2026'), base])
-    else:
-        urls_to_try.extend([base + '/2026', base + '/2025'])
-
-    batting_raw = None
-    pitching_raw = None
-
-    for try_url in urls_to_try:
-        html = fetch_page(try_url)
-        if not html or len(html) < 1000:
-            continue
-        if 'individualHittingStats' not in html and 'cumulativeStats' not in html:
-            continue
-
-        batting_raw, pitching_raw = parse_sidearm_nuxt3(html)
-        if batting_raw:
-            log.info(f"  Found data at {try_url}")
-            break
-
-    if not batting_raw:
-        log.error(f"  FAILED: No parseable stats for {team_id}")
-        return {'batting': 0, 'pitching': 0, 'status': 'failed'}
-
+def _process_sidearm_data(batting_raw, pitching_raw, team_id, db, dry_run):
+    """Process SIDEARM Nuxt data and upsert to DB."""
     # Build name->pitching lookup
     pitching_by_name = {}
     if pitching_raw:
@@ -528,6 +831,57 @@ def collect_team_stats(team_id, url, db, dry_run=False):
 
     log.info(f"  {team_id}: {batting_count} batters, {total_pitchers} pitchers ({pitching_only} pitch-only)")
     return {'batting': batting_count, 'pitching': total_pitchers, 'status': 'ok', 'source': 'sidearm'}
+
+
+def collect_team_stats(team_id, url, db, dry_run=False):
+    """Collect batting + pitching stats for one team."""
+    log.info(f"  Fetching {team_id}...")
+    
+    # For teams known to require browser, skip SIDEARM and go straight to Playwright
+    if team_id in BROWSER_REQUIRED:
+        result = collect_stats_with_browser(team_id, url, db, dry_run)
+        if result:
+            return result
+        # If browser fails, try SIDEARM as last resort
+        log.info(f"    Browser failed, trying SIDEARM fallback...")
+
+    # Try multiple URL patterns
+    base = url.rsplit('/stats', 1)[0] + '/stats'
+    urls_to_try = [url]
+    if url.endswith('/2026'):
+        urls_to_try.extend([url.replace('/2026', '/2025'), base])
+    elif url.endswith('/2025'):
+        urls_to_try.extend([url.replace('/2025', '/2026'), base])
+    else:
+        urls_to_try.extend([base + '/2026', base + '/2025'])
+
+    batting_raw = None
+    pitching_raw = None
+
+    for try_url in urls_to_try:
+        html = fetch_page(try_url)
+        if not html or len(html) < 1000:
+            continue
+        if 'individualHittingStats' not in html and 'cumulativeStats' not in html:
+            continue
+
+        batting_raw, pitching_raw = parse_sidearm_nuxt3(html)
+        if batting_raw:
+            log.info(f"  Found data at {try_url}")
+            break
+
+    if not batting_raw:
+        # SIDEARM failed, try browser fallback
+        if team_id not in BROWSER_REQUIRED:
+            log.info(f"    SIDEARM failed, trying browser fallback...")
+            result = collect_stats_with_browser(team_id, url, db, dry_run)
+            if result:
+                return result
+        
+        log.error(f"  FAILED: No parseable stats for {team_id}")
+        return {'batting': 0, 'pitching': 0, 'status': 'failed'}
+
+    return _process_sidearm_data(batting_raw, pitching_raw, team_id, db, dry_run)
 
 
 def recalculate_all_stats(db):
@@ -629,21 +983,13 @@ def main():
             import signal
             
             def _timeout_handler(signum, frame):
-                raise TimeoutError(f"Team {team_id} timed out after 60s")
+                raise TimeoutError(f"Team {team_id} timed out after 90s")
             
             old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-            signal.alarm(60)  # 60 second per-team timeout
+            signal.alarm(90)  # 90 second per-team timeout (browser takes longer)
             
             try:
-                # Try SIDEARM Nuxt parsing first
                 result = collect_team_stats(team_id, url, db, dry_run=args.dry_run)
-                
-                # If SIDEARM failed, try WMT fallback
-                if result['status'] != 'ok' and team_id in WMT_URLS:
-                    log.info(f"  SIDEARM failed, trying WMT fallback...")
-                    result = collect_wmt_stats(team_id, WMT_URLS[team_id], db, dry_run=args.dry_run)
-                    if result is None:
-                        result = {'status': 'failed', 'batting': 0, 'pitching': 0}
             finally:
                 signal.alarm(0)  # Cancel alarm
                 signal.signal(signal.SIGALRM, old_handler)
@@ -664,8 +1010,11 @@ def main():
             progress['failed'].append(team_id)
 
         save_progress(progress)
+        
+        # Add delay between requests
         if i < len(team_ids):
-            time.sleep(REQUEST_DELAY)
+            delay = BROWSER_DELAY if team_id in BROWSER_REQUIRED else REQUEST_DELAY
+            time.sleep(delay)
 
     elapsed = time.time() - start_time
     log.info(f"\n{'='*50}")

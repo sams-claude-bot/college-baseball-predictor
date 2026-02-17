@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Record daily best bets from the web dashboard's betting page logic.
-
-This calls /api/best-bets which uses the exact same model predictions
-and selection criteria as the Betting page's "Best Bets" and "Best Totals" sections.
+"""Backfill tracked bets for past dates that had DK lines.
 
 Usage:
-    python3 scripts/record_daily_bets.py record   # Record today's best bets
-    python3 scripts/record_daily_bets.py evaluate  # Grade completed bets
+    python3 scripts/backfill_bets.py 2026-02-15 2026-02-16
 """
 import sys
 import json
@@ -26,39 +22,35 @@ def get_conn():
     return conn
 
 
-def record(date_override=None):
-    """Fetch best bets from the API and record them."""
-    print(f"\n📊 Recording daily best bets...")
+def backfill_date(date_str):
+    """Fetch best bets for a specific date and record them."""
+    print(f"\n📊 Backfilling bets for {date_str}...")
     
     try:
-        url = API_URL
-        if date_override:
-            url += f'?date={date_override}'
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(f"{API_URL}?date={date_str}", timeout=30)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
         print(f"❌ Failed to fetch best bets from API: {e}")
-        print("   Make sure the web dashboard is running (python3 web/app.py)")
-        sys.exit(1)
+        return 0
     
-    date = data['date']
-    print(f"   Date: {date}")
+    if data['date'] != date_str:
+        print(f"⚠️  API returned date {data['date']} instead of {date_str}")
     
     conn = get_conn()
     c = conn.cursor()
     
     # --- MONEYLINES ---
     existing_ml = c.execute(
-        'SELECT COUNT(*) FROM tracked_bets WHERE date=?', (date,)
+        'SELECT COUNT(*) FROM tracked_bets WHERE date=?', (date_str,)
     ).fetchone()[0]
     
     ml_recorded = 0
     if existing_ml >= MAX_PER_TYPE:
-        print(f"\n💰 Moneylines: Already have {existing_ml} bets for {date}, skipping")
+        print(f"💰 Moneylines: Already have {existing_ml} bets for {date_str}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_ml
-        print(f"\n💰 Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
+        print(f"💰 Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
         for bet in data['moneylines'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets
@@ -78,15 +70,15 @@ def record(date_override=None):
     # --- SPREADS ---
     existing_sp = c.execute(
         'SELECT COUNT(*) FROM tracked_bets_spreads WHERE date=? AND bet_type="spread"',
-        (date,)
+        (date_str,)
     ).fetchone()[0]
     
     sp_recorded = 0
     if existing_sp >= MAX_PER_TYPE:
-        print(f"\n📊 Spreads: Already have {existing_sp} bets for {date}, skipping")
+        print(f"📊 Spreads: Already have {existing_sp} bets for {date_str}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_sp
-        print(f"\n📊 Spreads ({len(data['spreads'])} candidates, {slots} slots):")
+        print(f"📊 Spreads ({len(data['spreads'])} candidates, {slots} slots):")
         for bet in data['spreads'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets_spreads
@@ -102,15 +94,15 @@ def record(date_override=None):
     # --- TOTALS ---
     existing_tot = c.execute(
         'SELECT COUNT(*) FROM tracked_bets_spreads WHERE date=? AND bet_type="total"',
-        (date,)
+        (date_str,)
     ).fetchone()[0]
     
     tot_recorded = 0
     if existing_tot >= MAX_PER_TYPE:
-        print(f"\n🎯 Totals: Already have {existing_tot} bets for {date}, skipping")
+        print(f"🎯 Totals: Already have {existing_tot} bets for {date_str}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_tot
-        print(f"\n🎯 Totals ({len(data['totals'])} candidates, {slots} slots):")
+        print(f"🎯 Totals ({len(data['totals'])} candidates, {slots} slots):")
         for bet in data['totals'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets_spreads
@@ -127,29 +119,21 @@ def record(date_override=None):
     conn.close()
     
     total = ml_recorded + sp_recorded + tot_recorded
-    print(f"\n✅ Recorded {total} new bets (ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
-    
-    if not data['moneylines'] and not data['spreads'] and not data['totals']:
-        print("ℹ️  No games with betting lines today (off day or no DK odds scraped)")
+    print(f"✅ Recorded {total} bets for {date_str} (ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
+    return total
 
 
-def evaluate():
-    """Grade completed bets based on final scores."""
+def evaluate_all():
+    """Grade all ungraded bets."""
     conn = get_conn()
     c = conn.cursor()
     
     # --- Evaluate moneylines ---
-    # Join via betting_lines to resolve team IDs, then find game by teams+date
-    # Note: DraftKings sometimes lists home/away reversed from our games table
     c.execute('''
         SELECT tb.id, tb.game_id, tb.date, tb.pick_team_id, tb.moneyline,
                g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.status
         FROM tracked_bets tb
-        LEFT JOIN betting_lines bl ON tb.game_id = bl.game_id
-        LEFT JOIN games g ON g.date = tb.date AND g.status = 'final'
-            AND ((g.home_team_id = bl.home_team_id AND g.away_team_id = bl.away_team_id)
-              OR (g.home_team_id = bl.away_team_id AND g.away_team_id = bl.home_team_id)
-              OR g.id = tb.game_id)
+        JOIN games g ON g.id = tb.game_id
         WHERE tb.won IS NULL AND g.status = 'final'
     ''')
     ml_evaluated = 0
@@ -172,17 +156,12 @@ def evaluate():
         print(f"  {icon} ML: {'W' if won else 'L'} | ${profit:+.2f}")
     
     # --- Evaluate spreads & totals ---
-    # Note: DraftKings sometimes lists home/away reversed from our games table
     c.execute('''
         SELECT tb.id, tb.game_id, tb.date, tb.pick, tb.line, tb.odds, tb.bet_type,
                g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.status,
                ht.name as home_name, at.name as away_name
         FROM tracked_bets_spreads tb
-        LEFT JOIN betting_lines bl ON tb.game_id = bl.game_id
-        LEFT JOIN games g ON g.date = tb.date AND g.status = 'final'
-            AND ((g.home_team_id = bl.home_team_id AND g.away_team_id = bl.away_team_id)
-              OR (g.home_team_id = bl.away_team_id AND g.away_team_id = bl.home_team_id)
-              OR g.id = tb.game_id)
+        JOIN games g ON g.id = tb.game_id
         LEFT JOIN teams ht ON g.home_team_id = ht.id
         LEFT JOIN teams at ON g.away_team_id = at.id
         WHERE tb.won IS NULL AND g.status = 'final'
@@ -236,7 +215,7 @@ def evaluate():
             c.execute('UPDATE tracked_bets_spreads SET won=?, profit=? WHERE id=?',
                       (won, round(profit, 2), row['id']))
             tot_evaluated += 1
-            icon = '✅' if won else '❌'
+            icon = '✅' if won else ('❌' if won == 0 else '➖')
             print(f"  {icon} TOT: {row['pick']} {row['line']} | actual {actual_total} | ${profit:+.2f}")
     
     conn.commit()
@@ -246,17 +225,90 @@ def evaluate():
     print(f"\n✅ Evaluated {total} bets (ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
 
 
+def show_summary():
+    """Show P&L summary."""
+    conn = get_conn()
+    c = conn.cursor()
+    
+    print("\n" + "="*60)
+    print("📊 P&L SUMMARY")
+    print("="*60)
+    
+    # Moneylines
+    c.execute('''
+        SELECT COUNT(*) as total, 
+               SUM(CASE WHEN won=1 THEN 1 ELSE 0 END) as wins,
+               SUM(CASE WHEN won=0 THEN 1 ELSE 0 END) as losses,
+               SUM(profit) as total_profit
+        FROM tracked_bets WHERE won IS NOT NULL
+    ''')
+    row = dict(c.fetchone())
+    if row['total']:
+        pct = row['wins'] / row['total'] * 100 if row['total'] else 0
+        print(f"\n💰 Moneylines: {row['wins']}-{row['losses']} ({pct:.1f}%) | "
+              f"Profit: ${row['total_profit']:+.2f}")
+    
+    # Spreads
+    c.execute('''
+        SELECT COUNT(*) as total, 
+               SUM(CASE WHEN won=1 THEN 1 ELSE 0 END) as wins,
+               SUM(CASE WHEN won=0 THEN 1 ELSE 0 END) as losses,
+               SUM(profit) as total_profit
+        FROM tracked_bets_spreads WHERE bet_type='spread' AND won IS NOT NULL
+    ''')
+    row = dict(c.fetchone())
+    if row['total']:
+        pct = row['wins'] / row['total'] * 100 if row['total'] else 0
+        print(f"📊 Spreads: {row['wins']}-{row['losses']} ({pct:.1f}%) | "
+              f"Profit: ${row['total_profit']:+.2f}")
+    
+    # Totals
+    c.execute('''
+        SELECT COUNT(*) as total, 
+               SUM(CASE WHEN won=1 THEN 1 ELSE 0 END) as wins,
+               SUM(CASE WHEN won=0 THEN 1 ELSE 0 END) as losses,
+               SUM(profit) as total_profit
+        FROM tracked_bets_spreads WHERE bet_type='total' AND won IS NOT NULL
+    ''')
+    row = dict(c.fetchone())
+    if row['total']:
+        pct = row['wins'] / row['total'] * 100 if row['total'] else 0
+        print(f"🎯 Totals: {row['wins']}-{row['losses']} ({pct:.1f}%) | "
+              f"Profit: ${row['total_profit']:+.2f}")
+    
+    # Overall
+    c.execute('''
+        SELECT SUM(profit) FROM (
+            SELECT profit FROM tracked_bets WHERE won IS NOT NULL
+            UNION ALL
+            SELECT profit FROM tracked_bets_spreads WHERE won IS NOT NULL
+        )
+    ''')
+    total_profit = c.fetchone()[0] or 0
+    print(f"\n💵 TOTAL PROFIT: ${total_profit:+.2f}")
+    
+    conn.close()
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python3 record_daily_bets.py [record|evaluate]")
+        print("Usage: python3 backfill_bets.py DATE1 [DATE2 ...]")
+        print("       python3 backfill_bets.py evaluate")
+        print("       python3 backfill_bets.py summary")
         sys.exit(1)
     
-    cmd = sys.argv[1]
-    date_arg = sys.argv[2] if len(sys.argv) > 2 else None
-    if cmd == 'record':
-        record(date_override=date_arg)
-    elif cmd == 'evaluate':
-        evaluate()
+    if sys.argv[1] == 'evaluate':
+        evaluate_all()
+        show_summary()
+    elif sys.argv[1] == 'summary':
+        show_summary()
     else:
-        print(f"Unknown command: {cmd}")
-        sys.exit(1)
+        dates = sys.argv[1:]
+        for date in dates:
+            backfill_date(date)
+        
+        print("\n" + "="*60)
+        print("Evaluating bets against final scores...")
+        print("="*60)
+        evaluate_all()
+        show_summary()

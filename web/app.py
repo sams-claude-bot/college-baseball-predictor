@@ -418,12 +418,12 @@ def get_blended_prediction(home_team_id, away_team_id):
     }
 
 
-def get_betting_games():
-    """Get all games with betting lines"""
+def get_betting_games(date_str=None):
+    """Get all games with betting lines for a given date (defaults to today)"""
     conn = get_connection()
     c = conn.cursor()
     
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = date_str or datetime.now().strftime('%Y-%m-%d')
     
     c.execute('''
         SELECT b.*, 
@@ -2046,10 +2046,12 @@ def api_teams():
 
 @app.route('/api/best-bets')
 def api_best_bets():
-    """Return today's best bets — same logic as the Betting page.
+    """Return best bets for a date — same logic as the Betting page.
     Used by record_daily_bets.py to populate the P&L tracker.
+    Query param: ?date=YYYY-MM-DD (defaults to today)
     """
-    games = get_betting_games()
+    date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    games = get_betting_games(date_str)
     
     # Best moneyline bets (5%+ edge, top 6)
     ml_candidates = [g for g in games if g.get('best_edge', 0) >= 5]
@@ -2126,7 +2128,7 @@ def api_best_bets():
     best_spreads = spread_candidates[:6]
     
     return jsonify({
-        'date': datetime.now().strftime('%Y-%m-%d'),
+        'date': date_str,
         'moneylines': ml_bets,
         'totals': totals_bets,
         'spreads': best_spreads
