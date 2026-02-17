@@ -294,10 +294,11 @@
 
     <!-- Sidebar -->
     <div class="col-lg-4">
-        <!-- Today's Best Bets (Plain English) -->
+        <!-- Today's Best Bets (v2 Logic) -->
         <div class="card">
             <div class="card-header bg-maroon">
                 <i class="bi bi-lightning-charge"></i> Today's Best Bets
+                <small class="float-end text-white-50">v2 · sorted by adjusted edge</small>
             </div>
             <div class="card-body p-0">
                 {% if value_picks %}
@@ -306,24 +307,30 @@
                     <div class="list-group-item px-3 py-3">
                         <div class="d-flex align-items-start gap-2">
                             <div class="flex-shrink-0">
-                                {% if pick.edge > 10 %}
+                                {% if pick.models_agree >= 9 %}
+                                <span style="font-size: 1.5em;">🎯</span>
+                                {% elif pick.adjusted_edge > 25 %}
                                 <span style="font-size: 1.5em;">🔥</span>
-                                {% elif pick.edge > 5 %}
+                                {% elif pick.adjusted_edge > 15 %}
                                 <span style="font-size: 1.5em;">✅</span>
                                 {% else %}
                                 <span style="font-size: 1.5em;">👀</span>
                                 {% endif %}
                             </div>
                             <div class="flex-grow-1">
-                                <div class="fw-bold">{{ pick.pick }} {{ pick.moneyline|format_odds }}</div>
+                                <div class="fw-bold">
+                                    {{ pick.pick }} {{ pick.moneyline|format_odds }}
+                                    {% if pick.is_underdog %}<span class="badge bg-warning text-dark ms-1" title="Underdog (50% edge discount)">🐕</span>{% endif %}
+                                    {% if pick.models_agree >= 7 %}<span class="badge bg-primary ms-1">{{ pick.models_agree }}/10</span>{% endif %}
+                                </div>
                                 <div class="small text-muted mb-1">{{ pick.game }}</div>
                                 <div class="small">
-                                    {% if pick.edge > 10 %}
-                                    <span class="text-success fw-bold">Strong value.</span> Our models give {{ pick.pick }} a {{ (pick.model_prob * 100)|round(0)|int }}% chance — DraftKings implies only {{ (pick.dk_implied * 100)|round(0)|int }}%. That's a <strong>{{ pick.edge|round(1) }}% edge</strong>.
-                                    {% elif pick.edge > 5 %}
-                                    <span class="text-success">Good value.</span> Models say {{ (pick.model_prob * 100)|round(0)|int }}% vs DK's {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>+{{ pick.edge|round(1) }}% edge.</strong>
+                                    {% if pick.models_agree >= 9 %}
+                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/10 models agree at {{ (pick.model_prob * 100)|round(0)|int }}% (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%). <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.consensus_bonus > 0 %} <span class="text-muted">(+{{ pick.consensus_bonus|round(0)|int }}% bonus)</span>{% endif %}.
+                                    {% elif pick.adjusted_edge > 20 %}
+                                    <span class="text-success fw-bold">Strong value.</span> Models: {{ (pick.model_prob * 100)|round(0)|int }}% vs DK {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.is_underdog %} <span class="text-muted">(raw {{ pick.edge|round(1) }}%)</span>{% endif %}.
                                     {% else %}
-                                    Slight edge — {{ (pick.model_prob * 100)|round(0)|int }}% model vs {{ (pick.dk_implied * 100)|round(0)|int }}% DK. <strong>+{{ pick.edge|round(1) }}%.</strong>
+                                    <span class="text-success">Good value.</span> Models: {{ (pick.model_prob * 100)|round(0)|int }}% vs DK {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>{{ pick.adjusted_edge|round(1) }}% adj edge.</strong>
                                     {% endif %}
                                 </div>
                             </div>
@@ -334,8 +341,8 @@
                 {% else %}
                 <div class="text-center text-muted py-4">
                     <i class="bi bi-calendar-x" style="font-size: 1.5em;"></i>
-                    <p class="mt-2 mb-0">No DraftKings lines loaded today</p>
-                    <small>Lines get scraped each morning at 8 AM</small>
+                    <p class="mt-2 mb-0">No bets meet v2 thresholds today</p>
+                    <small>8%+ favorites, 15%+ underdogs required</small>
                 </div>
                 {% endif %}
             </div>

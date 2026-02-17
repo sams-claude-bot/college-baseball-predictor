@@ -263,7 +263,19 @@ def get_todays_games():
     return games
 
 def get_value_picks(limit=5):
-    """Get top value picks based on model vs DraftKings edge"""
+    """Get top value picks using v2 logic with adjusted edges.
+    
+    v2 changes:
+    - Underdog edges discounted 50%
+    - Consensus bonus: +1% per model above 5
+    - Higher thresholds: 8% favorites, 15% underdogs
+    """
+    # v2 thresholds
+    ML_EDGE_FAVORITE = 8.0
+    ML_EDGE_UNDERDOG = 15.0
+    UNDERDOG_DISCOUNT = 0.5
+    CONSENSUS_BONUS_PER_MODEL = 1.0
+    
     conn = get_connection()
     c = conn.cursor()
     
@@ -304,30 +316,65 @@ def get_value_picks(limit=5):
                 continue
             model_home_prob = pred['home_win_probability']
             
+            # Get model agreement for consensus bonus
+            agreement = compute_model_agreement(line['home_team_id'], line['away_team_id'])
+            models_agree = agreement.get('count', 5) if agreement else 5
+            
             # Calculate edge
             home_edge = (model_home_prob - dk_home_fair) * 100
             away_edge = ((1 - model_home_prob) - (1 - dk_home_fair)) * 100
             
-            best_edge = home_edge if home_edge > abs(away_edge) else away_edge
-            best_pick = line['home_team_name'] if home_edge > 0 else line['away_team_name']
-            best_ml = line['home_ml'] if home_edge > 0 else line['away_ml']
+            # Determine best pick
+            if home_edge > abs(away_edge):
+                raw_edge = home_edge
+                best_pick = line['home_team_name']
+                best_ml = line['home_ml']
+                model_prob = model_home_prob
+                dk_implied = dk_home_fair
+            else:
+                raw_edge = abs(away_edge)
+                best_pick = line['away_team_name']
+                best_ml = line['away_ml']
+                model_prob = 1 - model_home_prob
+                dk_implied = 1 - dk_home_fair
+            
+            is_underdog = best_ml > 0
+            
+            # v2: Apply underdog discount
+            if is_underdog:
+                adjusted_edge = raw_edge * UNDERDOG_DISCOUNT
+            else:
+                adjusted_edge = raw_edge
+            
+            # v2: Add consensus bonus
+            consensus_bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
+            adjusted_edge += consensus_bonus
+            
+            # v2: Check thresholds
+            threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_FAVORITE
+            if raw_edge < threshold:
+                continue
             
             picks.append({
                 'date': line['date'],
                 'game': f"{line['away_team_name']} @ {line['home_team_name']}",
                 'pick': best_pick,
-                'edge': abs(best_edge),
+                'edge': raw_edge,
+                'adjusted_edge': adjusted_edge,
                 'moneyline': best_ml,
-                'model_prob': model_home_prob if home_edge > 0 else 1 - model_home_prob,
-                'dk_implied': dk_home_fair if home_edge > 0 else 1 - dk_home_fair,
+                'model_prob': model_prob,
+                'dk_implied': dk_implied,
                 'home_team_id': line['home_team_id'],
-                'away_team_id': line['away_team_id']
+                'away_team_id': line['away_team_id'],
+                'models_agree': models_agree,
+                'is_underdog': is_underdog,
+                'consensus_bonus': consensus_bonus
             })
         except Exception:
             continue
     
-    # Sort by edge and return top picks
-    picks.sort(key=lambda x: x['edge'], reverse=True)
+    # Sort by ADJUSTED edge (v2)
+    picks.sort(key=lambda x: x['adjusted_edge'], reverse=True)
     return picks[:limit]
 
 def get_quick_stats():
