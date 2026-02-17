@@ -549,16 +549,24 @@ def collect_stats_with_browser(team_id, url, db, dry_run=False):
             page = context.new_page()
             
             # Try multiple URL patterns
-            base = url.rsplit('/stats', 1)[0] + '/stats'
             urls_to_try = [url]
             
-            # Add variants without year suffix for SIDEARM sites
-            if url.endswith('/2026'):
-                urls_to_try.extend([url.replace('/2026', '/2025'), base])
-            elif url.endswith('/2025'):
-                urls_to_try.extend([url.replace('/2025', '/2026'), base])
+            # For cumestats URLs or other non-standard paths, don't add /stats variants
+            if '/cumestats/' in url or '/sport/' in url:
+                # Just try the URL as-is and maybe with year swaps
+                if '/2025-26/' in url:
+                    urls_to_try.append(url.replace('/2025-26/', '/2025/'))
+                elif '/2025/' in url:
+                    urls_to_try.append(url.replace('/2025/', '/2025-26/'))
             else:
-                urls_to_try.extend([base + '/2026', base + '/2025'])
+                # Standard SIDEARM /stats paths
+                base = url.rsplit('/stats', 1)[0] + '/stats'
+                if url.endswith('/2026'):
+                    urls_to_try.extend([url.replace('/2026', '/2025'), base])
+                elif url.endswith('/2025'):
+                    urls_to_try.extend([url.replace('/2025', '/2026'), base])
+                else:
+                    urls_to_try.extend([base + '/2026', base + '/2025'])
             
             page_loaded = False
             final_url = None
@@ -583,7 +591,9 @@ def collect_stats_with_browser(team_id, url, db, dry_run=False):
                         if ('individualHittingStats' in content or 
                             '<table' in content.lower() or
                             'wmt_stats2_iframe_url' in content or
-                            'wmt-stats-iframe' in content):
+                            'wmt-stats-iframe' in content or
+                            'wmt-stats' in content or
+                            'wmt.games' in content):
                             page_loaded = True
                             final_url = try_url
                             break
@@ -627,6 +637,21 @@ def collect_stats_with_browser(team_id, url, db, dry_run=False):
                     if not header_cells:
                         header_cells = table.query_selector_all('thead td')
                     
+                    # Fallback for static HTML (like LSU) - first row may be headers
+                    all_rows = table.query_selector_all('tr')
+                    data_row_start = 0
+                    
+                    if not header_cells and all_rows:
+                        # Try first few rows to find header row
+                        for i, row in enumerate(all_rows[:3]):
+                            cells = row.query_selector_all('td')
+                            cell_text = [c.inner_text().strip().lower() for c in cells]
+                            # Check if this row looks like headers (has 'avg' or 'player' or 'era')
+                            if any(h in ['avg', 'player', 'era', 'ab', 'r', 'h', 'ip', 'w', 'l'] for h in cell_text):
+                                header_cells = cells
+                                data_row_start = i + 1
+                                break
+                    
                     for th in header_cells:
                         headers.append(th.inner_text().strip())
                     
@@ -642,6 +667,11 @@ def collect_stats_with_browser(team_id, url, db, dry_run=False):
                     # Get rows
                     rows = []
                     row_elements = table.query_selector_all('tbody tr')
+                    
+                    # Fallback for tables without tbody (static HTML)
+                    if not row_elements and all_rows:
+                        row_elements = all_rows[data_row_start:]
+                    
                     for row_el in row_elements:
                         cells = row_el.query_selector_all('td')
                         row = [c.inner_text().strip() for c in cells]
