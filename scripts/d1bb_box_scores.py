@@ -338,6 +338,15 @@ TEAM_MAPPING = {
     'a&m-corpus christi': 'texas-am-corpus-christi',
     'corpus christi': 'texas-am-corpus-christi',
     'indiana state': 'indiana-state',
+    'indiana st': 'indiana-state',
+    'ttu': 'texas-tech',
+    'vu': 'vanderbilt',
+    'unc': 'north-carolina',
+    'osu': 'ohio-state',
+    'msu': 'mississippi-state',
+    'lsu tigers': 'lsu',
+    'fsu': 'florida-state',
+    'usc trojans': 'usc',
     'liu': 'liu',
     'uapb': 'arkansas-pine-bluff',
     'arkansas-pine bluff': 'arkansas-pine-bluff',
@@ -389,7 +398,9 @@ def normalize_team_name(name):
 def get_box_score_urls(page, date_str):
     """
     Get all box score URLs from D1Baseball scores page.
-    Returns list of unique SIDEARM boxscore URLs (skips StatBroadcast).
+    Returns tuple: (list of (url, type) tuples, dict of game_info from page).
+    type is 'sidearm' or 'statbroadcast'.
+    game_info dict maps box_score_url -> {'away_team': name, 'home_team': name, 'away_score': int, 'home_score': int}
     """
     url = f"https://d1baseball.com/scores/?date={date_str}"
     log.info(f"Navigating to {url}")
@@ -399,7 +410,7 @@ def get_box_score_urls(page, date_str):
         page.wait_for_timeout(5000)  # Wait for JS to render
     except Exception as e:
         log.error(f"Failed to navigate to D1Baseball: {e}")
-        return []
+        return [], {}
     
     # Extract box score URLs via JavaScript
     try:
@@ -412,23 +423,83 @@ def get_box_score_urls(page, date_str):
         """)
     except Exception as e:
         log.error(f"Failed to extract box score URLs: {e}")
-        return []
+        return [], {}
     
-    # Filter and dedupe
-    sidearm_urls = []
+    # Extract game info (R/H/E) from page - simple approach
+    game_info = {}
+    try:
+        # Get all game containers and extract team/score info
+        game_data = page.evaluate("""
+            () => {
+                const games = [];
+                // Find game score cards
+                const cards = document.querySelectorAll('.score-card, [class*="game-card"], article');
+                cards.forEach(card => {
+                    const boxLink = card.querySelector('a[href*="boxscore"], a[href*="Box"]');
+                    if (!boxLink) return;
+                    
+                    const url = boxLink.href;
+                    const text = card.innerText;
+                    
+                    // Look for team-score patterns in text
+                    const lines = text.split(/[\\n\\r]+/).map(l => l.trim()).filter(l => l);
+                    const teamScores = [];
+                    
+                    for (const line of lines) {
+                        // Match: "TeamName  5" or "TeamName 12" at end of line
+                        const match = line.match(/^([A-Za-z][A-Za-z0-9\\s\\.\\-\\'&]+?)\\s+(\\d{1,2})\\s*$/);
+                        if (match) {
+                            teamScores.push({ team: match[1].trim(), score: parseInt(match[2]) });
+                        }
+                    }
+                    
+                    if (teamScores.length >= 2) {
+                        games.push({
+                            url: url,
+                            away_team: teamScores[0].team,
+                            away_score: teamScores[0].score,
+                            home_team: teamScores[1].team,
+                            home_score: teamScores[1].score
+                        });
+                    }
+                });
+                return games;
+            }
+        """)
+        
+        for g in game_data:
+            game_info[g['url']] = {
+                'away_team': g['away_team'],
+                'home_team': g['home_team'],
+                'away_score': g['away_score'],
+                'home_score': g['home_score']
+            }
+    except Exception as e:
+        log.warning(f"Could not extract R/H/E from D1Baseball page: {e}")
+        # Non-critical - continue without game info
+    
+    # Categorize and dedupe
+    box_score_urls = []
     seen = set()
+    sidearm_count = 0
+    statbroadcast_count = 0
+    
     for url in urls:
-        # Skip StatBroadcast URLs
-        if 'statbroadcast.com' in url:
-            continue
         # Skip duplicates
         if url in seen:
             continue
         seen.add(url)
-        sidearm_urls.append(url)
+        
+        # Categorize by URL
+        if 'statbroadcast.com' in url:
+            box_score_urls.append((url, 'statbroadcast'))
+            statbroadcast_count += 1
+        else:
+            box_score_urls.append((url, 'sidearm'))
+            sidearm_count += 1
     
-    log.info(f"Found {len(sidearm_urls)} unique SIDEARM box score URLs (skipped {len(urls) - len(sidearm_urls)} StatBroadcast/duplicates)")
-    return sidearm_urls
+    log.info(f"Found {len(box_score_urls)} unique box score URLs: {sidearm_count} SIDEARM, {statbroadcast_count} StatBroadcast")
+    return box_score_urls, game_info
 
 
 def parse_box_score_text(text):
@@ -678,44 +749,228 @@ def find_game_id(db, team1_id, team2_id, date_str):
     return row['id'] if row else None
 
 
-def scrape_box_score(page, url):
+def scrape_box_score(page, url, retry_on_fail=True):
     """
     Scrape a single SIDEARM box score page.
     Returns parsed box score data or None on failure.
     """
-    log.info(f"  Scraping: {url[:80]}...")
+    log.info(f"  Scraping SIDEARM: {url[:80]}...")
+    
+    def attempt_scrape(wait_time):
+        try:
+            page.goto(url, timeout=45000, wait_until='domcontentloaded')
+            page.wait_for_timeout(wait_time)
+        except Exception as e:
+            log.warning(f"    Failed to navigate: {e}")
+            return None
+        
+        # Get page text
+        try:
+            text = page.evaluate("() => document.body.innerText")
+        except Exception as e:
+            log.warning(f"    Failed to extract page text: {e}")
+            return None
+        
+        if not text or len(text) < 500:
+            log.warning(f"    Page text too short ({len(text) if text else 0} chars)")
+            return None
+        
+        # Parse the text
+        box_score = parse_box_score_text(text)
+        
+        # Validate we got something
+        batting_count = sum(len(stats) for stats in box_score['batting'].values())
+        pitching_count = sum(len(stats) for stats in box_score['pitching'].values())
+        
+        if batting_count == 0 and pitching_count == 0:
+            return None
+        
+        return box_score
+    
+    # First attempt with 3 second wait
+    result = attempt_scrape(3000)
+    
+    if result:
+        batting_count = sum(len(stats) for stats in result['batting'].values())
+        pitching_count = sum(len(stats) for stats in result['pitching'].values())
+        log.info(f"    Parsed: {len(result['batting'])} teams batting ({batting_count} players), {len(result['pitching'])} teams pitching ({pitching_count} players)")
+        return result
+    
+    # Retry with longer wait if first attempt failed
+    if retry_on_fail:
+        log.info(f"    Retrying with 8 second wait...")
+        result = attempt_scrape(8000)
+        if result:
+            batting_count = sum(len(stats) for stats in result['batting'].values())
+            pitching_count = sum(len(stats) for stats in result['pitching'].values())
+            log.info(f"    Parsed (retry): {len(result['batting'])} teams batting ({batting_count} players), {len(result['pitching'])} teams pitching ({pitching_count} players)")
+            return result
+    
+    log.warning(f"    No stats parsed from SIDEARM page (failed after retry)")
+    return None
+
+
+def scrape_statbroadcast_box_score(page, url):
+    """
+    Scrape a StatBroadcast box score page.
+    These are JS-rendered and have a unique format:
+    - Batting: "Today" column shows "H-AB" format (e.g., "3-4" = 3 hits in 4 at-bats)
+    - Pitching: Standard IP, H, R, ER, BB, K columns
+    Returns parsed box score data in same format as scrape_box_score() or None on failure.
+    """
+    log.info(f"  Scraping StatBroadcast: {url[:80]}...")
+    
+    result = {
+        'away_team': None,
+        'home_team': None,
+        'away_score': None,
+        'home_score': None,
+        'date': None,
+        'batting': {},
+        'pitching': {},
+    }
     
     try:
         page.goto(url, timeout=45000, wait_until='domcontentloaded')
-        page.wait_for_timeout(3000)  # Wait for JS
+        
+        # Wait for tables to load (StatBroadcast is JS-rendered)
+        try:
+            page.wait_for_selector('table', timeout=10000)
+        except:
+            pass
+        
+        # Give extra time for dynamic content
+        page.wait_for_timeout(3000)
+        
     except Exception as e:
         log.warning(f"    Failed to navigate: {e}")
         return None
     
-    # Get page text
+    # Parse from title: "AWAY #, HOME # - Final"
     try:
-        text = page.evaluate("() => document.body.innerText")
+        title = page.title()
+        title_match = re.match(r'([A-Za-z\s\'\.\-&]+?)\s*(\d+),\s*([A-Za-z\s\'\.\-&]+?)\s*(\d+)\s*-\s*(?:Final|F)', title, re.IGNORECASE)
+        if title_match:
+            away_name = title_match.group(1).strip()
+            result['away_score'] = int(title_match.group(2))
+            home_name = title_match.group(3).strip()
+            result['home_score'] = int(title_match.group(4))
+            
+            result['away_team'] = normalize_team_name(away_name)
+            result['home_team'] = normalize_team_name(home_name)
+            
+            log.info(f"    Title: {away_name} {result['away_score']} @ {home_name} {result['home_score']}")
     except Exception as e:
-        log.warning(f"    Failed to extract page text: {e}")
-        return None
+        log.warning(f"    Failed to parse title: {e}")
     
-    if not text or len(text) < 500:
-        log.warning(f"    Page text too short ({len(text) if text else 0} chars)")
-        return None
-    
-    # Parse the text
-    box_score = parse_box_score_text(text)
+    # Parse stats from page text (StatBroadcast has unique format)
+    # Format: "# Player  Bats  Class  Today  Avg" where Today is "H-AB" format
+    # And pitching: "TODAY  IP  H  R  ER  BB  K..."
+    try:
+        page_text = page.inner_text('body')
+        
+        teams = [result['away_team'], result['home_team']]
+        team_abbrevs = []
+        
+        # Extract team abbreviations from line score (e.g., "TTU", "VU")
+        line_score_match = re.search(r'TEAM\s+\d.*?([A-Z]{2,4})\s+\d.*?([A-Z]{2,4})\s+\d', page_text, re.DOTALL)
+        if line_score_match:
+            team_abbrevs = [line_score_match.group(1), line_score_match.group(2)]
+        
+        # Parse batting orders - look for "X Batting Order" sections
+        batting_sections = re.split(r'(?:TTU|[A-Z]{2,4})\s+Batting Order', page_text)
+        
+        for i, section in enumerate(batting_sections[1:3], 0):  # Skip first (before any batting order), take 2 teams
+            team_id = teams[i] if i < len(teams) else None
+            if not team_id:
+                continue
+            
+            result['batting'][team_id] = []
+            
+            # Parse player lines: "#2 Thompson,Kyeler R JR 3-4 .750"
+            # Format: #number Name Side Class H-AB Avg
+            player_pattern = re.compile(r'#\d+\s+([A-Za-z\'\-,\s]+?)\s+(?:R|L|BOTH)\s+(?:[A-Z]{2}\.?|FR|SO|JR|SR|GR)\s+(\d+)-(\d+)')
+            
+            for match in player_pattern.finditer(section[:2000]):  # Limit search area
+                player_name = match.group(1).strip()
+                hits = int(match.group(2))
+                ab = int(match.group(3))
+                
+                # Skip empty stats
+                if ab == 0 and hits == 0:
+                    continue
+                
+                stat = {
+                    'player_name': player_name,
+                    'position': '',
+                    'ab': ab,
+                    'r': 0,  # Not available in this format
+                    'h': hits,
+                    'rbi': 0,  # Not available in this format
+                    'bb': 0,  # Not available in this format
+                    'ibb': 0,
+                    'so': 0,  # Not available in this format
+                    'lob': 0,
+                }
+                result['batting'][team_id].append(stat)
+        
+        # Parse pitching - look for "Pitching For X:" followed by stats table
+        # Format: "TODAY  IP  H  R  ER  BB  K  2B  3B  HR  BF  PC"
+        # Then:   "     3.2  6  7  5   2   2  2   0   2   21  72"
+        pitching_sections = re.split(r'Pitching For\s+([A-Z]{2,4}):', page_text)
+        
+        for i in range(1, len(pitching_sections), 2):  # Pairs of (abbrev, stats)
+            if i + 1 >= len(pitching_sections):
+                break
+                
+            abbrev = pitching_sections[i].strip()
+            section = pitching_sections[i + 1]
+            
+            # Map abbreviation to team (away=0, home=1)
+            team_idx = 0 if team_abbrevs and abbrev == team_abbrevs[0] else 1
+            team_id = teams[team_idx] if team_idx < len(teams) else None
+            
+            if not team_id:
+                continue
+            
+            if team_id not in result['pitching']:
+                result['pitching'][team_id] = []
+            
+            # Extract pitcher name from "#18 Pirko, Lukas (TH: R)"
+            pitcher_match = re.search(r'#\d+\s+([A-Za-z\'\-,\s]+?)\s*\(TH:', section[:200])
+            if pitcher_match:
+                pitcher_name = pitcher_match.group(1).strip()
+                
+                # Extract pitching line: look for IP H R ER BB K pattern
+                # The stats line typically starts with IP value like "3.2" or "4"
+                stats_match = re.search(r'TODAY\s+IP\s+H\s+R\s+ER\s+BB\s+K.*?\n\s*([\d\.]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)', section, re.DOTALL)
+                if stats_match:
+                    stat = {
+                        'player_name': pitcher_name,
+                        'ip': safe_float(stats_match.group(1)),
+                        'h': safe_int(stats_match.group(2)),
+                        'r': safe_int(stats_match.group(3)),
+                        'er': safe_int(stats_match.group(4)),
+                        'bb': safe_int(stats_match.group(5)),
+                        'so': safe_int(stats_match.group(6)),
+                        'wp': 0, 'bk': 0, 'hbp': 0, 'ibb': 0, 'ab': 0, 'bf': 0, 'fo': 0, 'go': 0, 'np': 0,
+                    }
+                    if stat['ip'] > 0:
+                        result['pitching'][team_id].append(stat)
+        
+    except Exception as e:
+        log.warning(f"    Failed to parse StatBroadcast page: {e}")
     
     # Validate we got something
-    batting_count = sum(len(stats) for stats in box_score['batting'].values())
-    pitching_count = sum(len(stats) for stats in box_score['pitching'].values())
+    batting_count = sum(len(stats) for stats in result['batting'].values())
+    pitching_count = sum(len(stats) for stats in result['pitching'].values())
     
     if batting_count == 0 and pitching_count == 0:
-        log.warning(f"    No stats parsed from page")
+        log.warning(f"    No stats parsed from StatBroadcast page")
         return None
     
-    log.info(f"    Parsed: {len(box_score['batting'])} teams batting ({batting_count} players), {len(box_score['pitching'])} teams pitching ({pitching_count} players)")
-    return box_score
+    log.info(f"    Parsed: {len(result['batting'])} teams batting ({batting_count} players), {len(result['pitching'])} teams pitching ({pitching_count} players)")
+    return result
 
 
 def store_box_score(db, game_id, box_score):
@@ -770,6 +1025,21 @@ def store_box_score(db, game_id, box_score):
     return batting_count, pitching_count
 
 
+def update_game_scores(db, game_id, home_score, away_score):
+    """Update game scores in the games table (fallback when full box score fails)."""
+    try:
+        cursor = db.cursor()
+        cursor.execute("""
+            UPDATE games SET home_score = ?, away_score = ?
+            WHERE id = ? AND (home_score IS NULL OR away_score IS NULL)
+        """, (home_score, away_score, game_id))
+        db.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        log.warning(f"    Failed to update game scores: {e}")
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description='Scrape D1Baseball box scores')
     parser.add_argument('--date', help='Date (YYYY-MM-DD)')
@@ -801,42 +1071,74 @@ def main():
         )
         page = context.new_page()
         
-        # Get box score URLs
-        urls = get_box_score_urls(page, date)
-        if not urls:
+        # Get box score URLs and R/H/E info from D1Baseball
+        url_list, game_info = get_box_score_urls(page, date)
+        if not url_list:
             log.error("No box score URLs found")
             browser.close()
             sys.exit(1)
         
         # Apply limit if specified
         if args.limit > 0:
-            urls = urls[:args.limit]
+            url_list = url_list[:args.limit]
             log.info(f"Limited to {args.limit} games")
         
         db = get_db()
         
         # Stats tracking
-        total_urls = len(urls)
+        total_urls = len(url_list)
         success_count = 0
         failed_count = 0
         no_match_count = 0
+        fallback_count = 0
         total_batting = 0
         total_pitching = 0
+        failed_urls = []  # Track failed URLs for debugging
         
-        for i, url in enumerate(urls, 1):
-            log.info(f"[{i}/{total_urls}] Processing box score...")
+        # Track by type
+        sidearm_success = 0
+        sidearm_fail = 0
+        statbroadcast_success = 0
+        statbroadcast_fail = 0
+        
+        for i, (url, url_type) in enumerate(url_list, 1):
+            log.info(f"[{i}/{total_urls}] Processing {url_type.upper()} box score...")
             
-            # Scrape the page
-            box_score = scrape_box_score(page, url)
+            # Scrape the page based on type
+            if url_type == 'statbroadcast':
+                box_score = scrape_statbroadcast_box_score(page, url)
+            else:
+                box_score = scrape_box_score(page, url, retry_on_fail=True)
+            
             if not box_score:
                 failed_count += 1
+                failed_urls.append((url, url_type))
+                
+                if url_type == 'statbroadcast':
+                    statbroadcast_fail += 1
+                else:
+                    sidearm_fail += 1
+                
+                # Try to use R/H/E fallback from D1Baseball page
+                if url in game_info:
+                    info = game_info[url]
+                    away_team_id = normalize_team_name(info['away_team'])
+                    home_team_id = normalize_team_name(info['home_team'])
+                    
+                    if away_team_id and home_team_id:
+                        game_id = find_game_id(db, home_team_id, away_team_id, date)
+                        if game_id and info.get('home_score') is not None and info.get('away_score') is not None:
+                            if update_game_scores(db, game_id, info['home_score'], info['away_score']):
+                                log.info(f"    Fallback: Updated scores for game {game_id} ({info['away_score']}-{info['home_score']})")
+                                fallback_count += 1
+                
                 if i < total_urls:
                     time.sleep(BOX_SCORE_DELAY)
                 continue
             
             # Try to find matching game in our DB
             team_ids = list(box_score['batting'].keys()) + list(box_score['pitching'].keys())
-            team_ids = list(set(team_ids))
+            team_ids = list(set([t for t in team_ids if t]))
             
             if len(team_ids) < 2:
                 log.warning(f"    Could not identify both teams")
@@ -875,6 +1177,11 @@ def main():
             total_pitching += pitching_count
             success_count += 1
             
+            if url_type == 'statbroadcast':
+                statbroadcast_success += 1
+            else:
+                sidearm_success += 1
+            
             log.info(f"    Stored: {batting_count} batting + {pitching_count} pitching for game {game_id}")
             
             # Delay between requests
@@ -891,10 +1198,20 @@ def main():
         log.info("=" * 50)
         log.info(f"Box score URLs found: {total_urls}")
         log.info(f"Successfully parsed: {success_count}")
+        log.info(f"  - SIDEARM: {sidearm_success} success, {sidearm_fail} failed")
+        log.info(f"  - StatBroadcast: {statbroadcast_success} success, {statbroadcast_fail} failed")
         log.info(f"Failed to parse: {failed_count}")
-        log.info(f"No game match: {no_match_count}")
+        log.info(f"No game match in DB: {no_match_count}")
+        log.info(f"Fallback scores updated: {fallback_count}")
         log.info(f"Total batting stats: {total_batting}")
         log.info(f"Total pitching stats: {total_pitching}")
+        
+        # Log failed URLs for debugging
+        if failed_urls:
+            log.info("")
+            log.info("Failed URLs:")
+            for url, url_type in failed_urls[:10]:  # Limit to first 10
+                log.info(f"  [{url_type}] {url[:80]}")
 
 
 if __name__ == '__main__':
