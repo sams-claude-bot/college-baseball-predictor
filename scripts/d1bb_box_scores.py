@@ -812,10 +812,11 @@ def scrape_box_score(page, url, retry_on_fail=True):
 
 def scrape_statbroadcast_box_score(page, url):
     """
-    Scrape a StatBroadcast box score page.
-    These are JS-rendered and have a unique format:
-    - Batting: "Today" column shows "H-AB" format (e.g., "3-4" = 3 hits in 4 at-bats)
-    - Pitching: Standard IP, H, R, ER, BB, K columns
+    Scrape a StatBroadcast box score page using the full box score view.
+    
+    StatBroadcast pages require clicking "Home Stats" and "Visitor Stats" buttons
+    to access full batting and pitching stats with all columns (AB, R, H, RBI, BB, K, etc.).
+    
     Returns parsed box score data in same format as scrape_box_score() or None on failure.
     """
     log.info(f"  Scraping StatBroadcast: {url[:80]}...")
@@ -833,10 +834,11 @@ def scrape_statbroadcast_box_score(page, url):
     try:
         page.goto(url, timeout=45000, wait_until='domcontentloaded')
         
-        # Wait for tables to load (StatBroadcast is JS-rendered)
+        # Wait for page to fully load
         try:
-            page.wait_for_selector('table', timeout=10000)
+            page.wait_for_selector('button:has-text("Home Stats")', timeout=10000)
         except:
+            log.warning(f"    Home Stats button not found")
             pass
         
         # Give extra time for dynamic content
@@ -846,10 +848,11 @@ def scrape_statbroadcast_box_score(page, url):
         log.warning(f"    Failed to navigate: {e}")
         return None
     
-    # Parse from title: "AWAY #, HOME # - Final"
+    # Parse team names and scores from title: "AWAY #, HOME # - Final" or "AWAY vs. HOME"
     try:
         title = page.title()
-        title_match = re.match(r'([A-Za-z\s\'\.\-&]+?)\s*(\d+),\s*([A-Za-z\s\'\.\-&]+?)\s*(\d+)\s*-\s*(?:Final|F)', title, re.IGNORECASE)
+        # Try "Texas Tech 3, Vanderbilt 13 - Final" format
+        title_match = re.match(r'([A-Za-z\s\'\.\-&#]+?)\s*(\d+),\s*([A-Za-z\s\'\.\-&#]+?)\s*(\d+)\s*-\s*(?:Final|F)', title, re.IGNORECASE)
         if title_match:
             away_name = title_match.group(1).strip()
             result['away_score'] = int(title_match.group(2))
@@ -858,108 +861,86 @@ def scrape_statbroadcast_box_score(page, url):
             
             result['away_team'] = normalize_team_name(away_name)
             result['home_team'] = normalize_team_name(home_name)
-            
             log.info(f"    Title: {away_name} {result['away_score']} @ {home_name} {result['home_score']}")
+        else:
+            # Try "Texas Tech vs. Vanderbilt" format (for in-progress games)
+            vs_match = re.match(r'([A-Za-z\s\'\.\-&#]+?)\s+vs\.?\s+([A-Za-z\s\'\.\-&#]+)', title, re.IGNORECASE)
+            if vs_match:
+                away_name = vs_match.group(1).strip()
+                home_name = vs_match.group(2).strip()
+                result['away_team'] = normalize_team_name(away_name)
+                result['home_team'] = normalize_team_name(home_name)
+                log.info(f"    Title: {away_name} @ {home_name}")
     except Exception as e:
         log.warning(f"    Failed to parse title: {e}")
     
-    # Parse stats from page text (StatBroadcast has unique format)
-    # Format: "# Player  Bats  Class  Today  Avg" where Today is "H-AB" format
-    # And pitching: "TODAY  IP  H  R  ER  BB  K..."
+    # Click "Home Stats" button to get home team stats
     try:
-        page_text = page.inner_text('body')
-        
-        teams = [result['away_team'], result['home_team']]
-        team_abbrevs = []
-        
-        # Extract team abbreviations from line score (e.g., "TTU", "VU")
-        line_score_match = re.search(r'TEAM\s+\d.*?([A-Z]{2,4})\s+\d.*?([A-Z]{2,4})\s+\d', page_text, re.DOTALL)
-        if line_score_match:
-            team_abbrevs = [line_score_match.group(1), line_score_match.group(2)]
-        
-        # Parse batting orders - look for "X Batting Order" sections
-        batting_sections = re.split(r'(?:TTU|[A-Z]{2,4})\s+Batting Order', page_text)
-        
-        for i, section in enumerate(batting_sections[1:3], 0):  # Skip first (before any batting order), take 2 teams
-            team_id = teams[i] if i < len(teams) else None
-            if not team_id:
-                continue
+        home_button = page.locator('button:has-text("Home Stats")')
+        if home_button.count() > 0:
+            home_button.click()
+            page.wait_for_timeout(1500)  # Wait for view to load
             
-            result['batting'][team_id] = []
+            # Parse home team box score
+            home_batting, home_pitching, home_team_name = _parse_statbroadcast_stats_view(page)
             
-            # Parse player lines: "#2 Thompson,Kyeler R JR 3-4 .750"
-            # Format: #number Name Side Class H-AB Avg
-            player_pattern = re.compile(r'#\d+\s+([A-Za-z\'\-,\s]+?)\s+(?:R|L|BOTH)\s+(?:[A-Z]{2}\.?|FR|SO|JR|SR|GR)\s+(\d+)-(\d+)')
+            # Use team name from table header if we didn't get it from title
+            if home_team_name:
+                home_team_id = normalize_team_name(home_team_name)
+                if home_team_id:
+                    result['home_team'] = home_team_id
             
-            for match in player_pattern.finditer(section[:2000]):  # Limit search area
-                player_name = match.group(1).strip()
-                hits = int(match.group(2))
-                ab = int(match.group(3))
-                
-                # Skip empty stats
-                if ab == 0 and hits == 0:
-                    continue
-                
-                stat = {
-                    'player_name': player_name,
-                    'position': '',
-                    'ab': ab,
-                    'r': 0,  # Not available in this format
-                    'h': hits,
-                    'rbi': 0,  # Not available in this format
-                    'bb': 0,  # Not available in this format
-                    'ibb': 0,
-                    'so': 0,  # Not available in this format
-                    'lob': 0,
-                }
-                result['batting'][team_id].append(stat)
-        
-        # Parse pitching - look for "Pitching For X:" followed by stats table
-        # Format: "TODAY  IP  H  R  ER  BB  K  2B  3B  HR  BF  PC"
-        # Then:   "     3.2  6  7  5   2   2  2   0   2   21  72"
-        pitching_sections = re.split(r'Pitching For\s+([A-Z]{2,4}):', page_text)
-        
-        for i in range(1, len(pitching_sections), 2):  # Pairs of (abbrev, stats)
-            if i + 1 >= len(pitching_sections):
-                break
-                
-            abbrev = pitching_sections[i].strip()
-            section = pitching_sections[i + 1]
-            
-            # Map abbreviation to team (away=0, home=1)
-            team_idx = 0 if team_abbrevs and abbrev == team_abbrevs[0] else 1
-            team_id = teams[team_idx] if team_idx < len(teams) else None
-            
-            if not team_id:
-                continue
-            
-            if team_id not in result['pitching']:
-                result['pitching'][team_id] = []
-            
-            # Extract pitcher name from "#18 Pirko, Lukas (TH: R)"
-            pitcher_match = re.search(r'#\d+\s+([A-Za-z\'\-,\s]+?)\s*\(TH:', section[:200])
-            if pitcher_match:
-                pitcher_name = pitcher_match.group(1).strip()
-                
-                # Extract pitching line: look for IP H R ER BB K pattern
-                # The stats line typically starts with IP value like "3.2" or "4"
-                stats_match = re.search(r'TODAY\s+IP\s+H\s+R\s+ER\s+BB\s+K.*?\n\s*([\d\.]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)', section, re.DOTALL)
-                if stats_match:
-                    stat = {
-                        'player_name': pitcher_name,
-                        'ip': safe_float(stats_match.group(1)),
-                        'h': safe_int(stats_match.group(2)),
-                        'r': safe_int(stats_match.group(3)),
-                        'er': safe_int(stats_match.group(4)),
-                        'bb': safe_int(stats_match.group(5)),
-                        'so': safe_int(stats_match.group(6)),
-                        'wp': 0, 'bk': 0, 'hbp': 0, 'ibb': 0, 'ab': 0, 'bf': 0, 'fo': 0, 'go': 0, 'np': 0,
-                    }
-                    if stat['ip'] > 0:
-                        result['pitching'][team_id].append(stat)
-        
+            if result['home_team']:
+                result['batting'][result['home_team']] = home_batting
+                result['pitching'][result['home_team']] = home_pitching
     except Exception as e:
-        log.warning(f"    Failed to parse StatBroadcast page: {e}")
+        log.warning(f"    Failed to parse Home Stats: {e}")
+    
+    # Click "Visitor Stats" button to get visitor team stats
+    try:
+        visitor_button = page.locator('button:has-text("Visitor Stats")')
+        if visitor_button.count() > 0:
+            visitor_button.click()
+            page.wait_for_timeout(1500)  # Wait for view to load
+            
+            # Parse visitor team box score
+            away_batting, away_pitching, away_team_name = _parse_statbroadcast_stats_view(page)
+            
+            # Use team name from table header if we didn't get it from title
+            if away_team_name:
+                away_team_id = normalize_team_name(away_team_name)
+                if away_team_id:
+                    result['away_team'] = away_team_id
+            
+            if result['away_team']:
+                result['batting'][result['away_team']] = away_batting
+                result['pitching'][result['away_team']] = away_pitching
+    except Exception as e:
+        log.warning(f"    Failed to parse Visitor Stats: {e}")
+    
+    # Try to get scores from line score if not in title
+    if result['away_score'] is None or result['home_score'] is None:
+        try:
+            # Look for line score table
+            page_text = page.inner_text('body')
+            # Match pattern like "TTU ... 3 6 2" and "VU ... 13 12 2" at end of line score
+            lines = page_text.split('\n')
+            for line in lines:
+                # Look for R H E L pattern at end
+                parts = line.strip().split()
+                if len(parts) >= 4:
+                    # Check if last 4 parts are numbers (R, H, E, L)
+                    try:
+                        nums = [int(p) for p in parts[-4:]]
+                        # First number is runs
+                        if result['away_score'] is None:
+                            result['away_score'] = nums[0]
+                        elif result['home_score'] is None:
+                            result['home_score'] = nums[0]
+                    except ValueError:
+                        pass
+        except:
+            pass
     
     # Validate we got something
     batting_count = sum(len(stats) for stats in result['batting'].values())
@@ -971,6 +952,160 @@ def scrape_statbroadcast_box_score(page, url):
     
     log.info(f"    Parsed: {len(result['batting'])} teams batting ({batting_count} players), {len(result['pitching'])} teams pitching ({pitching_count} players)")
     return result
+
+
+def _parse_statbroadcast_stats_view(page):
+    """
+    Parse batting and pitching stats from the current StatBroadcast stats view.
+    
+    Returns: (batting_list, pitching_list, team_name)
+    """
+    batting = []
+    pitching = []
+    team_name = None
+    
+    try:
+        # Get all tables on the page
+        tables = page.locator('table').all()
+        
+        for table in tables:
+            try:
+                # Get header row to identify table type
+                header_row = table.locator('tr').first
+                header_text = header_row.inner_text().strip()
+                
+                # Check if this is a batting table (has AB, R, H, RBI columns)
+                if 'AB' in header_text and 'RBI' in header_text and 'PLAYER' in header_text:
+                    # Extract team name from "XXX Box Score" label above table
+                    try:
+                        # The table is preceded by a div with team name
+                        prev_sibling = table.locator('xpath=./preceding-sibling::*[1]')
+                        if prev_sibling.count() > 0:
+                            label_text = prev_sibling.inner_text()
+                            # Extract team name from "Vanderbilt Box Score" or "Texas Tech Box Score"
+                            box_match = re.match(r'(.+?)\s+Box Score', label_text.strip())
+                            if box_match:
+                                team_name = box_match.group(1).strip()
+                    except:
+                        pass
+                    
+                    # Parse batting rows
+                    rows = table.locator('tbody tr').all()
+                    for row in rows:
+                        try:
+                            cells = row.locator('td').all()
+                            if len(cells) < 10:
+                                continue
+                            
+                            # Get cell texts
+                            cell_texts = [c.inner_text().strip() for c in cells]
+                            
+                            # Skip "Team Batting Totals" row
+                            if 'Totals' in cell_texts[0] or 'Team' in cell_texts[0]:
+                                continue
+                            
+                            # Expected columns: POS, #, PLAYER, AB, R, H, RBI, 2B, 3B, HR, BB, K, ...
+                            # Find column indices from header
+                            pos = cell_texts[0] if len(cell_texts) > 0 else ''
+                            player_name = cell_texts[2] if len(cell_texts) > 2 else ''
+                            
+                            # Skip pitchers in batting lineup (pos = 'p' and all stats are '-')
+                            if pos.lower() == 'p' and cell_texts[3] == '-':
+                                continue
+                            
+                            # Parse stats (handle '-' as 0)
+                            ab = safe_int(cell_texts[3]) if len(cell_texts) > 3 else 0
+                            r = safe_int(cell_texts[4]) if len(cell_texts) > 4 else 0
+                            h = safe_int(cell_texts[5]) if len(cell_texts) > 5 else 0
+                            rbi = safe_int(cell_texts[6]) if len(cell_texts) > 6 else 0
+                            bb = safe_int(cell_texts[10]) if len(cell_texts) > 10 else 0
+                            so = safe_int(cell_texts[11]) if len(cell_texts) > 11 else 0
+                            
+                            # Skip empty players
+                            if not player_name or (ab == 0 and r == 0 and h == 0 and bb == 0):
+                                continue
+                            
+                            stat = {
+                                'player_name': player_name,
+                                'position': pos,
+                                'ab': ab,
+                                'r': r,
+                                'h': h,
+                                'rbi': rbi,
+                                'bb': bb,
+                                'ibb': 0,
+                                'so': so,
+                                'lob': 0,
+                            }
+                            batting.append(stat)
+                        except Exception as e:
+                            continue
+                
+                # Check if this is a pitching table (has IP, H, R, ER, BB, K columns)
+                elif 'IP' in header_text and 'ER' in header_text and 'Player' in header_text:
+                    # Parse pitching rows
+                    rows = table.locator('tbody tr').all()
+                    for row in rows:
+                        try:
+                            cells = row.locator('td').all()
+                            if len(cells) < 8:
+                                continue
+                            
+                            cell_texts = [c.inner_text().strip() for c in cells]
+                            
+                            # Skip "Team Pitching Totals" row
+                            if 'Totals' in cell_texts[0] or 'Team' in cell_texts[0]:
+                                continue
+                            
+                            # Expected columns: #, Player, Dec, IP, H, R, ER, BB, K, ...
+                            player_name = cell_texts[1] if len(cell_texts) > 1 else ''
+                            
+                            # Parse stats
+                            ip = safe_float(cell_texts[3]) if len(cell_texts) > 3 else 0.0
+                            h = safe_int(cell_texts[4]) if len(cell_texts) > 4 else 0
+                            r = safe_int(cell_texts[5]) if len(cell_texts) > 5 else 0
+                            er = safe_int(cell_texts[6]) if len(cell_texts) > 6 else 0
+                            bb = safe_int(cell_texts[7]) if len(cell_texts) > 7 else 0
+                            so = safe_int(cell_texts[8]) if len(cell_texts) > 8 else 0
+                            
+                            # Get pitch count if available (TP column, varies by page)
+                            np = 0
+                            for i, t in enumerate(cell_texts):
+                                if i > 15 and t.isdigit() and int(t) > 10:
+                                    np = int(t)
+                                    break
+                            
+                            # Skip empty pitchers
+                            if not player_name:
+                                continue
+                            
+                            stat = {
+                                'player_name': player_name,
+                                'ip': ip,
+                                'h': h,
+                                'r': r,
+                                'er': er,
+                                'bb': bb,
+                                'so': so,
+                                'wp': 0,
+                                'bk': 0,
+                                'hbp': 0,
+                                'ibb': 0,
+                                'ab': 0,
+                                'bf': 0,
+                                'fo': 0,
+                                'go': 0,
+                                'np': np,
+                            }
+                            pitching.append(stat)
+                        except Exception as e:
+                            continue
+            except:
+                continue
+    except Exception as e:
+        log.warning(f"    Failed to parse stats tables: {e}")
+    
+    return batting, pitching, team_name
 
 
 def store_box_score(db, game_id, box_score):
