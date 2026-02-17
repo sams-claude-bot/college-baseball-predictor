@@ -216,7 +216,7 @@
                                   title="{{ ma.models_for|join(', ') }}">
                                 {{ ma.count }}/{{ ma.total }}
                             </span>
-                            <br><small class="text-muted">{% if ma.pick == 'home' %}{{ game.home_team_name[:8] }}{% else %}{{ game.away_team_name[:8] }}{% endif %}</small>
+                            <br><small class="text-muted">{% if ma.pick == 'home' %}{{ (game.home_team_name or 'Home')[:8] }}{% else %}{{ (game.away_team_name or 'Away')[:8] }}{% endif %}</small>
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">

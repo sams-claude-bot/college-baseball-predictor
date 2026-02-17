@@ -599,6 +599,9 @@ def get_betting_games(date_str=None):
         except Exception as e:
             line['error'] = str(e)
     
+    # Filter out games where either team name is missing (non-tracked teams)
+    lines = [l for l in lines if l.get('home_team_name') and l.get('away_team_name')]
+    
     return lines
 
 def get_rankings_history():
