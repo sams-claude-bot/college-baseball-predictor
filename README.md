@@ -45,6 +45,28 @@ Bayesian blending shifts weight from preseason priors to actual performance:
 - **Rankings Movement** — Weekly risers, fallers, new entries
 - **SEC/Top 25 Game Summaries**
 
+### Betting System (v2)
+
+Smart bet selection with adjusted edge calculation:
+
+| Factor | Effect |
+|--------|--------|
+| **Underdog Discount** | 50% — underdogs get edge cut in half (market usually right) |
+| **Consensus Bonus** | +1% per model above 5 agreeing (max +5%) |
+| **Favorite Threshold** | 8%+ edge required |
+| **Underdog Threshold** | 15%+ edge required |
+| **Spreads** | DISABLED — model not calibrated (0/5 historical) |
+
+```bash
+# Analyze today's bets
+python3 scripts/bet_selection_v2.py analyze
+
+# Record bets to database
+python3 scripts/bet_selection_v2.py record
+```
+
+The dashboard and API show **adjusted edge** (after discount/bonus) rather than raw edge.
+
 ### Web Dashboard (Flask)
 - **Dashboard** — Today's games, value picks, Top 25, quick stats
 - **Teams** — Sortable list, click into team detail with roster/schedule/Elo
@@ -75,6 +97,33 @@ When collecting player stats, game results, or any data:
 - Take time to match player names correctly in the database
 
 This is a long-term project. There's no deadline. Get it right.
+
+### Team Aliases (Name Resolution)
+
+All scrapers use a centralized `team_aliases` database table to resolve team names to canonical IDs. This handles variations like "FIU" → "florida-international" or "ETSU" → "east-tennessee-state".
+
+```bash
+# Lookup a team name
+python3 scripts/team_resolver.py "FIU"
+→ florida-international
+
+# Add a new alias (when scraper encounters unknown name)
+python3 scripts/team_resolver.py --add "gators" florida espn
+
+# List all aliases for a team
+python3 scripts/team_resolver.py --list florida
+→ florida, gators, uf, ...
+```
+
+**In code:**
+```python
+from scripts.team_resolver import resolve_team, add_alias
+
+team_id = resolve_team("Florida International")  # → "florida-international"
+add_alias("new-nickname", "florida", source="draftkings")
+```
+
+The table tracks which source each alias came from (draftkings, espn, d1baseball, manual) for debugging.
 
 ### Source Fallback Protocol (when a school returns blank)
 1. **ESPN** — Try first (API + box score page)
@@ -110,7 +159,10 @@ Don't just give up — document what's available so we can revisit.
 │   ├── daily_collection.py    # Nightly cron orchestrator
 │   ├── generate_report.py     # PDF report generator
 │   ├── betting_lines.py       # DK line comparison
+│   ├── bet_selection_v2.py    # Smart bet selection (adjusted edge)
+│   ├── team_resolver.py       # Team name → ID resolution (DB-backed)
 │   ├── p4_stats_scraper.py    # P4 team stats (browser-based)
+│   ├── scrape_dk_odds.py      # DraftKings odds scraper
 │   ├── scrape_sec_rosters.py  # SEC roster scraper
 │   ├── scrape_rankings.py     # Weekly Top 25
 │   ├── collect_box_scores.py  # Post-game stats
