@@ -113,6 +113,12 @@ class EloModel(BaseModel):
             c.execute('''
                 INSERT INTO elo_history (team_id, rating, game_id, game_date, opponent_id, rating_change)
                 VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(team_id, game_id) DO UPDATE SET
+                    rating = excluded.rating,
+                    rating_change = excluded.rating_change,
+                    game_date = excluded.game_date,
+                    opponent_id = excluded.opponent_id,
+                    created_at = CURRENT_TIMESTAMP
             ''', (team_id, round(rating, 1), game_id, game_date, opponent_id, round(rating_change, 1)))
             conn.commit()
             conn.close()
