@@ -48,17 +48,70 @@ def record(date_override=None):
     conn = get_conn()
     c = conn.cursor()
     
-    # --- MONEYLINES ---
+    # --- CONFIDENT BETS (Model Consensus) ---
+    # Check if table exists; create if not
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS tracked_confident_bets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT,
+            date TEXT,
+            pick_team_id TEXT,
+            pick_team_name TEXT,
+            opponent_name TEXT,
+            is_home INTEGER,
+            moneyline INTEGER,
+            models_agree INTEGER,
+            models_total INTEGER,
+            avg_prob REAL,
+            confidence REAL,
+            bet_amount REAL DEFAULT 100,
+            won INTEGER,
+            profit REAL,
+            recorded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(game_id, pick_team_id)
+        )
+    ''')
+    
+    existing_conf = c.execute(
+        'SELECT COUNT(*) FROM tracked_confident_bets WHERE date=?', (date,)
+    ).fetchone()[0]
+    
+    conf_recorded = 0
+    confident_bets = data.get('confident_bets', [])
+    if existing_conf >= MAX_PER_TYPE:
+        print(f"\n🎯 Confident Bets: Already have {existing_conf} bets for {date}, skipping")
+    else:
+        slots = MAX_PER_TYPE - existing_conf
+        print(f"\n🎯 Confident Bets ({len(confident_bets)} candidates, {slots} slots):")
+        for bet in confident_bets[:slots]:
+            c.execute('''
+                INSERT OR IGNORE INTO tracked_confident_bets
+                (game_id, date, pick_team_id, pick_team_name, opponent_name,
+                 is_home, moneyline, models_agree, models_total, avg_prob, confidence, bet_amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (bet['game_id'], bet['date'], bet['pick_team_id'],
+                  bet['pick_team_name'], bet['opponent_name'], bet['is_home'],
+                  bet['moneyline'], bet['models_agree'], bet['models_total'],
+                  bet['avg_prob'], bet['confidence'], BET_AMOUNT))
+            if c.rowcount > 0:
+                conf_recorded += 1
+                sign = '+' if bet.get('moneyline', 0) and bet['moneyline'] > 0 else ''
+                ml_str = f"({sign}{bet['moneyline']})" if bet.get('moneyline') else ""
+                print(f"   🎯 {bet['pick_team_name']} {ml_str} | "
+                      f"{bet['models_agree']}/{bet['models_total']} models | "
+                      f"{bet['avg_prob']*100:.0f}% avg | vs {bet['opponent_name']}")
+    
+    # --- MONEYLINES (EV-based) ---
     existing_ml = c.execute(
         'SELECT COUNT(*) FROM tracked_bets WHERE date=?', (date,)
     ).fetchone()[0]
     
     ml_recorded = 0
     if existing_ml >= MAX_PER_TYPE:
-        print(f"\n💰 Moneylines: Already have {existing_ml} bets for {date}, skipping")
+        print(f"\n💰 EV Moneylines: Already have {existing_ml} bets for {date}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_ml
-        print(f"\n💰 Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
+        print(f"\n💰 EV Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
         for bet in data['moneylines'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets
@@ -126,10 +179,10 @@ def record(date_override=None):
     conn.commit()
     conn.close()
     
-    total = ml_recorded + sp_recorded + tot_recorded
-    print(f"\n✅ Recorded {total} new bets (ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
+    total = conf_recorded + ml_recorded + sp_recorded + tot_recorded
+    print(f"\n✅ Recorded {total} new bets (CONF:{conf_recorded} EV-ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
     
-    if not data['moneylines'] and not data['spreads'] and not data['totals']:
+    if not confident_bets and not data['moneylines'] and not data['spreads'] and not data['totals']:
         print("ℹ️  No games with betting lines today (off day or no DK odds scraped)")
 
 
@@ -138,7 +191,42 @@ def evaluate():
     conn = get_conn()
     c = conn.cursor()
     
-    # --- Evaluate moneylines ---
+    # --- Evaluate confident bets (model consensus) ---
+    try:
+        c.execute('''
+            SELECT tb.id, tb.game_id, tb.date, tb.pick_team_id, tb.moneyline,
+                   g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.status
+            FROM tracked_confident_bets tb
+            LEFT JOIN betting_lines bl ON tb.game_id = bl.game_id
+            LEFT JOIN games g ON g.date = tb.date AND g.status = 'final'
+                AND ((g.home_team_id = bl.home_team_id AND g.away_team_id = bl.away_team_id)
+                  OR (g.home_team_id = bl.away_team_id AND g.away_team_id = bl.home_team_id)
+                  OR g.id = tb.game_id)
+            WHERE tb.won IS NULL AND g.status = 'final'
+        ''')
+        conf_evaluated = 0
+        for row in c.fetchall():
+            row = dict(row)
+            home_won = row['home_score'] > row['away_score']
+            picked_home = row['pick_team_id'] == row['home_team_id']
+            won = 1 if (picked_home == home_won) else 0
+            
+            ml = row['moneyline'] or -110  # Default to -110 if no line
+            if won:
+                profit = (ml / 100) * BET_AMOUNT if ml > 0 else (100 / abs(ml)) * BET_AMOUNT
+            else:
+                profit = -BET_AMOUNT
+            
+            c.execute('UPDATE tracked_confident_bets SET won=?, profit=? WHERE id=?',
+                      (won, round(profit, 2), row['id']))
+            conf_evaluated += 1
+            icon = '✅' if won else '❌'
+            print(f"  {icon} CONF: {'W' if won else 'L'} | ${profit:+.2f}")
+    except Exception as e:
+        conf_evaluated = 0
+        print(f"  ⚠️  Confident bets table not found or error: {e}")
+    
+    # --- Evaluate moneylines (EV-based) ---
     # Join via betting_lines to resolve team IDs, then find game by teams+date
     # Note: DraftKings sometimes lists home/away reversed from our games table
     c.execute('''
@@ -242,8 +330,8 @@ def evaluate():
     conn.commit()
     conn.close()
     
-    total = ml_evaluated + sp_evaluated + tot_evaluated
-    print(f"\n✅ Evaluated {total} bets (ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
+    total = conf_evaluated + ml_evaluated + sp_evaluated + tot_evaluated
+    print(f"\n✅ Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
 
 
 if __name__ == '__main__':

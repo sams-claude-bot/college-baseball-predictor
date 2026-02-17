@@ -418,6 +418,74 @@ def get_blended_prediction(home_team_id, away_team_id):
     }
 
 
+# Models to use for consensus voting (10 total)
+CONSENSUS_MODELS = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 
+                    'conference', 'prior', 'poisson', 'neural', 'ensemble']
+
+
+def compute_model_agreement(home_team_id, away_team_id):
+    """
+    Run all consensus models and compute agreement/confidence scores.
+    
+    Returns dict with:
+        pick: 'home' or 'away' (consensus pick)
+        count: number of models agreeing on pick
+        total: total models that returned predictions
+        avg_prob: average probability for the consensus pick
+        confidence: agreement_pct * avg_prob (0-1 scale)
+        models_for: list of model names picking the consensus side
+        models_against: list of model names picking the opposite side
+    """
+    home_votes = []
+    away_votes = []
+    
+    for model_name in CONSENSUS_MODELS:
+        model = MODELS.get(model_name)
+        if not model:
+            continue
+        try:
+            pred = model.predict_game(home_team_id, away_team_id)
+            if pred and 'home_win_probability' in pred:
+                prob = pred['home_win_probability']
+                if prob > 0.5:
+                    home_votes.append((model_name, prob))
+                else:
+                    away_votes.append((model_name, 1 - prob))
+        except Exception:
+            pass  # Skip models that fail for this matchup
+    
+    total = len(home_votes) + len(away_votes)
+    if total == 0:
+        return None
+    
+    # Determine consensus
+    if len(home_votes) >= len(away_votes):
+        pick = 'home'
+        count = len(home_votes)
+        models_for = [m[0] for m in home_votes]
+        models_against = [m[0] for m in away_votes]
+        avg_prob = sum(m[1] for m in home_votes) / len(home_votes) if home_votes else 0.5
+    else:
+        pick = 'away'
+        count = len(away_votes)
+        models_for = [m[0] for m in away_votes]
+        models_against = [m[0] for m in home_votes]
+        avg_prob = sum(m[1] for m in away_votes) / len(away_votes) if away_votes else 0.5
+    
+    agreement_pct = count / total
+    confidence = agreement_pct * avg_prob
+    
+    return {
+        'pick': pick,
+        'count': count,
+        'total': total,
+        'avg_prob': avg_prob,
+        'confidence': confidence,
+        'models_for': models_for,
+        'models_against': models_against
+    }
+
+
 def get_betting_games(date_str=None):
     """Get all games with betting lines for a given date (defaults to today)"""
     conn = get_connection()
@@ -464,6 +532,11 @@ def get_betting_games(date_str=None):
             line['blend_info'] = pred.get('blend', '')
             line['nn_prob'] = pred.get('neural_prob')
             line['ens_prob'] = pred.get('ensemble_prob')
+            
+            # Model consensus (run all 10 models)
+            agreement = compute_model_agreement(line['home_team_id'], line['away_team_id'])
+            if agreement:
+                line['model_agreement'] = agreement
             
             # Edges
             line['home_edge'] = (pred['home_win_probability'] - line['dk_home_fair']) * 100
@@ -1471,8 +1544,15 @@ def betting():
     games_with_edge = [g for g in games if g.get('best_edge')]
     games_with_edge.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
     
-    # Best bets (edge > 5%)
-    best_bets = [g for g in games_with_edge if g.get('best_edge', 0) >= 5]
+    # Confident bets (7/10+ models agree, sorted by confidence score)
+    confident_candidates = [g for g in games 
+                           if g.get('model_agreement') 
+                           and g['model_agreement']['count'] >= 7]
+    confident_candidates.sort(key=lambda x: x['model_agreement']['confidence'], reverse=True)
+    confident_bets = confident_candidates[:6]
+    
+    # EV bets (edge > 5%, current "best bets" logic)
+    ev_bets = [g for g in games_with_edge if g.get('best_edge', 0) >= 5]
     
     # Best totals (edge > 15% on over/under)
     games_with_totals = [g for g in games if g.get('total_edge') and g.get('over_under')]
@@ -1481,7 +1561,8 @@ def betting():
     
     return render_template('betting.html',
                           games=games_with_edge,
-                          best_bets=best_bets,
+                          confident_bets=confident_bets,
+                          ev_bets=ev_bets,
                           best_totals=best_totals,
                           conferences=conferences,
                           selected_conference=conference)
@@ -2127,8 +2208,44 @@ def api_best_bets():
     spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
     best_spreads = spread_candidates[:6]
     
+    # Confident bets (7/10+ models agree, sorted by confidence score)
+    confident_candidates = [g for g in games 
+                           if g.get('model_agreement') 
+                           and g['model_agreement']['count'] >= 7]
+    confident_candidates.sort(key=lambda x: x['model_agreement']['confidence'], reverse=True)
+    best_confident = confident_candidates[:6]
+    
+    confident_bets = []
+    for g in best_confident:
+        agreement = g['model_agreement']
+        if agreement['pick'] == 'home':
+            pick_id = g['home_team_id']
+            pick_name = g['home_team_name']
+            opp_name = g['away_team_name']
+            ml = g.get('home_ml')
+            is_home = 1
+        else:
+            pick_id = g['away_team_id']
+            pick_name = g['away_team_name']
+            opp_name = g['home_team_name']
+            ml = g.get('away_ml')
+            is_home = 0
+        confident_bets.append({
+            'game_id': g['game_id'], 'date': g['date'],
+            'pick_team_id': pick_id, 'pick_team_name': pick_name,
+            'opponent_name': opp_name, 'is_home': is_home,
+            'moneyline': ml,
+            'models_agree': agreement['count'],
+            'models_total': agreement['total'],
+            'avg_prob': round(agreement['avg_prob'], 4),
+            'confidence': round(agreement['confidence'], 4),
+            'models_for': agreement['models_for'],
+            'models_against': agreement['models_against']
+        })
+    
     return jsonify({
         'date': date_str,
+        'confident_bets': confident_bets,
         'moneylines': ml_bets,
         'totals': totals_bets,
         'spreads': best_spreads

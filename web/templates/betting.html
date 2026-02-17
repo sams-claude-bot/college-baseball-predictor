@@ -24,28 +24,73 @@
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-3 align-items-center">
             <strong class="me-2"><i class="bi bi-info-circle"></i> Model Signals:</strong>
-            <span><span class="badge bg-success">AGREE</span> Both models agree on pick with &gt;60% confidence</span>
+            <span><span class="badge bg-primary">X/10</span> Number of models agreeing on pick</span>
+            <span><span class="badge bg-success">AGREE</span> Both NN &amp; Ensemble agree with &gt;60% confidence</span>
             <span><span class="badge bg-danger">SPLIT</span> Models disagree on the winner</span>
-            <span class="text-muted">| <strong>NN</strong> = Neural Network, <strong>ENS</strong> = Ensemble</span>
         </div>
     </div>
 </div>
 
-{% if best_bets %}
+{% if confident_bets %}
 <div class="card mb-4">
     <div class="card-header bg-maroon">
-        <i class="bi bi-lightning-charge-fill"></i> Best Bets (5%+ Edge)
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-people-fill"></i> Best Bets — Model Consensus</span>
+            <small class="text-white-50">Where our models agree (7/10+ required)</small>
+        </div>
     </div>
     <div class="card-body">
         <div class="row">
-            {% for game in best_bets[:6] %}
+            {% for game in confident_bets %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 border-primary">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <small class="text-muted">{{ game.date }}</small>
+                            <div>
+                                <span class="badge bg-primary">{{ game.model_agreement.count }}/{{ game.model_agreement.total }} models</span>
+                            </div>
+                        </div>
+                        <h6 class="mb-1">
+                            {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
+                        </h6>
+                        <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>
+                                {% if game.model_agreement.pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}
+                            </span>
+                            <span class="badge bg-info">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% avg conf</span>
+                        </div>
+                        <div class="small text-muted" title="{{ game.model_agreement.models_for|join(', ') }}">
+                            <i class="bi bi-check-circle text-success"></i> {{ game.model_agreement.models_for[:3]|join(', ') }}{% if game.model_agreement.models_for|length > 3 %}...{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if ev_bets %}
+<div class="card mb-4">
+    <div class="card-header" style="background-color: #10b981; color: white;">
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-lightning-charge-fill"></i> Highest EV — Edge Over DK</span>
+            <small class="text-white-50">5%+ edge over DraftKings implied odds</small>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for game in ev_bets[:6] %}
             <div class="col-md-4 mb-3">
                 <div class="card h-100 border-success">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
                             <div>
-                                <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
+                                <span class="badge bg-success">+{{ game.best_edge|round(1) }}% edge</span>
                                 {% if game.nn_prob is not none and game.ens_prob is not none %}
                                     {% set nn_home_fav = game.nn_prob > 0.5 %}
                                     {% set ens_home_fav = game.ens_prob > 0.5 %}
@@ -131,10 +176,10 @@
                     <tr>
                         <th>Matchup</th>
                         <th class="text-center">DK Lines</th>
+                        <th class="text-center">Consensus</th>
                         <th class="text-center">Blended</th>
                         <th class="text-center">Neural</th>
                         <th class="text-center">Ensemble</th>
-                        <th class="text-center">Signal</th>
                         <th class="text-center">Edge</th>
                         <th class="text-center">O/U</th>
                         <th class="text-center">NN Total</th>
@@ -165,6 +210,16 @@
                             </div>
                         </td>
                         <td class="text-center">
+                            {% if game.model_agreement %}
+                            {% set ma = game.model_agreement %}
+                            <span class="badge {% if ma.count >= 9 %}bg-success{% elif ma.count >= 7 %}bg-primary{% else %}bg-secondary{% endif %}" 
+                                  title="{{ ma.models_for|join(', ') }}">
+                                {{ ma.count }}/{{ ma.total }}
+                            </span>
+                            <br><small class="text-muted">{% if ma.pick == 'home' %}{{ game.home_team_name[:8] }}{% else %}{{ game.away_team_name[:8] }}{% endif %}</small>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
                             {% if game.model_away_prob %}
                             <div class="d-flex flex-column">
                                 <span>{{ (game.model_away_prob * 100)|round(1) }}%</span>
@@ -186,19 +241,6 @@
                                 <span>{{ ((1 - game.ens_prob) * 100)|round(1) }}%</span>
                                 <span>{{ (game.ens_prob * 100)|round(1) }}%</span>
                             </div>
-                            {% else %}—{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if game.nn_prob is not none and game.ens_prob is not none %}
-                                {% set nn_home_fav = game.nn_prob > 0.5 %}
-                                {% set ens_home_fav = game.ens_prob > 0.5 %}
-                                {% if nn_home_fav == ens_home_fav and (game.nn_prob > 0.6 or game.nn_prob < 0.4) and (game.ens_prob > 0.6 or game.ens_prob < 0.4) %}
-                                <span class="badge bg-success">AGREE</span>
-                                {% elif nn_home_fav != ens_home_fav %}
-                                <span class="badge bg-danger">SPLIT</span>
-                                {% else %}
-                                <span class="text-muted">—</span>
-                                {% endif %}
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
@@ -265,9 +307,9 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
-                <h6><i class="bi bi-info-circle text-primary"></i> Understanding Edge</h6>
+                <h6><i class="bi bi-people text-primary"></i> Model Consensus (Best Bets)</h6>
                 <p class="small text-muted mb-0">
-                    Edge = Model probability - DK implied probability. <strong>5%+ edge</strong> is significant.
+                    Runs all 10 models and picks games where <strong>7+ agree</strong>. Sorted by confidence = agreement% × avg probability. Highest conviction picks.
                 </p>
             </div>
         </div>
@@ -275,11 +317,9 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-body">
-                <h6><i class="bi bi-people text-success"></i> Model Agreement</h6>
+                <h6><i class="bi bi-lightning-charge text-success"></i> Highest EV (Edge Over DK)</h6>
                 <p class="small text-muted mb-0">
-                    <strong>AGREE</strong> = both neural &amp; ensemble pick the same team with &gt;60% confidence. Strongest signal.<br>
-                    <strong>SPLIT</strong> = models disagree on the winner — proceed with caution.<br>
-                    <strong>No badge</strong> = models agree on the winner but one or both have &lt;60% confidence (gray zone).
+                    Edge = Model probability - DK implied probability. <strong>5%+ edge</strong> means our blended model sees more value than the line suggests.
                 </p>
             </div>
         </div>
