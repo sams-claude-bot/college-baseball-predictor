@@ -613,18 +613,30 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
     # ============================================================
     if not gb_only:
         print("\n" + "=" * 60)
-        print("NEURAL NETWORK FINE-TUNING")
+        print("NEURAL NETWORK TRAINING")
         print("=" * 60)
         
+        # Win model: use train_neural_v2 (2-phase: base + finetune)
+        print("\n📊 WIN MODEL (train_neural_v2)")
+        try:
+            from scripts.train_neural_v2 import run as run_nn_v2
+            run_nn_v2(val_days=val_days)
+            results_summary['nn_win'] = {'status': 'completed'}
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
+            results_summary['nn_win'] = {'status': 'error', 'error': str(e)}
+        
+        # Totals, spread, dow_totals: fine-tune from existing base weights
         for name, config in NN_CONFIGS.items():
+            if name == 'win':
+                continue  # Already handled above
             model_type = config['type']
             print(f"\n📊 {name.upper()} ({model_type})")
             
-            # NN uses FeatureComputer with meta predictions
             X_train, y_train, dow_train = compute_2026_features(
-                train_2026, fc_with_meta, model_type)
+                train_2026, fc_no_meta, model_type)
             X_val, y_val, dow_val = compute_2026_features(
-                val_2026, fc_with_meta, model_type)
+                val_2026, fc_no_meta, model_type)
             
             if X_train is None or X_val is None:
                 print(f"  ⚠️  Insufficient data, skipping")
