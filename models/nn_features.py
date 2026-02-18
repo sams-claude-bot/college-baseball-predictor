@@ -137,24 +137,7 @@ class FeatureComputer:
                 f'{prefix}adv_gb_pct_pitch',
                 f'{prefix}adv_fb_pct_pitch',
             ])
-            # Staff quality (from team_pitching_quality table)
-            names.extend([
-                f'{prefix}ace_era',
-                f'{prefix}ace_whip',
-                f'{prefix}ace_k9',
-                f'{prefix}ace_fip',
-                f'{prefix}rotation_era',
-                f'{prefix}rotation_whip',
-                f'{prefix}rotation_k9',
-                f'{prefix}rotation_fip',
-                f'{prefix}bullpen_era',
-                f'{prefix}bullpen_whip',
-                f'{prefix}bullpen_k9',
-                f'{prefix}staff_depth',        # normalized staff size
-                f'{prefix}ace_ip_pct',         # innings concentration
-                f'{prefix}innings_hhi',        # Herfindahl index
-                f'{prefix}quality_arms_pct',   # quality arms / staff size
-            ])
+            # Staff quality features are in the dedicated pitching model
         # Situational (game-level)
         names.extend([
             'is_neutral_site',
@@ -219,7 +202,6 @@ class FeatureComputer:
             features.extend(self._situational_team_features(conn, team_id, game_date))
             features.extend(self._advanced_batting_features(conn, team_id))
             features.extend(self._advanced_pitching_features(conn, team_id))
-            features.extend(self._staff_quality_features(conn, team_id))
 
         # Game-level situational
         features.append(1.0 if neutral_site else 0.0)
@@ -730,16 +712,6 @@ class HistoricalFeatureComputer:
             features.extend([100.0, 0.320, 0.140, 0.300, 20.0, 8.5, 43.0, 36.0, 21.0])
             # Advanced pitching defaults
             features.extend([4.00, 4.00, 4.00, 43.0, 36.0])
-            # Staff quality defaults (no pitcher-level data in historical)
-            features.extend([
-                4.50, 1.35, 7.5, 4.50,   # ace: era, whip, k9, fip
-                4.50, 1.35, 7.5, 4.50,   # rotation: era, whip, k9, fip
-                4.50, 1.35, 7.5,          # bullpen: era, whip, k9
-                0.5,                       # staff_depth (normalized)
-                0.25,                      # ace_ip_pct
-                0.15,                      # innings_hhi
-                0.2,                       # quality_arms_pct
-            ])
 
         # Game-level
         features.append(1.0 if neutral else 0.0)

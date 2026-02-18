@@ -155,7 +155,7 @@ class EnsembleModel(BaseModel):
             "log5": 0.10,         # 82.1%
             "poisson": 0.08,      # 78.2%
             "pythagorean": 0.08,  # 78.2%
-            "pitching": 0.00,     # 69.7% - disabled, needs rework
+            "pitching": 0.05,     # 72.0% - v2 staff quality model
             "lightgbm": 0.08,     # 63-72% but good on totals
             "xgboost": 0.06,      # Slightly behind LightGBM
         }
