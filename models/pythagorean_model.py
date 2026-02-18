@@ -81,7 +81,7 @@ class PythagoreanModel(BaseModel):
             # Additive home advantage
             home_prob = base_prob + self.HOME_ADVANTAGE
         
-        home_prob = max(0.1, min(0.9, home_prob))
+        home_prob = max(0.02, min(0.98, home_prob))
         
         # Project runs
         home_rpg = home['runs_scored'] / home['games'] if home['games'] > 0 else 5.0

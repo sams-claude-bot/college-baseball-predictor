@@ -6,6 +6,12 @@ scattering constants across multiple files.
 """
 
 # =============================================================================
+# Probability Bounds
+# =============================================================================
+PROB_FLOOR = 0.02    # Minimum win probability (2%)
+PROB_CEILING = 0.98  # Maximum win probability (98%)
+
+# =============================================================================
 # Home Field Advantage
 # =============================================================================
 HOME_ADVANTAGE_PROB = 0.035      # Win probability boost for home team (~3.5%)

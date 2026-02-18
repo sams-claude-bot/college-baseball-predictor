@@ -207,8 +207,8 @@ class AdvancedModel(BaseModel):
         form_diff = (home_stats['recent_form'] - away_stats['recent_form']) * 0.05
         home_prob += form_diff
         
-        # Clamp probability
-        home_prob = max(0.1, min(0.9, home_prob))
+        # Clamp probability (allow confident predictions)
+        home_prob = max(0.02, min(0.98, home_prob))
         
         # Project runs using adjusted stats
         home_runs = (home_stats['adj_runs_scored'] + away_stats['adj_runs_allowed']) / 2

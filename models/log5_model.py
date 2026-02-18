@@ -76,7 +76,7 @@ class Log5Model(BaseModel):
         
         # Log5 calculation
         home_prob = self._log5(home_pct, away_pct)
-        home_prob = max(0.1, min(0.9, home_prob))
+        home_prob = max(0.02, min(0.98, home_prob))
         
         # Project runs
         home_rpg = home['runs_scored'] / home['games'] if home['games'] > 0 else 5.0

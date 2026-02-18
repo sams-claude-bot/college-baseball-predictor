@@ -542,7 +542,7 @@ class EnsembleModel(BaseModel):
                 home_runs /= runs_weight
                 away_runs /= runs_weight
         
-        home_prob = max(0.1, min(0.9, home_prob))
+        home_prob = max(0.02, min(0.98, home_prob))
         run_line = self.calculate_run_line(home_runs, away_runs)
         
         # Apply momentum adjustment if enabled
@@ -556,7 +556,7 @@ class EnsembleModel(BaseModel):
                 # Apply momentum with configurable strength
                 adjustment = mom_result['adjustment'] * self.momentum_strength
                 home_prob_adjusted = home_prob + adjustment
-                home_prob_adjusted = max(0.1, min(0.9, home_prob_adjusted))
+                home_prob_adjusted = max(0.02, min(0.98, home_prob_adjusted))
                 
                 momentum_info = {
                     "base_prob": round(home_prob, 3),

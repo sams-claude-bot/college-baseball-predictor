@@ -194,7 +194,7 @@ class EloModel(BaseModel):
             adj_home_rating = home_rating + self.HOME_ADVANTAGE
         
         home_prob = self._expected_score(adj_home_rating, away_rating)
-        home_prob = max(0.1, min(0.9, home_prob))
+        home_prob = max(0.02, min(0.98, home_prob))
         
         # Project runs based on rating differential
         # Higher rated teams score more, allow less

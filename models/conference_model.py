@@ -393,7 +393,7 @@ class ConferenceModel(BaseModel):
         if not neutral_site:
             home_prob += self.HOME_ADVANTAGE
         
-        home_prob = max(0.1, min(0.9, home_prob))
+        home_prob = max(0.02, min(0.98, home_prob))
         
         # Project runs
         home_runs_data = self._get_team_runs(home_team_id)
