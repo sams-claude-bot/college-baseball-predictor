@@ -70,6 +70,8 @@ class PitchingModel(BaseModel):
         self.team_pitching_cache = {}
         self.bullpen_cache = {}
         self.weather_cache = {}
+        self.recent_form_cache = {}
+        self.rest_days_cache = {}
     
     def _get_weather_for_game(self, game_id: str) -> Optional[Dict]:
         """Fetch weather data for a game from game_weather table."""
@@ -103,6 +105,195 @@ class PitchingModel(BaseModel):
         
         self.weather_cache[game_id] = None
         return None
+    
+    def _get_pitcher_recent_form(self, player_id: int, num_starts: int = 3):
+        """
+        Get recent form stats from pitcher_game_log.
+        Returns dict with recent ERA, avg IP, K/9, BB/9 from last N starts.
+        """
+        if player_id is None or player_id < 0:
+            return None
+        
+        cache_key = f"{player_id}_{num_starts}"
+        if cache_key in self.recent_form_cache:
+            return self.recent_form_cache[cache_key]
+        
+        conn = get_connection()
+        c = conn.cursor()
+        
+        c.execute('''
+            SELECT pgl.innings_pitched, pgl.earned_runs, pgl.strikeouts, 
+                   pgl.walks, pgl.hits_allowed, g.date
+            FROM pitcher_game_log pgl
+            JOIN games g ON pgl.game_id = g.id
+            WHERE pgl.player_id = ?
+            AND pgl.was_starter = 1
+            ORDER BY g.date DESC
+            LIMIT ?
+        ''', (player_id, num_starts))
+        
+        rows = c.fetchall()
+        conn.close()
+        
+        if not rows:
+            self.recent_form_cache[cache_key] = None
+            return None
+        
+        total_ip = sum(r['innings_pitched'] or 0 for r in rows)
+        total_er = sum(r['earned_runs'] or 0 for r in rows)
+        total_k = sum(r['strikeouts'] or 0 for r in rows)
+        total_bb = sum(r['walks'] or 0 for r in rows)
+        total_h = sum(r['hits_allowed'] or 0 for r in rows)
+        
+        if total_ip > 0:
+            recent_form = {
+                'starts': len(rows),
+                'total_ip': total_ip,
+                'recent_era': (total_er / total_ip) * 9,
+                'recent_whip': (total_h + total_bb) / total_ip,
+                'recent_k9': (total_k / total_ip) * 9,
+                'recent_bb9': (total_bb / total_ip) * 9,
+                'avg_ip': total_ip / len(rows),
+                'last_start_date': rows[0]['date']
+            }
+        else:
+            recent_form = None
+        
+        self.recent_form_cache[cache_key] = recent_form
+        return recent_form
+    
+    def _get_actual_rest_days(self, player_id: int, game_date: str):
+        """
+        Get actual rest days from pitcher_game_log.
+        Returns number of days since last appearance, or None if unknown.
+        """
+        if player_id is None or player_id < 0:
+            return None
+        
+        cache_key = f"{player_id}_{game_date}"
+        if cache_key in self.rest_days_cache:
+            return self.rest_days_cache[cache_key]
+        
+        conn = get_connection()
+        c = conn.cursor()
+        
+        c.execute('''
+            SELECT g.date
+            FROM pitcher_game_log pgl
+            JOIN games g ON pgl.game_id = g.id
+            WHERE pgl.player_id = ?
+            AND g.date < ?
+            ORDER BY g.date DESC
+            LIMIT 1
+        ''', (player_id, game_date))
+        
+        row = c.fetchone()
+        conn.close()
+        
+        if row:
+            try:
+                last_date = datetime.strptime(row['date'], '%Y-%m-%d')
+                current_date = datetime.strptime(game_date, '%Y-%m-%d')
+                rest_days = (current_date - last_date).days
+                self.rest_days_cache[cache_key] = rest_days
+                return rest_days
+            except:
+                pass
+        
+        self.rest_days_cache[cache_key] = None
+        return None
+    
+    def _get_team_bullpen_stats(self, team_id: str):
+        """
+        Calculate team bullpen statistics from pitcher_game_log.
+        Returns dict with relief ERA, avg IP per game, usage patterns.
+        """
+        conn = get_connection()
+        c = conn.cursor()
+        
+        # Get relief appearances (not starters) from recent games
+        c.execute('''
+            SELECT 
+                SUM(pgl.innings_pitched) as total_ip,
+                SUM(pgl.earned_runs) as total_er,
+                SUM(pgl.strikeouts) as total_k,
+                SUM(pgl.walks) as total_bb,
+                COUNT(*) as appearances,
+                COUNT(DISTINCT pgl.game_id) as games_used
+            FROM pitcher_game_log pgl
+            JOIN games g ON pgl.game_id = g.id
+            WHERE pgl.team_id = ?
+            AND pgl.was_starter = 0
+            AND g.date >= date('now', '-14 days')
+        ''', (team_id,))
+        
+        row = c.fetchone()
+        conn.close()
+        
+        if row and row['total_ip'] and row['total_ip'] > 0:
+            total_ip = row['total_ip']
+            return {
+                'relief_era': (row['total_er'] / total_ip) * 9,
+                'relief_k9': (row['total_k'] / total_ip) * 9 if total_ip > 0 else 0,
+                'relief_bb9': (row['total_bb'] / total_ip) * 9 if total_ip > 0 else 0,
+                'avg_relief_ip': total_ip / row['games_used'] if row['games_used'] else 0,
+                'appearances': row['appearances']
+            }
+        
+        return None
+    
+    def _calculate_starter_quality_tier(self, pitcher, team_id: str):
+        """
+        Determine if pitcher is ace/game2/game3/midweek quality.
+        Returns tier (1-4) and description.
+        """
+        if pitcher is None:
+            return 3, "unknown"
+        
+        # Check recent starts to determine rotation position
+        conn = get_connection()
+        c = conn.cursor()
+        
+        player_id = pitcher.get('id')
+        if not player_id:
+            return 3, "unknown"
+        
+        # Look at day-of-week pattern for this pitcher
+        c.execute('''
+            SELECT strftime('%w', g.date) as dow, COUNT(*) as cnt
+            FROM pitcher_game_log pgl
+            JOIN games g ON pgl.game_id = g.id
+            WHERE pgl.player_id = ?
+            AND pgl.was_starter = 1
+            GROUP BY dow
+            ORDER BY cnt DESC
+            LIMIT 1
+        ''', (player_id,))
+        
+        row = c.fetchone()
+        conn.close()
+        
+        if row:
+            dow = int(row['dow'])
+            if dow == 5:  # Friday
+                return 1, "ace"
+            elif dow == 6:  # Saturday
+                return 2, "game2"
+            elif dow == 0:  # Sunday
+                return 3, "game3"
+            else:
+                return 4, "midweek"
+        
+        # Fallback: use ERA to guess tier
+        era = pitcher.get('era', self.LEAGUE_AVG['era'])
+        if era < 3.0:
+            return 1, "ace (by ERA)"
+        elif era < 4.5:
+            return 2, "quality"
+        elif era < 6.0:
+            return 3, "average"
+        else:
+            return 4, "below average"
     
     def _get_starting_pitcher(self, team_id, game_date=None):
         """
@@ -459,22 +650,58 @@ class PitchingModel(BaseModel):
         # Weather adjustment is applied to run projections, not pitcher scores
         # (learned model gives runs to add/subtract from total)
         
-        # Rest day factors
-        home_rest = self._get_pitcher_rest_days(
-            home_starter.get('id') if home_starter else None, 
-            game_date
-        )
-        away_rest = self._get_pitcher_rest_days(
-            away_starter.get('id') if away_starter else None, 
-            game_date
-        )
+        # Rest day factors - try actual game log first, then pitching_matchups
+        home_pid = home_starter.get('id') if home_starter else None
+        away_pid = away_starter.get('id') if away_starter else None
+        
+        home_rest = self._get_actual_rest_days(home_pid, game_date)
+        if home_rest is None:
+            home_rest = self._get_pitcher_rest_days(home_pid, game_date)
+        
+        away_rest = self._get_actual_rest_days(away_pid, game_date)
+        if away_rest is None:
+            away_rest = self._get_pitcher_rest_days(away_pid, game_date)
         
         home_rest_factor = self.REST_FACTORS.get(min(home_rest, 7), 0.02)
         away_rest_factor = self.REST_FACTORS.get(min(away_rest, 7), 0.02)
         
+        # Get recent form from pitcher_game_log
+        home_recent = self._get_pitcher_recent_form(home_pid, num_starts=3)
+        away_recent = self._get_pitcher_recent_form(away_pid, num_starts=3)
+        
+        # Adjust pitcher score based on recent form
+        if home_recent and home_recent['starts'] >= 2:
+            recent_era = home_recent['recent_era']
+            season_era = home_starter.get('era', self.LEAGUE_AVG['era']) if home_starter else self.LEAGUE_AVG['era']
+            # If recent form is better/worse than season, adjust score
+            if recent_era < season_era:
+                home_pitcher_score = min(0.9, home_pitcher_score + 0.03)  # Hot streak bonus
+            elif recent_era > season_era * 1.3:
+                home_pitcher_score = max(0.1, home_pitcher_score - 0.03)  # Cold streak penalty
+        
+        if away_recent and away_recent['starts'] >= 2:
+            recent_era = away_recent['recent_era']
+            season_era = away_starter.get('era', self.LEAGUE_AVG['era']) if away_starter else self.LEAGUE_AVG['era']
+            if recent_era < season_era:
+                away_pitcher_score = min(0.9, away_pitcher_score + 0.03)
+            elif recent_era > season_era * 1.3:
+                away_pitcher_score = max(0.1, away_pitcher_score - 0.03)
+        
+        # Get starter quality tiers
+        home_tier, home_tier_desc = self._calculate_starter_quality_tier(home_starter, home_team_id)
+        away_tier, away_tier_desc = self._calculate_starter_quality_tier(away_starter, away_team_id)
+        
+        # Tier differential adjustment (ace vs midweek guy matters)
+        tier_diff = away_tier - home_tier  # Positive = home has better quality starter
+        tier_adjustment = tier_diff * 0.015  # ~1.5% per tier level difference
+        
         # Bullpen availability
         home_bullpen = self._get_bullpen_availability(home_team_id, game_date)
         away_bullpen = self._get_bullpen_availability(away_team_id, game_date)
+        
+        # Get bullpen stats from game log
+        home_bp_stats = self._get_team_bullpen_stats(home_team_id)
+        away_bp_stats = self._get_team_bullpen_stats(away_team_id)
         
         # Series position adjustment
         series_pos = self._get_series_position(home_team_id, game_date)
@@ -505,6 +732,9 @@ class PitchingModel(BaseModel):
         
         # Series adjustment
         prob += series_adj * self.SERIES_WEIGHT
+        
+        # Starter quality tier adjustment
+        prob += tier_adjustment
         
         # Home advantage
         if not neutral_site:
@@ -558,7 +788,13 @@ class PitchingModel(BaseModel):
                 "away_rest_days": away_rest,
                 "home_bullpen_avail": round(home_bullpen, 2),
                 "away_bullpen_avail": round(away_bullpen, 2),
-                "series_position": series_pos
+                "series_position": series_pos,
+                "home_starter_tier": home_tier_desc,
+                "away_starter_tier": away_tier_desc,
+                "home_recent_era": round(home_recent['recent_era'], 2) if home_recent else None,
+                "away_recent_era": round(away_recent['recent_era'], 2) if away_recent else None,
+                "home_bp_era": round(home_bp_stats['relief_era'], 2) if home_bp_stats else None,
+                "away_bp_era": round(away_bp_stats['relief_era'], 2) if away_bp_stats else None,
             },
             "weather": {
                 "adjustment": weather_components.get('total_adjustment', 0.0),
