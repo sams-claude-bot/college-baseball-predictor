@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Update Elo ratings for all completed games that haven't been processed yet.
+Update Elo ratings for completed games that haven't been processed yet.
+
+Tracks processed games via elo_history table to avoid reprocessing.
 
 Usage:
     python3 scripts/update_elo.py           # Update all unprocessed games
     python3 scripts/update_elo.py --date 2026-02-15  # Update specific date
+    python3 scripts/update_elo.py --force   # Reprocess all games (rebuilds ratings)
 """
 
 import sys
-import sqlite3
 from pathlib import Path
-from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -18,32 +19,51 @@ from models.elo_model import EloModel
 from scripts.database import get_connection
 
 
-def update_elo_ratings(date=None):
-    """Update Elo ratings for completed games."""
+def update_elo_ratings(date=None, force=False):
+    """Update Elo ratings for completed games not yet in elo_history."""
     conn = get_connection()
     cur = conn.cursor()
     
     elo = EloModel()
     
-    # Find games with scores where we might need to update Elo
-    # We track last_updated in elo_ratings to avoid reprocessing
+    if force:
+        # Force mode: clear elo_history and reprocess everything
+        print("⚠️  Force mode: rebuilding all Elo ratings from scratch")
+        cur.execute("DELETE FROM elo_history")
+        cur.execute("DELETE FROM elo_ratings")
+        conn.commit()
+        elo.ratings = {}  # Clear in-memory cache
+    
+    # Find completed games NOT already in elo_history
+    # elo_history has 2 entries per game (one per team), so we check for either
     if date:
         cur.execute('''
             SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.date
             FROM games g
-            WHERE g.date = ? AND g.home_score IS NOT NULL
-            ORDER BY g.date
+            WHERE g.date = ? 
+              AND g.home_score IS NOT NULL
+              AND g.status = 'final'
+              AND g.id NOT IN (SELECT DISTINCT game_id FROM elo_history WHERE game_id IS NOT NULL)
+            ORDER BY g.date, g.time
         ''', (date,))
     else:
-        # Get all completed games, ordered by date
         cur.execute('''
             SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.date
             FROM games g
             WHERE g.home_score IS NOT NULL
-            ORDER BY g.date
+              AND g.status = 'final'
+              AND g.id NOT IN (SELECT DISTINCT game_id FROM elo_history WHERE game_id IS NOT NULL)
+            ORDER BY g.date, g.time
         ''')
     
     games = cur.fetchall()
+    
+    if not games:
+        print("✅ No new games to process")
+        conn.close()
+        return
+    
+    print(f"Processing {len(games)} unprocessed games...")
     updated = 0
     
     for game_id, home_id, away_id, home_score, away_score, game_date in games:
@@ -51,7 +71,8 @@ def update_elo_ratings(date=None):
         margin = abs(home_score - away_score)
         
         try:
-            elo.update_ratings(home_id, away_id, home_won, margin=margin, game_id=game_id, game_date=game_date)
+            result = elo.update_ratings(home_id, away_id, home_won, margin=margin, 
+                                        game_id=game_id, game_date=game_date)
             updated += 1
         except Exception as e:
             print(f"  Error updating {game_id}: {e}")
@@ -61,8 +82,12 @@ def update_elo_ratings(date=None):
 
 
 if __name__ == "__main__":
-    date = None
-    if len(sys.argv) > 1 and sys.argv[1] == '--date' and len(sys.argv) > 2:
-        date = sys.argv[2]
+    import argparse
     
-    update_elo_ratings(date)
+    parser = argparse.ArgumentParser(description='Update Elo ratings for completed games')
+    parser.add_argument('--date', '-d', type=str, help='Process only games on this date (YYYY-MM-DD)')
+    parser.add_argument('--force', '-f', action='store_true', 
+                        help='Rebuild all ratings from scratch (clears elo_history)')
+    args = parser.parse_args()
+    
+    update_elo_ratings(date=args.date, force=args.force)
