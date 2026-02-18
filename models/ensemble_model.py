@@ -38,6 +38,20 @@ try:
 except ImportError:
     _NEURAL_AVAILABLE = False
 
+# Try to import XGBoost model
+try:
+    from models.xgboost_model import XGBMoneylineModel
+    _XGB_AVAILABLE = True
+except ImportError:
+    _XGB_AVAILABLE = False
+
+# Try to import LightGBM model
+try:
+    from models.lightgbm_model import LGBMoneylineModel
+    _LGB_AVAILABLE = True
+except ImportError:
+    _LGB_AVAILABLE = False
+
 # File to store model accuracy history
 ACCURACY_FILE = Path(__file__).parent.parent / "data" / "model_accuracy.json"
 
@@ -115,18 +129,32 @@ class EnsembleModel(BaseModel):
             "poisson": PoissonModelWrapper()
         }
         
+        # Add XGBoost if available and trained
+        if _XGB_AVAILABLE:
+            xgb_model = XGBMoneylineModel()
+            if xgb_model.is_trained():
+                self.models["xgboost"] = xgb_model
+        
+        # Add LightGBM if available and trained
+        if _LGB_AVAILABLE:
+            lgb_model = LGBMoneylineModel()
+            if lgb_model.is_trained():
+                self.models["lightgbm"] = lgb_model
+        
         # Neural model excluded from ensemble for now — tracking independently
         
-        # Default weights (sum to 1.0)
+        # Default weights (sum to 1.0, will be normalized if gradient boosting added)
         self.default_weights = {
             "pythagorean": 0.07,
             "elo": 0.12,
             "log5": 0.08,
-            "advanced": 0.20,
-            "pitching": 0.15,
-            "conference": 0.08,
-            "prior": 0.12,
-            "poisson": 0.18
+            "advanced": 0.18,
+            "pitching": 0.13,
+            "conference": 0.07,
+            "prior": 0.10,
+            "poisson": 0.15,
+            "xgboost": 0.05,   # Start low, will adjust with accuracy
+            "lightgbm": 0.05,  # Start low, will adjust with accuracy
         }
         
         # Momentum adjustment settings
