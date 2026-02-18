@@ -68,7 +68,15 @@ Doubleheaders: `_g1`, `_g2` suffixes.
 | `pitching` | ERA, WHIP, K rates, bullpen depth |
 | `momentum` | Post-ensemble modifier (±5% based on last 5-7 games) |
 
-**Ensemble blend:** Neural 60% / Traditional Ensemble 40% (early season weighting)
+**Ensemble blend:** Dynamic weights based on recency-weighted accuracy (pitching disabled at 0 weight)
+
+### Training Policy (all trainable models)
+- **Train:** Historical (2024-2025) + 2026 games older than 7 days
+- **Validate:** Last 7 days of completed games
+- **Neural net:** 2-phase (base train at lr=0.001, fine-tune at lr=0.0001)
+- **XGBoost/LightGBM:** Full retrain weekly
+- **Schedule:** Sunday 9:30 PM via `train_all_models.py`
+- **Feature dimension:** 81 (shared between NN, XGB, LGB via FeatureComputer)
 
 ### Run Projection Models (3+)
 | Model | Purpose |
@@ -132,9 +140,17 @@ python3 scripts/backup_db.py                            # Database backup
 ### Weekly
 ```bash
 python3 scripts/power_rankings.py --top 25 --store     # Power rankings
-python3 scripts/finetune_weekly.py                      # NN fine-tuning
+PYTHONPATH=. python3 scripts/train_all_models.py        # Unified model training (NN + XGB + LGB)
 PYTHONPATH=. python3 scripts/rankings.py update         # D1BB rankings
 python3 scripts/d1bb_advanced_scraper.py --conference SEC  # Advanced stats (wOBA, FIP, etc.)
+```
+
+### Model Training
+```bash
+PYTHONPATH=. python3 scripts/train_all_models.py              # All models (Sunday cron)
+PYTHONPATH=. python3 scripts/train_neural_v2.py               # NN only (2-phase: base + finetune)
+PYTHONPATH=. python3 scripts/train_neural_v2.py --val-days 3  # NN with smaller val window
+PYTHONPATH=. python3 scripts/train_gradient_boosting.py       # XGB + LGB only
 ```
 
 ## Web Dashboard
@@ -171,32 +187,42 @@ college-baseball-predictor/
 ├── data/
 │   ├── baseball.db              # Main database
 │   ├── backups/                 # DB backups
-│   ├── p4_team_urls.json        # P4 team stats URLs
-│   ├── d1_team_urls.json        # Extended D1 stats URLs
+│   ├── nn_model.pt              # Neural net base weights
+│   ├── nn_model_finetuned.pt    # Neural net fine-tuned weights (if improved)
+│   ├── xgb_moneyline.pkl        # XGBoost moneyline model
+│   ├── lgb_moneyline.pkl        # LightGBM moneyline model
+│   ├── xgb_totals.pkl / lgb_totals.pkl / xgb_spread.pkl / lgb_spread.pkl
 │   ├── weather_coefficients.json
 │   └── *.json                   # Various config/progress files
 ├── config/
 │   ├── d1bb_slugs.json          # D1BB team slug mapping
 │   ├── espn_team_ids.json       # ESPN team ID mapping
 │   └── team_sites.json          # Athletics site configs
-├── models/                      # Prediction models (24 .py files)
-│   ├── neural_model.py          # Best performer (88%)
-│   ├── ensemble_model.py        # Win probability ensemble
+├── models/                      # Prediction models (23 .py files)
+│   ├── neural_model.py          # PyTorch win probability (81 features)
+│   ├── ensemble_model.py        # Weighted blend of all models
+│   ├── xgboost_model.py         # XGBoost (moneyline, totals, spread)
+│   ├── lightgbm_model.py        # LightGBM (moneyline, totals, spread)
+│   ├── nn_features.py           # Shared feature engineering (FeatureComputer + HistoricalFeatureComputer)
 │   ├── runs_ensemble.py         # Totals ensemble
-│   └── nn_features.py           # Shared NN feature engineering
-├── scripts/                     # Data collection & operations (90+ .py files)
+│   └── archive/                 # Deprecated models
+├── scripts/                     # Active scripts (23 files)
 │   ├── d1bb_schedule.py         # D1BB score/schedule sync (with dedup)
 │   ├── d1bb_box_scores.py       # D1BB box score scraper
 │   ├── d1bb_scraper.py          # D1BB player stats scraper
 │   ├── d1bb_advanced_scraper.py # D1BB advanced stats (wOBA, FIP)
-│   ├── bet_selection_v2.py      # Current bet selection logic
 │   ├── predict_and_track.py     # Prediction generation + evaluation
+│   ├── bet_selection_v2.py      # Bet selection (consensus + EV)
+│   ├── record_daily_bets.py     # Bet grading
+│   ├── train_all_models.py      # Unified weekly training (all models)
+│   ├── train_neural_v2.py       # 2-phase NN training (base + finetune)
+│   ├── train_gradient_boosting.py # XGBoost + LightGBM training
 │   ├── team_resolver.py         # Team name normalization
-│   └── weather.py               # Open-Meteo weather fetcher
+│   ├── weather.py               # Open-Meteo weather fetcher
+│   └── archive/                 # 78 deprecated/one-off scripts
 ├── web/
 │   ├── app.py                   # Flask app (~2000 lines)
 │   └── templates/               # 16 Jinja2 templates
-├── weights/                     # Trained NN weight files
 ├── CONTEXT.md                   # This file
 └── README.md
 ```
