@@ -95,7 +95,7 @@ Adjusts run projections based on temperature, wind, humidity. Coefficients in `d
 - `tracked_bets_spreads` — Spread and total bets
 - `tracked_confident_bets` — High-consensus bets (v2, started Feb 17)
 
-### P&L starts Feb 16, 2026 (Sam's directive — no Feb 15 data)
+### P&L starts Feb 18, 2026 (reset after model improvements on Feb 17)
 
 ## Cron Schedule (OpenClaw)
 
