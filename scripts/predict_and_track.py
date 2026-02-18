@@ -30,18 +30,32 @@ def predict_games(date=None):
     conn = get_connection()
     cur = conn.cursor()
     
-    # Get games without predictions yet
+    # Get games that are missing predictions from ANY model
     cur.execute('''
-        SELECT g.id, g.home_team_id, g.away_team_id, h.name, a.name
+        SELECT DISTINCT g.id, g.home_team_id, g.away_team_id, h.name, a.name
         FROM games g
         JOIN teams h ON g.home_team_id = h.id
         JOIN teams a ON g.away_team_id = a.id
         WHERE g.date = ?
-        AND g.id NOT IN (SELECT DISTINCT game_id FROM model_predictions)
-    ''', (date,))
+        AND (
+            -- Games with no predictions at all
+            g.id NOT IN (SELECT DISTINCT game_id FROM model_predictions)
+            -- OR games missing predictions from some models
+            OR g.id IN (
+                SELECT game_id FROM (
+                    SELECT g2.id as game_id, COUNT(DISTINCT mp.model_name) as model_count
+                    FROM games g2
+                    LEFT JOIN model_predictions mp ON g2.id = mp.game_id
+                    WHERE g2.date = ?
+                    GROUP BY g2.id
+                    HAVING model_count < ?
+                )
+            )
+        )
+    ''', (date, date, len(MODEL_NAMES)))
     
     games = cur.fetchall()
-    print(f"Found {len(games)} games to predict for {date}")
+    print(f"Found {len(games)} games needing predictions for {date}")
     
     # Initialize predictors for each model
     predictors = {name: Predictor(model=name) for name in MODEL_NAMES}
@@ -54,7 +68,13 @@ def predict_games(date=None):
     for game_id, home_id, away_id, home_name, away_name in games:
         print(f"\n{away_name} @ {home_name}:")
         
+        # Check which models already have predictions for this game
+        cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
+        existing_models = {row[0] for row in cur.fetchall()}
+        
         for model_name, predictor in predictors.items():
+            if model_name in existing_models:
+                continue
             try:
                 result = predictor.predict_game(home_name, away_name)
                 home_prob = result.get('home_win_probability', 0.5)
