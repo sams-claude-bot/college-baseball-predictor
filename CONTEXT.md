@@ -1,236 +1,210 @@
-# College Baseball Predictor - Context & Methodology
+# College Baseball Predictor — Project Context
 
-## Project Philosophy
+> **Read this first.** This is the single source of truth for understanding the project.
 
-**Accuracy over speed. Always.**
+## What This Is
 
-This project prioritizes getting predictions right over being first. We collect data methodically, verify against multiple sources, and accept that some information will be delayed or incomplete rather than risk corrupting our models with bad data.
+NCAA D1 college baseball prediction system with a web dashboard. Collects data, runs 13 models, tracks betting P&L, serves predictions at [baseball.mcdevitt.page](https://baseball.mcdevitt.page).
 
-## Prediction Architecture
+- **Season:** Feb 14 – June 22, 2026 (CWS in Omaha)
+- **Focus:** Mississippi State + Auburn (featured), all SEC, all Power 4, Top 25, full D1 scores
+- **Stack:** Python, SQLite, Flask, Playwright, OpenClaw cron jobs
+- **Dashboard:** `college-baseball-dashboard.service` on port 5000
 
-### Two Prediction Systems
+## Data Sources
 
-**1. Win Probability Ensemble (Moneylines)**
-Predicts which team will win using 8 weighted models + momentum adjustment.
+| Source | What | How | Priority |
+|--------|------|-----|----------|
+| **D1Baseball** | Scores, schedules, box scores, player stats, rankings, advanced stats | Playwright browser scrape | **PRIMARY for everything** |
+| **DraftKings** | Betting lines (ML, spreads, totals) | Playwright browser scrape | Primary for odds |
+| **ESPN** | Legacy schedule backbone (future games) | API | Being replaced by D1BB as its 7-day window advances |
+| **Open-Meteo** | Game weather forecasts | API | Primary for weather |
 
-**2. Runs Ensemble (Totals)**
-Predicts total runs scored for over/under betting analysis using 5 models.
+### ⚠️ Critical Rules
+- **D1Baseball is the source of truth** for scores, schedules, and stats
+- **DO NOT scrape team athletics sites for schedules** — causes duplicates
+- **ESPN future games** are kept as long-range calendar but get replaced when D1BB's sliding window reaches them (dedup logic in `d1bb_schedule.py`)
+- Team name mismatches between sources handled via `team_aliases` table
 
----
+## Database
 
-## Win Probability Models
+**Location:** `data/baseball.db` (SQLite, WAL mode, ~20MB)
 
-### Component Models (8 total)
+### Key Tables
+| Table | Rows | Purpose |
+|-------|------|---------|
+| `games` | ~2000 | All games (scheduled + completed) |
+| `teams` | 407 | D1 teams with conference, rank |
+| `team_aliases` | 700 | Cross-source team name mapping (DK, ESPN, D1BB) |
+| `player_stats` | 10k+ | Per-player batting/pitching stats with advanced metrics |
+| `model_predictions` | 2000+ | Pre-game predictions from all models, evaluated post-game |
+| `elo_ratings` | 315 | Current Elo rating per team |
+| `betting_lines` | varies | DraftKings odds per game |
+| `tracked_bets` | varies | ML bet tracking with P&L |
+| `tracked_bets_spreads` | varies | Spread/total bet tracking |
+| `tracked_confident_bets` | varies | High-consensus bet tracking (v2) |
+| `game_weather` | 400+ | Weather forecasts for upcoming games |
+| `power_rankings` | 382 | Weekly model-generated power rankings |
+| `rankings_history` | 50 | D1Baseball Top 25 poll history |
 
-| Model | Weight | Approach |
-|-------|--------|----------|
-| **Advanced** | 20% | Opponent-adjusted stats, recency-weighted, strength of schedule |
-| **Poisson** | 18% | Run distribution modeling, Poisson PMF for scoring probabilities |
-| **Pitching** | 15% | ERA, WHIP, strikeout rates, bullpen depth analysis |
-| **Elo** | 12% | Chess-style ratings that update after each game based on margin + opponent |
-| **Prior** | 12% | Preseason rankings + historical program strength (Bayesian prior) |
-| **Log5** | 8% | Bill James head-to-head formula using win percentages |
-| **Conference** | 8% | Conference strength adjustments (SEC/ACC/Big 12 vs mid-majors) |
-| **Pythagorean** | 7% | Bill James runs scored/allowed expectation |
+### Game ID Format
+`YYYY-MM-DD_away-team_home-team` (e.g. `2026-02-17_cincinnati_auburn`)
+Doubleheaders: `_g1`, `_g2` suffixes.
 
-### Momentum Adjustment
-Applied as a post-ensemble modifier (not a weighted component):
-- Tracks last 5-7 games with exponential recency weighting
-- Calculates win streak, weighted run differential, recent win%
-- Outputs score from -1.0 to +1.0
-- Adjusts final probability by up to ±5%
+## Models (13 total)
 
-### Why These Weights?
-- **Early season** (Feb-Mar): Prior and Elo weighted higher due to limited game data
-- **Mid-season** (Apr-May): Advanced and Pitching become more reliable
-- **Weights adjust automatically** based on rolling accuracy
+### Win Probability Models (10)
+| Model | What It Does |
+|-------|-------------|
+| `neural` | PyTorch NN, 88% accuracy — **best model** |
+| `ensemble` | Weighted blend of all component models |
+| `prior` | Preseason rankings + program history (Bayesian) |
+| `elo` | Chess-style ratings updated per game |
+| `advanced` | Opponent-adjusted stats, recency-weighted |
+| `conference` | Conference strength adjustments |
+| `log5` | Bill James head-to-head formula |
+| `poisson` | Run distribution modeling |
+| `pythagorean` | Runs scored/allowed expectation |
+| `pitching` | ERA, WHIP, K rates, bullpen depth |
+| `momentum` | Post-ensemble modifier (±5% based on last 5-7 games) |
 
----
+**Ensemble blend:** Neural 60% / Traditional Ensemble 40% (early season weighting)
 
-## Runs Ensemble (Totals Model)
+### Run Projection Models (3+)
+| Model | Purpose |
+|-------|---------|
+| `nn_totals` | Neural net for over/under |
+| `nn_spread` | Neural net for run line spreads |
+| `nn_dow_totals` | Day-of-week adjusted totals |
+| `runs_ensemble` | Weighted blend of runs models |
 
-### Component Models (5 total)
+### Weather Model
+Adjusts run projections based on temperature, wind, humidity. Coefficients in `data/weather_coefficients.json`.
 
-| Model | Weight | Why |
-|-------|--------|-----|
-| **Poisson** | 30% | Best for run distributions; models exact scoring probabilities |
-| **Advanced** | 25% | Good overall projections with opponent adjustments |
-| **Elo** | 20% | Solid baseline run expectations |
-| **Pythagorean** | 15% | Classic approach using historical RS/RA |
-| **Pitching** | 10% | Useful but tends to inflate totals; down-weighted |
+## Betting System
 
-### How It Works
-1. Each model projects home/away runs independently
-2. Weighted average produces ensemble projection
-3. Poisson distribution calculates O/U probabilities for any line
-4. 90% confidence interval shows projection uncertainty
-5. Model agreement score (0-1) indicates consensus
+### v2 Selection Logic (`bet_selection_v2.py`)
+- Prioritizes **consensus bets** (7+/10 models agree)
+- **Spreads disabled** (0/5 historical, model not calibrated)
+- Higher edge thresholds: 8% favorites, 15% underdogs
+- Max 3 bets/day, Kelly-adjusted sizing
+- Flat $100 per bet for tracking
 
-### Edge Calculation
-```
-edge = |model_total - line| × 8%
-```
-~8% edge per run of difference. Capped at 50%.
+### P&L Tables
+- `tracked_bets` — Moneyline bets
+- `tracked_bets_spreads` — Spread and total bets
+- `tracked_confident_bets` — High-consensus bets (v2, started Feb 17)
 
----
+### P&L starts Feb 16, 2026 (Sam's directive — no Feb 15 data)
 
-## Data Collection Strategy
+## Cron Schedule (OpenClaw)
 
-### Sources (Priority Order)
-1. **ESPN** — Game scores, box scores, player stats
-2. **DraftKings** — Betting lines (moneylines, run lines, totals)
-3. **D1Baseball** — Top 25 rankings
-4. **Team Athletics Sites** — Cumulative stats (SIDEARM Sports format)
-5. **Conference Portals** — Backup verification
-
-### Collection Schedule
-| Time | Job | Data |
+| Time | Job | What |
 |------|-----|------|
-| 8 AM | DraftKings | Today's betting lines + totals predictions |
-| 2 AM | ESPN | Final scores, box scores, prediction evaluation |
-| Mon 10 PM | D1Baseball | Updated Top 25 rankings |
-| Sun/Thu | Team Sites | Power 4 player stats (67 teams) |
+| Every 15 min, 12-11 PM | Score Updates | `d1bb_schedule.py --today` |
+| 1 AM daily | Nightly D1 Stats + Schedule | D1BB schedule (7 days) + player stats (all D1) |
+| 2 AM daily | Nightly Scores + Pipeline | D1BB box scores → evaluate bets → update Elo → predictions |
+| 8 AM daily | DraftKings Odds + Weather | Browser scrape odds, fetch weather |
+| 9 AM daily | Record Best Bets | `bet_selection_v2.py record` |
+| Mon 12 PM | Power Rankings | `power_rankings.py --top 25 --store` |
+| Mon 10 PM | D1Baseball Rankings | Browser scrape Top 25 poll |
+| Sun 9:30 PM | NN Fine-Tuning | `finetune_weekly.py` (2-week delayed training) |
+| Sun 10 PM | Weekly Accuracy Report | Full model comparison + P&L summary |
 
-### Browser Automation
-- **Playwright** with `openclaw` profile for automated scraping
-- **SIDEARM Sports** format consistent across most P4 schools
-- 15-second delays between teams to avoid rate limiting
-- Progress tracking for resume capability
+## Key Scripts
 
----
-
-## Betting Analysis Approach
-
-### Value Detection
-We compare model probabilities to DraftKings implied odds:
-
+### Daily Operations
+```bash
+python3 scripts/d1bb_schedule.py --today              # Live score updates
+python3 scripts/d1bb_schedule.py --days 7              # Schedule sync (next 7 days)
+python3 scripts/d1bb_box_scores.py --date YYYY-MM-DD   # Box scores + game creation
+python3 scripts/d1bb_scraper.py --all-d1 --delay 2     # All D1 player stats
+python3 scripts/record_daily_bets.py evaluate           # Grade completed bets
+python3 scripts/update_elo.py --date YYYY-MM-DD         # Elo ratings
+python3 scripts/aggregate_team_stats.py                 # Team aggregates
+python3 scripts/weather.py fetch --upcoming             # Weather for next 3 days
+PYTHONPATH=. python3 scripts/predict_and_track.py predict   # Generate predictions
+PYTHONPATH=. python3 scripts/predict_and_track.py accuracy  # Model accuracy report
+python3 scripts/bet_selection_v2.py record              # Record today's best bets
+python3 scripts/backup_db.py                            # Database backup
 ```
-DK implied prob = remove vig from moneyline
-Model prob = ensemble prediction
-Edge = (model_prob - dk_implied) × 100
+
+### Weekly
+```bash
+python3 scripts/power_rankings.py --top 25 --store     # Power rankings
+python3 scripts/finetune_weekly.py                      # NN fine-tuning
+PYTHONPATH=. python3 scripts/rankings.py update         # D1BB rankings
+python3 scripts/d1bb_advanced_scraper.py --conference SEC  # Advanced stats (wOBA, FIP, etc.)
 ```
-
-### Best Bets Criteria
-- **Moneylines**: 5%+ edge
-- **Totals**: 15%+ edge
-
-### EV Calculation
-```
-EV = (win_prob × payout) - (lose_prob × stake)
-```
-Displayed as "EV per $100 wagered"
-
----
-
-## Accuracy Tracking
-
-### Moneyline Predictions
-- Stored in `model_predictions` table
-- Each model's prediction recorded pre-game
-- Evaluated against actual winner post-game
-- Broken down by: model, confidence level, home/away
-
-### Totals Predictions
-- Stored in `totals_predictions` table
-- Tracked by: prediction type (OVER/UNDER), edge bucket
-- Edge buckets: 30%+, 20-30%, 10-20%, <10%
-
-### Current Performance (Feb 15, 2026)
-- **Elo/Prior**: 88.2% (leading)
-- **Ensemble**: 82.4%
-- **Poisson**: 81.3%
-- Sample size still small (17 games)
-
----
-
-## Key Design Decisions
-
-### 1. Ensemble Over Single Model
-No single model captures everything. Pythagorean is elegant but ignores pitching matchups. Elo is robust but slow to adjust. The ensemble leverages each model's strengths.
-
-### 2. Momentum as Adjustment, Not Component
-Momentum is applied *after* the ensemble combines predictions. This prevents it from being washed out by other models while still having meaningful impact on hot/cold teams.
-
-### 3. Separate Runs Ensemble
-Win probability and run totals require different approaches. A team can be favored to win while the total goes under. The runs ensemble is purpose-built for totals analysis.
-
-### 4. Conservative Pitching Weight for Totals
-The pitching model tends to inflate run projections (predicting higher scores than actually occur). Down-weighted to 10% in the runs ensemble.
-
-### 5. Bayesian Prior for Early Season
-With limited game data in Feb/Mar, the Prior model (using preseason rankings and historical program strength) provides stability. Its influence fades as the season progresses.
-
----
 
 ## Web Dashboard
 
-**URL:** http://192.168.1.101:5000
+**Pages:** Dashboard, Teams, Predict, Rankings, Standings, Betting, Scores, Game Detail, Tracker, Models
 
-### Pages
-- **Dashboard** — Today's games, Top 25, quick stats
-- **Teams** — All teams with records, Elo, conference
-- **Predict** — Manual matchup predictor
-- **Rankings** — Top 25 with historical tracking
-- **Betting** — DK lines vs model, Best Bets, Best Totals
-- **Calendar** — Historical games by date with model accuracy
-- **Models** — Ensemble weights, accuracy tracking, totals performance
+### Dashboard (`/`)
+MSU + Auburn cards, today's best bets, recent results with model accuracy
 
-### Features
-- Conference filtering on all pages
-- Model prediction badges (✓/✗) on game results
-- Real-time EV calculations
-- Over/under probability percentages
+### Scores (`/scores`)
+Defaults to most recent date with scores. Date picker, conference filter, model prediction badges per game.
 
----
+### Betting (`/betting`)
+Best Bets (consensus), Highest EV, Best Totals. v2 badge shows selection logic version.
 
-## Future Improvements
+### API Endpoints
+- `/api/best-bets` — JSON best bets for today
+- Game detail pages show full model breakdown per matchup
 
-### Planned
-- Weather integration for totals (wind, temperature)
-- Bullpen fatigue tracking (game-by-game usage)
-- Regression detection (hot starts that normalize)
-- Public hosting via Cloudflare Tunnel
+## Dedup Logic
 
-### Under Consideration
-- Live game probability updates
-- Pitcher-specific models (vs L/R splits)
-- Conference tournament simulations
-- CWS bracket projections
+ESPN-sourced games coexist with D1BB games. When D1BB's 7-day schedule window reaches an ESPN game:
 
----
+1. `d1bb_schedule.py` generates D1BB game ID
+2. Checks exact ID match → update if found
+3. If no match, fuzzy-searches by `date + home_team_id + away_team_id` (using `team_aliases` for cross-source name resolution + home/away swap detection)
+4. If ESPN ghost found → migrates FK data (predictions, bets, weather) → replaces game
+
+**To add a new team name mapping:** Insert into `team_aliases` table. No code change needed.
 
 ## File Structure
-
 ```
 college-baseball-predictor/
 ├── data/
-│   ├── baseball.db          # SQLite database
-│   ├── p4_team_urls.json    # 67 P4 team stats URLs
-│   └── snapshots/           # Historical data snapshots
-├── models/
-│   ├── ensemble_model.py    # Main win probability ensemble
-│   ├── runs_ensemble.py     # Totals prediction ensemble
-│   ├── poisson_model.py     # Run distribution model
-│   ├── momentum_model.py    # Hot/cold team tracking
-│   ├── advanced_model.py    # Opponent-adjusted stats
-│   ├── elo_model.py         # Rating system
-│   ├── pitching_model.py    # Pitching matchup analysis
-│   └── [others...]
-├── scripts/
-│   ├── predict_and_track.py # ML prediction recording
-│   ├── track_totals.py      # Totals prediction tracking
-│   ├── betting_lines.py     # DraftKings line management
-│   ├── p4_stats_scraper.py  # Player stats collection
-│   └── [others...]
+│   ├── baseball.db              # Main database
+│   ├── backups/                 # DB backups
+│   ├── p4_team_urls.json        # P4 team stats URLs
+│   ├── d1_team_urls.json        # Extended D1 stats URLs
+│   ├── weather_coefficients.json
+│   └── *.json                   # Various config/progress files
+├── config/
+│   ├── d1bb_slugs.json          # D1BB team slug mapping
+│   ├── espn_team_ids.json       # ESPN team ID mapping
+│   └── team_sites.json          # Athletics site configs
+├── models/                      # Prediction models (24 .py files)
+│   ├── neural_model.py          # Best performer (88%)
+│   ├── ensemble_model.py        # Win probability ensemble
+│   ├── runs_ensemble.py         # Totals ensemble
+│   └── nn_features.py           # Shared NN feature engineering
+├── scripts/                     # Data collection & operations (90+ .py files)
+│   ├── d1bb_schedule.py         # D1BB score/schedule sync (with dedup)
+│   ├── d1bb_box_scores.py       # D1BB box score scraper
+│   ├── d1bb_scraper.py          # D1BB player stats scraper
+│   ├── d1bb_advanced_scraper.py # D1BB advanced stats (wOBA, FIP)
+│   ├── bet_selection_v2.py      # Current bet selection logic
+│   ├── predict_and_track.py     # Prediction generation + evaluation
+│   ├── team_resolver.py         # Team name normalization
+│   └── weather.py               # Open-Meteo weather fetcher
 ├── web/
-│   ├── app.py               # Flask application
-│   └── templates/           # Jinja2 templates
-├── docs/
-│   └── P4_STATS_COLLECTION.md
-├── CONTEXT.md               # This file
+│   ├── app.py                   # Flask app (~2000 lines)
+│   └── templates/               # 16 Jinja2 templates
+├── weights/                     # Trained NN weight files
+├── CONTEXT.md                   # This file
 └── README.md
 ```
 
----
+## Git
+- **Repo:** github.com/sams-claude-bot/college-baseball-predictor
+- **Commit as:** sams-claude-bot / sams-claude-bot@users.noreply.github.com
+- **DO NOT reset/re-backfill Elo** — let it update naturally (Sam's directive)
 
-*Last updated: February 15, 2026*
+---
+*Last updated: February 17, 2026*
