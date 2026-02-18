@@ -710,7 +710,9 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
                 print(f"  ⚠️  Insufficient validation data, skipping")
                 continue
             
-            print(f"  Train: {len(X_train_combined)} ({len(X_hist or [])} hist + {len(X_2026_train or [])} 2026)")
+            n_hist = len(X_hist) if X_hist is not None else 0
+            n_2026 = len(X_2026_train) if X_2026_train is not None else 0
+            print(f"  Train: {len(X_train_combined)} ({n_hist} hist + {n_2026} 2026)")
             print(f"  Val: {len(X_2026_val)} (2026 only)")
             print(f"  Features: {X_train_combined.shape[1]}")
             

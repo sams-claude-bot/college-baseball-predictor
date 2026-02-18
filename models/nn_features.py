@@ -730,6 +730,16 @@ class HistoricalFeatureComputer:
             features.extend([100.0, 0.320, 0.140, 0.300, 20.0, 8.5, 43.0, 36.0, 21.0])
             # Advanced pitching defaults
             features.extend([4.00, 4.00, 4.00, 43.0, 36.0])
+            # Staff quality defaults (no pitcher-level data in historical)
+            features.extend([
+                4.50, 1.35, 7.5, 4.50,   # ace: era, whip, k9, fip
+                4.50, 1.35, 7.5, 4.50,   # rotation: era, whip, k9, fip
+                4.50, 1.35, 7.5,          # bullpen: era, whip, k9
+                0.5,                       # staff_depth (normalized)
+                0.25,                      # ace_ip_pct
+                0.15,                      # innings_hhi
+                0.2,                       # quality_arms_pct
+            ])
 
         # Game-level
         features.append(1.0 if neutral else 0.0)
