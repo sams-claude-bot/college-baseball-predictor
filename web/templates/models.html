@@ -541,18 +541,6 @@
 {% endif %}
 
 <!-- Prediction Log -->
-<!-- Rolling Accuracy Chart -->
-{% if rolling_data %}
-<div class="card mt-4">
-    <div class="card-header bg-maroon">
-        <i class="bi bi-graph-up"></i> Rolling Accuracy Over Time (30-game window)
-    </div>
-    <div class="card-body">
-        <canvas id="rollingAccuracyChart" height="300"></canvas>
-    </div>
-</div>
-{% endif %}
-
 {% if prediction_log %}
 <div class="card mt-4">
     <div class="card-header">
@@ -612,59 +600,6 @@
 
 {% block extra_js %}
 <script>
-// Rolling accuracy chart
-{% if rolling_data %}
-(function() {
-    const rollingData = {{ rolling_data|tojson }};
-    const chartColors = {
-        'ensemble': '#5D1725', 'neural': '#2563eb', 'elo': '#E74C3C',
-        'pythagorean': '#F39C12', 'log5': '#27AE60', 'advanced': '#9B59B6',
-        'pitching': '#1ABC9C', 'conference': '#E67E22', 'prior': '#3498DB',
-        'poisson': '#95A5A6', 'xgboost': '#16A085', 'lightgbm': '#8E44AD'
-    };
-    
-    const datasets = [];
-    for (const [model, points] of Object.entries(rollingData)) {
-        if (points.length < 1) continue;  // Show any model with data
-        datasets.push({
-            label: model,
-            data: points.map(p => ({x: p.date, y: p.accuracy})),
-            borderColor: chartColors[model] || '#777',
-            backgroundColor: 'transparent',
-            borderWidth: model === 'ensemble' || model === 'neural' ? 3 : 1.5,
-            pointRadius: 0,
-            tension: 0.3
-        });
-    }
-    
-    const rCtx = document.getElementById('rollingAccuracyChart');
-    if (rCtx) {
-        new Chart(rCtx, {
-            type: 'line',
-            data: { datasets: datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: {
-                        callbacks: {
-                            label: function(ctx) {
-                                return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: { type: 'category', ticks: { maxTicksToShow: 10 } },
-                    y: { min: 30, max: 90, ticks: { callback: v => v + '%' } }
-                }
-            }
-        });
-    }
-})();
-{% endif %}
-
 // Weights pie chart
 const ctx = document.getElementById('weightsChart').getContext('2d');
 
