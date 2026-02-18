@@ -143,18 +143,21 @@ class EnsembleModel(BaseModel):
         
         # Neural model excluded from ensemble for now — tracking independently
         
-        # Default weights (sum to 1.0, will be normalized if gradient boosting added)
+        # Default weights based on 2026 accuracy (updated 2026-02-17)
+        # prior: 85.9%, elo: 84.9%, conference: 83.3%, advanced: 83.1%
+        # log5: 82.1%, poisson: 78.2%, pythagorean: 78.2%, pitching: 69.2%
+        # XGBoost/LightGBM: ~63-72% on holdout tests
         self.default_weights = {
-            "pythagorean": 0.07,
-            "elo": 0.12,
-            "log5": 0.08,
-            "advanced": 0.18,
-            "pitching": 0.13,
-            "conference": 0.07,
-            "prior": 0.10,
-            "poisson": 0.15,
-            "xgboost": 0.05,   # Start low, will adjust with accuracy
-            "lightgbm": 0.05,  # Start low, will adjust with accuracy
+            "prior": 0.16,        # 85.9% - top performer
+            "elo": 0.15,          # 84.9% - very strong
+            "conference": 0.12,   # 83.3%
+            "advanced": 0.12,     # 83.1%
+            "log5": 0.10,         # 82.1%
+            "poisson": 0.08,      # 78.2%
+            "pythagorean": 0.08,  # 78.2%
+            "pitching": 0.05,     # 69.2% - weakest traditional model
+            "lightgbm": 0.08,     # 63-72% but good on totals
+            "xgboost": 0.06,      # Slightly behind LightGBM
         }
         
         # Momentum adjustment settings
