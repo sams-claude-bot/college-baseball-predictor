@@ -27,6 +27,24 @@ DEFAULT_ELO = 1500
 ELO_K = 32
 ELO_HOME_ADV = 50
 
+# Weather defaults (when data is missing)
+DEFAULT_WEATHER = {
+    'temp_f': 65.0,
+    'humidity_pct': 55.0,
+    'wind_speed_mph': 6.0,
+    'wind_direction_deg': 180,
+    'precip_prob_pct': 5.0,
+    'is_dome': 0,
+}
+
+# Normalization constants for weather (mean, std)
+WEATHER_NORM = {
+    'temp_f': (65.0, 15.0),
+    'humidity_pct': (55.0, 20.0),
+    'wind_speed_mph': (7.0, 5.0),
+    'precip_prob_pct': (10.0, 15.0),
+}
+
 
 class FeatureComputer:
     """Computes features for a single game given team IDs and date."""
@@ -124,6 +142,16 @@ class FeatureComputer:
             'is_neutral_site',
             'is_conference_game',
         ])
+        # Weather features
+        names.extend([
+            'weather_temp_norm',
+            'weather_humidity_norm',
+            'weather_wind_speed_norm',
+            'weather_wind_dir_sin',
+            'weather_wind_dir_cos',
+            'weather_precip_prob_norm',
+            'weather_is_dome',
+        ])
         # Meta features
         if self.use_model_predictions:
             names.extend([
@@ -140,7 +168,8 @@ class FeatureComputer:
         return len(self.get_feature_names())
 
     def compute_features(self, home_team_id, away_team_id, game_date=None,
-                         neutral_site=False, is_conference=False):
+                         neutral_site=False, is_conference=False, game_id=None,
+                         weather_data=None):
         """
         Compute feature vector for a game.
 
@@ -150,6 +179,8 @@ class FeatureComputer:
             game_date: Date string (YYYY-MM-DD) or datetime. If None, uses today.
             neutral_site: Whether game is at neutral site
             is_conference: Whether it's a conference game
+            game_id: Optional game ID to lookup weather data
+            weather_data: Optional dict with weather (overrides lookup)
 
         Returns:
             numpy array of features
@@ -174,6 +205,9 @@ class FeatureComputer:
         # Game-level situational
         features.append(1.0 if neutral_site else 0.0)
         features.append(1.0 if is_conference else 0.0)
+
+        # Weather features
+        features.extend(self._weather_features(conn, game_id, weather_data))
 
         # Meta features from other models
         if self.use_model_predictions:
@@ -435,6 +469,55 @@ class FeatureComputer:
                 probs.append(0.5)
         return probs
 
+    def _weather_features(self, conn, game_id=None, weather_data=None):
+        """
+        Compute normalized weather features for a game.
+
+        Returns 7 features: temp, humidity, wind_speed, wind_dir_sin, 
+                           wind_dir_cos, precip_prob, is_dome
+        """
+        w = dict(DEFAULT_WEATHER)
+
+        if weather_data:
+            w.update({k: v for k, v in weather_data.items() if v is not None})
+        elif game_id:
+            c = conn.cursor()
+            c.execute("""
+                SELECT temp_f, humidity_pct, wind_speed_mph, wind_direction_deg,
+                       precip_prob_pct, is_dome
+                FROM game_weather WHERE game_id = ?
+            """, (game_id,))
+            row = c.fetchone()
+            if row:
+                if row['temp_f'] is not None:
+                    w['temp_f'] = row['temp_f']
+                if row['humidity_pct'] is not None:
+                    w['humidity_pct'] = row['humidity_pct']
+                if row['wind_speed_mph'] is not None:
+                    w['wind_speed_mph'] = row['wind_speed_mph']
+                if row['wind_direction_deg'] is not None:
+                    w['wind_direction_deg'] = row['wind_direction_deg']
+                if row['precip_prob_pct'] is not None:
+                    w['precip_prob_pct'] = row['precip_prob_pct']
+                if row['is_dome'] is not None:
+                    w['is_dome'] = row['is_dome']
+
+        # Normalize
+        temp_norm = (w['temp_f'] - WEATHER_NORM['temp_f'][0]) / WEATHER_NORM['temp_f'][1]
+        humidity_norm = (w['humidity_pct'] - WEATHER_NORM['humidity_pct'][0]) / WEATHER_NORM['humidity_pct'][1]
+        wind_speed_norm = (w['wind_speed_mph'] - WEATHER_NORM['wind_speed_mph'][0]) / WEATHER_NORM['wind_speed_mph'][1]
+        precip_norm = (w['precip_prob_pct'] - WEATHER_NORM['precip_prob_pct'][0]) / WEATHER_NORM['precip_prob_pct'][1]
+
+        # Circular encoding for wind direction
+        wind_dir_rad = math.radians(w['wind_direction_deg'])
+        wind_dir_sin = math.sin(wind_dir_rad)
+        wind_dir_cos = math.cos(wind_dir_rad)
+
+        is_dome = 1.0 if w['is_dome'] else 0.0
+
+        return [temp_norm, humidity_norm, wind_speed_norm,
+                wind_dir_sin, wind_dir_cos, precip_norm, is_dome]
+
     # ---- Helpers ----
 
     def _get_team_games(self, conn, team_id, before_date):
@@ -491,13 +574,14 @@ class HistoricalFeatureComputer:
             'opponents': [],
         })
 
-    def compute_game_features(self, game_row):
+    def compute_game_features(self, game_row, weather_row=None):
         """
         Compute features for a historical game BEFORE updating state.
 
         Args:
             game_row: dict with keys: home_team, away_team, home_score,
                       away_score, date, neutral_site, season
+            weather_row: optional dict with weather data from historical_game_weather
 
         Returns:
             (features_array, label) where label is 1.0 if home won, 0.0 otherwise
@@ -558,7 +642,7 @@ class HistoricalFeatureComputer:
                     days_rest = 2.0
             else:
                 days_rest = 3.0
-            features.append(float(days_rest))
+            features.append(float(min(days_rest, 14)))  # Cap at 14
 
             # SOS: avg opponent elo
             if s['opponents']:
@@ -576,12 +660,37 @@ class HistoricalFeatureComputer:
         features.append(1.0 if neutral else 0.0)
         features.append(0.0)  # conference flag unknown in historical data
 
-        # No meta features for historical
-        # (those would be added by live FeatureComputer only)
+        # Weather features (7 features)
+        features.extend(self._compute_weather_features(weather_row))
 
         label = 1.0 if game_row['home_score'] > game_row['away_score'] else 0.0
 
         return np.array(features, dtype=np.float32), label
+
+    def _compute_weather_features(self, weather_row):
+        """Compute normalized weather features (7 features)."""
+        w = dict(DEFAULT_WEATHER)
+
+        if weather_row:
+            for key in ['temp_f', 'humidity_pct', 'wind_speed_mph', 
+                        'wind_direction_deg', 'precip_prob_pct', 'is_dome']:
+                if weather_row.get(key) is not None:
+                    w[key] = weather_row[key]
+
+        # Normalize
+        temp_norm = (w['temp_f'] - WEATHER_NORM['temp_f'][0]) / WEATHER_NORM['temp_f'][1]
+        humidity_norm = (w['humidity_pct'] - WEATHER_NORM['humidity_pct'][0]) / WEATHER_NORM['humidity_pct'][1]
+        wind_speed_norm = (w['wind_speed_mph'] - WEATHER_NORM['wind_speed_mph'][0]) / WEATHER_NORM['wind_speed_mph'][1]
+        precip_norm = (w['precip_prob_pct'] - WEATHER_NORM['precip_prob_pct'][0]) / WEATHER_NORM['precip_prob_pct'][1]
+
+        wind_dir_rad = math.radians(w['wind_direction_deg'])
+        wind_dir_sin = math.sin(wind_dir_rad)
+        wind_dir_cos = math.cos(wind_dir_rad)
+
+        is_dome = 1.0 if w['is_dome'] else 0.0
+
+        return [temp_norm, humidity_norm, wind_speed_norm,
+                wind_dir_sin, wind_dir_cos, precip_norm, is_dome]
 
     def update_state(self, game_row):
         """Update rolling state AFTER computing features for this game."""

@@ -5,6 +5,14 @@ Neural Network Prediction Model
 PyTorch-based model that combines team stats, Elo ratings, and predictions
 from other models to predict game outcomes. Implements BaseModel interface
 for ensemble integration.
+
+TRAINING DATA: Current season games only (when trained)
+RATIONALE: Win probability depends heavily on current team strength and
+roster composition. This is a moneyline model that should be trained on
+current season data only.
+
+NOTE: This model is currently excluded from the ensemble and tracked
+independently. See ensemble_model.py for details.
 """
 
 import sys

@@ -7,6 +7,11 @@ patterns in college baseball scoring (Friday aces vs Sunday bullpen days).
 
 Architecture: Learned 4-dim DoW embedding concatenated with standard features,
 fed through the same architecture as the regular totals NN.
+
+TRAINING DATA: Historical games (2024-2025, ~6,000+ games)
+RATIONALE: Day-of-week patterns (Friday ace, Saturday #2, Sunday bullpen)
+are consistent across seasons. Large historical dataset needed to learn
+robust day-of-week embeddings.
 """
 
 import sys
@@ -89,6 +94,7 @@ class NNDoWTotalsModel(BaseModel):
             use_model_predictions=use_model_predictions
         )
         self.base_input_size = self.feature_computer.get_num_features()
+        self.input_size = self.base_input_size  # Alias for compatibility
         self.model = DoWTotalsNet(self.base_input_size)
         self.model.eval()
         self._loaded = False
@@ -106,6 +112,7 @@ class NNDoWTotalsModel(BaseModel):
                     dow_embed_dim = checkpoint.get('dow_embed_dim', 4)
                     if saved_size != self.base_input_size:
                         self.base_input_size = saved_size
+                        self.input_size = saved_size
                     self.model = DoWTotalsNet(saved_size, dow_embed_dim)
                     self.model.eval()
                     self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -171,15 +178,20 @@ class NNDoWTotalsModel(BaseModel):
             home_team_id, away_team_id, neutral_site=neutral_site
         )
 
+        # Handle NaN/inf
+        import numpy as np
+        features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
+
         # Truncate or pad features to match model's expected input size
         if len(features) > self.input_size:
             features = features[:self.input_size]
         elif len(features) < self.input_size:
-            import numpy as np
             features = np.pad(features, (0, self.input_size - len(features)))
 
         if self._feature_mean is not None and self._feature_std is not None:
             features = (features - self._feature_mean) / (self._feature_std + 1e-8)
+            # Clip to prevent extreme predictions from distribution mismatch
+            features = np.clip(features, -4.0, 4.0)
 
         with torch.no_grad():
             x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)

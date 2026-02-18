@@ -5,6 +5,11 @@ Neural Network Run Totals Model
 Predicts total runs scored in a game for over/under betting.
 Uses same feature pipeline as win probability NN.
 Outputs projected total + over/under probability given a line.
+
+TRAINING DATA: Historical games (2024-2025, ~6,000+ games)
+RATIONALE: Run totals depend on stable factors like weather, day-of-week
+patterns, and general offensive/defensive tendencies that transfer well
+across seasons. Large historical dataset provides better generalization.
 """
 
 import sys
@@ -144,15 +149,20 @@ class NNTotalsModel(BaseModel):
             home_team_id, away_team_id, neutral_site=neutral_site
         )
 
+        # Handle NaN/inf
+        import numpy as np
+        features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
+
         # Truncate or pad features to match model's expected input size
         if len(features) > self.input_size:
             features = features[:self.input_size]
         elif len(features) < self.input_size:
-            import numpy as np
             features = np.pad(features, (0, self.input_size - len(features)))
 
         if self._feature_mean is not None and self._feature_std is not None:
             features = (features - self._feature_mean) / (self._feature_std + 1e-8)
+            # Clip to prevent extreme predictions from distribution mismatch
+            features = np.clip(features, -4.0, 4.0)
 
         with torch.no_grad():
             x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)

@@ -5,6 +5,12 @@ Neural Network Spread Model
 Predicts margin of victory (home_score - away_score) for run line betting.
 Uses same feature pipeline as win probability NN.
 Outputs projected margin + probability of covering -1.5.
+
+TRAINING DATA: Current season games only (2026, ~300-400+ games)
+RATIONALE: Win margins depend heavily on current team strength, roster
+composition, and season-specific performance. Historical data from
+different teams/rosters would introduce noise. This model improves
+as the current season progresses and more games are played.
 """
 
 import sys
@@ -138,15 +144,20 @@ class NNSpreadModel(BaseModel):
             home_team_id, away_team_id, neutral_site=neutral_site
         )
 
+        # Handle NaN/inf
+        import numpy as np
+        features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
+
         # Truncate or pad features to match model's expected input size
         if len(features) > self.input_size:
             features = features[:self.input_size]
         elif len(features) < self.input_size:
-            import numpy as np
             features = np.pad(features, (0, self.input_size - len(features)))
 
         if self._feature_mean is not None and self._feature_std is not None:
             features = (features - self._feature_mean) / (self._feature_std + 1e-8)
+            # Clip to prevent extreme predictions from distribution mismatch
+            features = np.clip(features, -4.0, 4.0)
 
         with torch.no_grad():
             x = torch.tensor(features, dtype=torch.float32).unsqueeze(0)
