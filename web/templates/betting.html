@@ -24,7 +24,7 @@
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-3 align-items-center">
             <strong class="me-2"><i class="bi bi-info-circle"></i> Model Signals:</strong>
-            <span><span class="badge bg-primary">X/10</span> Number of models agreeing on pick</span>
+            <span><span class="badge bg-primary">X/{{ game.model_agreement.total if game.model_agreement else 12 }}</span> Number of models agreeing on pick</span>
             <span><span class="badge bg-success">AGREE</span> Both NN &amp; Ensemble agree with &gt;60% confidence</span>
             <span><span class="badge bg-danger">SPLIT</span> Models disagree on the winner</span>
         </div>
@@ -36,7 +36,7 @@
     <div class="card-header bg-maroon">
         <div class="d-flex justify-content-between align-items-center">
             <span><i class="bi bi-people-fill"></i> Best Bets — Model Consensus</span>
-            <small class="text-white-50">7/10+ models agree | +1% bonus per model above 5</small>
+            <small class="text-white-50">7/12+ models agree | +1% bonus per model above 5</small>
         </div>
     </div>
     <div class="card-body">
@@ -99,7 +99,7 @@
                                 <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
                                 {% endif %}
                                 {% if game.models_agree and game.models_agree >= 7 %}
-                                <span class="badge bg-primary">{{ game.models_agree }}/10</span>
+                                <span class="badge bg-primary">{{ game.models_agree }}/{{ game.model_agreement.total if game.model_agreement else 12 }}</span>
                                 {% endif %}
                                 {% if game.is_underdog %}
                                 <span class="badge bg-warning text-dark" title="50% edge discount applied">🐕</span>
