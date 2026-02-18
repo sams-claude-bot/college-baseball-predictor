@@ -1676,9 +1676,12 @@ def betting():
     confident_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     confident_bets = confident_candidates[:6]
     
-    # EV bets with v2 thresholds
+    # EV bets with v2 thresholds (exclude games already in consensus picks)
+    confident_ids = {g['game_id'] for g in confident_bets}
     ev_bets = []
     for g in games_with_edge:
+        if g['game_id'] in confident_ids:
+            continue
         ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
         if ml is None:
             continue
