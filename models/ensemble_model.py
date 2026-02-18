@@ -102,7 +102,7 @@ class EnsembleModel(BaseModel):
     ROLLING_WINDOW = 100
     
     # How quickly weights adjust (0-1, lower = slower adjustment)
-    ADJUSTMENT_RATE = 0.4
+    ADJUSTMENT_RATE = 1.0  # Jump directly to accuracy-based target weights
     
     # Models that should decay as season data accumulates
     PRESEASON_MODELS = {"prior", "conference"}
@@ -287,8 +287,9 @@ class EnsembleModel(BaseModel):
             acc = max(recent_accuracy[name], 0.3)
             score = acc ** 3
             
-            # Apply preseason decay to prior/conference models
-            if name in self.PRESEASON_MODELS:
+            # Preseason decay: only apply if models have insufficient real accuracy data
+            # Once we have 50+ evaluated predictions, trust the accuracy numbers
+            if name in self.PRESEASON_MODELS and model_scores[name]['count'] < 50:
                 score *= decay_factor
                 score = max(score, self.MIN_WEIGHT)
             

@@ -27,7 +27,37 @@ OPENCLAW_USER_DATA = Path.home() / '.openclaw' / 'browser' / 'openclaw' / 'user-
 
 # Import the update function from the existing script
 sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
-from d1baseball_advanced import update_team_advanced, get_db, resolve_team_id
+try:
+    from archive.d1baseball_advanced import update_team_advanced, get_db, resolve_team_id
+except ImportError:
+    # Fallback: define locally if archive module unavailable
+    from database import get_connection
+    from team_resolver import resolve_team
+    def get_db():
+        return get_connection()
+    def resolve_team_id(name, conn=None):
+        return resolve_team(name)
+    def update_team_advanced(team_id, batting_stats, pitching_stats, conn=None):
+        """Update advanced stats in player_stats table."""
+        if conn is None:
+            conn = get_connection()
+        c = conn.cursor()
+        for stat in batting_stats:
+            c.execute('''UPDATE player_stats SET woba=?, wrc_plus=?, iso=?, babip=?,
+                        k_pct=?, bb_pct=?, gb_pct=?, fb_pct=?, ld_pct=?
+                        WHERE team_id=? AND player_name=? AND stat_type='batting' ''',
+                     (stat.get('woba'), stat.get('wrc_plus'), stat.get('iso'),
+                      stat.get('babip'), stat.get('k_pct'), stat.get('bb_pct'),
+                      stat.get('gb_pct'), stat.get('fb_pct'), stat.get('ld_pct'),
+                      team_id, stat.get('name')))
+        for stat in pitching_stats:
+            c.execute('''UPDATE player_stats SET fip=?, xfip=?, siera=?,
+                        gb_pct=?, fb_pct=?
+                        WHERE team_id=? AND player_name=? AND stat_type='pitching' ''',
+                     (stat.get('fip'), stat.get('xfip'), stat.get('siera'),
+                      stat.get('gb_pct'), stat.get('fb_pct'),
+                      team_id, stat.get('name')))
+        conn.commit()
 
 
 def load_slug_map():
