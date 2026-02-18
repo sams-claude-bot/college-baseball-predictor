@@ -609,12 +609,21 @@ def get_betting_games(date_str=None):
                 line['best_pick'] = 'away'
                 line['best_edge'] = abs(line['away_edge'])
 
-            # Totals analysis (simple version for speed)
+            # Totals analysis — use dedicated runs ensemble
             if line['over_under']:
-                line['total_diff'] = pred['projected_total'] - line['over_under']
-                line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
-                # Estimate edge from diff (rough approximation)
-                line['total_edge'] = min(abs(line['total_diff']) * 8, 50)  # ~8% edge per run diff
+                try:
+                    import models.runs_ensemble as runs_ens
+                    runs_result = runs_ens.predict(line['home_team_id'], line['away_team_id'], total_line=line['over_under'])
+                    line['projected_total'] = runs_result['projected_total']
+                    line['total_diff'] = runs_result['projected_total'] - line['over_under']
+                    line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
+                    ou = runs_result.get('over_under', {})
+                    line['total_edge'] = ou.get('edge', min(abs(line['total_diff']) * 8, 50))
+                    line['runs_breakdown'] = runs_result.get('model_breakdown', {})
+                except Exception:
+                    line['total_diff'] = pred['projected_total'] - line['over_under']
+                    line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
+                    line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
 
             # NN Totals model
             nn_totals = MODELS.get('nn_totals')
