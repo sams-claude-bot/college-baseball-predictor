@@ -256,7 +256,7 @@ All jobs managed via OpenClaw cron (not system cron). Times are CT (America/Chic
 | `d1bb_schedule.py --days 7` | Schedule sync — finds new games, time changes, cancellations |
 | `d1bb_box_scores.py --date YYYY-MM-DD` | Box score scraper — creates game records + player box scores |
 | `d1bb_scraper.py --all-d1 --delay 2` | All D1 player stats (basic + advanced) via Playwright (~1hr) |
-| `d1bb_advanced_scraper.py --conference SEC` | SEC advanced stats only (wOBA, FIP, xFIP) |
+| `d1bb_advanced_scraper.py --conference SEC` | Advanced stats by conference (wOBA, FIP, xFIP) — all D1 covered via nightly scraper |
 | `weather.py fetch --upcoming` | Open-Meteo weather for next 3 days of P4 home games |
 
 ### Predictions & Evaluation
