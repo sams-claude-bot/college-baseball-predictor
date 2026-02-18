@@ -20,6 +20,108 @@ from web.helpers import get_ensemble_weights, get_model_accuracy
 models_bp = Blueprint('models', __name__)
 
 
+@models_bp.route('/models/trends')
+def model_trends():
+    """Detailed model accuracy trends page"""
+    conn = get_connection()
+    c = conn.cursor()
+    
+    # Get daily accuracy per model
+    c.execute('''
+        SELECT mp.model_name, g.date, 
+               COUNT(*) as total,
+               SUM(CASE WHEN mp.was_correct = 1 THEN 1 ELSE 0 END) as correct
+        FROM model_predictions mp
+        JOIN games g ON mp.game_id = g.id
+        WHERE mp.was_correct IS NOT NULL
+        GROUP BY mp.model_name, g.date
+        ORDER BY g.date
+    ''')
+    
+    daily_data = defaultdict(list)
+    for row in c.fetchall():
+        daily_data[row['model_name']].append({
+            'date': row['date'],
+            'total': row['total'],
+            'correct': row['correct'],
+            'accuracy': round(row['correct'] / row['total'] * 100, 1) if row['total'] > 0 else 0
+        })
+    
+    # Get cumulative accuracy per model
+    c.execute('''
+        SELECT mp.model_name, 
+               COUNT(*) as total,
+               SUM(CASE WHEN mp.was_correct = 1 THEN 1 ELSE 0 END) as correct
+        FROM model_predictions mp
+        WHERE mp.was_correct IS NOT NULL
+        GROUP BY mp.model_name
+        ORDER BY correct * 1.0 / total DESC
+    ''')
+    
+    cumulative = []
+    for row in c.fetchall():
+        cumulative.append({
+            'model': row['model_name'],
+            'total': row['total'],
+            'correct': row['correct'],
+            'accuracy': round(row['correct'] / row['total'] * 100, 1) if row['total'] > 0 else 0
+        })
+    
+    # Build rolling accuracy (30-game window) for chart
+    c.execute('''
+        SELECT mp.model_name, g.date, mp.was_correct
+        FROM model_predictions mp
+        JOIN games g ON mp.game_id = g.id
+        WHERE mp.was_correct IS NOT NULL
+        ORDER BY g.date, mp.id
+    ''')
+    
+    model_history = defaultdict(list)
+    for row in c.fetchall():
+        model_history[row['model_name']].append({
+            'date': row['date'],
+            'correct': row['was_correct']
+        })
+    
+    rolling_data = {}
+    for model_name, entries in model_history.items():
+        points = []
+        window = []
+        cumulative_correct = 0
+        cumulative_total = 0
+        for entry in entries:
+            window.append(entry['correct'])
+            cumulative_correct += entry['correct']
+            cumulative_total += 1
+            if len(window) > 30:
+                window.pop(0)
+            # Always show a point (even with 1 game)
+            points.append({
+                'date': entry['date'],
+                'rolling': round(sum(window) / len(window) * 100, 1),
+                'cumulative': round(cumulative_correct / cumulative_total * 100, 1)
+            })
+        rolling_data[model_name] = points
+    
+    # Get dates with games
+    c.execute('''
+        SELECT DISTINCT g.date 
+        FROM model_predictions mp
+        JOIN games g ON mp.game_id = g.id
+        WHERE mp.was_correct IS NOT NULL
+        ORDER BY g.date
+    ''')
+    dates = [row['date'] for row in c.fetchall()]
+    
+    conn.close()
+    
+    return render_template('model_trends.html',
+                          daily_data=daily_data,
+                          cumulative=cumulative,
+                          rolling_data=rolling_data,
+                          dates=dates)
+
+
 @models_bp.route('/models')
 def models():
     """Model performance page"""
@@ -173,7 +275,7 @@ def models():
             window.append(entry['correct'])
             if len(window) > 30:
                 window.pop(0)
-            if len(window) >= 10:  # need at least 10 to show
+            if len(window) >= 3:  # Show after just 3 games (early season friendly)
                 points.append({
                     'date': entry['date'],
                     'accuracy': round(sum(window) / len(window) * 100, 1)
