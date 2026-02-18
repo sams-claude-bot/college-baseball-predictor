@@ -693,6 +693,7 @@ def get_model_accuracy():
     conn = get_connection()
     c = conn.cursor()
     
+    # All-time accuracy
     c.execute('''
         SELECT model_name,
                SUM(was_correct) as correct,
@@ -708,10 +709,28 @@ def get_model_accuracy():
         result[model_name] = {
             'all_time_accuracy': correct / total if total > 0 else None,
             'all_time_predictions': total,
-            'recent_accuracy': correct / total if total > 0 else None,  # TODO: add rolling window
-            'recent_predictions': total,
+            'recent_accuracy': None,
+            'recent_predictions': 0,
             'current_weight': MODELS.get('ensemble').weights.get(model_name, 0) if MODELS.get('ensemble') else 0
         }
+    
+    # Rolling 7-day accuracy
+    c.execute('''
+        SELECT mp.model_name,
+               SUM(mp.was_correct) as correct,
+               COUNT(*) as total
+        FROM model_predictions mp
+        JOIN games g ON mp.game_id = g.id
+        WHERE mp.was_correct IS NOT NULL
+        AND g.date >= date('now', '-7 days')
+        GROUP BY mp.model_name
+    ''')
+    
+    for row in c.fetchall():
+        model_name, correct, total = row
+        if model_name in result:
+            result[model_name]['recent_accuracy'] = correct / total if total > 0 else None
+            result[model_name]['recent_predictions'] = total
     
     conn.close()
     return result
