@@ -239,10 +239,13 @@ def api_best_bets():
         bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
         return adj + bonus
 
+    # Filter to only games with model predictions
+    games = [g for g in games if g.get('best_pick')]
+
     # Build consensus lookup
     consensus_lookup = {}
     for g in games:
-        if g.get('model_agreement') and g['model_agreement']['count'] >= 7:
+        if g.get('model_agreement') and g['model_agreement'].get('count', 0) >= 7:
             consensus_lookup[g['game_id']] = g['model_agreement']['count']
 
     # Best moneyline bets with adjusted edge
