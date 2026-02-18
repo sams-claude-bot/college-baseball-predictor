@@ -371,7 +371,7 @@ def get_value_picks(limit=5):
             # Model agreement from stored predictions
             game_models = stored_vp_agreement.get(game_id, {})
             ens_home = model_home_prob > 0.5
-            models_agree = sum(1 for p in game_models.values() if (p > 0.5) == ens_home and p != 'ensemble') if game_models else 5
+            models_agree = sum(1 for m, p in game_models.items() if m != 'ensemble' and (p > 0.5) == ens_home) if game_models else 5
 
             # Calculate edge
             home_edge = (model_home_prob - dk_home_fair) * 100
@@ -414,7 +414,8 @@ def get_value_picks(limit=5):
                 'home_team_id': line['home_team_id'],
                 'away_team_id': line['away_team_id'],
                 'models_agree': models_agree,
-                'models_total': len(game_models) - 1 if game_models else 11,  # exclude ensemble
+                'models_total': sum(1 for m in game_models if m != 'ensemble') if game_models else 11,
+                'ensemble_confidence': max(model_home_prob, 1 - model_home_prob),
                 'is_underdog': is_underdog,
                 'consensus_bonus': consensus_bonus
             })

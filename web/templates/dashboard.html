@@ -335,12 +335,15 @@
                                 </div>
                                 <div class="small text-muted mb-1">{{ pick.game }}</div>
                                 <div class="small">
+                                    {% if pick.ensemble_confidence %}
+                                    <span class="badge bg-dark me-1">Ensemble: {{ (pick.ensemble_confidence * 100)|round(0)|int }}%</span>
+                                    {% endif %}
                                     {% if pick.models_agree >= 9 %}
-                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/{{ pick.models_total|default(11) }} models agree at {{ (pick.model_prob * 100)|round(0)|int }}% (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%). <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.consensus_bonus > 0 %} <span class="text-muted">(+{{ pick.consensus_bonus|round(0)|int }}% bonus)</span>{% endif %}.
+                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/{{ pick.models_total|default(11) }} models agree. <strong>{{ pick.adjusted_edge|round(1) }}% edge</strong> (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%).
                                     {% elif pick.adjusted_edge > 20 %}
-                                    <span class="text-success fw-bold">Strong value.</span> Models: {{ (pick.model_prob * 100)|round(0)|int }}% vs DK {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.is_underdog %} <span class="text-muted">(raw {{ pick.edge|round(1) }}%)</span>{% endif %}.
+                                    <span class="text-success fw-bold">Strong value.</span> <strong>{{ pick.adjusted_edge|round(1) }}% edge</strong> (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%){% if pick.is_underdog %} <span class="text-muted">(raw {{ pick.edge|round(1) }}%)</span>{% endif %}.
                                     {% else %}
-                                    <span class="text-success">Good value.</span> Models: {{ (pick.model_prob * 100)|round(0)|int }}% vs DK {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>{{ pick.adjusted_edge|round(1) }}% adj edge.</strong>
+                                    <span class="text-success">Good value.</span> <strong>{{ pick.adjusted_edge|round(1) }}% edge</strong> (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%).
                                     {% endif %}
                                 </div>
                             </div>
