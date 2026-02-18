@@ -182,13 +182,122 @@ def parse_time(time_text, date_str):
     return None
 
 
+def _replace_espn_ghost(db, old_id, new_id, date, home_id, away_id, time, home_score, away_score, status):
+    """Replace an ESPN-sourced game with the D1BB version.
+    
+    Migrates predictions/betting_lines/weather to the new game ID where possible,
+    deletes orphaned FK rows, then removes the old game and inserts the new one.
+    """
+    # Tables with game_id foreign keys
+    fk_tables = [
+        'model_predictions', 'betting_lines', 'game_weather',
+        'tracked_bets', 'tracked_bets_spreads', 'tracked_confident_bets',
+        'totals_predictions', 'spread_predictions', 'game_predictions',
+        'pitching_matchups', 'game_boxscores', 'game_batting_stats',
+        'game_pitching_stats', 'player_boxscore_batting', 'player_boxscore_pitching',
+        'statbroadcast_boxscores',
+    ]
+    migrated = 0
+    deleted_fk = 0
+    for table in fk_tables:
+        try:
+            # Try to migrate rows to new ID
+            n = db.execute(f"UPDATE {table} SET game_id = ? WHERE game_id = ?", (new_id, old_id)).rowcount
+            migrated += n
+        except Exception:
+            # Table might not exist or have unique constraint conflicts — just delete
+            try:
+                n = db.execute(f"DELETE FROM {table} WHERE game_id = ?", (old_id,)).rowcount
+                deleted_fk += n
+            except Exception:
+                pass
+
+    # Delete old game
+    db.execute("DELETE FROM games WHERE id = ?", (old_id,))
+
+    # Insert new game
+    winner = None
+    if home_score is not None and away_score is not None:
+        if home_score > away_score:
+            winner = home_id
+        elif away_score > home_score:
+            winner = away_id
+
+    db.execute("""
+        INSERT INTO games (id, date, time, home_team_id, away_team_id, home_score, away_score, winner_id, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (new_id, date, time, home_id, away_id, home_score, away_score, winner,
+          status or ('final' if home_score is not None else 'scheduled')))
+
+    print(f"  Replaced ESPN ghost {old_id} -> {new_id} (migrated {migrated}, deleted {deleted_fk} FK rows)")
+    return 'replaced'
+
+
+def _get_team_aliases(db, team_id):
+    """Get all known IDs for a team (itself + aliases from duplicate team entries).
+    
+    Handles cases like se-louisiana / southeastern-louisiana being the same school.
+    """
+    # Known duplicate team mappings (ESPN ID -> D1BB ID or vice versa)
+    KNOWN_DUPES = {
+        'se-louisiana': 'southeastern-louisiana',
+        'southeastern-louisiana': 'se-louisiana',
+        'little-rock': 'ualr',
+        'ualr': 'little-rock',
+        'south-carolina-upstate': 'usc-upstate',
+        'usc-upstate': 'south-carolina-upstate',
+        'nicholls': 'nicholls-state',
+        'nicholls-state': 'nicholls',
+        'southeast-missouri': 'southeast-missouri-state',
+        'southeast-missouri-state': 'southeast-missouri',
+        'siu-edwardsville': 'siue',
+        'siue': 'siu-edwardsville',
+        'miami-fl': 'miami',
+        'miami': 'miami-fl',
+    }
+    ids = {team_id}
+    if team_id in KNOWN_DUPES:
+        ids.add(KNOWN_DUPES[team_id])
+    return ids
+
+
+def _find_existing_game(db, date, home_id, away_id):
+    """Find an existing game by date + teams, handling ID mismatches and home/away swaps.
+    
+    Returns the existing game row (dict) or None.
+    Checks:
+      1. Exact match on date + home_team_id + away_team_id
+      2. Team alias variants (ESPN vs D1BB slugs)
+      3. Swapped home/away (ESPN sometimes gets this wrong)
+    """
+    home_ids = _get_team_aliases(db, home_id)
+    away_ids = _get_team_aliases(db, away_id)
+    
+    # Build all combinations of home/away aliases + swapped
+    combos = []
+    for h in home_ids:
+        for a in away_ids:
+            combos.append((h, a))   # normal
+            combos.append((a, h))   # swapped
+    
+    for h, a in combos:
+        row = db.execute(
+            "SELECT id, home_score, away_score, home_team_id, away_team_id FROM games WHERE date = ? AND home_team_id = ? AND away_team_id = ?",
+            (date, h, a)
+        ).fetchone()
+        if row:
+            return row
+
+    return None
+
+
 def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_score=None, status=None):
-    """Insert or update a game."""
+    """Insert or update a game. Handles ESPN ghost dedup."""
     
     # Generate game ID - match existing format: YYYY-MM-DD_away_home
     game_id = f"{date}_{away_id}_{home_id}"
     
-    # Check if exists
+    # Check if exact ID exists
     cursor = db.execute("SELECT id, home_score, away_score FROM games WHERE id = ?", (game_id,))
     existing = cursor.fetchone()
     
@@ -223,17 +332,24 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
             db.execute(f"UPDATE games SET {', '.join(updates)} WHERE id = ?", params)
             return 'updated'
         return 'unchanged'
-    else:
-        # Insert new game
-        db.execute("""
-            INSERT INTO games (id, date, time, home_team_id, away_team_id, home_score, away_score, winner_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            game_id, date, time, home_id, away_id, home_score, away_score,
-            home_id if home_score and away_score and home_score > away_score else
-            away_id if home_score and away_score and away_score > home_score else None
-        ))
-        return 'created'
+    
+    # No exact ID match — check for ESPN ghost with different ID but same matchup
+    ghost = _find_existing_game(db, date, home_id, away_id)
+    if ghost and ghost['id'] != game_id:
+        # Found an ESPN-sourced game with different ID — replace it
+        return _replace_espn_ghost(db, ghost['id'], game_id, date, home_id, away_id,
+                                   time, home_score, away_score, status)
+    
+    # Truly new game
+    db.execute("""
+        INSERT INTO games (id, date, time, home_team_id, away_team_id, home_score, away_score, winner_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        game_id, date, time, home_id, away_id, home_score, away_score,
+        home_id if home_score and away_score and home_score > away_score else
+        away_id if home_score and away_score and away_score > home_score else None
+    ))
+    return 'created'
 
 
 def main():
