@@ -1,10 +1,45 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
 .env
-*.log
-# Keep structure but ignore large data files if needed
-# data/snapshots/*.json  # Uncomment if snapshots get too large
-data/baseball.db.backup.*
-data/baseball.db-shm
-data/baseball.db-wal
+
+# Data files (stay local, not in repo)
+*.db
+*.db-shm
+*.db-wal
+*.db.bak*
+data/
 backups/
+
+# Model weights (stay local, not in repo)
+*.pt
+*.pkl
+
+# Logs
+*.log
+logs/
+
+# Reports & one-off docs (not code)
+reports/
+docs/
+
+# Archived/deprecated scripts
+scripts/archive/
+scripts/archived/
+scripts/custom_scrapers/
+models/archive/
+
+# One-off files
+conference_updates_batch1.py
+MANIFEST.md
+TIER2_BATCH_B_REPORT.md
+TIER2_PROGRESS_REPORT.md
+
+# Backups
+*.bak
+web/templates.bak/
+
+# IDE
+.vscode/
+.idea/
