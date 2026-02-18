@@ -1,0 +1,95 @@
+{
+  "timestamp": "2026-02-17 21:43",
+  "test_size": 100,
+  "train_sizes": {
+    "historical": 4653,
+    "2026_only": 67,
+    "combined": 4888
+  },
+  "results": {
+    "moneyline": {
+      "xgb_historical": {
+        "accuracy": 68.0,
+        "log_loss": 0.6207
+      },
+      "lgb_historical": {
+        "accuracy": 70.0,
+        "log_loss": 0.5842
+      },
+      "xgb_2026_only": {
+        "accuracy": 52.0,
+        "log_loss": 0.75
+      },
+      "lgb_2026_only": {
+        "accuracy": 49.0,
+        "log_loss": 0.7499
+      },
+      "xgb_combined": {
+        "accuracy": 72.0,
+        "log_loss": 0.5905
+      },
+      "lgb_combined": {
+        "accuracy": 72.0,
+        "log_loss": 0.5679
+      }
+    },
+    "totals": {
+      "xgb_historical": {
+        "mae": 5.143,
+        "rmse": 6.853
+      },
+      "lgb_historical": {
+        "mae": 4.675,
+        "rmse": 6.237
+      },
+      "xgb_2026_only": {
+        "mae": 5.782,
+        "rmse": 7.482
+      },
+      "lgb_2026_only": {
+        "mae": 4.501,
+        "rmse": 5.97
+      },
+      "xgb_combined": {
+        "mae": 5.236,
+        "rmse": 6.808
+      },
+      "lgb_combined": {
+        "mae": 4.658,
+        "rmse": 6.197
+      }
+    },
+    "spread": {
+      "xgb_historical": {
+        "mae": 5.507,
+        "rmse": 6.687,
+        "run_line_acc": 17.0
+      },
+      "lgb_historical": {
+        "mae": 5.239,
+        "rmse": 6.439,
+        "run_line_acc": 17.0
+      },
+      "xgb_2026_only": {
+        "mae": 6.413,
+        "rmse": 7.968,
+        "run_line_acc": 14.0
+      },
+      "lgb_2026_only": {
+        "mae": 5.974,
+        "rmse": 7.492,
+        "run_line_acc": 17.0
+      },
+      "xgb_combined": {
+        "mae": 5.696,
+        "rmse": 6.817,
+        "run_line_acc": 15.0
+      },
+      "lgb_combined": {
+        "mae": 5.407,
+        "rmse": 6.629,
+        "run_line_acc": 19.0
+      }
+    }
+  }
+}

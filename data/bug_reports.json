@@ -10,7 +10,7 @@
     "id": 2,
     "description": "too many games in the elo calculation. should match games played",
     "page": "/team/north-carolina",
-    "status": "open",
+    "status": "closed",
     "submitted_at": "2026-02-17T10:14:09.517043"
   }
 ]

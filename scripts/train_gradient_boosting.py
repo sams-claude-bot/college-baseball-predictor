@@ -3,7 +3,7 @@
 Train XGBoost and LightGBM Gradient Boosting Models
 
 Trains models for:
-- Moneyline prediction (2026 season data - classification)
+- Moneyline prediction (historical data with recency weighting - classification)
 - Totals prediction (historical data - regression)
 - Spread prediction (historical data - regression)
 
@@ -192,73 +192,25 @@ def load_historical_data(min_games=20):
 
 def load_moneyline_data():
     """
-    Load 2026 season games for moneyline training.
-    Uses games table with team IDs and FeatureComputer.
+    Load historical games for moneyline training (with recency weighting).
+    Uses same historical data as totals/spread for consistency.
     Returns features, labels, and game dates for recency weighting.
     """
     print("\n" + "="*60)
-    print("Loading 2026 season data for moneyline...")
+    print("Loading historical data for moneyline (with recency weighting)...")
     print("="*60)
     
-    conn = get_connection()
-    c = conn.cursor()
+    # Reuse the historical data loading for consistency
+    X, y_totals, y_spread, dates = load_historical_data()
     
-    # Get completed 2026 games
-    c.execute("""
-        SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score,
-               g.date, g.is_neutral_site as neutral_site
-        FROM games g
-        WHERE g.status = 'final'
-        AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
-        ORDER BY g.date ASC
-    """)
+    # Convert totals to binary moneyline labels (home team scored more = 1)
+    # y_spread is (home_score - away_score), so positive = home won
+    y = (y_spread > 0).astype(np.int32)
     
-    rows = c.fetchall()
-    conn.close()
+    print(f"Loaded {len(y)} games for moneyline training")
+    print(f"  Home wins: {y.sum()} ({100*y.mean():.1f}%)")
     
-    print(f"Found {len(rows)} completed 2026 games")
-    
-    # Use FeatureComputer (with model predictions disabled for training)
-    fc = FeatureComputer(use_model_predictions=False)
-    
-    features = []
-    labels = []
-    game_dates = []
-    
-    for i, row in enumerate(rows):
-        try:
-            feat = fc.compute_features(
-                row['home_team_id'],
-                row['away_team_id'],
-                game_date=row['date'],
-                neutral_site=bool(row['neutral_site']),
-                game_id=row['id']
-            )
-            
-            home_won = row['home_score'] > row['away_score']
-            
-            features.append(feat)
-            labels.append(1 if home_won else 0)
-            game_dates.append(row['date'])
-            
-            if (i + 1) % 50 == 0:
-                print(f"  Processed {i+1}/{len(rows)} games...")
-                
-        except Exception as e:
-            print(f"  Warning: Skipping game {row['id']}: {e}")
-            continue
-    
-    X = np.array(features, dtype=np.float32)
-    y = np.array(labels, dtype=np.int32)
-    
-    # Handle NaN/inf
-    X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
-    
-    print(f"Training samples: {len(X)}")
-    print(f"Feature dimension: {X.shape[1]}")
-    print(f"Home win rate: {y.mean()*100:.1f}%")
-    
-    return X, y, game_dates
+    return X, y, dates
 
 
 def split_data(X, y, weights=None, test_ratio=0.15, val_ratio=0.15):
