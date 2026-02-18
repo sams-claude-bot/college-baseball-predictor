@@ -272,15 +272,29 @@ def get_todays_games():
     games = [dict(row) for row in c.fetchall()]
     conn.close()
 
-    # Add predictions to each game
+    # Add stored predictions to each game (no live model calls)
+    conn2 = get_connection()
+    stored = {}
+    for row in conn2.execute('''
+        SELECT game_id, predicted_home_prob, predicted_home_runs, predicted_away_runs
+        FROM model_predictions WHERE model_name = 'ensemble'
+        AND game_id IN (SELECT id FROM games WHERE date = ?)
+    ''', (today,)).fetchall():
+        stored[row['game_id']] = row
+    conn2.close()
+
     for game in games:
-        try:
-            ensemble = MODELS['ensemble']
-            pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
-            game['prediction'] = pred
-        except Exception as e:
+        sp = stored.get(game.get('id'))
+        if sp:
+            game['prediction'] = {
+                'home_win_probability': sp['predicted_home_prob'],
+                'away_win_probability': 1 - sp['predicted_home_prob'],
+                'projected_home_runs': sp['predicted_home_runs'] or 0,
+                'projected_away_runs': sp['predicted_away_runs'] or 0,
+                'projected_total': (sp['predicted_home_runs'] or 0) + (sp['predicted_away_runs'] or 0)
+            }
+        else:
             game['prediction'] = None
-            game['prediction_error'] = str(e)
 
     return games
 
@@ -319,6 +333,22 @@ def get_value_picks(limit=5):
     lines = [dict(row) for row in c.fetchall()]
     conn.close()
 
+    # Load stored predictions for value picks
+    conn_vp = get_connection()
+    stored_vp = {}
+    stored_vp_agreement = {}
+    for row in conn_vp.execute('''
+        SELECT game_id, model_name, predicted_home_prob
+        FROM model_predictions
+        WHERE game_id IN (SELECT id FROM games WHERE date >= ? AND date <= ?)
+    ''', (today, three_days)).fetchall():
+        if row['model_name'] == 'ensemble':
+            stored_vp[row['game_id']] = {'prob': row['predicted_home_prob']}
+        if row['game_id'] not in stored_vp_agreement:
+            stored_vp_agreement[row['game_id']] = {}
+        stored_vp_agreement[row['game_id']][row['model_name']] = row['predicted_home_prob']
+    conn_vp.close()
+
     picks = []
     for line in lines:
         if not line['home_ml'] or not line['away_ml']:
@@ -331,15 +361,17 @@ def get_value_picks(limit=5):
             total_prob = dk_home_prob + dk_away_prob
             dk_home_fair = dk_home_prob / total_prob
 
-            # Get blended model prediction (neural + ensemble)
-            pred = get_blended_prediction(line['home_team_id'], line['away_team_id'])
-            if not pred:
+            # Use stored ensemble prediction
+            game_id = line.get('game_id')
+            stored_ens = stored_vp.get(game_id)
+            if not stored_ens:
                 continue
-            model_home_prob = pred['home_win_probability']
+            model_home_prob = stored_ens['prob']
 
-            # Get model agreement for consensus bonus
-            agreement = compute_model_agreement(line['home_team_id'], line['away_team_id'])
-            models_agree = agreement.get('count', 5) if agreement else 5
+            # Model agreement from stored predictions
+            game_models = stored_vp_agreement.get(game_id, {})
+            ens_home = model_home_prob > 0.5
+            models_agree = sum(1 for p in game_models.values() if (p > 0.5) == ens_home and p != 'ensemble') if game_models else 5
 
             # Calculate edge
             home_edge = (model_home_prob - dk_home_fair) * 100
@@ -568,14 +600,32 @@ def get_betting_games(date_str=None):
     lines = [dict(row) for row in c.fetchall()]
     conn.close()
 
-    # Load stored runs ensemble totals
-    conn_tp = get_connection()
-    tp_rows = conn_tp.execute('''
+    # Load stored pre-game predictions (calculated once daily by predict_and_track)
+    conn_sp = get_connection()
+    sp_rows = conn_sp.execute('''
+        SELECT game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs
+        FROM model_predictions
+        WHERE game_id IN (SELECT id FROM games WHERE date = ?)
+    ''', (today,)).fetchall()
+    stored_preds = {}
+    stored_model_agreement = {}
+    for row in sp_rows:
+        stored_preds[(row['game_id'], row['model_name'])] = {
+            'prob': row['predicted_home_prob'],
+            'home_runs': row['predicted_home_runs'] or 0,
+            'away_runs': row['predicted_away_runs'] or 0
+        }
+        # Track all models per game for agreement
+        if row['game_id'] not in stored_model_agreement:
+            stored_model_agreement[row['game_id']] = {}
+        stored_model_agreement[row['game_id']][row['model_name']] = row['predicted_home_prob']
+    
+    tp_rows = conn_sp.execute('''
         SELECT game_id, projected_total FROM totals_predictions
         WHERE model_name = 'runs_ensemble'
     ''').fetchall()
     stored_totals = {row['game_id']: row['projected_total'] for row in tp_rows}
-    conn_tp.close()
+    conn_sp.close()
 
     # Add model analysis to each
     for line in lines:
@@ -590,27 +640,47 @@ def get_betting_games(date_str=None):
             line['dk_home_fair'] = dk_home_prob / total
             line['dk_away_fair'] = dk_away_prob / total
 
-            # Model prediction (blended neural + ensemble)
-            pred = get_blended_prediction(line['home_team_id'], line['away_team_id'])
-            if not pred:
+            # Model prediction — use stored pre-game predictions
+            game_id = line.get('game_id')
+            stored_ens = stored_preds.get((game_id, 'ensemble'))
+            stored_nn = stored_preds.get((game_id, 'neural'))
+            
+            if stored_ens:
+                line['model_home_prob'] = stored_ens['prob']
+                line['model_away_prob'] = 1 - stored_ens['prob']
+                line['projected_total'] = stored_ens['home_runs'] + stored_ens['away_runs']
+                line['ens_prob'] = stored_ens['prob']
+            if stored_nn:
+                line['nn_prob'] = stored_nn['prob']
+            
+            if not stored_ens:
                 continue
-            line['model_home_prob'] = pred['home_win_probability']
-            line['model_away_prob'] = pred['away_win_probability']
-            line['projected_total'] = pred.get('projected_total', 0)
-            line['blend_info'] = pred.get('blend', '')
-            line['nn_prob'] = pred.get('neural_prob')
-            line['ens_prob'] = pred.get('ensemble_prob')
+            
+            line['blend_info'] = 'pre-game'
 
-            # Model consensus (run all 10 models)
-            agreement = compute_model_agreement(line['home_team_id'], line['away_team_id'])
-            if agreement:
-                line['model_agreement'] = agreement
+            # Model consensus from stored predictions
+            game_models = stored_model_agreement.get(game_id, {})
+            if game_models:
+                ens_home = stored_ens['prob'] > 0.5
+                models_for = [m for m, p in game_models.items() if (p > 0.5) == ens_home and m != 'ensemble']
+                models_against = [m for m, p in game_models.items() if (p > 0.5) != ens_home and m != 'ensemble']
+                all_probs = [p if ens_home else (1-p) for m, p in game_models.items() if m != 'ensemble']
+                avg_prob = sum(all_probs) / len(all_probs) if all_probs else 0.5
+                line['model_agreement'] = {
+                    'count': len(models_for),
+                    'total': len(models_for) + len(models_against),
+                    'pick': 'home' if ens_home else 'away',
+                    'avg_prob': avg_prob,
+                    'confidence': avg_prob,
+                    'models_for': models_for,
+                    'models_against': models_against
+                }
 
             # Edges
-            line['home_edge'] = (pred['home_win_probability'] - line['dk_home_fair']) * 100
-            line['away_edge'] = (pred['away_win_probability'] - line['dk_away_fair']) * 100
+            line['home_edge'] = (line['model_home_prob'] - line['dk_home_fair']) * 100
+            line['away_edge'] = (line['model_away_prob'] - line['dk_away_fair']) * 100
 
-            # Best pick (pick whichever side has positive edge)
+            # Best pick
             if line['home_edge'] >= 0:
                 line['best_pick'] = 'home'
                 line['best_edge'] = line['home_edge']
@@ -618,48 +688,24 @@ def get_betting_games(date_str=None):
                 line['best_pick'] = 'away'
                 line['best_edge'] = abs(line['away_edge'])
 
-            # Totals analysis — use stored runs ensemble prediction if available
+            # Totals analysis — use stored runs ensemble prediction
             if line['over_under']:
-                stored_total = stored_totals.get(line.get('game_id'))
+                stored_total = stored_totals.get(game_id)
                 if stored_total:
                     line['projected_total'] = stored_total
                     line['total_diff'] = stored_total - line['over_under']
                 else:
-                    line['total_diff'] = pred['projected_total'] - line['over_under']
+                    line['total_diff'] = line['projected_total'] - line['over_under']
                 line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
                 line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
-
-            # NN Totals model
-            nn_totals = MODELS.get('nn_totals')
-            if nn_totals and nn_totals.is_trained():
-                try:
-                    totals_pred = nn_totals.predict_game(
-                        line['home_team_id'], line['away_team_id'],
-                        over_under_line=line.get('over_under'))
-                    line['nn_total'] = totals_pred.get('projected_total')
-                    line['nn_over_prob'] = totals_pred.get('over_prob')
-                    line['nn_under_prob'] = totals_pred.get('under_prob')
-                except Exception:
-                    pass
-
-            # NN Spread model
-            nn_spread = MODELS.get('nn_spread')
-            if nn_spread and nn_spread.is_trained():
-                try:
-                    spread_pred = nn_spread.predict_game(
-                        line['home_team_id'], line['away_team_id'])
-                    line['nn_margin'] = spread_pred.get('projected_margin')
-                    line['nn_cover_prob'] = spread_pred.get('cover_prob')
-                except Exception:
-                    pass
 
             # EV calculation (per $100)
             if line['best_pick'] == 'home':
                 ml = line['home_ml']
-                prob = pred['home_win_probability']
+                prob = line['model_home_prob']
             else:
                 ml = line['away_ml']
-                prob = pred['away_win_probability']
+                prob = line['model_away_prob']
 
             if ml > 0:
                 win_amount = ml
@@ -798,17 +844,25 @@ def get_recent_results(days_back=3):
     games = [dict(row) for row in c.fetchall()]
     conn.close()
 
-    # Add predictions and check correctness
-    ensemble = MODELS.get('ensemble')
+    # Add stored predictions — no live model calls
+    conn_rr = get_connection()
+    stored_rr = {}
+    for row in conn_rr.execute('''
+        SELECT game_id, predicted_home_prob FROM model_predictions
+        WHERE model_name = 'ensemble'
+        AND game_id IN (SELECT id FROM games WHERE date >= ? AND date < ?)
+    ''', (start_date, today_str)).fetchall():
+        stored_rr[row['game_id']] = row['predicted_home_prob']
+    conn_rr.close()
 
     for game in games:
         game['is_upset'] = False
         try:
-            if ensemble and game.get('home_team_id') and game.get('away_team_id'):
-                pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
-                game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
-                game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
-                game['pred_confidence'] = max(game['pred_home_prob'], 1 - game['pred_home_prob'])
+            sp = stored_rr.get(game.get('id'))
+            if sp is not None:
+                game['pred_home_prob'] = sp
+                game['pred_winner'] = game['home_team_id'] if sp > 0.5 else game['away_team_id']
+                game['pred_confidence'] = max(sp, 1 - sp)
 
                 # Check if prediction was correct
                 if game.get('winner_id'):
@@ -890,8 +944,7 @@ def get_games_for_date_with_predictions(date_str):
         stored_preds[key] = row['predicted_home_prob']
     conn2.close()
 
-    # Fall back to live predictions only for scheduled (future) games
-    ensemble = MODELS.get('ensemble')
+    # Use stored predictions only — no live model calls
     correct_count = 0
     total_preds = 0
 
@@ -899,27 +952,14 @@ def get_games_for_date_with_predictions(date_str):
         game['is_upset'] = False
         game_id = game['id']
 
-        # Try stored pre-game prediction first
+        # Use stored pre-game prediction
         stored_ens = stored_preds.get((game_id, 'ensemble'))
 
         if stored_ens is not None:
-            # Use the pre-game prediction (honest accuracy)
             game['pred_home_prob'] = stored_ens
             game['pred_winner'] = game['home_team_id'] if stored_ens > 0.5 else game['away_team_id']
             game['pred_confidence'] = max(stored_ens, 1 - stored_ens)
             game['pred_source'] = 'pre-game'
-        elif ensemble and game.get('home_team_id') and game.get('away_team_id'):
-            # No stored prediction — use live model (for future/untracked games)
-            try:
-                pred = ensemble.predict_game(game['home_team_id'], game['away_team_id'])
-                game['pred_home_prob'] = pred.get('home_win_probability', 0.5)
-                game['pred_winner'] = game['home_team_id'] if game['pred_home_prob'] > 0.5 else game['away_team_id']
-                game['pred_confidence'] = max(game['pred_home_prob'], 1 - game['pred_home_prob'])
-                game['pred_source'] = 'live'
-            except Exception:
-                game['pred_winner'] = None
-                game['pred_correct'] = None
-                continue
         else:
             game['pred_winner'] = None
             game['pred_correct'] = None

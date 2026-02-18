@@ -96,11 +96,7 @@ def scores():
     stored_nn = {row['game_id']: row['predicted_home_prob'] for row in c2.fetchall()}
     conn2.close()
 
-    # Add neural predictions, nn_totals, nn_spread, and betting lines to each game
-    neural = MODELS.get('neural')
-    nn_totals_model = MODELS.get('nn_totals')
-    nn_spread_model = MODELS.get('nn_spread')
-
+    # Add neural predictions and betting lines — stored predictions only, no live models
     nn_correct = 0
     nn_total = 0
 
@@ -112,7 +108,7 @@ def scores():
             game['away_ml'] = betting_lines_map[key]['away_ml']
             game['over_under'] = betting_lines_map[key]['over_under']
 
-        # Neural model prediction — use stored pre-game prediction for completed games
+        # Neural model prediction — stored only
         game_id = game.get('id')
         stored_nn_prob = stored_nn.get(game_id)
 
@@ -121,38 +117,12 @@ def scores():
             game['nn_winner'] = game['home_team_id'] if stored_nn_prob > 0.5 else game['away_team_id']
             game['nn_confidence'] = max(stored_nn_prob, 1 - stored_nn_prob)
             game['nn_source'] = 'pre-game'
-        elif neural and game.get('home_team_id') and game.get('away_team_id'):
-            # Fall back to live for future/untracked games
-            try:
-                nn_pred = neural.predict_game(game['home_team_id'], game['away_team_id'])
-                game['nn_home_prob'] = nn_pred.get('home_win_probability', 0.5)
-                game['nn_winner'] = game['home_team_id'] if game['nn_home_prob'] > 0.5 else game['away_team_id']
-                game['nn_confidence'] = max(game['nn_home_prob'], 1 - game['nn_home_prob'])
-                game['nn_source'] = 'live'
-            except Exception:
-                game['nn_winner'] = None
 
         if game.get('nn_winner') and game['status'] == 'final' and game.get('winner_id'):
             game['nn_correct'] = game['nn_winner'] == game['winner_id']
             nn_total += 1
             if game['nn_correct']:
                 nn_correct += 1
-
-        # NN Totals prediction (always live — no stored totals predictions per-game)
-        try:
-            if nn_totals_model and nn_totals_model.is_trained() and game.get('home_team_id') and game.get('away_team_id'):
-                t_pred = nn_totals_model.predict_game(game['home_team_id'], game['away_team_id'])
-                game['nn_projected_total'] = t_pred.get('projected_total')
-        except Exception:
-            pass
-
-        # NN Spread prediction (always live)
-        try:
-            if nn_spread_model and nn_spread_model.is_trained() and game.get('home_team_id') and game.get('away_team_id'):
-                s_pred = nn_spread_model.predict_game(game['home_team_id'], game['away_team_id'])
-                game['nn_projected_margin'] = s_pred.get('projected_margin')
-        except Exception:
-            pass
 
     # Filter by conference if specified
     if conference:
