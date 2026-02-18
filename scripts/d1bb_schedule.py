@@ -234,30 +234,28 @@ def _replace_espn_ghost(db, old_id, new_id, date, home_id, away_id, time, home_s
 
 
 def _get_team_aliases(db, team_id):
-    """Get all known IDs for a team (itself + aliases from duplicate team entries).
+    """Get all known IDs for a team using the team_aliases table.
     
-    Handles cases like se-louisiana / southeastern-louisiana being the same school.
+    Resolves team_id to its canonical form, then finds all aliases that map
+    to the same canonical ID. Handles ESPN/D1BB slug mismatches like
+    se-louisiana / southeastern-louisiana.
     """
-    # Known duplicate team mappings (ESPN ID -> D1BB ID or vice versa)
-    KNOWN_DUPES = {
-        'se-louisiana': 'southeastern-louisiana',
-        'southeastern-louisiana': 'se-louisiana',
-        'little-rock': 'ualr',
-        'ualr': 'little-rock',
-        'south-carolina-upstate': 'usc-upstate',
-        'usc-upstate': 'south-carolina-upstate',
-        'nicholls': 'nicholls-state',
-        'nicholls-state': 'nicholls',
-        'southeast-missouri': 'southeast-missouri-state',
-        'southeast-missouri-state': 'southeast-missouri',
-        'siu-edwardsville': 'siue',
-        'siue': 'siu-edwardsville',
-        'miami-fl': 'miami',
-        'miami': 'miami-fl',
-    }
     ids = {team_id}
-    if team_id in KNOWN_DUPES:
-        ids.add(KNOWN_DUPES[team_id])
+    
+    # Find canonical ID: what does this team_id resolve to?
+    canonical = db.execute(
+        "SELECT team_id FROM team_aliases WHERE alias = ?", (team_id,)
+    ).fetchone()
+    canon_id = canonical[0] if canonical else team_id
+    ids.add(canon_id)
+    
+    # Find all aliases that resolve to the same canonical ID
+    rows = db.execute(
+        "SELECT alias FROM team_aliases WHERE team_id = ?", (canon_id,)
+    ).fetchall()
+    for row in rows:
+        ids.add(row[0])
+    
     return ids
 
 
