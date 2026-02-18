@@ -33,34 +33,23 @@
     {% endfor %}
 </div>
 
-<!-- Main Chart -->
+<!-- Main Chart - Cumulative Accuracy by Day -->
 <div class="card mb-4">
     <div class="card-header bg-maroon">
-        <i class="bi bi-graph-up"></i> Rolling Accuracy (30-prediction window)
+        <i class="bi bi-graph-up"></i> Cumulative Accuracy Over Time
     </div>
     <div class="card-body">
         {% if rolling_data %}
-        <canvas id="rollingChart" height="400"></canvas>
+        <canvas id="cumulativeChart" height="400"></canvas>
+        <p class="text-muted small mt-2 mb-0">
+            <i class="bi bi-info-circle"></i> One point per day showing season-to-date accuracy
+        </p>
         {% else %}
         <div class="text-center py-5">
             <i class="bi bi-hourglass-split display-4 text-muted"></i>
             <p class="mt-3 text-muted">No accuracy data yet</p>
             <small class="text-muted">Data will appear as games are completed and predictions are evaluated</small>
         </div>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Cumulative Chart -->
-<div class="card mb-4">
-    <div class="card-header">
-        <i class="bi bi-bar-chart"></i> Cumulative Accuracy Over Time
-    </div>
-    <div class="card-body">
-        {% if rolling_data %}
-        <canvas id="cumulativeChart" height="350"></canvas>
-        {% else %}
-        <p class="text-muted text-center">No data yet</p>
         {% endif %}
     </div>
 </div>
@@ -211,65 +200,7 @@ const modelColors = {
     'lightgbm': '#8E44AD'
 };
 
-// Rolling accuracy chart
-const rollingDatasets = [];
-for (const [model, points] of Object.entries(rollingData)) {
-    if (points.length === 0) continue;
-    rollingDatasets.push({
-        label: model.charAt(0).toUpperCase() + model.slice(1),
-        data: points.map(p => ({x: p.date, y: p.rolling})),
-        borderColor: modelColors[model] || '#777',
-        backgroundColor: 'transparent',
-        borderWidth: (model === 'ensemble' || model === 'neural') ? 3 : 1.5,
-        pointRadius: points.length < 10 ? 4 : 0,
-        pointHoverRadius: 6,
-        tension: 0.3
-    });
-}
-
-// Sort so ensemble and neural are on top (drawn last)
-rollingDatasets.sort((a, b) => {
-    const priority = {'Ensemble': 2, 'Neural': 1};
-    return (priority[a.label] || 0) - (priority[b.label] || 0);
-});
-
-new Chart(document.getElementById('rollingChart'), {
-    type: 'line',
-    data: { datasets: rollingDatasets },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            mode: 'index',
-            intersect: false
-        },
-        plugins: {
-            legend: { 
-                position: 'bottom',
-                labels: { usePointStyle: true }
-            },
-            tooltip: {
-                callbacks: {
-                    label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%'
-                }
-            }
-        },
-        scales: {
-            x: { 
-                type: 'category',
-                title: { display: true, text: 'Date' }
-            },
-            y: { 
-                min: 0,
-                max: 100,
-                title: { display: true, text: 'Accuracy %' },
-                ticks: { callback: v => v + '%' }
-            }
-        }
-    }
-});
-
-// Cumulative accuracy chart
+// Cumulative accuracy chart (one point per day)
 const cumulativeDatasets = [];
 for (const [model, points] of Object.entries(rollingData)) {
     if (points.length === 0) continue;
@@ -279,10 +210,17 @@ for (const [model, points] of Object.entries(rollingData)) {
         borderColor: modelColors[model] || '#777',
         backgroundColor: 'transparent',
         borderWidth: (model === 'ensemble' || model === 'neural') ? 3 : 1.5,
-        pointRadius: 0,
+        pointRadius: 5,
+        pointHoverRadius: 7,
         tension: 0.3
     });
 }
+
+// Sort so ensemble and neural are drawn on top (last)
+cumulativeDatasets.sort((a, b) => {
+    const priority = {'Ensemble': 2, 'Neural': 1};
+    return (priority[a.label] || 0) - (priority[b.label] || 0);
+});
 
 new Chart(document.getElementById('cumulativeChart'), {
     type: 'line',
@@ -301,7 +239,12 @@ new Chart(document.getElementById('cumulativeChart'), {
             },
             tooltip: {
                 callbacks: {
-                    label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%'
+                    label: ctx => {
+                        const model = ctx.dataset.label.toLowerCase();
+                        const point = rollingData[model]?.[ctx.dataIndex];
+                        const games = point?.games || '?';
+                        return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '% (' + games + ' games)';
+                    }
                 }
             }
         },

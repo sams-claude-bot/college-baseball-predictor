@@ -83,23 +83,31 @@ def model_trends():
             'correct': row['was_correct']
         })
     
+    # Build daily accuracy (one point per day, not per prediction)
     rolling_data = {}
     for model_name, entries in model_history.items():
-        points = []
-        window = []
+        # Group by date first
+        daily = {}
         cumulative_correct = 0
         cumulative_total = 0
         for entry in entries:
-            window.append(entry['correct'])
+            date = entry['date']
             cumulative_correct += entry['correct']
             cumulative_total += 1
-            if len(window) > 30:
-                window.pop(0)
-            # Always show a point (even with 1 game)
+            # Update this date's cumulative (last entry for the day wins)
+            daily[date] = {
+                'cumulative_correct': cumulative_correct,
+                'cumulative_total': cumulative_total
+            }
+        
+        # Convert to points
+        points = []
+        for date in sorted(daily.keys()):
+            d = daily[date]
             points.append({
-                'date': entry['date'],
-                'rolling': round(sum(window) / len(window) * 100, 1),
-                'cumulative': round(cumulative_correct / cumulative_total * 100, 1)
+                'date': date,
+                'cumulative': round(d['cumulative_correct'] / d['cumulative_total'] * 100, 1),
+                'games': d['cumulative_total']
             })
         rolling_data[model_name] = points
     
