@@ -1903,8 +1903,8 @@ def calendar():
 @app.route('/scores')
 def scores():
     """Scores & Schedule page - merged scores + calendar with full model predictions"""
-    # Default to yesterday
-    default_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    # Default to today
+    default_date = datetime.now().strftime('%Y-%m-%d')
     date_str = request.args.get('date', default_date)
     conference = request.args.get('conference', '')
     
