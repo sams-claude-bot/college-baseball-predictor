@@ -181,6 +181,8 @@ def infer_starter_for_game(conn, team_id: str, game_date: str, rotation: dict):
     if key in rotation:
         player_id, confidence = rotation[key]
         player_name = get_player_name(conn, player_id)
+        if player_name is None:
+            player_id = None  # Don't insert unresolvable IDs
         return player_id, player_name, confidence
     
     # Fallback: use any starter we know about
@@ -188,6 +190,8 @@ def infer_starter_for_game(conn, team_id: str, game_date: str, rotation: dict):
         if fallback_key in rotation:
             player_id, _ = rotation[fallback_key]
             player_name = get_player_name(conn, player_id)
+            if player_name is None:
+                player_id = None
             return player_id, player_name, 'low'
     
     return None, None, 'none'

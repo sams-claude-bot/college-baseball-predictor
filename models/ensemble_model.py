@@ -318,7 +318,8 @@ class EnsembleModel(BaseModel):
             self._log_weight_update(recent_accuracy, decay_factor, total_evaluated)
     
     def _log_weight_update(self, accuracy, decay_factor, total_games):
-        """Log weight updates to ensemble_weights_history table."""
+        """Log weight updates to ensemble_weights_history table.
+        Only logs when weights actually change (compares to last entry)."""
         try:
             from scripts.database import get_connection
             conn = get_connection()
@@ -332,10 +333,18 @@ class EnsembleModel(BaseModel):
                     accuracy_json TEXT
                 )
             ''')
+            # Only log if weights changed from last entry
+            last = conn.execute(
+                'SELECT weights_json FROM ensemble_weight_log ORDER BY id DESC LIMIT 1'
+            ).fetchone()
+            new_weights_json = json.dumps(self.weights)
+            if last and last[0] == new_weights_json:
+                conn.close()
+                return  # No change, skip logging
             conn.execute('''
                 INSERT INTO ensemble_weight_log (total_games, decay_factor, weights_json, accuracy_json)
                 VALUES (?, ?, ?, ?)
-            ''', (total_games, decay_factor, json.dumps(self.weights), json.dumps(accuracy)))
+            ''', (total_games, decay_factor, new_weights_json, json.dumps(accuracy)))
             conn.commit()
             conn.close()
         except Exception:

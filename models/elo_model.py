@@ -90,18 +90,27 @@ class EloModel(BaseModel):
             self._save_rating(team_id, start_elo)
         return self.ratings[team_id]
     
-    def _save_rating(self, team_id, rating):
-        """Save rating to database"""
+    def _save_rating(self, team_id, rating, increment_games=False):
+        """Save rating to database. Only increment games_played when a game result is processed."""
         conn = get_connection()
         c = conn.cursor()
-        c.execute('''
-            INSERT INTO elo_ratings (team_id, rating)
-            VALUES (?, ?)
-            ON CONFLICT(team_id) DO UPDATE SET
-                rating = excluded.rating,
-                games_played = games_played + 1,
-                updated_at = CURRENT_TIMESTAMP
-        ''', (team_id, rating))
+        if increment_games:
+            c.execute('''
+                INSERT INTO elo_ratings (team_id, rating, games_played)
+                VALUES (?, ?, 1)
+                ON CONFLICT(team_id) DO UPDATE SET
+                    rating = excluded.rating,
+                    games_played = games_played + 1,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (team_id, rating))
+        else:
+            c.execute('''
+                INSERT INTO elo_ratings (team_id, rating)
+                VALUES (?, ?)
+                ON CONFLICT(team_id) DO UPDATE SET
+                    rating = excluded.rating,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (team_id, rating))
         conn.commit()
         conn.close()
     
@@ -163,8 +172,8 @@ class EloModel(BaseModel):
         self.ratings[home_team_id] = new_home
         self.ratings[away_team_id] = new_away
         
-        self._save_rating(home_team_id, new_home)
-        self._save_rating(away_team_id, new_away)
+        self._save_rating(home_team_id, new_home, increment_games=True)
+        self._save_rating(away_team_id, new_away, increment_games=True)
         
         # Log history for charts
         self._log_history(home_team_id, new_home, away_team_id, new_home - home_rating, game_id, game_date)

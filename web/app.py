@@ -22,7 +22,12 @@ from database import (
     get_recent_games, get_upcoming_games, get_current_top_25
 )
 from models.compare_models import MODELS, normalize_team_id
-from betting_lines import american_to_implied_prob
+def american_to_implied_prob(american_odds):
+    """Convert American odds to implied probability."""
+    if american_odds > 0:
+        return 100 / (american_odds + 100)
+    else:
+        return abs(american_odds) / (abs(american_odds) + 100)
 
 app = Flask(__name__)
 
@@ -2589,6 +2594,29 @@ def debug():
     
     conn.close()
     
+    # Failed scrapes — teams with D1BB slugs but no recent stats
+    import json as _json
+    slugs_path = base_dir / 'config' / 'd1bb_slugs.json'
+    failed_scrapes = []
+    if slugs_path.exists():
+        slug_data = _json.loads(slugs_path.read_text())
+        slug_map = slug_data.get('team_id_to_d1bb_slug', {})
+        cutoff_dt = (datetime.now() - timedelta(hours=36)).strftime('%Y-%m-%d %H:%M')
+        updated_teams = set(r[0] for r in c.execute(
+            'SELECT DISTINCT team_id FROM player_stats WHERE updated_at > ?', (cutoff_dt,)).fetchall())
+        for tid, slug in sorted(slug_map.items()):
+            if tid not in updated_teams:
+                team_row = c.execute('SELECT name, conference FROM teams WHERE id=?', (tid,)).fetchone()
+                last_update = c.execute('SELECT MAX(updated_at) FROM player_stats WHERE team_id=?', (tid,)).fetchone()
+                failed_scrapes.append({
+                    'id': tid,
+                    'name': team_row[0] if team_row else tid,
+                    'conference': team_row[1] if team_row else '?',
+                    'slug': slug,
+                    'last_updated': last_update[0] if last_update and last_update[0] else 'Never',
+                    'd1bb_url': f'https://d1baseball.com/team/{slug}/'
+                })
+
     # Bug reports
     reports_path = base_dir / 'data' / 'bug_reports.json'
     bug_reports = []
@@ -2605,7 +2633,8 @@ def debug():
         dupe_count=dupe_count,
         orphan_count=orphan_count,
         recent_dates=recent_dates,
-        bug_reports=bug_reports
+        bug_reports=bug_reports,
+        failed_scrapes=failed_scrapes
     )
 
 

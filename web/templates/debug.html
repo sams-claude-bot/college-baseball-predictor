@@ -104,6 +104,37 @@
         </div>
     </div>
 
+    <!-- Failed Scrapes -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <i class="bi bi-exclamation-diamond"></i> Failed D1BB Scrapes
+            <span class="badge bg-dark ms-2">{{ failed_scrapes|length }} teams</span>
+            <small class="text-muted ms-2">(no stats update in last 36 hours)</small>
+        </div>
+        <div class="card-body p-0">
+            {% if failed_scrapes %}
+            <table class="table table-sm mb-0">
+                <thead><tr><th>Team</th><th>Conference</th><th>D1BB Slug</th><th>Last Updated</th><th>Link</th></tr></thead>
+                <tbody>
+                {% for t in failed_scrapes %}
+                <tr>
+                    <td><a href="/team/{{ t.id }}">{{ t.name }}</a></td>
+                    <td>{{ t.conference }}</td>
+                    <td><code>{{ t.slug }}</code></td>
+                    <td>{% if t.last_updated == 'Never' %}<span class="text-danger">Never</span>{% else %}{{ t.last_updated }}{% endif %}</td>
+                    <td><a href="{{ t.d1bb_url }}" target="_blank" rel="noopener">D1BB ↗</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center text-success py-3">
+                <i class="bi bi-check-circle"></i> All mapped teams updated recently
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Recent Dates -->
     <div class="card mb-4">
         <div class="card-header"><i class="bi bi-calendar3"></i> Recent Dates</div>
