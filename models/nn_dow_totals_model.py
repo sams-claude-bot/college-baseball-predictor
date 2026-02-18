@@ -116,7 +116,17 @@ class NNDoWTotalsModel(BaseModel):
                 print(f"Warning: Could not load nn_dow_totals weights: {e}")
 
     def is_trained(self):
-        return self._loaded
+        if not self._loaded:
+            return False
+        # Check feature dimension compatibility
+        if self._feature_mean is not None:
+            from models.nn_features import FeatureComputer
+            fc = FeatureComputer(use_model_predictions=False)
+            expected_features = fc.get_num_features()
+            model_features = len(self._feature_mean)
+            if expected_features != model_features:
+                return False
+        return True
 
     def predict_game(self, home_team_id, away_team_id, neutral_site=False,
                      over_under_line=None, game_date=None):
