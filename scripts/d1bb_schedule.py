@@ -456,6 +456,16 @@ def main():
     print(f"\n{'='*40}")
     print(f"Created: {stats['created']}, Updated: {stats['updated']}, Unchanged: {stats['unchanged']}")
     print(f"Unresolved teams: {stats['unresolved']}")
+    
+    # Auto-evaluate predictions for any games that just got final scores
+    if not args.dry_run and stats['updated'] > 0:
+        print(f"\n{'='*40}")
+        print("Evaluating predictions for completed games...")
+        try:
+            from scripts.predict_and_track import evaluate_predictions
+            evaluate_predictions()
+        except Exception as e:
+            print(f"  Evaluation error: {e}")
 
 
 if __name__ == '__main__':
