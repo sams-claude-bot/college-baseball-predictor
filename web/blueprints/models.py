@@ -86,28 +86,36 @@ def model_trends():
     # Build daily accuracy (one point per day, not per prediction)
     rolling_data = {}
     for model_name, entries in model_history.items():
-        # Group by date first
-        daily = {}
+        # Group entries by date
+        by_date = defaultdict(list)
+        for entry in entries:
+            by_date[entry['date']].append(entry['correct'])
+        
+        # Build daily points with cumulative and rolling (last 7 days)
+        points = []
         cumulative_correct = 0
         cumulative_total = 0
-        for entry in entries:
-            date = entry['date']
-            cumulative_correct += entry['correct']
-            cumulative_total += 1
-            # Update this date's cumulative (last entry for the day wins)
-            daily[date] = {
-                'cumulative_correct': cumulative_correct,
-                'cumulative_total': cumulative_total
-            }
+        sorted_dates = sorted(by_date.keys())
         
-        # Convert to points
-        points = []
-        for date in sorted(daily.keys()):
-            d = daily[date]
+        for i, date in enumerate(sorted_dates):
+            day_results = by_date[date]
+            cumulative_correct += sum(day_results)
+            cumulative_total += len(day_results)
+            
+            # Rolling: last 7 days
+            rolling_correct = 0
+            rolling_total = 0
+            for j in range(max(0, i - 6), i + 1):  # Last 7 days including today
+                d = sorted_dates[j]
+                rolling_correct += sum(by_date[d])
+                rolling_total += len(by_date[d])
+            
             points.append({
                 'date': date,
-                'cumulative': round(d['cumulative_correct'] / d['cumulative_total'] * 100, 1),
-                'games': d['cumulative_total']
+                'cumulative': round(cumulative_correct / cumulative_total * 100, 1),
+                'rolling': round(rolling_correct / rolling_total * 100, 1) if rolling_total > 0 else 0,
+                'games': cumulative_total,
+                'day_games': len(day_results)
             })
         rolling_data[model_name] = points
     
