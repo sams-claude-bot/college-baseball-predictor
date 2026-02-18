@@ -20,7 +20,7 @@ from models.nn_totals_model import NNTotalsModel
 from models.nn_spread_model import NNSpreadModel
 from scripts.database import get_connection
 
-MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'ensemble']
+MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
 
 def predict_games(date=None):
     """Generate and store predictions for all games on a date"""

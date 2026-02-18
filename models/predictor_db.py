@@ -38,6 +38,8 @@ from models.advanced_model import AdvancedModel
 from models.pitching_model import PitchingModel
 from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
+from models.xgboost_model import XGBMoneylineModel
+from models.lightgbm_model import LGBMoneylineModel
 
 
 class TeamStats:
@@ -114,6 +116,8 @@ class Predictor:
         'conference': ConferenceModel,
         'prior': PriorModel,
         'poisson': PoissonModelWrapper,
+        'xgboost': XGBMoneylineModel,
+        'lightgbm': LGBMoneylineModel,
         'ensemble': EnsembleModel,
         'neural': None  # Lazy-loaded due to PyTorch dependency
     }
