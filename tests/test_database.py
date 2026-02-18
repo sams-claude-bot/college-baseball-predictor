@@ -27,6 +27,7 @@ EXPECTED_TABLES = [
     'teams', 
     'team_aliases',
     'model_predictions',
+    'totals_predictions',
     'elo_ratings',
     'player_stats',
     'betting_lines',
@@ -34,6 +35,8 @@ EXPECTED_TABLES = [
     'venues',
     'tracked_bets',
     'tracked_confident_bets',
+    'team_pitching_quality',
+    'team_batting_quality',
 ]
 
 # Required columns in games table
@@ -45,10 +48,11 @@ GAMES_REQUIRED_COLUMNS = [
     'status',
     'home_score',
     'away_score',
+    'inning_text',
 ]
 
 # Valid game status values
-VALID_GAME_STATUSES = ['scheduled', 'final', 'postponed', 'cancelled']
+VALID_GAME_STATUSES = ['scheduled', 'final', 'postponed', 'cancelled', 'in-progress']
 
 
 class TestSchemaIntegrity:
@@ -109,6 +113,45 @@ class TestSchemaIntegrity:
         
         assert len(missing) == 0, (
             f"team_aliases table missing columns: {missing}"
+        )
+    
+    def test_totals_predictions_has_required_columns(self, db_connection):
+        """totals_predictions table should have core columns."""
+        c = db_connection.cursor()
+        c.execute("PRAGMA table_info(totals_predictions)")
+        columns = {row['name'] for row in c.fetchall()}
+        
+        required = ['game_id', 'over_under_line', 'model_name', 'runs_ensemble']
+        missing = [col for col in required if col not in columns]
+        
+        assert len(missing) == 0, (
+            f"totals_predictions table missing columns: {missing}"
+        )
+    
+    def test_team_pitching_quality_has_required_columns(self, db_connection):
+        """team_pitching_quality table should have core columns."""
+        c = db_connection.cursor()
+        c.execute("PRAGMA table_info(team_pitching_quality)")
+        columns = {row['name'] for row in c.fetchall()}
+        
+        required = ['team_id', 'ace_quality', 'rotation_quality', 'bullpen_quality']
+        missing = [col for col in required if col not in columns]
+        
+        assert len(missing) == 0, (
+            f"team_pitching_quality table missing columns: {missing}"
+        )
+    
+    def test_team_batting_quality_has_required_columns(self, db_connection):
+        """team_batting_quality table should have core columns."""
+        c = db_connection.cursor()
+        c.execute("PRAGMA table_info(team_batting_quality)")
+        columns = {row['name'] for row in c.fetchall()}
+        
+        required = ['team_id', 'lineup_ops', 'lineup_woba']
+        missing = [col for col in required if col not in columns]
+        
+        assert len(missing) == 0, (
+            f"team_batting_quality table missing columns: {missing}"
         )
 
 

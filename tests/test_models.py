@@ -330,6 +330,18 @@ class TestEnsembleModel:
             f"Ensemble weights sum to {total}, expected ~1.0"
         )
     
+    def test_ensemble_pitching_weight_is_five_percent(self):
+        """Pitching model should have 5% weight in ensemble (re-enabled)."""
+        from models.ensemble_model import EnsembleModel
+        
+        ensemble = EnsembleModel()
+        weights = ensemble.weights
+        
+        pitching_weight = weights.get('pitching', 0)
+        assert 0.04 <= pitching_weight <= 0.06, (
+            f"Pitching model weight is {pitching_weight}, expected ~0.05 (5%)"
+        )
+    
     def test_ensemble_prediction_includes_model(self, sample_team_ids):
         """Ensemble prediction should include 'model' key."""
         if 'sample_home' not in sample_team_ids:
@@ -345,3 +357,54 @@ class TestEnsembleModel:
         
         assert 'model' in pred
         assert pred['model'] == 'ensemble'
+
+
+class TestRunsEnsemble:
+    """Tests for the runs ensemble model."""
+    
+    def test_runs_ensemble_imports(self):
+        """Runs ensemble should import."""
+        from models.runs_ensemble import RunsEnsemble
+        assert RunsEnsemble is not None
+    
+    def test_runs_ensemble_stats_only_components(self):
+        """Runs ensemble should use only stats-based components (no Elo/Pythagorean)."""
+        from models.runs_ensemble import RunsEnsemble
+        
+        ensemble = RunsEnsemble()
+        
+        # Get component names
+        components = set(ensemble.weights.keys()) if hasattr(ensemble, 'weights') else set()
+        
+        # Should NOT include Elo or Pythagorean (they predict strength, not runs)
+        assert 'elo' not in components, "Runs ensemble should not include Elo"
+        assert 'pythagorean' not in components, "Runs ensemble should not include Pythagorean"
+        
+        # Should include stats-only components
+        stats_components = {'poisson', 'pitching', 'advanced'}
+        found = components & stats_components
+        assert len(found) >= 2, (
+            f"Runs ensemble should include stats-based components. Found: {components}"
+        )
+
+
+class TestPitchingModelV2:
+    """Tests for the updated pitching model."""
+    
+    def test_pitching_model_uses_quality_tables(self, db_connection):
+        """Pitching model should use team_pitching_quality and team_batting_quality tables."""
+        # Check that quality tables exist and have data
+        c = db_connection.cursor()
+        
+        c.execute("SELECT COUNT(*) as cnt FROM team_pitching_quality")
+        pitching_count = c.fetchone()['cnt']
+        
+        c.execute("SELECT COUNT(*) as cnt FROM team_batting_quality")
+        batting_count = c.fetchone()['cnt']
+        
+        assert pitching_count > 0, "team_pitching_quality table is empty"
+        assert batting_count > 0, "team_batting_quality table is empty"
+        
+        # Both should have ~292 teams
+        assert pitching_count >= 250, f"team_pitching_quality has only {pitching_count} rows"
+        assert batting_count >= 250, f"team_batting_quality has only {batting_count} rows"

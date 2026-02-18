@@ -58,12 +58,15 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 
 | Table | Rows | Purpose |
 |-------|------|---------|
-| `games` | 2,190 | All games — scheduled, final, postponed, cancelled |
+| `games` | 2,190 | All games — scheduled, final, in-progress, postponed, cancelled. `inning_text` for live games |
 | `teams` | 407 | D1 teams with conference, rank, athletics URL |
 | `team_aliases` | 704 | Cross-source name mapping (DK↔ESPN↔D1BB) |
 | `player_stats` | 10,706 | Per-player batting/pitching stats + advanced metrics (wOBA, FIP, xFIP, wRC+) |
 | `player_stats_snapshots` | varies | Point-in-time stat snapshots for historical tracking |
 | `model_predictions` | 4,235 | Pre-game predictions from all models, graded post-game |
+| `totals_predictions` | varies | Per-component O/U predictions (runs_poisson, runs_pitching, runs_advanced, runs_ensemble) |
+| `team_pitching_quality` | 292 | Staff quality metrics — ace, rotation, bullpen, depth, HHI |
+| `team_batting_quality` | 292 | Lineup quality — OPS, wOBA, wRC+, bench depth, concentration |
 | `elo_ratings` | 391 | Current Elo rating per team |
 | `elo_history` | varies | Elo rating changes per game |
 | `betting_lines` | 78 | DraftKings odds per game (ML, spread, O/U) |
@@ -85,7 +88,12 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 Doubleheaders: `_g1`, `_g2` suffixes.
 
 ### Game Status Values
-`scheduled`, `final`, `postponed`, `cancelled`
+`scheduled`, `final`, `postponed`, `cancelled`, `in-progress`
+
+### Live Games
+- Games with `in-progress` status have scores updated live (every 15 min during game hours)
+- `inning_text` column stores current inning ("Top 5", "Bottom 7", etc.)
+- `inning_text` is cleared when game goes `final`
 
 ---
 
@@ -106,12 +114,12 @@ Doubleheaders: `_g1`, `_g2` suffixes.
 | `xgboost` | ML (GBM) | XGBoost gradient boosting, 81 features | 76.2% (218/286) |
 | `pythagorean` | Formula | Runs scored/allowed expectation | 75.3% (216/287) |
 | `neural` | ML (NN) | PyTorch neural net, 81 features, 2-phase training | 74.4% (287/386) |
-| `pitching` | Statistical | ERA, WHIP, K rates, bullpen depth | 69.7% (200/287) — **disabled in ensemble (weight=0)** |
+| `pitching` | Statistical | Uses `team_pitching_quality` + `team_batting_quality` tables; DOW rotation/bullpen blending | **5% weight in ensemble** (re-enabled) |
 
 **Note:** `momentum` is a post-ensemble modifier (±5% based on last 5-7 games), not a standalone model.
 
 ### Ensemble Weights
-Dynamic — auto-adjusts based on recency-weighted accuracy. Minimum 5% floor per model. Pitching model at 0 weight. Weights logged to `ensemble_weights_history` table.
+Dynamic — auto-adjusts based on recency-weighted accuracy. Minimum 5% floor per model. Pitching model re-enabled at 5% weight. Weights logged to `ensemble_weights_history` table.
 
 ### Run Projection Models
 
@@ -120,7 +128,7 @@ Dynamic — auto-adjusts based on recency-weighted accuracy. Minimum 5% floor pe
 | `nn_totals` | `nn_totals_model.py` | Neural net for over/under totals |
 | `nn_spread` | `nn_spread_model.py` | Neural net for run line spreads |
 | `nn_dow_totals` | `nn_dow_totals_model.py` | Day-of-week adjusted totals |
-| `runs_ensemble` | `runs_ensemble.py` | Weighted blend of runs models |
+| `runs_ensemble` | `runs_ensemble.py` | Stats-only blend: Poisson 35%, Pitching 35%, Advanced 30% (no Elo/Pythagorean). Auto-weight adjustment after 20+ games |
 
 ### Weather Model
 `weather_model.py` — Adjusts run projections based on temperature, wind, humidity. Coefficients stored in `data/weather_coefficients.json`.
@@ -174,11 +182,11 @@ All trainable models (neural, XGBoost, LightGBM) share the same feature pipeline
 | Route | Template | Description |
 |-------|----------|-------------|
 | `/` | `dashboard.html` | MSU + Auburn cards, today's best bets, recent results with model accuracy |
-| `/scores` | `scores.html` | Scoreboard by date, conference filter, model prediction badges per game |
+| `/scores` | `scores.html` | Scoreboard by date: Live (in-progress with inning), Final, Scheduled. Conference filter |
 | `/betting` | `betting.html` | Best Bets (consensus), Highest EV, Best Totals. v2 badge shows selection logic |
 | `/teams` | `teams.html` | All teams list, searchable/filterable by conference |
 | `/team/<id>` | `team_detail.html` | Team profile: record, stats, schedule, Elo chart |
-| `/game/<id>` | `game.html` | Full model breakdown per matchup, box score if completed |
+| `/game/<id>` | `game.html` | Full model breakdown per matchup, box score if completed (only page with live model calls) |
 | `/predict` | `predict.html` | Interactive head-to-head prediction tool |
 | `/rankings` | `rankings.html` | D1Baseball Top 25 + model power rankings |
 | `/standings` | `standings.html` | Conference standings |
@@ -415,11 +423,16 @@ college-baseball-predictor/
 
 ## Known Issues & Technical Debt
 1. **DraftKings scraper is fragile** — NCAA baseball page layout changes break parsing regularly
-2. **Pitching model underperforms** (69.7%) — disabled in ensemble at 0 weight, needs rework
+2. **Pitching model v2 re-enabled** at 5% weight — now uses quality tables instead of raw ERA/WHIP
 3. **Neural net accuracy dropped** to 74.4% — was 88% early on, possibly overfitting to small sample
 4. **Spreads disabled** in betting — model not calibrated for run lines
 5. **5 teams need custom scrapers** for stats: Georgia Tech (PDF rosters), Arkansas, Kentucky, South Carolina, Vanderbilt
 6. **`app.py` is 2,749 lines** — could benefit from blueprint refactoring
+
+## Performance Notes
+- **Web pages use stored predictions only** — reads from `model_predictions` and `totals_predictions` tables (no live model calls except `/game/<id>` detail page)
+- **`predict_and_track.py`** runs daily (morning cron) to populate predictions
+- Page load times: <0.1s (was 10-30s with live model calls)
 
 ---
 

@@ -20,9 +20,15 @@ NCAA D1 college baseball prediction system with 12 models, automated data pipeli
 | XGBoost | ML | Gradient boosting, 81 features |
 | Pythagorean | Formula | Runs scored/allowed expectation |
 | Neural | ML | PyTorch NN, 81 features, 2-phase training |
-| Pitching | Statistical | ERA, WHIP, K rates, bullpen depth |
+| Pitching | Statistical | Staff quality tables (ace, rotation, bullpen depth) |
 
 Plus 3 run projection models (NN totals, NN spread, DOW totals) and a weather adjustment model.
+
+## Features
+
+- **Live scores** — In-progress games update every 15 minutes with current inning
+- **12 prediction models** — Statistical, ML, and ensemble approaches
+- **Stored predictions** — Sub-100ms page loads (predictions pre-computed daily)
 
 ## Data Sources
 

@@ -122,4 +122,4 @@ GAMES_REQUIRED_COLUMNS = [
 ]
 
 # Valid game status values
-VALID_GAME_STATUSES = ['scheduled', 'final', 'postponed', 'cancelled']
+VALID_GAME_STATUSES = ['scheduled', 'final', 'postponed', 'cancelled', 'in-progress']
