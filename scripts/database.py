@@ -2,13 +2,23 @@
 """
 SQLite database for college baseball tracking
 
-Tables:
+Core tables (created by init_database):
 - teams: Team info, conference, rankings
 - players: Roster with stats
 - games: Individual game results
 - tournaments: Multi-team events
-- tournament_games: Games within tournaments
-- predictions: Model predictions for tracking accuracy
+- team_stats: Season aggregates
+- predictions: Legacy prediction tracking
+- model_predictions: Per-model prediction tracking
+- betting_lines: DraftKings odds
+- totals_predictions: O/U prediction tracking
+
+Additional tables created on-demand by their respective modules:
+- elo_ratings, elo_history: Created by models/elo_model.py
+- team_pitching_quality, team_batting_quality: Created by compute scripts
+- player_stats: Created by stats scrapers
+- game_weather: Created by weather.py
+- See sqlite3 .tables for full list (~40 tables)
 """
 
 import sqlite3
@@ -178,12 +188,78 @@ def init_database():
         )
     ''')
     
+    # Model predictions (per-model tracking)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS model_predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT NOT NULL,
+            model_name TEXT NOT NULL,
+            predicted_home_prob REAL,
+            predicted_home_runs REAL,
+            predicted_away_runs REAL,
+            predicted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            was_correct INTEGER,
+            UNIQUE(game_id, model_name),
+            FOREIGN KEY (game_id) REFERENCES games(id)
+        )
+    ''')
+    
+    # Betting lines (DraftKings odds)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS betting_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT,
+            date TEXT NOT NULL,
+            home_team_id TEXT NOT NULL,
+            away_team_id TEXT NOT NULL,
+            book TEXT DEFAULT 'draftkings',
+            home_ml INTEGER,
+            away_ml INTEGER,
+            home_spread REAL,
+            home_spread_odds INTEGER,
+            away_spread REAL,
+            away_spread_odds INTEGER,
+            over_under REAL,
+            over_odds INTEGER,
+            under_odds INTEGER,
+            captured_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (home_team_id) REFERENCES teams(id),
+            FOREIGN KEY (away_team_id) REFERENCES teams(id)
+        )
+    ''')
+    
+    # Totals predictions (O/U tracking)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS totals_predictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT NOT NULL,
+            betting_line_id TEXT,
+            over_under_line REAL NOT NULL,
+            projected_total REAL NOT NULL,
+            prediction TEXT NOT NULL,
+            edge_pct REAL,
+            confidence REAL,
+            predicted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            actual_total INTEGER,
+            was_correct INTEGER,
+            model_name TEXT DEFAULT 'runs_ensemble',
+            UNIQUE(game_id, over_under_line, model_name),
+            FOREIGN KEY (game_id) REFERENCES games(id)
+        )
+    ''')
+    
     # Create indexes for common queries
     c.execute('CREATE INDEX IF NOT EXISTS idx_games_date ON games(date)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_games_teams ON games(home_team_id, away_team_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_games_tournament ON games(tournament_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_players_team ON players(team_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_predictions_game ON predictions(game_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_game ON model_predictions(game_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_model ON model_predictions(model_name)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_betting_lines_game ON betting_lines(game_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_betting_lines_date ON betting_lines(date)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_totals_game ON totals_predictions(game_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_totals_model ON totals_predictions(model_name)')
     
     conn.commit()
     conn.close()

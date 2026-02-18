@@ -17,7 +17,8 @@ from models.compare_models import MODELS, normalize_team_id
 
 from web.helpers import (
     get_all_teams, get_betting_games,
-    american_to_implied_prob, compute_model_agreement
+    american_to_implied_prob, compute_model_agreement,
+    calculate_adjusted_edge, UNDERDOG_EDGE_DISCOUNT
 )
 
 api_bp = Blueprint('api', __name__)
@@ -224,20 +225,10 @@ def api_best_bets():
     # === v2 THRESHOLDS ===
     ML_EDGE_FAVORITE = 8.0
     ML_EDGE_UNDERDOG = 15.0
-    UNDERDOG_DISCOUNT = 0.5
-    CONSENSUS_BONUS_PER_MODEL = 1.0  # +1% per model above 5
     ML_MAX_FAVORITE = -200
     ML_MAX_FAVORITE_CONSENSUS = -300
     ML_MIN_UNDERDOG = 250
     SPREADS_ENABLED = False
-
-    def calc_adjusted_edge(raw_edge, ml, models_agree=5):
-        """Calculate adjusted edge with underdog discount and consensus bonus."""
-        adj = raw_edge
-        if ml and ml > 0:  # Underdog
-            adj = raw_edge * UNDERDOG_DISCOUNT
-        bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
-        return adj + bonus
 
     # Filter to only games with model predictions
     games = [g for g in games if g.get('best_pick')]
@@ -271,7 +262,7 @@ def api_best_bets():
             continue
 
         models = consensus_lookup.get(g['game_id'], 5)
-        adj_edge = calc_adjusted_edge(raw_edge, ml, models)
+        adj_edge = calculate_adjusted_edge(raw_edge, ml, models)
 
         ml_candidates.append({**g, 'adjusted_edge': adj_edge, 'models_agree': models})
 

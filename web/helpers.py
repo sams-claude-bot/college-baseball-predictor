@@ -22,9 +22,10 @@ from models.compare_models import MODELS, normalize_team_id
 # Constants
 # ============================================
 
-# Models to use for consensus voting (12 total - includes XGBoost and LightGBM)
+# Models to use for consensus voting (11 component models, NOT ensemble)
+# Ensemble is excluded because it's already a weighted blend of these models
 CONSENSUS_MODELS = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching',
-                    'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
+                    'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm']
 
 
 # ============================================
@@ -37,6 +38,35 @@ def american_to_implied_prob(american_odds):
         return 100 / (american_odds + 100)
     else:
         return abs(american_odds) / (abs(american_odds) + 100)
+
+
+# Betting edge adjustment constants
+UNDERDOG_EDGE_DISCOUNT = 0.5   # Underdogs edges halved (market usually right)
+CONSENSUS_BONUS_PER_MODEL = 1.0  # +1% edge per model above 5 agreeing
+
+
+def calculate_adjusted_edge(raw_edge: float, moneyline: int = None, models_agree: int = 5) -> float:
+    """
+    Calculate adjusted betting edge with underdog discount and consensus bonus.
+    
+    Args:
+        raw_edge: Raw edge percentage from model vs implied odds
+        moneyline: American odds (positive = underdog)
+        models_agree: Number of models agreeing on the pick (out of 11)
+    
+    Returns:
+        Adjusted edge percentage
+    """
+    adj = raw_edge
+    
+    # Underdog discount: market is usually right about favorites
+    if moneyline and moneyline > 0:
+        adj = raw_edge * UNDERDOG_EDGE_DISCOUNT
+    
+    # Consensus bonus: +1% for each model above 5 agreeing (max +6%)
+    bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
+    
+    return adj + bonus
 
 
 # ============================================

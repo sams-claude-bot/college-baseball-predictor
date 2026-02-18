@@ -20,7 +20,12 @@ import json
 import sqlite3
 import requests
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from web.helpers import calculate_adjusted_edge, UNDERDOG_EDGE_DISCOUNT
 
 DB_PATH = 'data/baseball.db'
 API_URL = 'http://localhost:5000/api/best-bets'
@@ -37,9 +42,6 @@ ML_MIN_UNDERDOG = 250         # Don't bet extreme underdogs (unlikely to hit)
 # Model probability sanity checks
 ML_MAX_MODEL_PROB = 0.88      # Cap model probability (avoid overconfidence)
 ML_MIN_MODEL_PROB = 0.55      # Don't bet near coin-flips
-
-# Underdog skepticism: market is usually right, discount underdog edges
-UNDERDOG_EDGE_DISCOUNT = 0.5  # Cut underdog edge in half (model overconfident on dogs)
 
 TOTALS_EDGE_THRESHOLD = 3.0   # Runs diff (was 15%, now 3 runs)
 TOTALS_MIN_CONFIDENCE = 0.6   # Model confidence in the pick
@@ -279,24 +281,13 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
     
     # Sort by ADJUSTED edge: consensus adds bonus, underdogs get discounted
     # This keeps EV as primary but rewards model agreement and distrusts underdog edges
-    CONSENSUS_BONUS = 5.0  # +5% edge bonus for 10/10 models
-    
-    def adjusted_edge(b):
-        base_edge = b.get('edge', 0)
-        ml = b.get('moneyline') or b.get('odds') or -110
-        
-        # Underdog discount: market is usually right about favorites
-        if ml > 0:  # Underdog
-            base_edge = base_edge * UNDERDOG_EDGE_DISCOUNT
-        
-        # Consensus bonus: +1% for each model above 5 agreeing (max +5%)
-        models = b.get('models_agree', 5)
-        bonus = max(0, (models - 5)) * (CONSENSUS_BONUS / 5)
-        
-        return base_edge + bonus
-    
     for b in results['bets']:
-        b['adjusted_edge'] = adjusted_edge(b)
+        ml = b.get('moneyline') or b.get('odds') or -110
+        b['adjusted_edge'] = calculate_adjusted_edge(
+            b.get('edge', 0), 
+            moneyline=ml, 
+            models_agree=b.get('models_agree', 5)
+        )
     
     results['bets'].sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     if len(results['bets']) > MAX_BETS_PER_DAY:

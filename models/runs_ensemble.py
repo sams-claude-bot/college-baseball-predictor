@@ -5,12 +5,15 @@ Combines projections from multiple models with confidence-weighted averaging.
 Uses Poisson distribution for over/under probability calculations.
 """
 
-import sqlite3
 import math
+from pathlib import Path
 from scipy import stats
 from typing import Dict, Any, Optional, Tuple
 
-DB_PATH = '/home/sam/college-baseball-predictor/data/baseball.db'
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from scripts.database import get_connection
 
 # Default weights for run projections — stats-based models only
 DEFAULT_RUN_WEIGHTS = {
@@ -28,11 +31,6 @@ MIN_GAMES_FOR_ADJUSTMENT = 20
 ADJUSTMENT_RATE = 0.3
 # Minimum weight for any model
 MIN_WEIGHT = 0.05
-
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 def get_team_stats(team_id: str) -> Optional[Dict]:
     """Get team's run scoring and allowing stats."""
