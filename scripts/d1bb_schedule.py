@@ -308,22 +308,23 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
             updates.append("time = ?")
             params.append(time)
         
-        # Update scores if we have them and existing doesn't (or if game is final)
-        if home_score is not None and (existing['home_score'] is None or status == 'final'):
+        # Update scores if we have them and existing doesn't (or game is in-progress/final)
+        if home_score is not None and (existing['home_score'] is None or status in ('final', 'in-progress')):
             updates.append("home_score = ?")
             params.append(home_score)
             updates.append("away_score = ?")
             params.append(away_score)
-            # Determine winner for final games
-            if status == 'final':
+            # Update status for in-progress and final games
+            if status in ('final', 'in-progress'):
                 updates.append("status = ?")
-                params.append('final')
-                if home_score > away_score:
-                    updates.append("winner_id = ?")
-                    params.append(home_id)
-                elif away_score > home_score:
-                    updates.append("winner_id = ?")
-                    params.append(away_id)
+                params.append(status)
+                if status == 'final':
+                    if home_score > away_score:
+                        updates.append("winner_id = ?")
+                        params.append(home_id)
+                    elif away_score > home_score:
+                        updates.append("winner_id = ?")
+                        params.append(away_id)
         
         if updates:
             params.append(game_id)
