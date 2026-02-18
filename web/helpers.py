@@ -40,9 +40,14 @@ def american_to_implied_prob(american_odds):
         return abs(american_odds) / (abs(american_odds) + 100)
 
 
-# Betting edge adjustment constants
-UNDERDOG_EDGE_DISCOUNT = 0.5   # Underdogs edges halved (market usually right)
-CONSENSUS_BONUS_PER_MODEL = 1.0  # +1% edge per model above 5 agreeing
+# Betting edge adjustment constants (from shared config)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config.model_config import BET_UNDERDOG_DISCOUNT, BET_CONSENSUS_BONUS
+
+UNDERDOG_EDGE_DISCOUNT = BET_UNDERDOG_DISCOUNT
+CONSENSUS_BONUS_PER_MODEL = BET_CONSENSUS_BONUS
 
 
 def calculate_adjusted_edge(raw_edge: float, moneyline: int = None, models_agree: int = 5) -> float:

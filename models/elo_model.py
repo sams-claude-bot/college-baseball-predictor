@@ -18,15 +18,19 @@ _scripts_dir = _models_dir.parent / "scripts"
 
 from models.base_model import BaseModel
 from scripts.database import get_connection
+from config.model_config import (
+    ELO_BASE_RATING, ELO_K_FACTOR, HOME_ADVANTAGE_ELO,
+    ELO_CONFERENCE_TIERS, ELO_MOV_MULTIPLIER_CAP
+)
 
 class EloModel(BaseModel):
     name = "elo"
     version = "1.0"
     description = "Elo rating system (FiveThirtyEight style)"
     
-    BASE_RATING = 1500
-    K_FACTOR = 32  # How much ratings change per game
-    HOME_ADVANTAGE = 50  # Elo points for home team
+    BASE_RATING = ELO_BASE_RATING
+    K_FACTOR = ELO_K_FACTOR
+    HOME_ADVANTAGE = HOME_ADVANTAGE_ELO
     
     def __init__(self):
         self.ratings = {}
@@ -62,17 +66,8 @@ class EloModel(BaseModel):
         
         conn.close()
     
-    # Conference-tiered starting Elo for new teams
-    CONF_ELO = {
-        'SEC': 1600, 'ACC': 1580, 'Big 12': 1560, 'Big Ten': 1550,
-        'AAC': 1520, 'Sun Belt': 1510, 'C-USA': 1500, 'MWC': 1490,
-        'Big East': 1490, 'WCC': 1480, 'A-10': 1470, 'CAA': 1470,
-        'MVC': 1460, 'SoCon': 1460, 'ASUN': 1460, 'Big West': 1460,
-        'MAC': 1450, 'OVC': 1430, 'Southland': 1430, 'Summit': 1420,
-        'WAC': 1420, 'Big South': 1420, 'NEC': 1410, 'Patriot': 1410,
-        'Horizon': 1410, 'America East': 1400, 'Ivy': 1400,
-        'MEAC': 1380, 'SWAC': 1370,
-    }
+    # Conference-tiered starting Elo for new teams (from shared config)
+    CONF_ELO = ELO_CONFERENCE_TIERS
 
     def _get_rating(self, team_id):
         """Get team's Elo rating, initialize with conference-tiered default if new"""
@@ -163,7 +158,7 @@ class EloModel(BaseModel):
         if margin is not None:
             # Increase K for blowouts, decrease for close games
             mov_mult = math.log(abs(margin) + 1) * 0.5 + 0.5
-            k = self.K_FACTOR * min(mov_mult, 2.0)
+            k = self.K_FACTOR * min(mov_mult, ELO_MOV_MULTIPLIER_CAP)
         
         # Update ratings
         new_home = home_rating + k * (home_actual - home_expected)

@@ -18,17 +18,18 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 
 | Metric | Value |
 |--------|-------|
-| Total games tracked | 2,190 |
-| Games completed | 392 |
-| Games scheduled | 1,793 |
+| Total games tracked | 2,146 |
+| Games completed | 396 |
+| Games scheduled | 1,723 |
 | D1 teams | 407 |
-| Teams with player stats | 292 |
-| Model predictions made | 4,235 |
+| Elo ratings | 392 |
+| Model predictions made | 1,041 |
 | Player stats rows | 10,706 |
 | Venues with coordinates | 299 |
 | Team aliases | 704 |
 | Games with weather | 520 |
-| Season date range | Feb 13 – Feb 17 (5 days in) |
+| Betting lines captured | 88 |
+| Season date range | Feb 13 – Feb 18 (6 days in) |
 
 ---
 
@@ -175,7 +176,7 @@ All trainable models (neural, XGBoost, LightGBM) share the same feature pipeline
 
 ## Web Dashboard
 
-**2,749 lines** of Flask (web/app.py) serving 16 Jinja2 templates.
+Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints/` (1,888 lines across 9 modules). Serves 16 Jinja2 templates.
 
 ### Pages
 
@@ -427,7 +428,7 @@ college-baseball-predictor/
 3. **Neural net accuracy dropped** to 74.4% — was 88% early on, possibly overfitting to small sample
 4. **Spreads disabled** in betting — model not calibrated for run lines
 5. **5 teams need custom scrapers** for stats: Georgia Tech (PDF rosters), Arkansas, Kentucky, South Carolina, Vanderbilt
-6. **`app.py` is 2,749 lines** — could benefit from blueprint refactoring
+6. ~~`app.py` is 2,749 lines~~ — **DONE:** Refactored into blueprints (Feb 18)
 
 ## Performance Notes
 - **Web pages use stored predictions only** — reads from `model_predictions` and `totals_predictions` tables (no live model calls except `/game/<id>` detail page)
