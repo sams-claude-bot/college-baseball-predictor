@@ -597,8 +597,8 @@ class HistoricalFeatureComputer:
             s = self.team_stats[team]
             gp = s['games']
 
-            # Elo
-            features.append(self.elo[team])
+            # Elo - REMOVED: calculated fresh each season, no historical relevance
+            # features.append(self.elo[team])
 
             # Win %
             total_wins = s['wins']
@@ -644,12 +644,12 @@ class HistoricalFeatureComputer:
                 days_rest = 3.0
             features.append(float(min(days_rest, 14)))  # Cap at 14
 
-            # SOS: avg opponent elo
-            if s['opponents']:
-                sos = sum(self.elo[o] for o in s['opponents']) / len(s['opponents'])
-            else:
-                sos = DEFAULT_ELO
-            features.append(sos)
+            # SOS - REMOVED: depends on Elo, which has no historical relevance
+            # if s['opponents']:
+            #     sos = sum(self.elo[o] for o in s['opponents']) / len(s['opponents'])
+            # else:
+            #     sos = DEFAULT_ELO
+            # features.append(sos)
 
             # Advanced batting defaults (no player_stats in historical)
             features.extend([100.0, 0.320, 0.140, 0.300, 20.0, 8.5, 43.0, 36.0, 21.0])
