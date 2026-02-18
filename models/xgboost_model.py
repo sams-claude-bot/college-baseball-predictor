@@ -90,6 +90,12 @@ class XGBMoneylineModel(BaseModel):
         features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
         if self.feature_mean is not None and self.feature_std is not None:
+            # Handle feature size mismatch (new features added but model not retrained)
+            saved_size = len(self.feature_mean)
+            if len(features) > saved_size:
+                features = features[:saved_size]
+            elif len(features) < saved_size:
+                features = np.pad(features, (0, saved_size - len(features)))
             features = (features - self.feature_mean) / (self.feature_std + 1e-8)
             features = np.clip(features, -5.0, 5.0)
 
@@ -163,6 +169,12 @@ class XGBTotalsModel(BaseModel):
         features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
         if self.feature_mean is not None and self.feature_std is not None:
+            # Handle feature size mismatch (new features added but model not retrained)
+            saved_size = len(self.feature_mean)
+            if len(features) > saved_size:
+                features = features[:saved_size]
+            elif len(features) < saved_size:
+                features = np.pad(features, (0, saved_size - len(features)))
             features = (features - self.feature_mean) / (self.feature_std + 1e-8)
             features = np.clip(features, -5.0, 5.0)
 
@@ -255,6 +267,12 @@ class XGBSpreadModel(BaseModel):
         features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
         if self.feature_mean is not None and self.feature_std is not None:
+            # Handle feature size mismatch (new features added but model not retrained)
+            saved_size = len(self.feature_mean)
+            if len(features) > saved_size:
+                features = features[:saved_size]
+            elif len(features) < saved_size:
+                features = np.pad(features, (0, saved_size - len(features)))
             features = (features - self.feature_mean) / (self.feature_std + 1e-8)
             features = np.clip(features, -5.0, 5.0)
 

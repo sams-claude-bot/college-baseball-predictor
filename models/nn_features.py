@@ -137,6 +137,24 @@ class FeatureComputer:
                 f'{prefix}adv_gb_pct_pitch',
                 f'{prefix}adv_fb_pct_pitch',
             ])
+            # Staff quality (from team_pitching_quality table)
+            names.extend([
+                f'{prefix}ace_era',
+                f'{prefix}ace_whip',
+                f'{prefix}ace_k9',
+                f'{prefix}ace_fip',
+                f'{prefix}rotation_era',
+                f'{prefix}rotation_whip',
+                f'{prefix}rotation_k9',
+                f'{prefix}rotation_fip',
+                f'{prefix}bullpen_era',
+                f'{prefix}bullpen_whip',
+                f'{prefix}bullpen_k9',
+                f'{prefix}staff_depth',        # normalized staff size
+                f'{prefix}ace_ip_pct',         # innings concentration
+                f'{prefix}innings_hhi',        # Herfindahl index
+                f'{prefix}quality_arms_pct',   # quality arms / staff size
+            ])
         # Situational (game-level)
         names.extend([
             'is_neutral_site',
@@ -201,6 +219,7 @@ class FeatureComputer:
             features.extend(self._situational_team_features(conn, team_id, game_date))
             features.extend(self._advanced_batting_features(conn, team_id))
             features.extend(self._advanced_pitching_features(conn, team_id))
+            features.extend(self._staff_quality_features(conn, team_id))
 
         # Game-level situational
         features.append(1.0 if neutral_site else 0.0)
@@ -449,6 +468,66 @@ class FeatureComputer:
                 row['fb_pct_pitch'] or 36.0,
             ]
         return list(self._ADV_PITCH_DEFAULTS)
+
+    # ---- Staff Quality (from compute_pitching_quality.py) ----
+
+    # Defaults when team_pitching_quality data is missing
+    _STAFF_QUALITY_DEFAULTS = [
+        4.50,  # ace_era
+        1.35,  # ace_whip
+        7.5,   # ace_k9
+        4.50,  # ace_fip
+        4.50,  # rotation_era
+        1.35,  # rotation_whip
+        7.5,   # rotation_k9
+        4.50,  # rotation_fip
+        4.50,  # bullpen_era
+        1.35,  # bullpen_whip
+        7.5,   # bullpen_k9
+        0.5,   # staff_depth (normalized)
+        0.25,  # ace_ip_pct
+        0.15,  # innings_hhi
+        0.2,   # quality_arms_pct
+    ]
+
+    def _staff_quality_features(self, conn, team_id):
+        """Staff-level pitching quality from team_pitching_quality table."""
+        c = conn.cursor()
+        try:
+            c.execute("""
+                SELECT ace_era, ace_whip, ace_k_per_9, ace_fip,
+                       rotation_era, rotation_whip, rotation_k_per_9, rotation_fip,
+                       bullpen_era, bullpen_whip, bullpen_k_per_9,
+                       staff_size, ace_ip_pct, innings_hhi, quality_arms
+                FROM team_pitching_quality WHERE team_id = ?
+            """, (team_id,))
+            row = c.fetchone()
+        except Exception:
+            return list(self._STAFF_QUALITY_DEFAULTS)
+
+        if not row:
+            return list(self._STAFF_QUALITY_DEFAULTS)
+
+        staff_size = row['staff_size'] or 10
+        quality_arms = row['quality_arms'] or 0
+
+        return [
+            row['ace_era'] or 4.50,
+            row['ace_whip'] or 1.35,
+            row['ace_k_per_9'] or 7.5,
+            row['ace_fip'] or 4.50,
+            row['rotation_era'] or 4.50,
+            row['rotation_whip'] or 1.35,
+            row['rotation_k_per_9'] or 7.5,
+            row['rotation_fip'] or 4.50,
+            row['bullpen_era'] or 4.50,
+            row['bullpen_whip'] or 1.35,
+            row['bullpen_k_per_9'] or 7.5,
+            min(staff_size / 20.0, 1.0),  # normalize: 20 pitchers = 1.0
+            row['ace_ip_pct'] or 0.25,
+            row['innings_hhi'] or 0.15,
+            quality_arms / max(staff_size, 1),  # quality arms as pct of staff
+        ]
 
     # ---- Meta (model stacking) ----
 
