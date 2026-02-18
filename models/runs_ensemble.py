@@ -12,12 +12,22 @@ from typing import Dict, Any, Optional, Tuple
 
 DB_PATH = '/home/sam/college-baseball-predictor/data/baseball.db'
 
-# Model weights for run projections — stats-based models only
-RUN_MODEL_WEIGHTS = {
+# Default weights for run projections — stats-based models only
+DEFAULT_RUN_WEIGHTS = {
     'poisson': 0.35,      # Best for run distributions, quality-adjusted
     'pitching': 0.35,     # v2 uses staff quality + batting quality + day-of-week
     'advanced': 0.30,     # Opponent-adjusted from real game results
 }
+
+# Active weights (updated by auto-adjustment)
+RUN_MODEL_WEIGHTS = DEFAULT_RUN_WEIGHTS.copy()
+
+# Minimum games before adjusting weights
+MIN_GAMES_FOR_ADJUSTMENT = 20
+# How fast weights move toward target (0-1, higher = faster)
+ADJUSTMENT_RATE = 0.3
+# Minimum weight for any model
+MIN_WEIGHT = 0.05
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
@@ -77,6 +87,79 @@ def get_league_average() -> float:
     conn.close()
     
     return row['avg_total'] if row and row['avg_total'] else 11.0  # Default to ~11 total
+
+def _update_weights_from_accuracy():
+    """Auto-adjust run model weights based on O/U prediction accuracy.
+    
+    Reads totals_predictions table for per-component accuracy (runs_poisson, 
+    runs_pitching, runs_advanced). Uses recency-weighted accuracy^2 to shift
+    weights toward better-performing models.
+    """
+    global RUN_MODEL_WEIGHTS
+    
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        
+        # Get per-component model O/U accuracy with recency weighting
+        c.execute('''
+            SELECT model_name, was_correct,
+                   ROW_NUMBER() OVER (PARTITION BY model_name ORDER BY predicted_at DESC) as recency_rank
+            FROM totals_predictions
+            WHERE was_correct IS NOT NULL
+            AND model_name IN ('runs_poisson', 'runs_pitching', 'runs_advanced')
+        ''')
+        
+        model_scores = {}
+        model_counts = {}
+        for row in c.fetchall():
+            name = row['model_name'].replace('runs_', '')  # runs_poisson -> poisson
+            if name not in model_scores:
+                model_scores[name] = {'weighted_correct': 0.0, 'weighted_total': 0.0}
+                model_counts[name] = 0
+            
+            rank = row['recency_rank']
+            weight = 0.977 ** (rank - 1)  # Half-life ~30 predictions
+            model_scores[name]['weighted_correct'] += row['was_correct'] * weight
+            model_scores[name]['weighted_total'] += weight
+            model_counts[name] += 1
+        
+        conn.close()
+        
+        # Need minimum data before adjusting
+        total_evaluated = sum(model_counts.values())
+        if total_evaluated < MIN_GAMES_FOR_ADJUSTMENT:
+            return
+        
+        # Calculate recency-weighted accuracy per model
+        accuracy = {}
+        for name in DEFAULT_RUN_WEIGHTS:
+            if name in model_scores and model_scores[name]['weighted_total'] > 0:
+                accuracy[name] = model_scores[name]['weighted_correct'] / model_scores[name]['weighted_total']
+            else:
+                accuracy[name] = 0.5  # No data = neutral
+        
+        # accuracy^2 to amplify differences
+        scores = {n: max(acc, 0.3) ** 2 for n, acc in accuracy.items()}
+        total_score = sum(scores.values())
+        
+        if total_score > 0:
+            target_weights = {n: s / total_score for n, s in scores.items()}
+            
+            # Blend toward target
+            for name in DEFAULT_RUN_WEIGHTS:
+                current = RUN_MODEL_WEIGHTS.get(name, DEFAULT_RUN_WEIGHTS[name])
+                target = target_weights.get(name, MIN_WEIGHT)
+                new_weight = current + (target - current) * ADJUSTMENT_RATE
+                RUN_MODEL_WEIGHTS[name] = max(new_weight, MIN_WEIGHT)
+            
+            # Normalize to sum to 1
+            total = sum(RUN_MODEL_WEIGHTS.values())
+            RUN_MODEL_WEIGHTS = {n: w / total for n, w in RUN_MODEL_WEIGHTS.items()}
+    
+    except Exception:
+        pass  # Keep current weights on any error
+
 
 # Cache model instances at module level for performance
 _MODEL_CACHE = {}
@@ -201,6 +284,9 @@ def predict(home_team_id: str, away_team_id: str,
     Returns projected runs for each team, total, over/under probs,
     confidence interval, and individual model breakdown.
     """
+    # Auto-adjust weights based on tracked accuracy
+    _update_weights_from_accuracy()
+    
     # Get projections from all models
     projections = get_model_projections(home_team_id, away_team_id)
     
