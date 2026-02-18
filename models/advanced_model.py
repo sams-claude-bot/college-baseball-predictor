@@ -183,8 +183,10 @@ class AdvancedModel(BaseModel):
         away_adj = away_stats['adj_win_pct']
         
         # Log5-style combination of adjusted win pcts
-        if home_adj + away_adj > 0 and home_adj * away_adj != home_adj + away_adj:
-            base_prob = (home_adj - home_adj * away_adj) / (home_adj + away_adj - 2 * home_adj * away_adj)
+        denominator = home_adj + away_adj - 2 * home_adj * away_adj
+        if abs(denominator) > 1e-9:
+            base_prob = (home_adj - home_adj * away_adj) / denominator
+            base_prob = max(0.01, min(0.99, base_prob))  # Clamp to valid range
         else:
             base_prob = 0.5
         

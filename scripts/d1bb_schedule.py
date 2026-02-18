@@ -388,7 +388,7 @@ def main():
         print("ERROR: playwright required")
         sys.exit(1)
     
-    stats = {'created': 0, 'updated': 0, 'unchanged': 0, 'unresolved': 0}
+    stats = {'created': 0, 'updated': 0, 'unchanged': 0, 'unresolved': 0, 'replaced': 0}
     
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(

@@ -95,6 +95,8 @@ def rankings():
     # Model Power Rankings
     power_rankings = []
     power_rankings_date = None
+    power_model_detail = {}  # {team_id: {model_name: {avg_win_prob, model_rank}}}
+    power_model_names = []   # ordered list of model names for display
     try:
         conn3 = get_connection()
         c3 = conn3.cursor()
@@ -115,7 +117,6 @@ def rankings():
             power_rankings = [dict(r) for r in c3.fetchall()]
 
             # Add records, AP rank, and Elo rank
-            # Build lookup maps
             ap_rank_map = {t['id']: t.get('rank') or t.get('current_rank') for t in top_25}
             elo_rank_map = {t['team_id']: t['elo_rank'] for t in elo_top_25}
 
@@ -126,12 +127,38 @@ def rankings():
                 pr['ap_rank'] = ap_rank_map.get(pr['team_id'])
                 pr['elo_rank'] = elo_rank_map.get(pr['team_id'])
 
+            # Load per-model detail scores
+            c3.execute('''
+                SELECT team_id, model_name, avg_win_prob, model_rank
+                FROM power_rankings_detail
+                WHERE date = ?
+            ''', (power_rankings_date,))
+            for row in c3.fetchall():
+                tid = row['team_id']
+                mn = row['model_name']
+                if tid not in power_model_detail:
+                    power_model_detail[tid] = {}
+                power_model_detail[tid][mn] = {
+                    'avg_win_prob': row['avg_win_prob'],
+                    'model_rank': row['model_rank'],
+                }
+
+            # Determine model names ordered by ensemble weight
+            model_weights = {
+                'prior': 0.16, 'elo': 0.15, 'conference': 0.12,
+                'advanced': 0.12, 'log5': 0.10, 'poisson': 0.08,
+                'pythagorean': 0.08, 'lightgbm': 0.08, 'xgboost': 0.06,
+                'pitching': 0.05, 'neural': 0.00,
+            }
+            all_models = set()
+            for d in power_model_detail.values():
+                all_models.update(d.keys())
+            all_models.discard('ensemble')
+            power_model_names = sorted(all_models, key=lambda m: -model_weights.get(m, 0))
+
             # Filter by conference if specified
             if conference:
                 power_rankings = [pr for pr in power_rankings if pr.get('conference') == conference]
-                # Re-rank within conference
-                for i, pr in enumerate(power_rankings):
-                    pass  # Keep overall rank visible
         conn3.close()
     except Exception:
         pass  # Table might not exist yet
@@ -148,6 +175,8 @@ def rankings():
                           selected_conference=conference,
                           power_rankings=power_rankings,
                           power_rankings_date=power_rankings_date,
+                          power_model_detail=power_model_detail,
+                          power_model_names=power_model_names,
                           featured_team_id=featured_team_id)
     cache.set(cache_key, result, timeout=600)
     return result
