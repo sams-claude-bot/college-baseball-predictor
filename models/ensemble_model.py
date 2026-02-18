@@ -46,13 +46,16 @@ class PoissonModelWrapper(BaseModel):
     """Wrapper to make Poisson model compatible with ensemble interface."""
     
     name = "poisson"
-    version = "1.0"
-    description = "Poisson run distribution model"
+    version = "1.1"
+    description = "Poisson run distribution model (with weather)"
     
-    def predict_game(self, home_team_id, away_team_id, neutral_site=False):
+    def predict_game(self, home_team_id, away_team_id, neutral_site=False,
+                     game_id=None, weather_data=None):
         result = poisson_predict(home_team_id, away_team_id, 
                                  neutral_site=neutral_site, 
-                                 team_a_home=True)
+                                 team_a_home=True,
+                                 game_id=game_id,
+                                 weather_data=weather_data)
         return {
             "model": self.name,
             "home_win_probability": result['win_prob_a'],
@@ -62,7 +65,8 @@ class PoissonModelWrapper(BaseModel):
             "projected_total": result['expected_total'],
             "run_line": self.calculate_run_line(
                 result['expected_runs_a'], result['expected_runs_b']
-            )
+            ),
+            "weather": result.get('weather')
         }
 
 
@@ -417,16 +421,33 @@ class EnsembleModel(BaseModel):
         
         return "\n".join(lines)
     
-    def predict_game(self, home_team_id, away_team_id, neutral_site=False):
+    def predict_game(self, home_team_id, away_team_id, neutral_site=False,
+                     game_id=None, weather_data=None):
         """
         Make a prediction using the weighted ensemble.
+        
+        Args:
+            home_team_id: Home team ID
+            away_team_id: Away team ID
+            neutral_site: If True, no home advantage
+            game_id: Optional game ID for weather lookup (passed to weather-aware models)
+            weather_data: Optional dict with weather (overrides database lookup)
         """
         predictions = {}
+        weather_info = None
         
         # Get predictions from each model
         for name, model in self.models.items():
             try:
-                pred = model.predict_game(home_team_id, away_team_id, neutral_site)
+                # Models that support weather get the weather parameters
+                if name in ('poisson', 'pitching'):
+                    pred = model.predict_game(home_team_id, away_team_id, neutral_site,
+                                             game_id=game_id, weather_data=weather_data)
+                    # Capture weather info from first model that has it
+                    if weather_info is None and pred.get('weather'):
+                        weather_info = pred['weather']
+                else:
+                    pred = model.predict_game(home_team_id, away_team_id, neutral_site)
                 predictions[name] = pred
             except Exception as e:
                 print(f"Warning: {name} model failed: {e}")
@@ -496,6 +517,7 @@ class EnsembleModel(BaseModel):
             "projected_total": round(home_runs + away_runs, 1),
             "run_line": run_line,
             "momentum": momentum_info,
+            "weather": weather_info,
             "component_predictions": {
                 name: {
                     "home_prob": pred['home_win_probability'],
@@ -528,14 +550,55 @@ class EnsembleModel(BaseModel):
 
 # For testing
 if __name__ == "__main__":
+    import argparse
+    
+    # Check for special commands first
+    if len(sys.argv) > 1 and sys.argv[1] == "report":
+        model = EnsembleModel()
+        print(model.get_weights_report())
+        sys.exit(0)
+    elif len(sys.argv) > 1 and sys.argv[1] == "reset":
+        model = EnsembleModel()
+        model.reset_accuracy_history()
+        print("Reset accuracy history and weights to defaults")
+        sys.exit(0)
+    
+    parser = argparse.ArgumentParser(description='Ensemble Prediction Model')
+    parser.add_argument('home_team', nargs='?', help='Home team ID')
+    parser.add_argument('away_team', nargs='?', help='Away team ID')
+    parser.add_argument('--neutral', action='store_true', help='Neutral site game')
+    parser.add_argument('--game-id', type=str, help='Game ID for weather lookup')
+    parser.add_argument('--temp', type=float, help='Temperature (°F)')
+    parser.add_argument('--wind', type=float, help='Wind speed (mph)')
+    parser.add_argument('--wind-dir', type=int, help='Wind direction (degrees)')
+    parser.add_argument('--humidity', type=float, help='Humidity (%)')
+    parser.add_argument('--dome', action='store_true', help='Indoor dome')
+    args = parser.parse_args()
+    
     model = EnsembleModel()
     
-    if len(sys.argv) > 2:
-        home = sys.argv[1].lower().replace(" ", "-")
-        away = sys.argv[2].lower().replace(" ", "-")
-        neutral = "--neutral" in sys.argv
+    if args.home_team and args.away_team:
+        home = args.home_team.lower().replace(" ", "-")
+        away = args.away_team.lower().replace(" ", "-")
         
-        pred = model.predict_game(home, away, neutral)
+        # Build weather data from CLI args if provided
+        weather_data = None
+        if any([args.temp is not None, args.wind is not None, args.wind_dir is not None, 
+                args.humidity is not None, args.dome]):
+            weather_data = {}
+            if args.temp is not None:
+                weather_data['temp_f'] = args.temp
+            if args.wind is not None:
+                weather_data['wind_speed_mph'] = args.wind
+            if args.wind_dir is not None:
+                weather_data['wind_direction_deg'] = args.wind_dir
+            if args.humidity is not None:
+                weather_data['humidity_pct'] = args.humidity
+            if args.dome:
+                weather_data['is_dome'] = 1
+        
+        pred = model.predict_game(home, away, args.neutral,
+                                  game_id=args.game_id, weather_data=weather_data)
         
         print(f"\n{'='*55}")
         print(f"  ENSEMBLE MODEL: {away} @ {home}")
@@ -548,16 +611,25 @@ if __name__ == "__main__":
                                 key=lambda x: -x[1]['weight']):
             print(f"  {name}: {comp['home_prob']*100:.1f}% (w={comp['weight']:.2f})")
         
-    elif len(sys.argv) > 1 and sys.argv[1] == "report":
-        print(model.get_weights_report())
-        
-    elif len(sys.argv) > 1 and sys.argv[1] == "reset":
-        model.reset_accuracy_history()
-        print("Reset accuracy history and weights to defaults")
+        # Weather info
+        weather = pred.get('weather')
+        if weather and (weather.get('has_data') or weather_data):
+            print(f"\n🌤️ Weather Impact:")
+            comp = weather.get('components', {})
+            if comp.get('dome'):
+                print(f"  Dome: Indoor game, no weather adjustment")
+            else:
+                mult = weather.get('multiplier', 1.0)
+                if mult != 1.0:
+                    print(f"  Poisson run multiplier: {mult:.3f}x")
+                if 'temp_f' in comp:
+                    print(f"  Temperature: {comp['temp_f']:.0f}°F")
+                if 'wind_effect' in comp:
+                    print(f"  Wind: {comp.get('wind_speed_mph', 0):.0f} mph ({comp['wind_effect']})")
         
     else:
         print("Usage:")
-        print("  python ensemble_model.py <home_team> <away_team> [--neutral]")
+        print("  python ensemble_model.py <home_team> <away_team> [--neutral] [--game-id ID] [--temp F] [--wind MPH] [--wind-dir DEG] [--humidity %] [--dome]")
         print("  python ensemble_model.py report   # Show weights and accuracy")
         print("  python ensemble_model.py reset    # Reset accuracy history")
         print("\nCurrent Weights:")

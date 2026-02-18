@@ -29,6 +29,19 @@ from scripts.database import get_connection
 # Maximum runs to model (beyond this is negligible probability)
 MAX_RUNS = 25
 
+# Weather defaults (when data is missing)
+DEFAULT_WEATHER = {
+    'temp_f': 65.0,
+    'humidity_pct': 55.0,
+    'wind_speed_mph': 6.0,
+    'wind_direction_deg': 180,
+    'precip_prob_pct': 5.0,
+    'is_dome': 0,
+}
+
+# Reference temperature for weather adjustments
+BASELINE_TEMP = 70.0
+
 
 @lru_cache(maxsize=1000)
 def poisson_pmf(k: int, lambda_: float) -> float:
@@ -117,6 +130,113 @@ def get_league_average() -> float:
     result = cur.fetchone()[0]
     conn.close()
     return result if result else 5.5
+
+
+def get_weather_for_game(game_id: str) -> Optional[Dict]:
+    """Fetch weather data for a game from game_weather table."""
+    if not game_id:
+        return None
+    
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        SELECT temp_f, humidity_pct, wind_speed_mph, wind_direction_deg,
+               precip_prob_pct, is_dome
+        FROM game_weather WHERE game_id = ?
+    ''', (game_id,))
+    row = cur.fetchone()
+    conn.close()
+    
+    if row:
+        return {
+            'temp_f': row[0],
+            'humidity_pct': row[1],
+            'wind_speed_mph': row[2],
+            'wind_direction_deg': row[3],
+            'precip_prob_pct': row[4],
+            'is_dome': row[5],
+        }
+    return None
+
+
+def calculate_weather_multiplier(weather_data: Optional[Dict] = None) -> Tuple[float, Dict]:
+    """
+    Calculate a weather multiplier for expected runs.
+    
+    Returns a multiplier (e.g., 0.95 to 1.08) and breakdown of components.
+    
+    Research-based adjustments:
+    - Temperature: ~0.5% more runs per 10°F above 70°F (ball carries better, pitchers tire)
+    - Wind out (0-90° or 270-360°): +0.03 runs per mph (helps fly balls)
+    - Wind in (135-225°): -0.03 runs per mph (hurts fly balls)
+    - Humidity: ~0.3% more runs per 10% above 50% (slightly affects ball flight)
+    - Dome: Controlled environment, use baseline (multiplier = 1.0)
+    """
+    if weather_data is None:
+        weather_data = DEFAULT_WEATHER.copy()
+    
+    # Use defaults for missing values (careful with 0 being falsy)
+    temp = weather_data.get('temp_f') if weather_data.get('temp_f') is not None else DEFAULT_WEATHER['temp_f']
+    humidity = weather_data.get('humidity_pct') if weather_data.get('humidity_pct') is not None else DEFAULT_WEATHER['humidity_pct']
+    wind_speed = weather_data.get('wind_speed_mph') if weather_data.get('wind_speed_mph') is not None else DEFAULT_WEATHER['wind_speed_mph']
+    wind_dir = weather_data.get('wind_direction_deg') if weather_data.get('wind_direction_deg') is not None else DEFAULT_WEATHER['wind_direction_deg']
+    is_dome = weather_data.get('is_dome', 0)
+    
+    # If it's a dome, return neutral multiplier
+    if is_dome:
+        return 1.0, {'dome': True, 'temp_adj': 0, 'wind_adj': 0, 'humidity_adj': 0}
+    
+    components = {'dome': False}
+    multiplier = 1.0
+    
+    # Temperature adjustment: ~0.5% per 10°F deviation from 70°F
+    # Hot weather = more runs, cold = fewer
+    temp_diff = temp - BASELINE_TEMP
+    temp_adjustment = (temp_diff / 10.0) * 0.005  # 0.5% per 10°F
+    multiplier += temp_adjustment
+    components['temp_adj'] = round(temp_adjustment, 4)
+    components['temp_f'] = temp
+    
+    # Wind adjustment based on direction
+    # 0° = North (blowing from N to S, toward home plate at most parks)
+    # 90° = East, 180° = South (blowing out), 270° = West
+    # Standard park orientation: home plate to the south, CF to the north
+    # Wind blowing "out" (helping fly balls): 135-225° (from S/SE/SW toward CF)
+    # Wind blowing "in" (hurting fly balls): 315-360° or 0-45° (from N toward HP)
+    # Crosswinds have mixed effect
+    
+    # Convert to radians for trig
+    wind_rad = math.radians(wind_dir)
+    
+    # Calculate wind effect: positive = blowing out (helps offense)
+    # cos(180°) = -1 (blowing out), cos(0°) = 1 (blowing in)
+    wind_effect = -math.cos(wind_rad)  # -1 to 1, positive = out
+    
+    # Scale by wind speed: ~0.03 runs per 10 mph at full effect
+    wind_adjustment = (wind_speed / 10.0) * wind_effect * 0.03
+    
+    # Cap wind adjustment at ±5%
+    wind_adjustment = max(-0.05, min(0.05, wind_adjustment))
+    multiplier += wind_adjustment
+    components['wind_adj'] = round(wind_adjustment, 4)
+    components['wind_speed_mph'] = wind_speed
+    components['wind_dir_deg'] = wind_dir
+    components['wind_effect'] = 'out' if wind_effect > 0.3 else 'in' if wind_effect < -0.3 else 'cross'
+    
+    # Humidity adjustment: ~0.3% per 10% above 50%
+    # Higher humidity = slightly more runs (ball travels slightly less but grip harder)
+    humidity_diff = humidity - 50.0
+    humidity_adjustment = (humidity_diff / 10.0) * 0.003  # 0.3% per 10%
+    humidity_adjustment = max(-0.02, min(0.02, humidity_adjustment))  # Cap at ±2%
+    multiplier += humidity_adjustment
+    components['humidity_adj'] = round(humidity_adjustment, 4)
+    components['humidity_pct'] = humidity
+    
+    # Cap total multiplier to reasonable range
+    multiplier = max(0.90, min(1.12, multiplier))
+    components['total_multiplier'] = round(multiplier, 4)
+    
+    return multiplier, components
 
 
 def calculate_expected_runs(team_offense: float, opponent_defense: float, 
@@ -258,7 +378,9 @@ def get_most_likely_scores(matrix: List[List[float]], top_n: int = 10) -> List[D
 def predict(team_a: str, team_b: str, 
             neutral_site: bool = False,
             team_a_home: bool = True,
-            last_n_games: int = None) -> Dict:
+            last_n_games: int = None,
+            game_id: str = None,
+            weather_data: Dict = None) -> Dict:
     """
     Full Poisson prediction for a matchup.
     
@@ -268,6 +390,8 @@ def predict(team_a: str, team_b: str,
         neutral_site: If True, no home advantage
         team_a_home: If True (default), team_a is home team
         last_n_games: Limit stats to last N games (for recency weighting)
+        game_id: Optional game ID to fetch weather from database
+        weather_data: Optional dict with weather (overrides database lookup)
     
     Returns:
         Comprehensive prediction with win prob, totals, spreads, likely scores
@@ -276,6 +400,11 @@ def predict(team_a: str, team_b: str,
     stats_a = get_team_run_stats(team_a, last_n_games)
     stats_b = get_team_run_stats(team_b, last_n_games)
     league_avg = get_league_average()
+    
+    # Get weather data and calculate multiplier
+    if weather_data is None and game_id:
+        weather_data = get_weather_for_game(game_id)
+    weather_multiplier, weather_components = calculate_weather_multiplier(weather_data)
     
     # Calculate expected runs for each team
     home_adv = 0.0 if neutral_site else 0.3
@@ -306,6 +435,10 @@ def predict(team_a: str, team_b: str,
             league_avg,
             home_adv
         )
+    
+    # Apply weather multiplier to expected runs
+    lambda_a *= weather_multiplier
+    lambda_b *= weather_multiplier
     
     # Build probability matrix
     matrix = build_probability_matrix(lambda_a, lambda_b)
@@ -371,7 +504,14 @@ def predict(team_a: str, team_b: str,
         'blowout_prob': sum(matrix[i][j] for i in range(MAX_RUNS+1) 
                            for j in range(MAX_RUNS+1) if abs(i-j) >= 5),
         'one_run_game_prob': sum(matrix[i][j] for i in range(MAX_RUNS+1) 
-                                 for j in range(MAX_RUNS+1) if abs(i-j) == 1)
+                                 for j in range(MAX_RUNS+1) if abs(i-j) == 1),
+        
+        # Weather adjustment info
+        'weather': {
+            'multiplier': weather_components.get('total_multiplier', 1.0),
+            'components': weather_components,
+            'has_data': weather_data is not None
+        }
     }
 
 
@@ -433,12 +573,36 @@ if __name__ == '__main__':
     parser.add_argument('--last-n', type=int, help='Use only last N games')
     parser.add_argument('--dk-total', type=float, help='DraftKings total line')
     parser.add_argument('--dk-spread', type=float, help='DraftKings spread for team A')
+    parser.add_argument('--game-id', type=str, help='Game ID for weather lookup')
+    parser.add_argument('--temp', type=float, help='Temperature (°F)')
+    parser.add_argument('--wind', type=float, help='Wind speed (mph)')
+    parser.add_argument('--wind-dir', type=int, help='Wind direction (degrees)')
+    parser.add_argument('--humidity', type=float, help='Humidity (%)')
+    parser.add_argument('--dome', action='store_true', help='Indoor dome')
     args = parser.parse_args()
+    
+    # Build weather data from CLI args if provided
+    weather_data = None
+    if any([args.temp is not None, args.wind is not None, args.wind_dir is not None, 
+            args.humidity is not None, args.dome]):
+        weather_data = {}
+        if args.temp is not None:
+            weather_data['temp_f'] = args.temp
+        if args.wind is not None:
+            weather_data['wind_speed_mph'] = args.wind
+        if args.wind_dir is not None:
+            weather_data['wind_direction_deg'] = args.wind_dir
+        if args.humidity is not None:
+            weather_data['humidity_pct'] = args.humidity
+        if args.dome:
+            weather_data['is_dome'] = 1
     
     result = predict(args.team_a, args.team_b, 
                      neutral_site=args.neutral,
                      team_a_home=not args.away,
-                     last_n_games=args.last_n)
+                     last_n_games=args.last_n,
+                     game_id=args.game_id,
+                     weather_data=weather_data)
     
     print(f"\n{'='*60}")
     print(f"POISSON MODEL: {args.team_a} vs {args.team_b}")
@@ -467,6 +631,22 @@ if __name__ == '__main__':
     print(f"\n🏆 MOST LIKELY SCORES:")
     for score in result['most_likely_scores'][:5]:
         print(f"  {score['team_a_runs']}-{score['team_b_runs']}: {score['probability']:.1%}")
+    
+    # Weather info
+    weather = result.get('weather', {})
+    if weather.get('has_data') or weather_data:
+        print(f"\n🌤️ WEATHER ADJUSTMENT:")
+        comp = weather.get('components', {})
+        if comp.get('dome'):
+            print(f"  Dome: Indoor game, no weather adjustment")
+        else:
+            print(f"  Multiplier: {weather.get('multiplier', 1.0):.3f}x")
+            if 'temp_f' in comp:
+                print(f"  Temperature: {comp['temp_f']:.0f}°F ({comp['temp_adj']:+.3f})")
+            if 'wind_speed_mph' in comp:
+                print(f"  Wind: {comp['wind_speed_mph']:.0f} mph {comp.get('wind_effect', '')} ({comp['wind_adj']:+.3f})")
+            if 'humidity_pct' in comp:
+                print(f"  Humidity: {comp['humidity_pct']:.0f}% ({comp['humidity_adj']:+.3f})")
     
     # DK comparison if provided
     if args.dk_total or args.dk_spread:

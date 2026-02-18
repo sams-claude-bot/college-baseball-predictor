@@ -16,6 +16,7 @@ import sys
 import math
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, Optional
 
 _models_dir = Path(__file__).parent
 _scripts_dir = _models_dir.parent / "scripts"
@@ -24,6 +25,20 @@ _scripts_dir = _models_dir.parent / "scripts"
 
 from models.base_model import BaseModel
 from scripts.database import get_connection
+
+
+# Weather defaults (when data is missing)
+DEFAULT_WEATHER = {
+    'temp_f': 65.0,
+    'humidity_pct': 55.0,
+    'wind_speed_mph': 6.0,
+    'wind_direction_deg': 180,
+    'precip_prob_pct': 5.0,
+    'is_dome': 0,
+}
+
+# Reference temperature for weather adjustments
+BASELINE_TEMP = 70.0
 
 
 class PitchingModel(BaseModel):
@@ -69,6 +84,132 @@ class PitchingModel(BaseModel):
         self.starter_cache = {}
         self.team_pitching_cache = {}
         self.bullpen_cache = {}
+        self.weather_cache = {}
+    
+    def _get_weather_for_game(self, game_id: str) -> Optional[Dict]:
+        """Fetch weather data for a game from game_weather table."""
+        if not game_id:
+            return None
+        
+        if game_id in self.weather_cache:
+            return self.weather_cache[game_id]
+        
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('''
+            SELECT temp_f, humidity_pct, wind_speed_mph, wind_direction_deg,
+                   precip_prob_pct, is_dome
+            FROM game_weather WHERE game_id = ?
+        ''', (game_id,))
+        row = c.fetchone()
+        conn.close()
+        
+        if row:
+            weather = {
+                'temp_f': row['temp_f'],
+                'humidity_pct': row['humidity_pct'],
+                'wind_speed_mph': row['wind_speed_mph'],
+                'wind_direction_deg': row['wind_direction_deg'],
+                'precip_prob_pct': row['precip_prob_pct'],
+                'is_dome': row['is_dome'],
+            }
+            self.weather_cache[game_id] = weather
+            return weather
+        
+        self.weather_cache[game_id] = None
+        return None
+    
+    def _calculate_weather_pitcher_adjustment(self, weather_data: Optional[Dict] = None) -> tuple:
+        """
+        Calculate weather adjustment to pitcher effectiveness.
+        
+        Returns (adjustment, components) where adjustment is added to pitcher score.
+        Positive adjustment = pitcher performs better (cold, calm conditions).
+        Negative adjustment = pitcher performs worse (hot, windy conditions).
+        
+        Weather effects on pitching:
+        - Cold weather (<55°F): Harder grip, less movement, -2% to -5% effectiveness
+        - Hot weather (>85°F): Fatigue, sweat affects grip, -1% to -3% effectiveness
+        - Ideal range (60-75°F): No adjustment
+        - Wind: Affects breaking ball movement (strong wind = less predictable)
+        - Humidity: High humidity can affect grip (slight negative)
+        """
+        if weather_data is None:
+            weather_data = DEFAULT_WEATHER.copy()
+        
+        # Use defaults for missing values (careful with 0 being falsy)
+        temp = weather_data.get('temp_f') if weather_data.get('temp_f') is not None else DEFAULT_WEATHER['temp_f']
+        humidity = weather_data.get('humidity_pct') if weather_data.get('humidity_pct') is not None else DEFAULT_WEATHER['humidity_pct']
+        wind_speed = weather_data.get('wind_speed_mph') if weather_data.get('wind_speed_mph') is not None else DEFAULT_WEATHER['wind_speed_mph']
+        is_dome = weather_data.get('is_dome', 0)
+        
+        # If it's a dome, return neutral adjustment
+        if is_dome:
+            return 0.0, {'dome': True, 'temp_adj': 0, 'wind_adj': 0, 'humidity_adj': 0}
+        
+        components = {'dome': False}
+        adjustment = 0.0
+        
+        # Temperature adjustment for pitching
+        # Cold weather hurts pitchers more (grip issues, arm stiffness)
+        # Hot weather also hurts (fatigue, sweat)
+        # Ideal range: 60-75°F
+        if temp < 55:
+            # Cold: harder to grip ball, less break on pitches
+            # -0.5% per degree below 55
+            cold_penalty = (55 - temp) * 0.005
+            cold_penalty = min(cold_penalty, 0.05)  # Cap at -5%
+            adjustment -= cold_penalty
+            components['temp_adj'] = round(-cold_penalty, 4)
+            components['temp_condition'] = 'cold'
+        elif temp > 85:
+            # Hot: fatigue, sweat affects grip
+            # -0.3% per degree above 85
+            hot_penalty = (temp - 85) * 0.003
+            hot_penalty = min(hot_penalty, 0.04)  # Cap at -4%
+            adjustment -= hot_penalty
+            components['temp_adj'] = round(-hot_penalty, 4)
+            components['temp_condition'] = 'hot'
+        elif 60 <= temp <= 75:
+            # Ideal conditions: slight bonus
+            adjustment += 0.01
+            components['temp_adj'] = 0.01
+            components['temp_condition'] = 'ideal'
+        else:
+            components['temp_adj'] = 0.0
+            components['temp_condition'] = 'normal'
+        
+        components['temp_f'] = temp
+        
+        # Wind adjustment for pitching
+        # Strong wind makes breaking balls less effective/predictable
+        # Slight penalty for wind > 10 mph
+        if wind_speed > 10:
+            wind_penalty = (wind_speed - 10) * 0.002  # -0.2% per mph above 10
+            wind_penalty = min(wind_penalty, 0.03)  # Cap at -3%
+            adjustment -= wind_penalty
+            components['wind_adj'] = round(-wind_penalty, 4)
+        else:
+            components['wind_adj'] = 0.0
+        components['wind_speed_mph'] = wind_speed
+        
+        # Humidity adjustment for pitching
+        # Very high humidity (>80%) makes ball slick, harder to grip
+        # Slight negative effect
+        if humidity > 80:
+            humidity_penalty = (humidity - 80) * 0.001  # -0.1% per % above 80
+            humidity_penalty = min(humidity_penalty, 0.02)  # Cap at -2%
+            adjustment -= humidity_penalty
+            components['humidity_adj'] = round(-humidity_penalty, 4)
+        else:
+            components['humidity_adj'] = 0.0
+        components['humidity_pct'] = humidity
+        
+        # Cap total adjustment
+        adjustment = max(-0.08, min(0.03, adjustment))
+        components['total_adjustment'] = round(adjustment, 4)
+        
+        return adjustment, components
     
     def _get_starting_pitcher(self, team_id, game_date=None):
         """
@@ -367,12 +508,26 @@ class PitchingModel(BaseModel):
         
         return quality_gap * weight * 0.03  # Small adjustment
     
-    def predict_game(self, home_team_id, away_team_id, neutral_site=False, game_date=None):
+    def predict_game(self, home_team_id, away_team_id, neutral_site=False, game_date=None,
+                     game_id: str = None, weather_data: Dict = None):
         """
         Predict game outcome based on pitching matchup.
+        
+        Args:
+            home_team_id: Home team ID
+            away_team_id: Away team ID
+            neutral_site: If True, no home advantage
+            game_date: Date string (YYYY-MM-DD) or None for today
+            game_id: Optional game ID for weather lookup
+            weather_data: Optional dict with weather (overrides database lookup)
         """
         if game_date is None:
             game_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Get weather data and calculate adjustment
+        if weather_data is None and game_id:
+            weather_data = self._get_weather_for_game(game_id)
+        weather_adjustment, weather_components = self._calculate_weather_pitcher_adjustment(weather_data)
         
         # Get starting pitchers
         home_starter = self._get_starting_pitcher(home_team_id, game_date)
@@ -396,6 +551,15 @@ class PitchingModel(BaseModel):
             away_pitcher_score = self._calculate_pitcher_score(away_starter, home_hitting)
         else:
             away_pitcher_score = self._calculate_pitcher_score(away_team_pitching, home_hitting)
+        
+        # Apply weather adjustment to pitcher scores
+        # Weather affects both pitchers equally (same conditions)
+        home_pitcher_score += weather_adjustment
+        away_pitcher_score += weather_adjustment
+        
+        # Clamp scores after weather adjustment
+        home_pitcher_score = max(0.1, min(0.9, home_pitcher_score))
+        away_pitcher_score = max(0.1, min(0.9, away_pitcher_score))
         
         # Rest day factors
         home_rest = self._get_pitcher_rest_days(
@@ -489,20 +653,51 @@ class PitchingModel(BaseModel):
                 "home_bullpen_avail": round(home_bullpen, 2),
                 "away_bullpen_avail": round(away_bullpen, 2),
                 "series_position": series_pos
+            },
+            "weather": {
+                "adjustment": weather_components.get('total_adjustment', 0.0),
+                "components": weather_components,
+                "has_data": weather_data is not None
             }
         }
 
 
 # For testing
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Pitching Matchup Model')
+    parser.add_argument('home_team', nargs='?', help='Home team ID')
+    parser.add_argument('away_team', nargs='?', help='Away team ID')
+    parser.add_argument('--neutral', action='store_true', help='Neutral site game')
+    parser.add_argument('--game-id', type=str, help='Game ID for weather lookup')
+    parser.add_argument('--temp', type=float, help='Temperature (°F)')
+    parser.add_argument('--wind', type=float, help='Wind speed (mph)')
+    parser.add_argument('--humidity', type=float, help='Humidity (%)')
+    parser.add_argument('--dome', action='store_true', help='Indoor dome')
+    args = parser.parse_args()
+    
     model = PitchingModel()
     
-    if len(sys.argv) > 2:
-        home = sys.argv[1].lower().replace(" ", "-")
-        away = sys.argv[2].lower().replace(" ", "-")
-        neutral = "--neutral" in sys.argv
+    if args.home_team and args.away_team:
+        home = args.home_team.lower().replace(" ", "-")
+        away = args.away_team.lower().replace(" ", "-")
         
-        pred = model.predict_game(home, away, neutral)
+        # Build weather data from CLI args if provided
+        weather_data = None
+        if any([args.temp is not None, args.wind is not None, args.humidity is not None, args.dome]):
+            weather_data = {}
+            if args.temp is not None:
+                weather_data['temp_f'] = args.temp
+            if args.wind is not None:
+                weather_data['wind_speed_mph'] = args.wind
+            if args.humidity is not None:
+                weather_data['humidity_pct'] = args.humidity
+            if args.dome:
+                weather_data['is_dome'] = 1
+        
+        pred = model.predict_game(home, away, args.neutral, 
+                                  game_id=args.game_id, weather_data=weather_data)
         
         print(f"\n{'='*55}")
         print(f"  PITCHING MODEL: {away} @ {home}")
@@ -512,5 +707,21 @@ if __name__ == "__main__":
         print(f"\nInputs:")
         for k, v in pred['inputs'].items():
             print(f"  {k}: {v}")
+        
+        # Weather info
+        weather = pred.get('weather', {})
+        if weather.get('has_data') or weather_data:
+            print(f"\n🌤️ Weather Adjustment:")
+            comp = weather.get('components', {})
+            if comp.get('dome'):
+                print(f"  Dome: Indoor game, no weather adjustment")
+            else:
+                print(f"  Pitcher adjustment: {weather.get('adjustment', 0):+.3f}")
+                if 'temp_condition' in comp:
+                    print(f"  Temperature: {comp.get('temp_f', 'N/A')}°F ({comp['temp_condition']}, {comp['temp_adj']:+.3f})")
+                if 'wind_speed_mph' in comp:
+                    print(f"  Wind: {comp['wind_speed_mph']} mph ({comp['wind_adj']:+.3f})")
+                if 'humidity_pct' in comp:
+                    print(f"  Humidity: {comp['humidity_pct']}% ({comp['humidity_adj']:+.3f})")
     else:
-        print("Usage: python pitching_model.py <home_team> <away_team> [--neutral]")
+        print("Usage: python pitching_model.py <home_team> <away_team> [--neutral] [--game-id ID] [--temp F] [--wind MPH] [--humidity %] [--dome]")
