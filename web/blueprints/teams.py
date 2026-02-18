@@ -2,7 +2,7 @@
 Teams Blueprint - Team listing and detail pages
 """
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, current_app
 
 from web.helpers import get_all_teams, get_team_detail
 
@@ -12,13 +12,17 @@ teams_bp = Blueprint('teams', __name__)
 @teams_bp.route('/teams')
 def teams():
     """Teams listing page"""
+    sort_by = request.args.get('sort', 'name')
+    cache = current_app.cache
+    cache_key = f'teams:{sort_by}'
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
     all_teams = get_all_teams()
 
     # Get unique conferences
     conferences = sorted(set(t['conference'] for t in all_teams if t['conference']))
-
-    # Sort parameter
-    sort_by = request.args.get('sort', 'name')
 
     if sort_by == 'elo':
         all_teams.sort(key=lambda x: x.get('elo_rating') or 0, reverse=True)
@@ -31,10 +35,12 @@ def teams():
     else:
         all_teams.sort(key=lambda x: x['name'])
 
-    return render_template('teams.html',
+    result = render_template('teams.html',
                           teams=all_teams,
                           conferences=conferences,
                           sort_by=sort_by)
+    cache.set(cache_key, result, timeout=600)
+    return result
 
 
 @teams_bp.route('/team/<team_id>')

@@ -3,7 +3,7 @@ Dashboard Blueprint - Main dashboard page
 """
 
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, current_app
 
 from web.helpers import (
     get_todays_games, get_value_picks, get_quick_stats,
@@ -19,6 +19,12 @@ dashboard_bp = Blueprint('dashboard', __name__)
 def dashboard():
     """Main dashboard page"""
     featured_team = request.args.get('team', 'mississippi-state')
+    cache = current_app.cache
+    cache_key = f'dashboard:{featured_team}'
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
     todays_games = get_todays_games()
     value_picks = get_value_picks(5)
     stats = get_quick_stats()
@@ -37,7 +43,7 @@ def dashboard():
     # Only show scheduled games for tomorrow
     tomorrow_games = [g for g in tomorrow_games if g['status'] == 'scheduled'][:10]
 
-    return render_template('dashboard.html',
+    result = render_template('dashboard.html',
                           todays_games=todays_games,
                           value_picks=value_picks,
                           stats=stats,
@@ -48,3 +54,5 @@ def dashboard():
                           tomorrow_games=tomorrow_games,
                           tomorrow_date=tomorrow_str,
                           today=datetime.now().strftime('%B %d, %Y'))
+    cache.set(cache_key, result, timeout=600)
+    return result

@@ -14,6 +14,7 @@ base_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(base_dir))
 
 from flask import Flask, render_template
+from flask_caching import Cache
 
 # Import blueprints
 from web.blueprints import (
@@ -32,6 +33,12 @@ from web.blueprints import (
 def create_app():
     """Application factory for creating the Flask app."""
     app = Flask(__name__)
+
+    # Configure caching (10-minute TTL, per-worker simple cache)
+    app.config['CACHE_TYPE'] = 'SimpleCache'
+    app.config['CACHE_DEFAULT_TIMEOUT'] = 600  # 10 minutes
+    cache = Cache(app)
+    app.cache = cache  # Make accessible to blueprints
 
     # Register blueprints
     app.register_blueprint(dashboard_bp)

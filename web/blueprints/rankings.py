@@ -4,7 +4,7 @@ Rankings Blueprint - Rankings and standings pages
 
 import sys
 from pathlib import Path
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, current_app
 
 # Add paths for imports
 base_dir = Path(__file__).parent.parent.parent
@@ -22,6 +22,14 @@ rankings_bp = Blueprint('rankings', __name__)
 def rankings():
     """Rankings page"""
     conference = request.args.get('conference', '')
+    selected_date = request.args.get('week', '')
+    featured_team_id = request.args.get('team', 'mississippi-state')
+
+    cache = current_app.cache
+    cache_key = f'rankings:{conference}:{selected_date}:{featured_team_id}'
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
 
     top_25 = get_current_top_25()
     history_dates = get_rankings_history()
@@ -45,7 +53,6 @@ def rankings():
         top_25 = [t for t in top_25 if t.get('conference') == conference]
 
     # Get selected week rankings
-    selected_date = request.args.get('week')
     historical = None
     if selected_date:
         historical = get_rankings_for_date(selected_date)
@@ -129,10 +136,7 @@ def rankings():
     except Exception:
         pass  # Table might not exist yet
 
-    # Get featured team for highlighting
-    featured_team_id = request.args.get('team', 'mississippi-state')
-
-    return render_template('rankings.html',
+    result = render_template('rankings.html',
                           top_25=top_25,
                           elo_top_25=elo_top_25,
                           ap_ids=ap_ids,
@@ -145,6 +149,8 @@ def rankings():
                           power_rankings=power_rankings,
                           power_rankings_date=power_rankings_date,
                           featured_team_id=featured_team_id)
+    cache.set(cache_key, result, timeout=600)
+    return result
 
 
 @rankings_bp.route('/standings')

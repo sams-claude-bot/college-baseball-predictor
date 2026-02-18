@@ -5,7 +5,7 @@ Scores Blueprint - Scores, schedule, calendar, and game detail pages
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, redirect
+from flask import Blueprint, render_template, request, redirect, current_app
 
 # Add paths for imports
 base_dir = Path(__file__).parent.parent.parent
@@ -13,8 +13,6 @@ sys.path.insert(0, str(base_dir))
 sys.path.insert(0, str(base_dir / "scripts"))
 
 from database import get_connection, get_team_record
-from models.compare_models import MODELS
-
 from web.helpers import (
     get_all_conferences, get_available_dates,
     get_games_for_date_with_predictions, american_to_implied_prob
@@ -46,6 +44,8 @@ def calendar():
 @scores_bp.route('/scores')
 def scores():
     """Scores & Schedule page - merged scores + calendar with full model predictions"""
+    cache = current_app.cache
+
     # Default to most recent date with scored games, fallback to today
     conn_def = get_connection()
     latest = conn_def.execute(
@@ -62,6 +62,11 @@ def scores():
     except:
         display_date = datetime.now() - timedelta(days=1)
         date_str = display_date.strftime('%Y-%m-%d')
+
+    cache_key = f'scores:{date_str}:{conference}'
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
 
     # Get games for the date (base predictions from ensemble)
     games, correct_count, total_preds = get_games_for_date_with_predictions(date_str)
@@ -158,7 +163,7 @@ def scores():
     # Quick links - get dates with completed games
     available_dates = get_available_dates()
 
-    return render_template('scores.html',
+    result = render_template('scores.html',
                           completed_games=completed_games,
                           in_progress_games=in_progress_games,
                           scheduled_games=scheduled_games,
@@ -180,6 +185,8 @@ def scores():
                           nn_accuracy_pct=nn_accuracy_pct,
                           nn_correct=nn_correct,
                           nn_total=nn_total)
+    cache.set(cache_key, result, timeout=600)
+    return result
 
 
 @scores_bp.route('/game/<game_id>')
@@ -216,36 +223,35 @@ def game_detail(game_id):
     away = {'id': away_id, 'name': game['away_name'], 'rank': game['away_rank'],
             'elo': game['away_elo'] or 1500, 'record': f"{away_record['wins']}-{away_record['losses']}"}
 
-    # Predictions from all models
+    # Predictions from stored model_predictions (no live model execution)
     prediction = None
     models_list = []
-    try:
-        for name, model in MODELS.items():
-            if name in ('nn_totals', 'nn_spread', 'nn_dow_totals'):
-                continue
-            try:
-                pred = model.predict_game(home_id, away_id)
-                entry = {
-                    'name': name,
-                    'home_prob': pred['home_win_probability'],
-                    'away_prob': pred['away_win_probability'],
-                    'home_runs': pred['projected_home_runs'],
-                    'away_runs': pred['projected_away_runs']
-                }
-                models_list.append(entry)
-                if name == 'ensemble':
-                    prediction = {
-                        'home_win_prob': pred['home_win_probability'],
-                        'away_win_prob': pred['away_win_probability'],
-                        'projected_home_runs': pred['projected_home_runs'],
-                        'projected_away_runs': pred['projected_away_runs'],
-                        'projected_total': pred.get('projected_total',
-                            pred['projected_home_runs'] + pred['projected_away_runs'])
-                    }
-            except:
-                pass
-    except:
-        pass
+    c.execute('''
+        SELECT model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs
+        FROM model_predictions
+        WHERE game_id = ?
+    ''', (game_id,))
+    for row in c.fetchall():
+        r = dict(row)
+        home_prob = r['predicted_home_prob'] or 0.5
+        entry = {
+            'name': r['model_name'],
+            'home_prob': home_prob,
+            'away_prob': 1 - home_prob,
+            'home_runs': r['predicted_home_runs'] or 0,
+            'away_runs': r['predicted_away_runs'] or 0
+        }
+        models_list.append(entry)
+        if r['model_name'] == 'ensemble':
+            home_runs = r['predicted_home_runs'] or 0
+            away_runs = r['predicted_away_runs'] or 0
+            prediction = {
+                'home_win_prob': home_prob,
+                'away_win_prob': 1 - home_prob,
+                'projected_home_runs': home_runs,
+                'projected_away_runs': away_runs,
+                'projected_total': home_runs + away_runs
+            }
 
     # Sort: ensemble first, then by home_prob desc
     models_list.sort(key=lambda x: (0 if x['name'] == 'ensemble' else 1, -x['home_prob']))
