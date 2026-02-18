@@ -90,6 +90,86 @@
             </div>
         </div>
 
+        <!-- Today's Games -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-calendar-event"></i> Today's Games
+                <span class="badge bg-secondary ms-2">{{ todays_games|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if todays_games %}
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Away</th>
+                                <th class="text-center">Score/Time</th>
+                                <th>Home</th>
+                                <th class="text-center hide-mobile">Pred</th>
+                                <th class="text-center hide-mobile">Wx</th>
+                                <th class="text-center hide-mobile">Lines</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in todays_games[:20] %}
+                            <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
+                                <td>
+                                    {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
+                                    <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
+                                </td>
+                                <td class="text-center">
+                                    {% if game.status == 'final' %}
+                                    <span class="{% if game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score }}</span>
+                                    -
+                                    <span class="{% if game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score }}</span>
+                                    <br><small class="text-success">Final</small>
+                                    {% else %}
+                                    {{ game.time or 'TBD' }}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
+                                    <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
+                                </td>
+                                <td class="text-center hide-mobile">
+                                    {% if game.prediction %}
+                                    <small>{{ (game.prediction.projected_away_runs|round(1)) }}-{{ (game.prediction.projected_home_runs|round(1)) }}</small>
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="text-center hide-mobile">
+                                    {% if game.temperature %}
+                                    <small title="{{ game.wind_speed|int }}mph wind{% if game.precipitation_prob %}, {{ game.precipitation_prob|int }}% rain{% endif %}">
+                                        {{ game.temperature|int }}°
+                                        {% if game.wind_speed and game.wind_speed >= 10 %}💨{% endif %}
+                                        {% if game.precipitation_prob and game.precipitation_prob >= 30 %}🌧️{% endif %}
+                                    </small>
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="text-center hide-mobile">
+                                    {% if game.home_ml %}
+                                    <small>{{ game.away_ml|format_odds }}/{{ game.home_ml|format_odds }}</small>
+                                    {% else %}—{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if todays_games|length > 20 %}
+                <div class="card-footer text-center">
+                    <a href="/calendar" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games</a>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-calendar-x display-4"></i>
+                    <p class="mt-2">No games scheduled for today</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+
         <!-- Recent Results -->
         {% if recent_results %}
         <div class="card">
@@ -170,85 +250,6 @@
             </div>
         </div>
         {% endif %}
-
-        <!-- Today's Games -->
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-calendar-event"></i> Today's Games
-                <span class="badge bg-secondary ms-2">{{ todays_games|length }}</span>
-            </div>
-            <div class="card-body p-0">
-                {% if todays_games %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Away</th>
-                                <th class="text-center">Score/Time</th>
-                                <th>Home</th>
-                                <th class="text-center hide-mobile">Pred</th>
-                                <th class="text-center hide-mobile">Wx</th>
-                                <th class="text-center hide-mobile">Lines</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for game in todays_games[:20] %}
-                            <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
-                                <td>
-                                    {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
-                                    <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
-                                </td>
-                                <td class="text-center">
-                                    {% if game.status == 'final' %}
-                                    <span class="{% if game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score }}</span>
-                                    -
-                                    <span class="{% if game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score }}</span>
-                                    <br><small class="text-success">Final</small>
-                                    {% else %}
-                                    {{ game.time or 'TBD' }}
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
-                                    <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
-                                </td>
-                                <td class="text-center hide-mobile">
-                                    {% if game.prediction %}
-                                    <small>{{ (game.prediction.projected_away_runs|round(1)) }}-{{ (game.prediction.projected_home_runs|round(1)) }}</small>
-                                    {% else %}—{% endif %}
-                                </td>
-                                <td class="text-center hide-mobile">
-                                    {% if game.temperature %}
-                                    <small title="{{ game.wind_speed|int }}mph wind{% if game.precipitation_prob %}, {{ game.precipitation_prob|int }}% rain{% endif %}">
-                                        {{ game.temperature|int }}°
-                                        {% if game.wind_speed and game.wind_speed >= 10 %}💨{% endif %}
-                                        {% if game.precipitation_prob and game.precipitation_prob >= 30 %}🌧️{% endif %}
-                                    </small>
-                                    {% else %}—{% endif %}
-                                </td>
-                                <td class="text-center hide-mobile">
-                                    {% if game.home_ml %}
-                                    <small>{{ game.away_ml|format_odds }}/{{ game.home_ml|format_odds }}</small>
-                                    {% else %}—{% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% if todays_games|length > 20 %}
-                <div class="card-footer text-center">
-                    <a href="/calendar" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games</a>
-                </div>
-                {% endif %}
-                {% else %}
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-calendar-x display-4"></i>
-                    <p class="mt-2">No games scheduled for today</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
 
         <!-- Tomorrow's Games Preview -->
         {% if tomorrow_games %}
