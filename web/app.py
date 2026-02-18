@@ -1903,8 +1903,13 @@ def calendar():
 @app.route('/scores')
 def scores():
     """Scores & Schedule page - merged scores + calendar with full model predictions"""
-    # Default to today
-    default_date = datetime.now().strftime('%Y-%m-%d')
+    # Default to most recent date with scored games, fallback to today
+    conn_def = get_connection()
+    latest = conn_def.execute(
+        "SELECT date FROM games WHERE home_score IS NOT NULL ORDER BY date DESC LIMIT 1"
+    ).fetchone()
+    conn_def.close()
+    default_date = latest['date'] if latest else datetime.now().strftime('%Y-%m-%d')
     date_str = request.args.get('date', default_date)
     conference = request.args.get('conference', '')
     
