@@ -132,8 +132,9 @@ def extract_games_for_date(page, date_str, verbose=False):
                     game.time_text = firstLine;
                 } else if (firstLine.toUpperCase() === 'FINAL') {
                     game.status = 'final';
-                } else if (firstLine.match(/^(Top|Bottom|Middle)/i)) {
+                } else if (firstLine.match(/^(Top|Bottom|Middle|End)/i)) {
                     game.status = 'in-progress';
+                    game.inning_text = firstLine;
                 }
                 
                 // Check container class for game status
@@ -289,7 +290,7 @@ def _find_existing_game(db, date, home_id, away_id):
     return None
 
 
-def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_score=None, status=None):
+def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_score=None, status=None, inning_text=None):
     """Insert or update a game. Handles ESPN ghost dedup."""
     
     # Generate game ID - match existing format: YYYY-MM-DD_away_home
@@ -318,6 +319,12 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
             if status in ('final', 'in-progress'):
                 updates.append("status = ?")
                 params.append(status)
+            # Store inning text for live games (clear it when final)
+            if inning_text:
+                updates.append("inning_text = ?")
+                params.append(inning_text)
+            elif status == 'final':
+                updates.append("inning_text = NULL")
                 if status == 'final':
                     if home_score > away_score:
                         updates.append("winner_id = ?")
@@ -423,7 +430,8 @@ def main():
                             time=game_time,
                             home_score=game.get('home_score'),
                             away_score=game.get('away_score'),
-                            status=game.get('status')
+                            status=game.get('status'),
+                            inning_text=game.get('inning_text')
                         )
                         stats[result] += 1
                         

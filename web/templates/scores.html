@@ -292,7 +292,7 @@
                     <!-- Pre-game predictions -->
                     <div class="mt-2 pt-2 border-top">
                         <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-success fw-bold">In Progress</small>
+                            <small class="text-success fw-bold">{{ game.inning_text or 'In Progress' }}</small>
                             <div class="d-flex gap-2">
                                 {% if game.pred_winner %}
                                 {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}

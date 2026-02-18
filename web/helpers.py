@@ -65,7 +65,7 @@ def get_games_by_date(date_str, conference=None):
     query = '''
         SELECT g.id, g.date, g.time, g.status,
                g.home_team_id, g.away_team_id,
-               g.home_score, g.away_score, g.winner_id, g.innings,
+               g.home_score, g.away_score, g.winner_id, g.innings, g.inning_text,
                g.venue, g.is_neutral_site, g.is_conference_game,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
                at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
@@ -829,7 +829,7 @@ def get_recent_results(days_back=3):
     c.execute('''
         SELECT g.id, g.date, g.time, g.status,
                g.home_team_id, g.away_team_id,
-               g.home_score, g.away_score, g.winner_id, g.innings,
+               g.home_score, g.away_score, g.winner_id, g.innings, g.inning_text,
                g.is_conference_game,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
                at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
@@ -914,7 +914,7 @@ def get_games_for_date_with_predictions(date_str):
     c.execute('''
         SELECT g.id, g.date, g.time, g.status,
                g.home_team_id, g.away_team_id,
-               g.home_score, g.away_score, g.winner_id, g.innings,
+               g.home_score, g.away_score, g.winner_id, g.innings, g.inning_text,
                g.is_conference_game,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
                at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
