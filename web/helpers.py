@@ -414,6 +414,7 @@ def get_value_picks(limit=5):
                 'home_team_id': line['home_team_id'],
                 'away_team_id': line['away_team_id'],
                 'models_agree': models_agree,
+                'models_total': len(game_models) - 1 if game_models else 11,  # exclude ensemble
                 'is_underdog': is_underdog,
                 'consensus_bonus': consensus_bonus
             })

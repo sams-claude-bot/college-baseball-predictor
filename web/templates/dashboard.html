@@ -331,12 +331,12 @@
                                 <div class="fw-bold">
                                     {{ pick.pick }} {{ pick.moneyline|format_odds }}
                                     {% if pick.is_underdog %}<span class="badge bg-warning text-dark ms-1" title="Underdog (50% edge discount)">🐕</span>{% endif %}
-                                    {% if pick.models_agree >= 7 %}<span class="badge bg-primary ms-1">{{ pick.models_agree }}/10</span>{% endif %}
+                                    {% if pick.models_agree >= 7 %}<span class="badge bg-primary ms-1">{{ pick.models_agree }}/{{ pick.models_total|default(11) }}</span>{% endif %}
                                 </div>
                                 <div class="small text-muted mb-1">{{ pick.game }}</div>
                                 <div class="small">
                                     {% if pick.models_agree >= 9 %}
-                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/10 models agree at {{ (pick.model_prob * 100)|round(0)|int }}% (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%). <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.consensus_bonus > 0 %} <span class="text-muted">(+{{ pick.consensus_bonus|round(0)|int }}% bonus)</span>{% endif %}.
+                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/{{ pick.models_total|default(11) }} models agree at {{ (pick.model_prob * 100)|round(0)|int }}% (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%). <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.consensus_bonus > 0 %} <span class="text-muted">(+{{ pick.consensus_bonus|round(0)|int }}% bonus)</span>{% endif %}.
                                     {% elif pick.adjusted_edge > 20 %}
                                     <span class="text-success fw-bold">Strong value.</span> Models: {{ (pick.model_prob * 100)|round(0)|int }}% vs DK {{ (pick.dk_implied * 100)|round(0)|int }}%. <strong>{{ pick.adjusted_edge|round(1) }}% adj edge</strong>{% if pick.is_underdog %} <span class="text-muted">(raw {{ pick.edge|round(1) }}%)</span>{% endif %}.
                                     {% else %}
