@@ -79,6 +79,8 @@
 | File | Role |
 |------|------|
 | `scripts/add_game.py` | Manual game entry tool |
+| `scripts/build_pitching_infrastructure.py` | Populate players + pitcher_game_log tables |
+| `scripts/infer_starters.py` | Infer probable starters for pitching_matchups |
 
 ## scripts/archive/ — Already archived (78 scripts)
 Old/replaced scripts. Safe to ignore.
