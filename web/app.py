@@ -1676,19 +1676,13 @@ def betting():
     confident_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     confident_bets = confident_candidates[:6]
     
-    # EV bets with v2 thresholds (exclude games already in consensus picks)
+    # EV bets — pure raw edge over DK line (exclude consensus picks)
     confident_ids = {g['game_id'] for g in confident_bets}
-    ev_bets = []
-    for g in games_with_edge:
-        if g['game_id'] in confident_ids:
-            continue
-        ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
-        if ml is None:
-            continue
-        is_underdog = ml > 0
-        threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_FAVORITE
-        if g.get('best_edge', 0) >= threshold:
-            ev_bets.append(g)
+    ev_candidates = [g for g in games_with_edge 
+                     if g['game_id'] not in confident_ids 
+                     and g.get('best_edge', 0) >= ML_EDGE_FAVORITE]
+    ev_candidates.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
+    ev_bets = ev_candidates[:6]
     
     # Best totals (3+ runs edge)
     games_with_totals = [g for g in games if g.get('over_under')]
