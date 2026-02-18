@@ -79,6 +79,14 @@ def update_elo_ratings(date=None, force=False):
     
     conn.close()
     print(f"✅ Updated Elo ratings for {updated} games")
+    
+    # Also evaluate any pending predictions
+    if updated > 0:
+        try:
+            from scripts.predict_and_track import evaluate_predictions
+            evaluate_predictions()
+        except Exception as e:
+            print(f"  Evaluation note: {e}")
 
 
 if __name__ == "__main__":
