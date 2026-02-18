@@ -12,13 +12,11 @@ from typing import Dict, Any, Optional, Tuple
 
 DB_PATH = '/home/sam/college-baseball-predictor/data/baseball.db'
 
-# Model weights for run projections (tuned for accuracy)
+# Model weights for run projections — stats-based models only
 RUN_MODEL_WEIGHTS = {
-    'poisson': 0.30,      # Best for run distributions, now quality-adjusted
-    'pitching': 0.25,     # v2 uses staff quality + batting quality + day-of-week
-    'advanced': 0.20,     # Good overall, opponent-adjusted from game results
-    'elo': 0.15,          # Solid baseline
-    'pythagorean': 0.10,  # Classic, uses historical RS/RA
+    'poisson': 0.35,      # Best for run distributions, quality-adjusted
+    'pitching': 0.35,     # v2 uses staff quality + batting quality + day-of-week
+    'advanced': 0.30,     # Opponent-adjusted from real game results
 }
 
 def get_connection():
@@ -105,7 +103,7 @@ def get_model_projections(home_id: str, away_id: str) -> Dict[str, Dict[str, flo
     projections = {}
     
     # Use cached models
-    for name in ['advanced', 'pythagorean', 'elo', 'pitching']:
+    for name in ['advanced', 'pitching']:
         try:
             model = _get_cached_model(name)
             if model:
