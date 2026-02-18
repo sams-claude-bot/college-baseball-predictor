@@ -286,7 +286,7 @@
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
-                            {% if game.nn_margin is not none %}
+                            {% if game.nn_margin is defined and game.nn_margin is not none %}
                             <span class="fw-bold">{{ '%+.1f'|format(game.nn_margin) }}</span>
                             {% if game.nn_cover_prob %}
                             <br><small class="{% if game.nn_cover_prob > 0.55 %}text-success{% elif game.nn_cover_prob < 0.45 %}text-danger{% else %}text-muted{% endif %}">

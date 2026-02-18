@@ -568,6 +568,15 @@ def get_betting_games(date_str=None):
     lines = [dict(row) for row in c.fetchall()]
     conn.close()
 
+    # Load stored runs ensemble totals
+    conn_tp = get_connection()
+    tp_rows = conn_tp.execute('''
+        SELECT game_id, projected_total FROM totals_predictions
+        WHERE model_name = 'runs_ensemble'
+    ''').fetchall()
+    stored_totals = {row['game_id']: row['projected_total'] for row in tp_rows}
+    conn_tp.close()
+
     # Add model analysis to each
     for line in lines:
         if not line['home_ml'] or not line['away_ml']:
@@ -609,21 +618,16 @@ def get_betting_games(date_str=None):
                 line['best_pick'] = 'away'
                 line['best_edge'] = abs(line['away_edge'])
 
-            # Totals analysis — use dedicated runs ensemble
+            # Totals analysis — use stored runs ensemble prediction if available
             if line['over_under']:
-                try:
-                    import models.runs_ensemble as runs_ens
-                    runs_result = runs_ens.predict(line['home_team_id'], line['away_team_id'], total_line=line['over_under'])
-                    line['projected_total'] = runs_result['projected_total']
-                    line['total_diff'] = runs_result['projected_total'] - line['over_under']
-                    line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
-                    ou = runs_result.get('over_under', {})
-                    line['total_edge'] = ou.get('edge', min(abs(line['total_diff']) * 8, 50))
-                    line['runs_breakdown'] = runs_result.get('model_breakdown', {})
-                except Exception:
+                stored_total = stored_totals.get(line.get('game_id'))
+                if stored_total:
+                    line['projected_total'] = stored_total
+                    line['total_diff'] = stored_total - line['over_under']
+                else:
                     line['total_diff'] = pred['projected_total'] - line['over_under']
-                    line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
-                    line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
+                line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
+                line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
 
             # NN Totals model
             nn_totals = MODELS.get('nn_totals')

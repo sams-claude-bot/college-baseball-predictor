@@ -327,7 +327,7 @@
                                 Proj: {{ game.nn_projected_total|round(1) }}
                             </small>
                             {% endif %}
-                            {% if game.nn_projected_margin is not none %}
+                            {% if game.nn_projected_margin is defined and game.nn_projected_margin is not none %}
                             <small class="text-muted" title="Projected home margin">
                                 Margin: {{ '%+.1f'|format(game.nn_projected_margin) }}
                             </small>
