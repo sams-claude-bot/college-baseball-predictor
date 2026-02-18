@@ -100,13 +100,31 @@ def extract_team_stats(page, team_slug, verbose=False):
     if verbose:
         print(f"  Loading {url}...")
     
-    page.goto(url, wait_until='networkidle', timeout=30000)
-    time.sleep(1)  # Let JS tables render
+    page.goto(url, wait_until='domcontentloaded', timeout=30000)
+    time.sleep(2)  # Let JS tables render
     
     # Check if page loaded properly
     if "404" in page.title() or "Nothing Found" in page.content():
         print(f"  ERROR: Page not found for slug '{team_slug}'")
         return None
+    
+    # Click "Advanced Batting" tab if present
+    try:
+        adv_bat_tab = page.locator('text=Advanced Batting').first
+        if adv_bat_tab.is_visible(timeout=3000):
+            adv_bat_tab.click()
+            time.sleep(1)
+    except Exception:
+        pass
+    
+    # Click "Advanced Pitching" tab if present
+    try:
+        adv_pitch_tab = page.locator('text=Advanced Pitching').first
+        if adv_pitch_tab.is_visible(timeout=3000):
+            adv_pitch_tab.click()
+            time.sleep(1)
+    except Exception:
+        pass
     
     # Extract all tables with headers
     result = page.evaluate("""() => {

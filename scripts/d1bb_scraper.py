@@ -103,7 +103,7 @@ def extract_team_stats(page, team_slug, verbose=False):
     if verbose:
         print(f"  Loading {url}...")
     
-    page.goto(url, wait_until='networkidle', timeout=30000)
+    page.goto(url, wait_until='domcontentloaded', timeout=30000)
     time.sleep(1.5)  # Let JS tables render
     
     # Check if page loaded properly

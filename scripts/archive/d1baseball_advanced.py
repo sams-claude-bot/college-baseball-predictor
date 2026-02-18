@@ -25,7 +25,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-PROJECT_DIR = Path(__file__).parent.parent
+PROJECT_DIR = Path(__file__).parent.parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
 
 SLUG_TO_TEAM_ID = {
