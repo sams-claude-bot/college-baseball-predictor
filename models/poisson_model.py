@@ -147,18 +147,71 @@ def get_weather_for_game(game_id: str) -> Optional[Dict]:
     return None
 
 
+def get_quality_adjustment(team_id: str, opponent_id: str) -> tuple:
+    """
+    Get batting/pitching quality adjustment factors.
+    Returns (offense_mult, defense_mult) where 1.0 = league average.
+    Blends game-results-based stats with player-quality-based stats.
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    offense_mult = 1.0
+    defense_mult = 1.0
+
+    # Batting quality for the offense
+    try:
+        c.execute("""SELECT lineup_wrc_plus, lineup_ops FROM team_batting_quality
+                     WHERE team_id = ?""", (team_id,))
+        row = c.fetchone()
+        if row and row['lineup_wrc_plus']:
+            # wRC+ of 120 means 20% better than league avg offense
+            offense_mult = (row['lineup_wrc_plus'] / 100.0)
+            # Dampen to avoid over-adjustment early season
+            offense_mult = 0.5 + offense_mult * 0.5  # range: ~0.75 - 1.25
+    except Exception:
+        pass
+
+    # Pitching quality for the opponent's defense
+    try:
+        c.execute("""SELECT staff_era, staff_fip FROM team_pitching_quality
+                     WHERE team_id = ?""", (opponent_id,))
+        row = c.fetchone()
+        if row and row['staff_era']:
+            # Lower ERA = better pitching = fewer runs allowed
+            # League avg ERA ~4.50 for D1
+            era_ratio = row['staff_era'] / 4.50
+            defense_mult = 0.5 + era_ratio * 0.5  # range: ~0.67 - 1.3
+    except Exception:
+        pass
+
+    conn.close()
+    return offense_mult, defense_mult
+
+
 def calculate_expected_runs(team_offense: float, opponent_defense: float, 
-                            league_avg: float, home_advantage: float = 0.3) -> float:
+                            league_avg: float, home_advantage: float = 0.3,
+                            quality_offense: float = 1.0,
+                            quality_defense: float = 1.0) -> float:
     """
     Calculate expected runs for a team.
     
-    Uses log5-style adjustment:
-    Expected = Team_Offense * Opponent_AllowedRate / League_Average
+    Uses log5-style adjustment with quality modifiers:
+    Expected = (Team_Offense * Opponent_AllowedRate / League_Average) * quality_blend
+    
+    quality_offense: multiplier from batting quality (1.0 = avg)
+    quality_defense: multiplier from opponent pitching quality (1.0 = avg)
     """
     if league_avg == 0:
         league_avg = 5.5
     
     expected = (team_offense * opponent_defense) / league_avg
+    
+    # Blend in quality adjustments (10% weight — conservative early season,
+    # will become more meaningful as sample sizes grow)
+    quality_blend = (quality_offense * quality_defense)
+    expected = expected * (0.9 + 0.1 * quality_blend)
+    
     expected += home_advantage  # Home teams score ~0.3 more runs on average
     
     return max(0.5, expected)  # Floor at 0.5 runs
@@ -329,31 +382,43 @@ def predict(team_a: str, team_b: str,
     # Calculate expected runs for each team
     home_adv = 0.0 if neutral_site else 0.3
     
+    # Get quality adjustments from batting/pitching tables
+    qa_off, qa_def = get_quality_adjustment(team_a, team_b)  # A's offense, B's pitching
+    qb_off, qb_def = get_quality_adjustment(team_b, team_a)  # B's offense, A's pitching
+    
     if team_a_home:
         lambda_a = calculate_expected_runs(
             stats_a['avg_scored_home'] if not neutral_site else stats_a['avg_scored'],
             stats_b['avg_allowed_away'] if not neutral_site else stats_b['avg_allowed'],
             league_avg,
-            home_adv
+            home_adv,
+            quality_offense=qa_off,
+            quality_defense=qb_def  # B's pitching quality affects A's runs
         )
         lambda_b = calculate_expected_runs(
             stats_b['avg_scored_away'] if not neutral_site else stats_b['avg_scored'],
             stats_a['avg_allowed_home'] if not neutral_site else stats_a['avg_allowed'],
             league_avg,
-            0.0
+            0.0,
+            quality_offense=qb_off,
+            quality_defense=qa_def  # A's pitching quality affects B's runs
         )
     else:
         lambda_a = calculate_expected_runs(
             stats_a['avg_scored_away'] if not neutral_site else stats_a['avg_scored'],
             stats_b['avg_allowed_home'] if not neutral_site else stats_b['avg_allowed'],
             league_avg,
-            0.0
+            0.0,
+            quality_offense=qa_off,
+            quality_defense=qb_def
         )
         lambda_b = calculate_expected_runs(
             stats_b['avg_scored_home'] if not neutral_site else stats_b['avg_scored'],
             stats_a['avg_allowed_away'] if not neutral_site else stats_a['avg_allowed'],
             league_avg,
-            home_adv
+            home_adv,
+            quality_offense=qb_off,
+            quality_defense=qa_def
         )
     
     # Apply weather adjustment to expected runs (learned from historical data)

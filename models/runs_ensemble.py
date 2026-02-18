@@ -14,11 +14,11 @@ DB_PATH = '/home/sam/college-baseball-predictor/data/baseball.db'
 
 # Model weights for run projections (tuned for accuracy)
 RUN_MODEL_WEIGHTS = {
-    'poisson': 0.30,      # Best for run distributions
-    'advanced': 0.25,     # Good overall, opponent-adjusted
-    'elo': 0.20,          # Solid baseline
-    'pythagorean': 0.15,  # Classic, uses historical RS/RA
-    'pitching': 0.10,     # Tends to inflate, down-weighted
+    'poisson': 0.30,      # Best for run distributions, now quality-adjusted
+    'pitching': 0.25,     # v2 uses staff quality + batting quality + day-of-week
+    'advanced': 0.20,     # Good overall, opponent-adjusted from game results
+    'elo': 0.15,          # Solid baseline
+    'pythagorean': 0.10,  # Classic, uses historical RS/RA
 }
 
 def get_connection():

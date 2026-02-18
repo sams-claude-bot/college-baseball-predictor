@@ -235,13 +235,24 @@ class PitchingModel(BaseModel):
         home_eff_era = self._effective_era(home_staff, dow)
         away_eff_era = self._effective_era(away_staff, dow)
 
-        # Runs = blend of opponent pitching quality and team hitting quality
-        # wRC+ is the best single-number offensive metric (100 = league avg)
-        home_wrc = home_hitting.get('wrc_plus', 100.0) or 100.0
-        away_wrc = away_hitting.get('wrc_plus', 100.0) or 100.0
+        # Runs = base from league avg, adjusted by pitching quality and lineup quality
+        # Target: ~5.5 runs/game for league-average matchup
+        base_rpg = 5.5
 
-        home_runs = away_eff_era * 0.45 + (home_wrc / 100.0) * 3.5 + home_hitting.get('ops', 0.740) * 2.0
-        away_runs = home_eff_era * 0.45 + (away_wrc / 100.0) * 3.5 + away_hitting.get('ops', 0.740) * 2.0
+        # Pitching adjustment: lower ERA = fewer runs allowed
+        # League avg ERA ~4.50, so ratio > 1 means worse pitching
+        home_pitch_adj = home_eff_era / 4.50  # affects away runs
+        away_pitch_adj = away_eff_era / 4.50  # affects home runs
+
+        # Hitting adjustment: wRC+ centered on 100, dampen extremes
+        home_wrc = min(max((home_hitting.get('wrc_plus', 100.0) or 100.0), 70), 150)
+        away_wrc = min(max((away_hitting.get('wrc_plus', 100.0) or 100.0), 70), 150)
+        home_hit_adj = home_wrc / 100.0
+        away_hit_adj = away_wrc / 100.0
+
+        # Blend: 60% pitching quality, 40% hitting quality
+        home_runs = base_rpg * (away_pitch_adj * 0.6 + home_hit_adj * 0.4)
+        away_runs = base_rpg * (home_pitch_adj * 0.6 + away_hit_adj * 0.4)
 
         if not neutral_site:
             home_runs *= 1.02
