@@ -274,10 +274,8 @@ def get_value_picks(limit=5):
     - Consensus bonus: +1% per model above 5
     - Higher thresholds: 8% favorites, 15% underdogs
     """
-    # v2 thresholds
+    # Edge thresholds
     ML_EDGE_FAVORITE = 8.0
-    ML_EDGE_UNDERDOG = 15.0
-    UNDERDOG_DISCOUNT = 0.5
     CONSENSUS_BONUS_PER_MODEL = 1.0
     
     conn = get_connection()
@@ -345,19 +343,12 @@ def get_value_picks(limit=5):
             
             is_underdog = best_ml > 0
             
-            # v2: Apply underdog discount
-            if is_underdog:
-                adjusted_edge = raw_edge * UNDERDOG_DISCOUNT
-            else:
-                adjusted_edge = raw_edge
-            
-            # v2: Add consensus bonus
+            # Raw edge — no discount, no bonus
+            adjusted_edge = raw_edge
             consensus_bonus = max(0, (models_agree - 5)) * CONSENSUS_BONUS_PER_MODEL
-            adjusted_edge += consensus_bonus
             
-            # v2: Check thresholds
-            threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_FAVORITE
-            if raw_edge < threshold:
+            # Single threshold for all picks
+            if raw_edge < ML_EDGE_FAVORITE:
                 continue
             
             picks.append({
@@ -378,8 +369,8 @@ def get_value_picks(limit=5):
         except Exception:
             continue
     
-    # Sort by ADJUSTED edge (v2)
-    picks.sort(key=lambda x: x['adjusted_edge'], reverse=True)
+    # Sort by raw edge
+    picks.sort(key=lambda x: x['edge'], reverse=True)
     return picks[:limit]
 
 def get_quick_stats():
