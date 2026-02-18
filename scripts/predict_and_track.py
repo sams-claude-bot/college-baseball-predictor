@@ -209,6 +209,7 @@ def evaluate_predictions(date=None):
             LEFT JOIN teams a ON g.away_team_id = a.id
             JOIN model_predictions mp ON mp.game_id = g.id
             WHERE g.date = ?
+            AND g.status = 'final'
             AND g.home_score IS NOT NULL
             AND mp.was_correct IS NULL
         ''', (date,))
@@ -223,7 +224,8 @@ def evaluate_predictions(date=None):
             LEFT JOIN teams h ON g.home_team_id = h.id
             LEFT JOIN teams a ON g.away_team_id = a.id
             JOIN model_predictions mp ON mp.game_id = g.id
-            WHERE g.home_score IS NOT NULL
+            WHERE g.status = 'final'
+            AND g.home_score IS NOT NULL
             AND mp.was_correct IS NULL
             ORDER BY g.date
         ''')
