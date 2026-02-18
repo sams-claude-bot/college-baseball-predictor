@@ -66,9 +66,25 @@ class PitchingModel(BaseModel):
         return None
 
     def _get_team_hitting(self, team_id):
-        """Get team batting stats for matchup context."""
+        """Get team batting quality metrics. Falls back to raw averages."""
         conn = get_connection()
         c = conn.cursor()
+        # Try batting quality table first
+        try:
+            c.execute("""
+                SELECT lineup_avg as ba, lineup_obp as obp, lineup_slg as slg,
+                       lineup_ops as ops, lineup_woba as woba, lineup_wrc_plus as wrc_plus,
+                       lineup_iso as iso, lineup_k_pct as k_pct, lineup_bb_pct as bb_pct,
+                       runs_per_game, elite_bats, solid_bats, weak_bats
+                FROM team_batting_quality WHERE team_id = ?
+            """, (team_id,))
+            row = c.fetchone()
+            if row and row['ba']:
+                conn.close()
+                return dict(row)
+        except Exception:
+            pass
+        # Fallback to raw player averages
         c.execute("""
             SELECT AVG(batting_avg) as ba, AVG(obp) as obp, AVG(slg) as slg,
                    AVG(ops) as ops
@@ -77,7 +93,7 @@ class PitchingModel(BaseModel):
         row = c.fetchone()
         conn.close()
         if row and row['ba']:
-            return {'ba': row['ba'], 'obp': row['obp'], 'slg': row['slg'], 'ops': row['ops']}
+            return dict(row)
         return {'ba': 0.265, 'obp': 0.340, 'slg': 0.400, 'ops': 0.740}
 
     def _effective_era(self, staff, dow):
@@ -215,13 +231,17 @@ class PitchingModel(BaseModel):
 
         home_prob = max(0.10, min(0.90, home_prob))
 
-        # Project runs from effective ERA
+        # Project runs from effective ERA + lineup quality
         home_eff_era = self._effective_era(home_staff, dow)
         away_eff_era = self._effective_era(away_staff, dow)
 
-        # Runs projected = opponent's effective ERA scaled, adjusted for opponent hitting
-        home_runs = away_eff_era * 0.65 + home_hitting.get('ops', 0.740) * 4.0
-        away_runs = home_eff_era * 0.65 + away_hitting.get('ops', 0.740) * 4.0
+        # Runs = blend of opponent pitching quality and team hitting quality
+        # wRC+ is the best single-number offensive metric (100 = league avg)
+        home_wrc = home_hitting.get('wrc_plus', 100.0) or 100.0
+        away_wrc = away_hitting.get('wrc_plus', 100.0) or 100.0
+
+        home_runs = away_eff_era * 0.45 + (home_wrc / 100.0) * 3.5 + home_hitting.get('ops', 0.740) * 2.0
+        away_runs = home_eff_era * 0.45 + (away_wrc / 100.0) * 3.5 + away_hitting.get('ops', 0.740) * 2.0
 
         if not neutral_site:
             home_runs *= 1.02
@@ -248,6 +268,10 @@ class PitchingModel(BaseModel):
                 "away_bullpen_era": round((away_staff or {}).get('bullpen_era', 4.50), 2),
                 "home_quality_arms": (home_staff or {}).get('quality_arms', 0),
                 "away_quality_arms": (away_staff or {}).get('quality_arms', 0),
+                "home_lineup_ops": round(home_hitting.get('ops', 0.740), 3),
+                "away_lineup_ops": round(away_hitting.get('ops', 0.740), 3),
+                "home_wrc_plus": round(home_hitting.get('wrc_plus', 100.0) or 100.0, 1),
+                "away_wrc_plus": round(away_hitting.get('wrc_plus', 100.0) or 100.0, 1),
                 "dow": dow,
                 "day_name": ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dow],
             },
