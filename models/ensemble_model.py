@@ -516,15 +516,31 @@ class EnsembleModel(BaseModel):
             weight = self.weights.get(name, 0)
             if weight > 0:
                 home_prob += pred['home_win_probability'] * weight
-                home_runs += pred['projected_home_runs'] * weight
-                away_runs += pred['projected_away_runs'] * weight
                 total_weight += weight
         
-        # Normalize in case some models failed
+        # Normalize probability
         if total_weight > 0 and total_weight < 1.0:
             home_prob /= total_weight
-            home_runs /= total_weight
-            away_runs /= total_weight
+        
+        # Use runs ensemble for run projections (designed for totals accuracy)
+        # instead of averaging all models' crude run estimates
+        try:
+            from models.runs_ensemble import predict as runs_predict
+            runs_result = runs_predict(home_team_id, away_team_id)
+            home_runs = runs_result['projected_home_runs']
+            away_runs = runs_result['projected_away_runs']
+        except Exception:
+            # Fallback: average from models that produce runs
+            runs_weight = 0
+            for name, pred in predictions.items():
+                w = self.weights.get(name, 0)
+                if w > 0 and pred.get('projected_home_runs', 0) > 0:
+                    home_runs += pred['projected_home_runs'] * w
+                    away_runs += pred['projected_away_runs'] * w
+                    runs_weight += w
+            if runs_weight > 0:
+                home_runs /= runs_weight
+                away_runs /= runs_weight
         
         home_prob = max(0.1, min(0.9, home_prob))
         run_line = self.calculate_run_line(home_runs, away_runs)

@@ -204,7 +204,17 @@ class EloModel(BaseModel):
         # Project runs based on rating differential
         # Higher rated teams score more, allow less
         rating_diff = (home_rating - away_rating) / 100
-        base_runs = 5.5  # Average runs per game
+        # Use actual league average instead of hardcoded 5.5
+        try:
+            from scripts.database import get_connection
+            _conn = get_connection()
+            _r = _conn.cursor().execute(
+                'SELECT AVG(home_score + away_score) / 2.0 FROM games WHERE home_score IS NOT NULL'
+            ).fetchone()
+            _conn.close()
+            base_runs = _r[0] if _r and _r[0] else 6.5
+        except Exception:
+            base_runs = 6.5
         
         home_runs = base_runs + rating_diff * 0.5
         away_runs = base_runs - rating_diff * 0.5
