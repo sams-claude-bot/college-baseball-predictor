@@ -133,9 +133,10 @@ def scores():
         nn_correct = sum(1 for g in games if g.get('nn_correct'))
         nn_total = sum(1 for g in games if g.get('nn_correct') is not None)
 
-    # Split into completed and scheduled
+    # Split into completed, in-progress, and scheduled
     completed_games = [g for g in games if g['status'] == 'final']
-    scheduled_games = [g for g in games if g['status'] == 'scheduled']
+    in_progress_games = [g for g in games if g['status'] == 'in-progress']
+    scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress')]
 
     # Calculate prev/next dates
     prev_date = (display_date - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -159,6 +160,7 @@ def scores():
 
     return render_template('scores.html',
                           completed_games=completed_games,
+                          in_progress_games=in_progress_games,
                           scheduled_games=scheduled_games,
                           selected_date=date_str,
                           display_date=display_date,
