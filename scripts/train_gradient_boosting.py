@@ -8,6 +8,11 @@ Trains models for:
 - Spread prediction (historical data - regression)
 
 Uses GPU acceleration when available.
+
+Recency Weighting:
+    Uses exponential decay to weight recent games more heavily.
+    Games from today have weight ~1.0, games from 2 years ago ~0.2.
+    Formula: weight = max(0.1, exp(-0.002 * days_ago))
 """
 
 import sys
@@ -15,7 +20,8 @@ import time
 import argparse
 import numpy as np
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
+from math import exp
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -59,10 +65,43 @@ def check_gpu():
     return gpu_available
 
 
+def compute_recency_weights(game_dates, decay_rate=0.002, min_weight=0.1):
+    """
+    Compute sample weights based on game recency using exponential decay.
+    
+    Args:
+        game_dates: List of date strings (YYYY-MM-DD) or date objects
+        decay_rate: Decay rate per day (0.002 = ~0.2 weight at 2 years ago)
+        min_weight: Minimum weight floor
+    
+    Returns:
+        numpy array of weights
+    """
+    today = date.today()
+    weights = []
+    
+    for game_date in game_dates:
+        if isinstance(game_date, str):
+            game_date = datetime.strptime(game_date, '%Y-%m-%d').date()
+        elif isinstance(game_date, datetime):
+            game_date = game_date.date()
+        
+        days_ago = (today - game_date).days
+        weight = max(min_weight, exp(-decay_rate * days_ago))
+        weights.append(weight)
+    
+    weights = np.array(weights, dtype=np.float32)
+    
+    # Print weight distribution info
+    print(f"Recency weights: min={weights.min():.3f}, max={weights.max():.3f}, mean={weights.mean():.3f}")
+    
+    return weights
+
+
 def load_historical_data(min_games=20):
     """
     Load historical games for totals/spread training.
-    Returns features, totals targets, and spread targets.
+    Returns features, totals targets, spread targets, and game dates for weighting.
     """
     print("\n" + "="*60)
     print("Loading historical game data...")
@@ -94,6 +133,7 @@ def load_historical_data(min_games=20):
     features = []
     totals_targets = []
     spread_targets = []
+    game_dates = []
     
     for row in rows:
         game_row = {
@@ -133,6 +173,7 @@ def load_historical_data(min_games=20):
             margin = row['home_score'] - row['away_score']
             totals_targets.append(total)
             spread_targets.append(margin)
+            game_dates.append(row['date'])
     
     X = np.array(features, dtype=np.float32)
     y_totals = np.array(totals_targets, dtype=np.float32)
@@ -146,13 +187,14 @@ def load_historical_data(min_games=20):
     print(f"Totals range: {y_totals.min():.0f} - {y_totals.max():.0f} (mean: {y_totals.mean():.1f})")
     print(f"Spread range: {y_spread.min():.0f} - {y_spread.max():.0f} (mean: {y_spread.mean():.1f})")
     
-    return X, y_totals, y_spread
+    return X, y_totals, y_spread, game_dates
 
 
 def load_moneyline_data():
     """
     Load 2026 season games for moneyline training.
     Uses games table with team IDs and FeatureComputer.
+    Returns features, labels, and game dates for recency weighting.
     """
     print("\n" + "="*60)
     print("Loading 2026 season data for moneyline...")
@@ -181,6 +223,7 @@ def load_moneyline_data():
     
     features = []
     labels = []
+    game_dates = []
     
     for i, row in enumerate(rows):
         try:
@@ -196,6 +239,7 @@ def load_moneyline_data():
             
             features.append(feat)
             labels.append(1 if home_won else 0)
+            game_dates.append(row['date'])
             
             if (i + 1) % 50 == 0:
                 print(f"  Processed {i+1}/{len(rows)} games...")
@@ -214,10 +258,10 @@ def load_moneyline_data():
     print(f"Feature dimension: {X.shape[1]}")
     print(f"Home win rate: {y.mean()*100:.1f}%")
     
-    return X, y
+    return X, y, game_dates
 
 
-def split_data(X, y, test_ratio=0.15, val_ratio=0.15):
+def split_data(X, y, weights=None, test_ratio=0.15, val_ratio=0.15):
     """Split data into train/val/test sets (chronological for time series)."""
     n = len(X)
     test_size = int(n * test_ratio)
@@ -230,18 +274,28 @@ def split_data(X, y, test_ratio=0.15, val_ratio=0.15):
     X_test = X[-test_size:]
     y_test = y[-test_size:]
     
+    if weights is not None:
+        w_train = weights[:-(test_size + val_size)]
+        w_val = weights[-(test_size + val_size):-test_size]
+        w_test = weights[-test_size:]
+    else:
+        w_train = w_val = w_test = None
+    
     print(f"  Train: {len(X_train)}, Val: {len(X_val)}, Test: {len(X_test)}")
     
-    return X_train, y_train, X_val, y_val, X_test, y_test
+    return X_train, y_train, X_val, y_val, X_test, y_test, w_train, w_val, w_test
 
 
-def train_totals_models(X, y, use_gpu=True):
-    """Train XGBoost and LightGBM totals models."""
+def train_totals_models(X, y, game_dates, use_gpu=True):
+    """Train XGBoost and LightGBM totals models with recency weighting."""
     print("\n" + "="*60)
-    print("Training TOTALS models (regression)")
+    print("Training TOTALS models (regression) with recency weighting")
     print("="*60)
     
-    X_train, y_train, X_val, y_val, X_test, y_test = split_data(X, y)
+    # Compute recency weights
+    weights = compute_recency_weights(game_dates)
+    
+    X_train, y_train, X_val, y_val, X_test, y_test, w_train, w_val, w_test = split_data(X, y, weights)
     
     results = {}
     
@@ -251,7 +305,7 @@ def train_totals_models(X, y, use_gpu=True):
         start = time.time()
         trainer = XGBTrainer(task='regression', use_gpu=use_gpu,
                             n_estimators=800, max_depth=8, learning_rate=0.05)
-        trainer.train(X_train, y_train, X_val, y_val)
+        trainer.train(X_train, y_train, X_val, y_val, sample_weight=w_train)
         trainer.save(XGB_TOT_PATH)
         
         eval_result = trainer.evaluate(X_test, y_test)
@@ -269,7 +323,7 @@ def train_totals_models(X, y, use_gpu=True):
         start = time.time()
         trainer = LGBTrainer(task='regression', use_gpu=use_gpu,
                             n_estimators=800, max_depth=8, learning_rate=0.05)
-        trainer.train(X_train, y_train, X_val, y_val)
+        trainer.train(X_train, y_train, X_val, y_val, sample_weight=w_train)
         trainer.save(LGB_TOT_PATH)
         
         eval_result = trainer.evaluate(X_test, y_test)
@@ -284,13 +338,16 @@ def train_totals_models(X, y, use_gpu=True):
     return results
 
 
-def train_spread_models(X, y, use_gpu=True):
-    """Train XGBoost and LightGBM spread models."""
+def train_spread_models(X, y, game_dates, use_gpu=True):
+    """Train XGBoost and LightGBM spread models with recency weighting."""
     print("\n" + "="*60)
-    print("Training SPREAD models (regression)")
+    print("Training SPREAD models (regression) with recency weighting")
     print("="*60)
     
-    X_train, y_train, X_val, y_val, X_test, y_test = split_data(X, y)
+    # Compute recency weights
+    weights = compute_recency_weights(game_dates)
+    
+    X_train, y_train, X_val, y_val, X_test, y_test, w_train, w_val, w_test = split_data(X, y, weights)
     
     results = {}
     
@@ -300,7 +357,7 @@ def train_spread_models(X, y, use_gpu=True):
         start = time.time()
         trainer = XGBTrainer(task='regression', use_gpu=use_gpu,
                             n_estimators=800, max_depth=8, learning_rate=0.05)
-        trainer.train(X_train, y_train, X_val, y_val)
+        trainer.train(X_train, y_train, X_val, y_val, sample_weight=w_train)
         trainer.save(XGB_SPR_PATH)
         
         eval_result = trainer.evaluate(X_test, y_test)
@@ -318,7 +375,7 @@ def train_spread_models(X, y, use_gpu=True):
         start = time.time()
         trainer = LGBTrainer(task='regression', use_gpu=use_gpu,
                             n_estimators=800, max_depth=8, learning_rate=0.05)
-        trainer.train(X_train, y_train, X_val, y_val)
+        trainer.train(X_train, y_train, X_val, y_val, sample_weight=w_train)
         trainer.save(LGB_SPR_PATH)
         
         eval_result = trainer.evaluate(X_test, y_test)
@@ -333,13 +390,16 @@ def train_spread_models(X, y, use_gpu=True):
     return results
 
 
-def train_moneyline_models(X, y, use_gpu=True):
-    """Train XGBoost and LightGBM moneyline models."""
+def train_moneyline_models(X, y, game_dates, use_gpu=True):
+    """Train XGBoost and LightGBM moneyline models with recency weighting."""
     print("\n" + "="*60)
-    print("Training MONEYLINE models (classification)")
+    print("Training MONEYLINE models (classification) with recency weighting")
     print("="*60)
     
-    X_train, y_train, X_val, y_val, X_test, y_test = split_data(X, y)
+    # Compute recency weights
+    weights = compute_recency_weights(game_dates)
+    
+    X_train, y_train, X_val, y_val, X_test, y_test, w_train, w_val, w_test = split_data(X, y, weights)
     
     results = {}
     
@@ -349,7 +409,7 @@ def train_moneyline_models(X, y, use_gpu=True):
         start = time.time()
         trainer = XGBTrainer(task='classification', use_gpu=use_gpu,
                             n_estimators=500, max_depth=6, learning_rate=0.05)
-        trainer.train(X_train, y_train, X_val, y_val)
+        trainer.train(X_train, y_train, X_val, y_val, sample_weight=w_train)
         trainer.save(XGB_ML_PATH)
         
         eval_result = trainer.evaluate(X_test, y_test)
@@ -367,7 +427,7 @@ def train_moneyline_models(X, y, use_gpu=True):
         start = time.time()
         trainer = LGBTrainer(task='classification', use_gpu=use_gpu,
                             n_estimators=500, max_depth=6, learning_rate=0.05)
-        trainer.train(X_train, y_train, X_val, y_val)
+        trainer.train(X_train, y_train, X_val, y_val, sample_weight=w_train)
         trainer.save(LGB_ML_PATH)
         
         eval_result = trainer.evaluate(X_test, y_test)
@@ -482,20 +542,20 @@ def main():
     
     # Load data and train
     if train_all or args.totals_only or args.spread_only:
-        X_hist, y_totals, y_spread = load_historical_data()
+        X_hist, y_totals, y_spread, hist_dates = load_historical_data()
         
         if train_all or args.totals_only:
-            results = train_totals_models(X_hist, y_totals, use_gpu)
+            results = train_totals_models(X_hist, y_totals, hist_dates, use_gpu)
             all_results.update(results)
         
         if train_all or args.spread_only:
-            results = train_spread_models(X_hist, y_spread, use_gpu)
+            results = train_spread_models(X_hist, y_spread, hist_dates, use_gpu)
             all_results.update(results)
     
     if train_all or args.moneyline_only:
-        X_ml, y_ml = load_moneyline_data()
+        X_ml, y_ml, ml_dates = load_moneyline_data()
         if len(X_ml) >= 50:  # Need minimum data
-            results = train_moneyline_models(X_ml, y_ml, use_gpu)
+            results = train_moneyline_models(X_ml, y_ml, ml_dates, use_gpu)
             all_results.update(results)
         else:
             print(f"Warning: Only {len(X_ml)} moneyline samples, skipping training")

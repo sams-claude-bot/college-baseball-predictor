@@ -8,6 +8,12 @@ Provides gradient boosting models for:
 - Spread prediction (regression: margin)
 
 Uses GPU acceleration with tree_method='hist' and device='cuda'.
+
+Training uses recency weighting via exponential decay:
+    weight = max(0.1, exp(-0.002 * days_ago))
+This weights recent games more heavily while still learning from
+historical data. Games from today have weight ~1.0, games from
+2 years ago have weight ~0.2.
 """
 
 import sys
@@ -331,8 +337,17 @@ class XGBTrainer:
             return X
         return (X - self.feature_mean) / self.feature_std
 
-    def train(self, X_train, y_train, X_val, y_val):
-        """Train the XGBoost model."""
+    def train(self, X_train, y_train, X_val, y_val, sample_weight=None):
+        """
+        Train the XGBoost model.
+        
+        Args:
+            X_train: Training features
+            y_train: Training labels/targets
+            X_val: Validation features
+            y_val: Validation labels/targets
+            sample_weight: Optional sample weights for recency weighting
+        """
         X_train_norm = self.normalize_features(X_train)
         X_val_norm = self.apply_normalization(X_val)
 
@@ -347,6 +362,7 @@ class XGBTrainer:
 
         self.model.fit(
             X_train_norm, y_train,
+            sample_weight=sample_weight,
             eval_set=[(X_val_norm, y_val)],
             verbose=50
         )
