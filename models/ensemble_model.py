@@ -155,7 +155,7 @@ class EnsembleModel(BaseModel):
             "log5": 0.10,         # 82.1%
             "poisson": 0.08,      # 78.2%
             "pythagorean": 0.08,  # 78.2%
-            "pitching": 0.05,     # 69.2% - weakest traditional model
+            "pitching": 0.00,     # 69.7% - disabled, needs rework
             "lightgbm": 0.08,     # 63-72% but good on totals
             "xgboost": 0.06,      # Slightly behind LightGBM
         }
@@ -178,11 +178,14 @@ class EnsembleModel(BaseModel):
     
     def _normalize_weights(self, weights):
         """Normalize weights to sum to 1.0, respecting minimum"""
-        # First, apply minimum floor
+        # First, apply minimum floor (skip floor for explicitly zeroed models)
         normalized = {}
         for name in self.models:
             w = weights.get(name, self.MIN_WEIGHT)
-            normalized[name] = max(w, self.MIN_WEIGHT)
+            if w == 0 and self.default_weights.get(name, 0) == 0:
+                normalized[name] = 0.0
+            else:
+                normalized[name] = max(w, self.MIN_WEIGHT)
         
         # Then normalize to sum to 1.0
         total = sum(normalized.values())
@@ -298,6 +301,10 @@ class EnsembleModel(BaseModel):
             
             # Blend current weights toward target
             for name in self.models:
+                # Respect explicitly disabled models (default_weight == 0)
+                if self.default_weights.get(name, 0) == 0:
+                    self.weights[name] = 0.0
+                    continue
                 current = self.weights.get(name, self.MIN_WEIGHT)
                 target = target_weights.get(name, self.MIN_WEIGHT)
                 new_weight = current + (target - current) * self.ADJUSTMENT_RATE
