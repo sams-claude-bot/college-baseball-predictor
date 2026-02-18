@@ -202,6 +202,30 @@
                             </div>
                         </div>
                     </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-xgboost">
+                                XGBoost
+                            </button>
+                        </h2>
+                        <div id="desc-xgboost" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                GPU-accelerated gradient boosting model. Uses team features, Elo ratings, and historical performance to predict outcomes with high accuracy.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-lightgbm">
+                                LightGBM
+                            </button>
+                        </h2>
+                        <div id="desc-lightgbm" class="accordion-collapse collapse">
+                            <div class="accordion-body small">
+                                Fast gradient boosting model using leaf-wise tree growth. Often faster than XGBoost with comparable accuracy on college baseball data.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -450,7 +474,7 @@
         'ensemble': '#5D1725', 'neural': '#2563eb', 'elo': '#E74C3C',
         'pythagorean': '#F39C12', 'log5': '#27AE60', 'advanced': '#9B59B6',
         'pitching': '#1ABC9C', 'conference': '#E67E22', 'prior': '#3498DB',
-        'poisson': '#95A5A6'
+        'poisson': '#95A5A6', 'xgboost': '#16A085', 'lightgbm': '#8E44AD'
     };
     
     const datasets = [];

@@ -470,9 +470,9 @@ def get_blended_prediction(home_team_id, away_team_id):
     }
 
 
-# Models to use for consensus voting (10 total)
+# Models to use for consensus voting (12 total - includes XGBoost and LightGBM)
 CONSENSUS_MODELS = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 
-                    'conference', 'prior', 'poisson', 'neural', 'ensemble']
+                    'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
 
 
 def compute_model_agreement(home_team_id, away_team_id):

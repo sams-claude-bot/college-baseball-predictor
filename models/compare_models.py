@@ -24,6 +24,8 @@ from models.neural_model import NeuralModel
 from models.nn_totals_model import NNTotalsModel
 from models.nn_spread_model import NNSpreadModel
 from models.nn_dow_totals_model import NNDoWTotalsModel
+from models.xgboost_model import XGBMoneylineModel, XGBTotalsModel, XGBSpreadModel
+from models.lightgbm_model import LGBMoneylineModel, LGBTotalsModel, LGBSpreadModel
 from models.momentum_model import get_momentum_score
 from scripts.database import get_connection
 
@@ -41,6 +43,12 @@ MODELS = {
     "nn_totals": NNTotalsModel(use_model_predictions=False),
     "nn_spread": NNSpreadModel(use_model_predictions=False),
     "nn_dow_totals": NNDoWTotalsModel(use_model_predictions=False),
+    "xgboost": XGBMoneylineModel(use_model_predictions=False),
+    "xgb_totals": XGBTotalsModel(use_model_predictions=False),
+    "xgb_spread": XGBSpreadModel(use_model_predictions=False),
+    "lightgbm": LGBMoneylineModel(use_model_predictions=False),
+    "lgb_totals": LGBTotalsModel(use_model_predictions=False),
+    "lgb_spread": LGBSpreadModel(use_model_predictions=False),
     "ensemble": EnsembleModel()
 }
 
