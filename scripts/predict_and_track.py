@@ -22,13 +22,25 @@ from scripts.database import get_connection
 
 MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
 
-def predict_games(date=None):
-    """Generate and store predictions for all games on a date"""
-    if date is None:
-        date = datetime.now().strftime("%Y-%m-%d")
+def predict_games(date=None, days=3):
+    """Generate and store predictions for upcoming games.
+    
+    Args:
+        date: Specific date (YYYY-MM-DD) to predict. If None, predicts next `days` days.
+        days: Number of days to look ahead when date is None (default: 3).
+    """
+    from datetime import timedelta
     
     conn = get_connection()
     cur = conn.cursor()
+    
+    if date:
+        date_start = date
+        date_end = date
+    else:
+        today = datetime.now()
+        date_start = today.strftime("%Y-%m-%d")
+        date_end = (today + timedelta(days=days-1)).strftime("%Y-%m-%d")
     
     # Get games that are missing predictions from ANY model
     cur.execute('''
@@ -36,7 +48,8 @@ def predict_games(date=None):
         FROM games g
         JOIN teams h ON g.home_team_id = h.id
         JOIN teams a ON g.away_team_id = a.id
-        WHERE g.date = ?
+        WHERE g.date BETWEEN ? AND ?
+        AND g.status = 'scheduled'
         AND (
             -- Games with no predictions at all
             g.id NOT IN (SELECT DISTINCT game_id FROM model_predictions)
@@ -46,16 +59,17 @@ def predict_games(date=None):
                     SELECT g2.id as game_id, COUNT(DISTINCT mp.model_name) as model_count
                     FROM games g2
                     LEFT JOIN model_predictions mp ON g2.id = mp.game_id
-                    WHERE g2.date = ?
+                    WHERE g2.date BETWEEN ? AND ?
                     GROUP BY g2.id
                     HAVING model_count < ?
                 )
             )
         )
-    ''', (date, date, len(MODEL_NAMES)))
+    ''', (date_start, date_end, date_start, date_end, len(MODEL_NAMES)))
     
     games = cur.fetchall()
-    print(f"Found {len(games)} games needing predictions for {date}")
+    date_label = date_start if date_start == date_end else f"{date_start} to {date_end}"
+    print(f"Found {len(games)} games needing predictions for {date_label}")
     
     # Initialize predictors for each model
     predictors = {name: Predictor(model=name) for name in MODEL_NAMES}
@@ -254,7 +268,7 @@ if __name__ == "__main__":
     date = sys.argv[2] if len(sys.argv) > 2 else None
     
     if cmd == "predict":
-        predict_games(date)
+        predict_games(date=date)
     elif cmd == "evaluate":
         evaluate_predictions(date)
     elif cmd == "accuracy":
