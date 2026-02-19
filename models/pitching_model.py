@@ -193,9 +193,57 @@ class PitchingModel(BaseModel):
 
         return max(0.10, min(0.90, score))
 
+    def _get_starter_stats(self, game_id, team_id, is_home):
+        """Get individual starter stats if we know who's pitching."""
+        try:
+            from scripts.database import get_connection
+            conn = get_connection()
+            c = conn.cursor()
+            
+            # Check pitching_matchups for known starter
+            col = 'home_starter_id' if is_home else 'away_starter_id'
+            name_col = 'home_starter_name' if is_home else 'away_starter_name'
+            
+            c.execute(f'''
+                SELECT {col}, {name_col} FROM pitching_matchups
+                WHERE game_id = ?
+            ''', (game_id,))
+            row = c.fetchone()
+            
+            if not row or not row[0]:
+                conn.close()
+                return None
+            
+            starter_id = row[0]
+            starter_name = row[1]
+            
+            # Get starter's individual stats
+            c.execute('''
+                SELECT era, whip, k_9, bb_9, fip, innings
+                FROM player_stats
+                WHERE id = ? AND innings > 0
+            ''', (starter_id,))
+            stats = c.fetchone()
+            conn.close()
+            
+            if stats and stats['innings'] and stats['innings'] >= 5:
+                return {
+                    'name': starter_name,
+                    'era': stats['era'] or 4.50,
+                    'whip': stats['whip'] or 1.30,
+                    'k_9': stats['k_9'] or 8.0,
+                    'bb_9': stats['bb_9'] or 3.0,
+                    'fip': stats['fip'] or 4.50,
+                    'innings': stats['innings'],
+                    'is_known': True
+                }
+            return None
+        except Exception:
+            return None
+    
     def predict_game(self, home_team_id, away_team_id, neutral_site=False,
                      game_date=None, game_id=None, weather_data=None, **kwargs):
-        """Predict game based on pitching staff quality."""
+        """Predict game based on pitching staff quality or known starters."""
         if game_date is None:
             game_date = datetime.now().strftime('%Y-%m-%d')
         elif isinstance(game_date, datetime):
@@ -206,7 +254,14 @@ class PitchingModel(BaseModel):
         except (ValueError, TypeError):
             dow = 4  # default to Friday
 
-        # Get staff quality
+        # Check if we know the actual starters
+        home_starter = None
+        away_starter = None
+        if game_id:
+            home_starter = self._get_starter_stats(game_id, home_team_id, is_home=True)
+            away_starter = self._get_starter_stats(game_id, away_team_id, is_home=False)
+        
+        # Get staff quality (used as fallback or blend)
         home_staff = self._get_staff_quality(home_team_id)
         away_staff = self._get_staff_quality(away_team_id)
 
@@ -232,8 +287,16 @@ class PitchingModel(BaseModel):
         home_prob = max(0.10, min(0.90, home_prob))
 
         # Project runs from effective ERA + lineup quality
-        home_eff_era = self._effective_era(home_staff, dow)
-        away_eff_era = self._effective_era(away_staff, dow)
+        # Use actual starter ERA if known, otherwise use staff blend
+        if home_starter and home_starter.get('is_known'):
+            home_eff_era = home_starter['era']
+        else:
+            home_eff_era = self._effective_era(home_staff, dow)
+        
+        if away_starter and away_starter.get('is_known'):
+            away_eff_era = away_starter['era']
+        else:
+            away_eff_era = self._effective_era(away_staff, dow)
 
         # Runs = actual league average, adjusted by pitching quality and lineup quality
         try:
@@ -294,6 +357,10 @@ class PitchingModel(BaseModel):
                 "away_wrc_plus": round(away_hitting.get('wrc_plus', 100.0) or 100.0, 1),
                 "dow": dow,
                 "day_name": ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][dow],
+                "home_starter": home_starter.get('name') if home_starter else None,
+                "away_starter": away_starter.get('name') if away_starter else None,
+                "home_starter_era": home_starter.get('era') if home_starter else None,
+                "away_starter_era": away_starter.get('era') if away_starter else None,
             },
         }
 
