@@ -276,8 +276,8 @@ class EloModel(BaseModel):
         away_runs = base_runs - rating_diff * 0.5
         
         if not neutral_site:
-            home_runs *= 1.02
-            away_runs *= 0.98
+            home_runs *= 1.04
+            away_runs *= 0.96
         
         run_line = self.calculate_run_line(home_runs, away_runs)
         

@@ -25,7 +25,7 @@ FEATURE_NAMES = []
 # --- Constants ---
 DEFAULT_ELO = 1500
 ELO_K = 32
-ELO_HOME_ADV = 50
+ELO_HOME_ADV = 90
 
 # Weather defaults (when data is missing)
 DEFAULT_WEATHER = {

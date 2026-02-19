@@ -31,7 +31,7 @@ class AdvancedModel(BaseModel):
     # Weights for recency (game 1 = most recent)
     RECENCY_WEIGHTS = [1.0, 0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55]
     
-    HOME_ADVANTAGE = 0.035  # ~3.5% boost
+    HOME_ADVANTAGE = 0.07  # Bumped from 3.5% — 64% observed home win rate
     NEUTRAL_ADVANTAGE = 0.0
     
     # Rest day adjustments
@@ -215,8 +215,8 @@ class AdvancedModel(BaseModel):
         away_runs = (away_stats['adj_runs_scored'] + home_stats['adj_runs_allowed']) / 2
         
         if not neutral_site:
-            home_runs *= 1.02
-            away_runs *= 0.98
+            home_runs *= 1.04
+            away_runs *= 0.96
         
         run_line = self.calculate_run_line(home_runs, away_runs)
         

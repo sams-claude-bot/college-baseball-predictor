@@ -168,7 +168,7 @@ class PriorModel(BaseModel):
     MID_SEASON_CUTOFF = 15      # Games 5-15: linear blend
     LATE_SEASON_PRIOR = 0.20    # Games 15+: 20% prior minimum
     
-    HOME_ADVANTAGE = 0.035
+    HOME_ADVANTAGE = 0.07
     DEFAULT_STRENGTH = 0.50     # For unknown teams
     
     def __init__(self):
@@ -382,8 +382,8 @@ class PriorModel(BaseModel):
         away_runs = (away_rpg + home_rapg) / 2
         
         if not neutral_site:
-            home_runs *= 1.02
-            away_runs *= 0.98
+            home_runs *= 1.04
+            away_runs *= 0.96
         
         run_line = self.calculate_run_line(home_runs, away_runs)
         

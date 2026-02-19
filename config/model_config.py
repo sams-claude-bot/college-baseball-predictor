@@ -14,9 +14,9 @@ PROB_CEILING = 0.98  # Maximum win probability (98%)
 # =============================================================================
 # Home Field Advantage
 # =============================================================================
-HOME_ADVANTAGE_PROB = 0.035      # Win probability boost for home team (~3.5%)
-HOME_ADVANTAGE_ELO = 50          # Elo points added for home team
-HOME_ADVANTAGE_RUNS = 0.02       # Run multiplier for home team (1.02x)
+HOME_ADVANTAGE_PROB = 0.07       # Win probability boost for home team (~7%) — bumped from 3.5% based on 64% observed home win rate early season. Consider lowering to ~5% when conference play starts.
+HOME_ADVANTAGE_ELO = 90          # Elo points added for home team (was 50)
+HOME_ADVANTAGE_RUNS = 0.04       # Run multiplier for home team (1.04x)
 AWAY_DISADVANTAGE_RUNS = 0.98    # Run multiplier for away team (0.98x)
 
 # =============================================================================

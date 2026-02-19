@@ -155,16 +155,16 @@ class EnsembleModel(BaseModel):
         # Stats-dependent models (log5, poisson, advanced, pythagorean) get
         # dampened via STATS_DEPENDENT_MODELS until enough games accumulate.
         self.default_weights = {
-            "elo": 0.20,          # Strong early season (new Elo config 85.7% day 1)
-            "pitching": 0.20,     # 64.5% today, staff quality doesn't need season stats
-            "lightgbm": 0.18,     # 64.5% today, trained model
-            "xgboost": 0.12,      # 58.1% today, trained model
-            "prior": 0.08,        # Preseason priors, decays with data
-            "conference": 0.06,   # Conference strength, decays with data
-            "advanced": 0.05,     # Stats-dependent, dampened early
-            "pythagorean": 0.04,  # Stats-dependent, dampened early
-            "log5": 0.04,         # Stats-dependent, dampened early
-            "poisson": 0.03,      # Stats-dependent, dampened early
+            "elo": 0.20,          # 77.4% accuracy, strong baseline
+            "pitching": 0.15,     # 67.7% — decent but not top tier
+            "lightgbm": 0.05,     # 71% — lowered, underperforming heuristics
+            "xgboost": 0.05,      # 67.7% — lowered, underperforming heuristics
+            "prior": 0.08,        # 80.6% — preseason priors, decays with data
+            "conference": 0.08,   # 80.6% — conference strength
+            "advanced": 0.12,     # 80.6% — stats-dependent, rising with data
+            "pythagorean": 0.08,  # 80.6% — stats-dependent, rising with data
+            "log5": 0.10,         # 80.6% — stats-dependent, rising with data
+            "poisson": 0.09,      # 77.4% — stats-dependent
         }
         
         # Momentum adjustment settings

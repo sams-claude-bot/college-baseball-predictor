@@ -177,7 +177,7 @@ class ConferenceModel(BaseModel):
     version = "1.0"
     description = "Conference strength and SOS adjustments"
     
-    HOME_ADVANTAGE = 0.035
+    HOME_ADVANTAGE = 0.07
     
     def __init__(self):
         self.team_cache = {}
@@ -408,8 +408,8 @@ class ConferenceModel(BaseModel):
         away_runs *= (2 - away_conf_rating) / 1.5
         
         if not neutral_site:
-            home_runs *= 1.02
-            away_runs *= 0.98
+            home_runs *= 1.04
+            away_runs *= 0.96
         
         run_line = self.calculate_run_line(home_runs, away_runs)
         

@@ -31,7 +31,7 @@ class PitchingModel(BaseModel):
     version = "2.0"
     description = "Staff quality + depth + day-of-week model"
 
-    HOME_ADVANTAGE = 0.035
+    HOME_ADVANTAGE = 0.07
 
     # Day-of-week rotation expectations
     # Friday = ace, Saturday = #2, Sunday = #3/#bullpen, midweek = #4+
@@ -378,8 +378,8 @@ class PitchingModel(BaseModel):
         away_runs = base_away_rpg * (home_pitch_adj * 0.6 + away_hit_adj * 0.4)
 
         if not neutral_site:
-            home_runs *= 1.02
-            away_runs *= 0.98
+            home_runs *= 1.04
+            away_runs *= 0.96
 
         run_line = self.calculate_run_line(home_runs, away_runs)
 

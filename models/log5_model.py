@@ -26,7 +26,7 @@ class Log5Model(BaseModel):
     version = "1.0"
     description = "Bill James Log5 formula based on winning percentage"
     
-    HOME_ADVANTAGE = 0.04  # Add 4% to home team
+    HOME_ADVANTAGE = 0.07  # Bumped from 4% — 64% observed home win rate
     DEFAULT_WIN_PCT = 0.5
     
     def __init__(self):

@@ -23,7 +23,7 @@ class PythagoreanModel(BaseModel):
     description = "Bill James Pythagorean expectation based on runs scored/allowed"
     
     EXPONENT = 1.83  # Baseball standard
-    HOME_ADVANTAGE = 0.03  # Additive home advantage (~3%)
+    HOME_ADVANTAGE = 0.07  # Bumped from 3% — 64% observed home win rate
     NEUTRAL_ADVANTAGE = 0.50
     
     def __init__(self):
