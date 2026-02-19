@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 
 def get_db():
-    db = sqlite3.connect(str(DB_PATH))
+    db = sqlite3.connect(str(DB_PATH), timeout=30)
     db.row_factory = sqlite3.Row
     return db
 

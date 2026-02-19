@@ -94,7 +94,7 @@ ALL_VENUES = {**SEC_VENUES, **P4_VENUES}
 
 
 def get_db():
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.row_factory = sqlite3.Row
     return conn
 

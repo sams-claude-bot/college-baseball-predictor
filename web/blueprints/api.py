@@ -387,7 +387,6 @@ def api_best_bets():
             'ml_favorite': ML_EDGE_FAVORITE,
             'ml_underdog': ML_EDGE_UNDERDOG,
             'totals_runs': TOTALS_EDGE_RUNS,
-            'underdog_discount': UNDERDOG_DISCOUNT,
             'spreads_enabled': SPREADS_ENABLED
         },
         'confident_bets': confident_bets,

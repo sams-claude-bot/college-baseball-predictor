@@ -209,7 +209,7 @@ def save_to_db(games, date_str, dry_run=False):
                     f"O/U: {g.get('over_under')}")
         return len(games)
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     added = 0
     updated = 0
     

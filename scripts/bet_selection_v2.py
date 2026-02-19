@@ -359,7 +359,7 @@ def record_bets(results: dict):
         print("No bets to record")
         return
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     

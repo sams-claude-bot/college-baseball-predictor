@@ -39,7 +39,7 @@ class TeamResolver:
     
     def _load_aliases(self):
         """Load all aliases into memory for fast lookup."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         c = conn.cursor()
         c.execute("SELECT alias, team_id FROM team_aliases")
         for alias, team_id in c.fetchall():
@@ -77,7 +77,7 @@ class TeamResolver:
     
     def add_alias(self, alias: str, team_id: str, source: str = "auto"):
         """Add a new alias to the database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         c = conn.cursor()
         try:
             c.execute(
@@ -92,7 +92,7 @@ class TeamResolver:
     
     def get_aliases(self, team_id: str):
         """Get all aliases for a team."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=30)
         c = conn.cursor()
         c.execute("SELECT alias FROM team_aliases WHERE team_id = ?", (team_id,))
         aliases = [row[0] for row in c.fetchall()]
