@@ -181,6 +181,23 @@ def scores():
     accuracy_pct = round(correct_count / total_preds * 100, 1) if total_preds > 0 else None
     nn_accuracy_pct = round(nn_correct / nn_total * 100, 1) if nn_total > 0 else None
 
+    # Totals (O/U) accuracy for the date
+    totals_correct = 0
+    totals_total = 0
+    for game in completed_games:
+        game_id = game.get('id')
+        proj = stored_totals.get(game_id)
+        ou_line = game.get('over_under')
+        if proj and ou_line and game.get('home_score') is not None:
+            actual = game['home_score'] + game['away_score']
+            if actual != ou_line:  # skip pushes
+                was_over = actual > ou_line
+                predicted_over = proj > ou_line
+                if was_over == predicted_over:
+                    totals_correct += 1
+                totals_total += 1
+    totals_accuracy_pct = round(totals_correct / totals_total * 100, 1) if totals_total > 0 else None
+
     # Quick links - get dates with completed games
     available_dates = get_available_dates()
 
@@ -205,7 +222,10 @@ def scores():
                           total_preds=total_preds,
                           nn_accuracy_pct=nn_accuracy_pct,
                           nn_correct=nn_correct,
-                          nn_total=nn_total)
+                          nn_total=nn_total,
+                          totals_accuracy_pct=totals_accuracy_pct,
+                          totals_correct=totals_correct,
+                          totals_total=totals_total)
     cache.set(cache_key, result, timeout=600)
     return result
 

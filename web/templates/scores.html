@@ -45,6 +45,11 @@
                         <strong>NN: {{ nn_correct }}/{{ nn_total }}</strong> ({{ nn_accuracy_pct }}%)
                     </span>
                     {% endif %}
+                    {% if totals_accuracy_pct is not none %}
+                    <span class="{% if totals_accuracy_pct >= 55 %}text-success{% elif totals_accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                        <strong>O/U: {{ totals_correct }}/{{ totals_total }}</strong> ({{ totals_accuracy_pct }}%)
+                    </span>
+                    {% endif %}
                 </div>
             </div>
             <div class="col-auto">
