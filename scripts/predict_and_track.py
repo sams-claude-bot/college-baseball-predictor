@@ -3,9 +3,11 @@
 Predict games and track model performance.
 
 Usage:
-    python predict_and_track.py predict [DATE]  # Generate predictions for games on DATE (default: today)
-    python predict_and_track.py evaluate [DATE] # Compare predictions to results
-    python predict_and_track.py accuracy        # Show overall model accuracy
+    python predict_and_track.py predict [DATE]       # Generate predictions for games
+    python predict_and_track.py evaluate [DATE]      # Grade predictions against results
+    python predict_and_track.py accuracy             # Show overall model accuracy
+    python predict_and_track.py validate [--fix]     # Check for missing predictions
+    python predict_and_track.py validate DATE --fix  # Fix missing predictions for DATE
 """
 
 import sys
@@ -181,6 +183,24 @@ def predict_games(date=None, days=3):
                 print(f"  {'nn_spread':12}: ERROR - {e}")
     
     conn.commit()
+    
+    # Validation: Check that all models have predictions for each game
+    print(f"\n--- Validation Check ---")
+    missing = []
+    for game_id, home_id, away_id, home_name, away_name in games:
+        cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
+        present_models = {row[0] for row in cur.fetchall()}
+        missing_models = set(MODEL_NAMES) - present_models
+        if missing_models:
+            missing.append((game_id, away_name, home_name, missing_models))
+    
+    if missing:
+        print(f"⚠️  {len(missing)} games missing predictions:")
+        for game_id, away, home, models in missing:
+            print(f"  {away} @ {home}: missing {', '.join(sorted(models))}")
+    else:
+        print(f"✅ All {len(MODEL_NAMES)} models have predictions for all {len(games)} games")
+    
     conn.close()
     print(f"\n✅ Stored {predictions_made} predictions for {len(games)} games")
 
@@ -327,13 +347,111 @@ def show_accuracy():
     
     conn.close()
 
+def validate_predictions(date=None, fix=False):
+    """Check for missing predictions and optionally backfill them.
+    
+    Args:
+        date: Specific date to check, or None for all dates with predictions
+        fix: If True, attempt to generate missing predictions
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    
+    # Find games with incomplete predictions
+    if date:
+        cur.execute('''
+            SELECT g.id, g.home_team_id, g.away_team_id, h.name, a.name, g.date,
+                   COUNT(mp.model_name) as model_count
+            FROM games g
+            JOIN teams h ON g.home_team_id = h.id
+            JOIN teams a ON g.away_team_id = a.id
+            LEFT JOIN model_predictions mp ON g.id = mp.game_id
+            WHERE g.date = ?
+            GROUP BY g.id
+            HAVING model_count < ?
+        ''', (date, len(MODEL_NAMES)))
+    else:
+        cur.execute('''
+            SELECT g.id, g.home_team_id, g.away_team_id, h.name, a.name, g.date,
+                   COUNT(mp.model_name) as model_count
+            FROM games g
+            JOIN teams h ON g.home_team_id = h.id
+            JOIN teams a ON g.away_team_id = a.id
+            LEFT JOIN model_predictions mp ON g.id = mp.game_id
+            WHERE g.id IN (SELECT DISTINCT game_id FROM model_predictions)
+            GROUP BY g.id
+            HAVING model_count < ?
+        ''', (len(MODEL_NAMES),))
+    
+    incomplete = cur.fetchall()
+    
+    if not incomplete:
+        print(f"✅ All games have complete predictions ({len(MODEL_NAMES)} models each)")
+        conn.close()
+        return
+    
+    print(f"⚠️  Found {len(incomplete)} games with missing predictions:")
+    
+    predictors = {name: Predictor(model=name) for name in MODEL_NAMES} if fix else {}
+    fixed_count = 0
+    
+    for game_id, home_id, away_id, home_name, away_name, game_date, count in incomplete:
+        # Find which models are missing
+        cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
+        present = {row[0] for row in cur.fetchall()}
+        missing = set(MODEL_NAMES) - present
+        
+        print(f"\n  {away_name} @ {home_name} ({game_date}): {count}/{len(MODEL_NAMES)} models")
+        print(f"    Missing: {', '.join(sorted(missing))}")
+        
+        if fix:
+            # Get game status to determine if we should also evaluate
+            cur.execute('SELECT status, home_score, away_score FROM games WHERE id = ?', (game_id,))
+            game_info = cur.fetchone()
+            is_final = game_info['status'] == 'final' and game_info['home_score'] is not None
+            home_won = game_info['home_score'] > game_info['away_score'] if is_final else None
+            
+            for model_name in missing:
+                try:
+                    result = predictors[model_name].predict_game(home_name, away_name)
+                    home_prob = result.get('home_win_probability', 0.5)
+                    
+                    # If game is final, evaluate immediately
+                    was_correct = None
+                    if is_final:
+                        predicted_home_win = home_prob > 0.5
+                        was_correct = 1 if predicted_home_win == home_won else 0
+                    
+                    cur.execute('''
+                        INSERT INTO model_predictions 
+                        (game_id, model_name, predicted_home_prob, was_correct)
+                        VALUES (?, ?, ?, ?)
+                    ''', (game_id, model_name, home_prob, was_correct))
+                    
+                    status = f"({'✓' if was_correct else '✗'})" if was_correct is not None else ""
+                    print(f"    Fixed {model_name}: {home_prob*100:.1f}% {status}")
+                    fixed_count += 1
+                except Exception as e:
+                    print(f"    Failed {model_name}: {e}")
+            
+            conn.commit()
+    
+    if fix:
+        print(f"\n✅ Fixed {fixed_count} missing predictions")
+    else:
+        print(f"\nRun with --fix to backfill missing predictions")
+    
+    conn.close()
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
     
     cmd = sys.argv[1]
-    date = sys.argv[2] if len(sys.argv) > 2 else None
+    date = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith('--') else None
+    fix = '--fix' in sys.argv
     
     if cmd == "predict":
         predict_games(date=date)
@@ -341,6 +459,8 @@ if __name__ == "__main__":
         evaluate_predictions(date)
     elif cmd == "accuracy":
         show_accuracy()
+    elif cmd == "validate":
+        validate_predictions(date=date, fix=fix)
     else:
         print(f"Unknown command: {cmd}")
         print(__doc__)
