@@ -375,7 +375,7 @@ def predict(team_a: str, team_b: str,
         # Set apply_adjustment=False by default (backtest showed it doesn't help)
         # The raw_adjustment is still computed and shown for informational purposes
         weather_adjustment, weather_components = calculate_weather_adjustment(
-            weather_data, apply_adjustment=False
+            weather_data, apply_adjustment=True
         )
         weather_components['has_data'] = True
     

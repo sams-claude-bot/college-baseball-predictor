@@ -17,9 +17,9 @@ from scripts.database import get_connection
 
 # Default weights for run projections — stats-based models only
 DEFAULT_RUN_WEIGHTS = {
-    'poisson': 0.35,      # Best for run distributions, quality-adjusted
-    'pitching': 0.35,     # v2 uses staff quality + batting quality + day-of-week
-    'advanced': 0.30,     # Opponent-adjusted from real game results
+    'poisson': 0.50,      # Best for run distributions, quality-adjusted
+    'advanced': 0.35,     # Opponent-adjusted from real game results
+    'pitching': 0.15,     # Reduced until pitching fix proves itself
 }
 
 # Active weights (updated by auto-adjustment)
@@ -273,9 +273,31 @@ def poisson_over_under(home_runs: float, away_runs: float,
         'push': round(push_prob, 4)
     }
 
+def _get_bias_correction() -> float:
+    """Calculate bias correction from recent evaluated predictions."""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('''
+            SELECT AVG(projected_total - actual_total) as bias, COUNT(*) as n
+            FROM totals_predictions
+            WHERE model_name = 'runs_ensemble'
+            AND actual_total IS NOT NULL
+        ''')
+        row = c.fetchone()
+        conn.close()
+        if row and row['n'] and row['n'] >= 10:
+            return row['bias'] or 0.0
+        return 0.0
+    except Exception:
+        return 0.0
+
+
 def predict(home_team_id: str, away_team_id: str, 
             total_line: Optional[float] = None,
-            neutral_site: bool = False) -> Dict[str, Any]:
+            neutral_site: bool = False,
+            game_id: str = None,
+            weather_data: dict = None) -> Dict[str, Any]:
     """
     Generate ensemble run predictions.
     
@@ -304,9 +326,40 @@ def predict(home_team_id: str, away_team_id: str,
     
     # Apply home field adjustment if not neutral
     if not neutral_site:
-        home_runs *= 1.02  # Slight home boost
-        away_runs *= 0.98
+        home_runs *= 1.04  # Home boost
+        away_runs *= 0.96
         total = home_runs + away_runs
+    
+    # Apply bias correction from recent prediction accuracy
+    bias = _get_bias_correction()
+    if bias != 0.0:
+        total -= bias
+        # Split correction proportionally
+        if home_runs + away_runs > 0:
+            ratio = home_runs / (home_runs + away_runs)
+            home_runs = total * ratio
+            away_runs = total * (1 - ratio)
+    
+    # Apply weather adjustment
+    weather_adj = 0.0
+    weather_components = {}
+    try:
+        from models.weather_model import calculate_weather_adjustment, get_weather_for_game
+        if weather_data is None and game_id:
+            weather_data = get_weather_for_game(game_id)
+        if weather_data:
+            weather_adj, weather_components = calculate_weather_adjustment(
+                weather_data, apply_adjustment=True
+            )
+            if weather_adj != 0.0:
+                total += weather_adj
+                # Split adjustment proportionally
+                if home_runs + away_runs > 0:
+                    ratio = home_runs / (home_runs + away_runs)
+                    home_runs = total * ratio
+                    away_runs = total * (1 - ratio)
+    except Exception:
+        pass
     
     # Calculate confidence (std dev of projections)
     std_dev = calculate_std_dev(projections, total)
@@ -332,6 +385,8 @@ def predict(home_team_id: str, away_team_id: str,
         },
         'std_dev': round(std_dev, 2),
         'model_agreement': round(agreement, 2),
+        'weather_adjustment': round(weather_adj, 2),
+        'bias_correction': round(bias, 2),
         'model_breakdown': {
             name: {
                 'home': round(p['home'], 1),

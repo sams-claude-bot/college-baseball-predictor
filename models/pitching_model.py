@@ -349,33 +349,35 @@ class PitchingModel(BaseModel):
         else:
             away_eff_era = self._effective_era(away_staff, dow)
 
-        # Runs = actual league average, adjusted by pitching quality and lineup quality
+        # Runs = league avg per team, adjusted additively by pitching and hitting
         try:
             from scripts.database import get_connection as _gc
             _conn = _gc()
             _r = _conn.cursor().execute(
-                'SELECT AVG(home_score), AVG(away_score) FROM games WHERE home_score IS NOT NULL'
+                'SELECT AVG(home_score + away_score) / 2.0 FROM games WHERE home_score IS NOT NULL AND status = "final"'
             ).fetchone()
             _conn.close()
-            base_home_rpg = _r[0] if _r and _r[0] else 7.0
-            base_away_rpg = _r[1] if _r and _r[1] else 5.5
+            base_rpg = _r[0] if _r and _r[0] else 6.5
         except Exception:
-            base_home_rpg, base_away_rpg = 7.0, 5.5
+            base_rpg = 6.5
 
-        # Pitching adjustment: lower ERA = fewer runs allowed
-        # Use league avg ERA from actual data, fallback 4.50
-        home_pitch_adj = home_eff_era / 4.50  # affects away runs
-        away_pitch_adj = away_eff_era / 4.50  # affects home runs
+        # ERA above/below league avg adjusts runs additively
+        league_avg_era = 4.50
+        home_era_diff = (home_eff_era - league_avg_era) / 9.0  # normalized ~-0.5 to +0.5
+        away_era_diff = (away_eff_era - league_avg_era) / 9.0
 
         # Hitting adjustment: wRC+ centered on 100, dampen extremes
         home_wrc = min(max((home_hitting.get('wrc_plus', 100.0) or 100.0), 70), 160)
         away_wrc = min(max((away_hitting.get('wrc_plus', 100.0) or 100.0), 70), 160)
-        home_hit_adj = home_wrc / 100.0
-        away_hit_adj = away_wrc / 100.0
 
-        # Blend: 60% pitching quality, 40% hitting quality
-        home_runs = base_home_rpg * (away_pitch_adj * 0.6 + home_hit_adj * 0.4)
-        away_runs = base_away_rpg * (home_pitch_adj * 0.6 + away_hit_adj * 0.4)
+        # Better opponent pitching = fewer runs, worse = more
+        # home team scores against away pitching
+        home_runs = base_rpg + (away_era_diff * 3.0) + ((home_wrc - 100) / 100.0 * 2.0)
+        away_runs = base_rpg + (home_era_diff * 3.0) + ((away_wrc - 100) / 100.0 * 2.0)
+
+        # Floor and cap
+        home_runs = max(1.0, min(15.0, home_runs))
+        away_runs = max(1.0, min(15.0, away_runs))
 
         if not neutral_site:
             home_runs *= 1.04
