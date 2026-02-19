@@ -22,21 +22,45 @@ AWAY_DISADVANTAGE_RUNS = 0.98    # Run multiplier for away team (0.98x)
 # =============================================================================
 # Elo Rating System
 # =============================================================================
-ELO_BASE_RATING = 1500           # Starting Elo for unknown teams
+ELO_BASE_RATING = 1450           # Starting Elo for unknown teams
 ELO_K_FACTOR = 32                # How much ratings change per game
 ELO_MOV_MULTIPLIER_CAP = 2.0     # Max margin-of-victory K multiplier
 
 # Conference-tiered starting Elo (used when team first appears)
+# P4 kept high; non-P4 pulled down significantly to avoid overrating partially tracked teams.
 ELO_CONFERENCE_TIERS = {
-    'SEC': 1600, 'ACC': 1580, 'Big 12': 1560, 'Big Ten': 1550,
-    'AAC': 1520, 'Sun Belt': 1510, 'C-USA': 1500, 'MWC': 1490,
-    'Big East': 1490, 'WCC': 1480, 'A-10': 1470, 'CAA': 1470,
-    'MVC': 1460, 'SoCon': 1460, 'ASUN': 1460, 'Big West': 1460,
-    'MAC': 1450, 'OVC': 1430, 'Southland': 1430, 'Summit': 1420,
-    'WAC': 1420, 'Big South': 1420, 'NEC': 1410, 'Patriot': 1410,
-    'Horizon': 1410, 'America East': 1400, 'Ivy': 1400,
-    'MEAC': 1380, 'SWAC': 1370,
+    # Equal P4 baseline to remove conference-specific starting bias
+    'SEC': 1500, 'ACC': 1500, 'Big 12': 1500, 'Big Ten': 1500,
+    # Mid-majors closer to P4 baseline
+    'AAC': 1485, 'Sun Belt': 1480, 'C-USA': 1475, 'MWC': 1470,
+    'Big East': 1470, 'WCC': 1468, 'A-10': 1460, 'CAA': 1458,
+    'MVC': 1455, 'SoCon': 1452, 'ASUN': 1450, 'Big West': 1450,
+    'MAC': 1448, 'OVC': 1440, 'Southland': 1438, 'Summit': 1435,
+    'WAC': 1435, 'Big South': 1432, 'NEC': 1430, 'Patriot': 1430,
+    'Horizon': 1428, 'America East': 1425, 'Ivy': 1420,
+    'MEAC': 1405, 'SWAC': 1400,
 }
+
+# Team-level starting Elo overrides for known exceptions.
+# Use team IDs from `teams.id`.
+ELO_TEAM_START_OVERRIDES = {}
+
+# Conferences where we trust schedule coverage enough to avoid extra Elo decay.
+ELO_FULLY_TRACKED_CONFERENCES = {'SEC', 'ACC', 'Big 12', 'Big Ten'}
+
+# Additional decay for teams outside fully tracked conferences.
+# Applied after each Elo update: pulls rating toward a low-confidence target.
+ELO_UNTRACKED_DECAY_FACTOR = 0.99    # 1.0% regression per processed game
+ELO_UNTRACKED_DECAY_TARGET = 1350
+
+# Cold-start override for teams with very limited observed results.
+ELO_LOW_SAMPLE_MAX_GAMES = 1
+ELO_LOW_SAMPLE_START_RATING = 1300
+
+# Top-25 ranking-based Elo seeding (applied at team initialization when current_rank is 1..25)
+# Rank 1 gets the highest seed; each lower rank gets a fixed decrement.
+ELO_TOP25_SEED_MAX = 1650
+ELO_TOP25_SEED_STEP = 6
 
 # =============================================================================
 # Neural Network

@@ -462,7 +462,7 @@ def main():
         print(f"\n{'='*40}")
         print("Evaluating predictions for completed games...")
         try:
-            from scripts.predict_and_track import evaluate_predictions
+            from predict_and_track import evaluate_predictions
             evaluate_predictions()
         except Exception as e:
             print(f"  Evaluation error: {e}")

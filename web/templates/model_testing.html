@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Model Testing - Debug{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h2 class="mb-3"><i class="bi bi-speedometer2"></i> Model Testing — Live vs Stored</h2>
+    <p class="text-muted">Re-runs current model code against final results and compares to stored pre-game predictions.</p>
+
+    <!-- Controls -->
+    <form method="GET" class="row g-2 mb-4 align-items-end">
+        <div class="col-auto">
+            <label class="form-label mb-0"><small>Date</small></label>
+            <input type="date" name="date" class="form-control form-control-sm" value="{{ test_date }}">
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0"><small>Model</small></label>
+            <select name="model" class="form-select form-select-sm">
+                <option value="">All Models</option>
+                {% for m in all_model_names %}
+                <option value="{{ m }}" {% if model_filter == m %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-primary">Run Test</button>
+        </div>
+    </form>
+
+    <!-- Summary Table -->
+    {% if summary %}
+    <div class="card mb-4">
+        <div class="card-header"><strong>Accuracy Summary</strong> — {{ total_games }} final games on {{ test_date }}</div>
+        <div class="card-body p-0">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th class="text-center">Live (Current Code)</th>
+                        <th class="text-center">Stored (Pre-Game)</th>
+                        <th class="text-center">Delta</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in summary %}
+                    <tr>
+                        <td><strong>{{ s.model }}</strong></td>
+                        <td class="text-center">
+                            <span class="{% if s.live_pct >= 70 %}text-success{% elif s.live_pct >= 55 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ s.live_correct }}/{{ s.live_total }} ({{ s.live_pct }}%)
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if s.stored_total %}
+                                {{ s.stored_correct }}/{{ s.stored_total }} ({{ s.stored_pct }}%)
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if s.delta is not none %}
+                                {% if s.delta > 0 %}
+                                    <span class="badge bg-success">+{{ s.delta }}</span>
+                                {% elif s.delta < 0 %}
+                                    <span class="badge bg-danger">{{ s.delta }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">0</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Game-by-Game Detail -->
+    {% if results %}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between">
+            <strong>Game-by-Game Breakdown</strong>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#gameDetails">
+                Toggle Details
+            </button>
+        </div>
+        <div id="gameDetails" class="collapse show">
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Game</th>
+                            <th class="text-center">Score</th>
+                            <th>Model</th>
+                            <th class="text-center">Live Prob</th>
+                            <th class="text-center">Stored Prob</th>
+                            <th class="text-center">Live</th>
+                            <th class="text-center">Stored</th>
+                            <th class="text-center">Changed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for game in results %}
+                            {% set model_items = game.models.items()|sort %}
+                            {% for mname, m in model_items %}
+                            <tr {% if m.changed %}class="table-warning"{% endif %}>
+                                {% if loop.first %}
+                                <td rowspan="{{ model_items|length }}" class="align-middle" style="border-right: 2px solid #dee2e6;">
+                                    <strong>{{ game.home_name }}</strong>
+                                    <small class="text-muted">({{ game.home_conf[:3] if game.home_conf else '?' }})</small>
+                                    <br>vs {{ game.away_name }}
+                                    <small class="text-muted">({{ game.away_conf[:3] if game.away_conf else '?' }})</small>
+                                </td>
+                                <td rowspan="{{ model_items|length }}" class="align-middle text-center" style="border-right: 2px solid #dee2e6;">
+                                    <strong>{{ game.home_score }}-{{ game.away_score }}</strong>
+                                    <br><small class="{% if game.home_won %}text-success{% else %}text-danger{% endif %}">
+                                        {{ 'Home W' if game.home_won else 'Away W' }}
+                                    </small>
+                                </td>
+                                {% endif %}
+                                <td><code>{{ mname }}</code></td>
+                                <td class="text-center">
+                                    {% if m.live_prob is not none %}
+                                        {{ "%.3f"|format(m.live_prob) }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if m.stored_prob is not none %}
+                                        {{ "%.3f"|format(m.stored_prob) }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if m.live_correct is not none %}
+                                        {% if m.live_correct %}✅{% else %}❌{% endif %}
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if m.stored_correct is not none %}
+                                        {% if m.stored_correct %}✅{% else %}❌{% endif %}
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if m.changed %}
+                                        {% if m.live_correct and not m.stored_correct %}
+                                            <span class="badge bg-success">Fixed</span>
+                                        {% elif not m.live_correct and m.stored_correct %}
+                                            <span class="badge bg-danger">Regressed</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">No final games found for {{ test_date }}.</div>
+    {% endif %}
+</div>
+{% endblock %}

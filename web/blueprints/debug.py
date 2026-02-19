@@ -4,6 +4,7 @@ Debug Blueprint - Debug tools and bug reporting
 
 import sys
 import json
+import sqlite3
 from pathlib import Path
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request, jsonify
@@ -241,3 +242,145 @@ def api_bug_update(bug_id):
         json.dump(reports, f, indent=2)
 
     return jsonify({'ok': True})
+
+
+@debug_bp.route('/debug/model-testing')
+def model_testing():
+    """Live model testing — re-run models against today's (or any date's) final results."""
+    from models.predictor_db import Predictor
+
+    test_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    model_filter = request.args.get('model', '')  # empty = all
+
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+
+    # Get final games for the date
+    games = conn.execute('''
+        SELECT g.id, g.home_team_id, g.away_team_id, h.name as home_name, a.name as away_name,
+               g.home_score, g.away_score, g.is_neutral_site,
+               h.conference as home_conf, a.conference as away_conf
+        FROM games g
+        JOIN teams h ON g.home_team_id = h.id
+        JOIN teams a ON g.away_team_id = a.id
+        WHERE g.date = ? AND g.status = 'final'
+        ORDER BY g.id
+    ''', (test_date,)).fetchall()
+
+    # Get stored predictions for comparison
+    stored = {}
+    for row in conn.execute('''
+        SELECT game_id, model_name, predicted_home_prob
+        FROM model_predictions
+        WHERE game_id IN (SELECT id FROM games WHERE date = ? AND status = 'final')
+    ''', (test_date,)).fetchall():
+        stored.setdefault(row['game_id'], {})[row['model_name']] = row['predicted_home_prob']
+
+    # Available model names from stored predictions
+    all_model_names = sorted(set(
+        m for preds in stored.values() for m in preds.keys()
+    ))
+
+    # Run live predictions
+    predictor = Predictor()
+    results = []
+    live_totals = {}  # model_name -> {correct, total}
+    stored_totals = {}
+
+    for g in games:
+        home_won = g['home_score'] > g['away_score']
+
+        # Live prediction from current model code
+        try:
+            pred = predictor.predict_game(g['home_team_id'], g['away_team_id'])
+            components = pred.get('component_predictions', {}) if pred else {}
+            live_ensemble_hp = pred.get('home_win_probability', 0.5) if pred else 0.5
+        except Exception as e:
+            components = {}
+            live_ensemble_hp = 0.5
+
+        game_result = {
+            'id': g['id'],
+            'home_name': g['home_name'],
+            'away_name': g['away_name'],
+            'home_score': g['home_score'],
+            'away_score': g['away_score'],
+            'home_conf': g['home_conf'],
+            'away_conf': g['away_conf'],
+            'home_won': home_won,
+            'models': {}
+        }
+
+        game_stored = stored.get(g['id'], {})
+
+        # Build per-model comparison
+        model_names_for_game = set(list(components.keys()) + list(game_stored.keys()) + ['ensemble'])
+        for mname in model_names_for_game:
+            if model_filter and mname != model_filter:
+                continue
+
+            # Live probability
+            if mname == 'ensemble':
+                live_hp = live_ensemble_hp
+            elif mname in components:
+                c = components[mname]
+                live_hp = c.get('home_win_probability', c.get('home_prob', 0.5))
+            else:
+                live_hp = None
+
+            # Stored probability
+            stored_hp = game_stored.get(mname)
+
+            live_correct = ((live_hp > 0.5) == home_won) if live_hp is not None else None
+            stored_correct = ((stored_hp > 0.5) == home_won) if stored_hp is not None else None
+
+            game_result['models'][mname] = {
+                'live_prob': live_hp,
+                'stored_prob': stored_hp,
+                'live_correct': live_correct,
+                'stored_correct': stored_correct,
+                'changed': (live_correct != stored_correct) if (live_correct is not None and stored_correct is not None) else False,
+            }
+
+            # Accumulate totals
+            if live_hp is not None:
+                lt = live_totals.setdefault(mname, {'correct': 0, 'total': 0})
+                lt['total'] += 1
+                if live_correct:
+                    lt['correct'] += 1
+            if stored_hp is not None:
+                st = stored_totals.setdefault(mname, {'correct': 0, 'total': 0})
+                st['total'] += 1
+                if stored_correct:
+                    st['correct'] += 1
+
+        results.append(game_result)
+
+    # Build summary table
+    summary = []
+    all_names = sorted(set(list(live_totals.keys()) + list(stored_totals.keys())))
+    for mname in all_names:
+        lt = live_totals.get(mname, {'correct': 0, 'total': 0})
+        st = stored_totals.get(mname, {'correct': 0, 'total': 0})
+        summary.append({
+            'model': mname,
+            'live_correct': lt['correct'],
+            'live_total': lt['total'],
+            'live_pct': round(100 * lt['correct'] / lt['total'], 1) if lt['total'] else 0,
+            'stored_correct': st['correct'],
+            'stored_total': st['total'],
+            'stored_pct': round(100 * st['correct'] / st['total'], 1) if st['total'] else 0,
+            'delta': lt['correct'] - st['correct'] if lt['total'] and st['total'] else None,
+        })
+    summary.sort(key=lambda x: x['live_pct'], reverse=True)
+
+    conn.close()
+
+    return render_template('model_testing.html',
+        test_date=test_date,
+        model_filter=model_filter,
+        results=results,
+        summary=summary,
+        all_model_names=all_model_names,
+        total_games=len(results)
+    )

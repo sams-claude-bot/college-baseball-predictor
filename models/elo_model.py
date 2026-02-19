@@ -20,7 +20,15 @@ from models.base_model import BaseModel
 from scripts.database import get_connection
 from config.model_config import (
     ELO_BASE_RATING, ELO_K_FACTOR, HOME_ADVANTAGE_ELO,
-    ELO_CONFERENCE_TIERS, ELO_MOV_MULTIPLIER_CAP
+    ELO_CONFERENCE_TIERS, ELO_MOV_MULTIPLIER_CAP,
+    ELO_TEAM_START_OVERRIDES,
+    ELO_FULLY_TRACKED_CONFERENCES,
+    ELO_UNTRACKED_DECAY_FACTOR,
+    ELO_UNTRACKED_DECAY_TARGET,
+    ELO_LOW_SAMPLE_MAX_GAMES,
+    ELO_LOW_SAMPLE_START_RATING,
+    ELO_TOP25_SEED_MAX,
+    ELO_TOP25_SEED_STEP,
 )
 
 class EloModel(BaseModel):
@@ -34,6 +42,7 @@ class EloModel(BaseModel):
     
     def __init__(self):
         self.ratings = {}
+        self._conference_cache = {}
         self._load_ratings()
     
     def _load_ratings(self):
@@ -75,12 +84,32 @@ class EloModel(BaseModel):
             # Look up conference for tiered starting Elo
             try:
                 conn = get_connection()
-                row = conn.execute("SELECT conference FROM teams WHERE id = ?", (team_id,)).fetchone()
-                conn.close()
+                row = conn.execute("SELECT conference, current_rank FROM teams WHERE id = ?", (team_id,)).fetchone()
                 conf = row['conference'] if row and row['conference'] else ''
-                start_elo = self.CONF_ELO.get(conf, self.BASE_RATING)
+                current_rank = row['current_rank'] if row and row['current_rank'] else None
+
+                gp_row = conn.execute('''
+                    SELECT COUNT(*) AS gp
+                    FROM games
+                    WHERE status = 'final'
+                      AND home_score IS NOT NULL
+                      AND away_score IS NOT NULL
+                      AND (home_team_id = ? OR away_team_id = ?)
+                ''', (team_id, team_id)).fetchone()
+                conn.close()
+
+                games_played = gp_row['gp'] if gp_row and gp_row['gp'] is not None else 0
+
+                if team_id in ELO_TEAM_START_OVERRIDES:
+                    start_elo = ELO_TEAM_START_OVERRIDES[team_id]
+                elif current_rank is not None and 1 <= int(current_rank) <= 25:
+                    start_elo = ELO_TOP25_SEED_MAX - ((int(current_rank) - 1) * ELO_TOP25_SEED_STEP)
+                elif games_played <= ELO_LOW_SAMPLE_MAX_GAMES:
+                    start_elo = ELO_LOW_SAMPLE_START_RATING
+                else:
+                    start_elo = self.CONF_ELO.get(conf, self.BASE_RATING)
             except Exception:
-                start_elo = self.BASE_RATING
+                start_elo = ELO_TEAM_START_OVERRIDES.get(team_id, self.BASE_RATING)
             self.ratings[team_id] = start_elo
             self._save_rating(team_id, start_elo)
         return self.ratings[team_id]
@@ -129,6 +158,34 @@ class EloModel(BaseModel):
         except Exception:
             pass  # Don't break rating updates if history logging fails
 
+    def _get_team_conference(self, team_id):
+        """Get/cached conference for team_id."""
+        if team_id in self._conference_cache:
+            return self._conference_cache[team_id]
+        conf = ''
+        try:
+            conn = get_connection()
+            row = conn.execute("SELECT conference FROM teams WHERE id = ?", (team_id,)).fetchone()
+            conn.close()
+            conf = row['conference'] if row and row['conference'] else ''
+        except Exception:
+            conf = ''
+        self._conference_cache[team_id] = conf
+        return conf
+
+    def _is_fully_tracked_team(self, team_id):
+        conf = self._get_team_conference(team_id)
+        return conf in ELO_FULLY_TRACKED_CONFERENCES
+
+    def _apply_untracked_decay(self, team_id, rating):
+        """
+        Apply extra regression for teams outside fully tracked conferences.
+        Pulls rating toward a conservative target each processed game.
+        """
+        if self._is_fully_tracked_team(team_id):
+            return rating
+        return ELO_UNTRACKED_DECAY_TARGET + (rating - ELO_UNTRACKED_DECAY_TARGET) * ELO_UNTRACKED_DECAY_FACTOR
+
     def _expected_score(self, rating_a, rating_b):
         """Calculate expected score (win probability) for team A"""
         return 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
@@ -163,6 +220,10 @@ class EloModel(BaseModel):
         # Update ratings
         new_home = home_rating + k * (home_actual - home_expected)
         new_away = away_rating + k * (away_actual - away_expected)
+
+        # Additional decay for teams we don't fully track schedules for
+        new_home = self._apply_untracked_decay(home_team_id, new_home)
+        new_away = self._apply_untracked_decay(away_team_id, new_away)
         
         self.ratings[home_team_id] = new_home
         self.ratings[away_team_id] = new_away
