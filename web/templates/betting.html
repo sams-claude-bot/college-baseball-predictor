@@ -242,7 +242,7 @@
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
-                            {% if game.nn_prob is not none %}
+                            {% if game.nn_prob is defined and game.nn_prob is not none %}
                             <div class="d-flex flex-column">
                                 <span>{{ ((1 - game.nn_prob) * 100)|round(1) }}%</span>
                                 <span>{{ (game.nn_prob * 100)|round(1) }}%</span>
