@@ -2,39 +2,67 @@
 """
 D1Baseball Lineup Scraper
 
-Scrapes starting lineups from D1Baseball game preview pages.
-Captures:
-- Starting pitcher (most valuable for predictions)
-- Batting lineup (9 batters with positions)
+Scrapes historical lineup data from D1Baseball team pages.
+This provides actual starting pitcher data for rotation analysis.
+
+URL pattern: https://d1baseball.com/team/{team_slug}/lineup/
+
+Data captured:
+- Starting pitcher for each game
+- Batting lineup (positions 1-9)
+- Defensive positions
 
 Usage:
-    python3 scripts/d1bb_lineups.py --today              # Today's games
-    python3 scripts/d1bb_lineups.py --date 2026-02-20    # Specific date
-    python3 scripts/d1bb_lineups.py --dry-run            # Don't save to DB
-
-D1Baseball shows lineups on the scoreboard page and individual game pages
-when teams submit them (typically a few hours before game time).
+    python3 scripts/d1bb_lineups.py --team mississippi-state
+    python3 scripts/d1bb_lineups.py --conference SEC
+    python3 scripts/d1bb_lineups.py --all
+    python3 scripts/d1bb_lineups.py --show mississippi-state
 """
 
 import argparse
-import json
 import re
 import sqlite3
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
+
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    print("Error: playwright not installed")
+    sys.exit(1)
 
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
-SNAPSHOT_DIR = PROJECT_DIR / 'data' / 'snapshots'
 
 sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
 from team_resolver import resolve_team as db_resolve_team
 
+# D1Baseball team slug mapping (their URL slugs differ from ours)
+D1BB_SLUGS = {
+    'mississippi-state': 'missst',
+    'ole-miss': 'olemiss', 
+    'texas-am': 'texasam',
+    'lsu': 'lsu',
+    'florida': 'florida',
+    'georgia': 'georgia',
+    'auburn': 'auburn',
+    'alabama': 'alabama',
+    'arkansas': 'arkansas',
+    'tennessee': 'tennessee',
+    'vanderbilt': 'vanderbilt',
+    'kentucky': 'kentucky',
+    'south-carolina': 'southcarolina',
+    'missouri': 'missouri',
+    'texas': 'texas',
+    'oklahoma': 'oklahoma',
+    # Add more as needed
+}
+
 # Timing
 PAGE_LOAD_WAIT = 5
-BETWEEN_PAGES_DELAY = 3
+BETWEEN_TEAMS_DELAY = 3
 
 
 def get_connection():
@@ -43,163 +71,158 @@ def get_connection():
     return conn
 
 
-def resolve_team(name):
-    """Resolve team name to our team_id."""
-    if not name:
-        return None
-    result = db_resolve_team(name)
-    if result:
-        return result
-    # Fallback slugify
-    slug = name.lower().strip()
-    slug = re.sub(r'[^a-z0-9]+', '-', slug).strip('-')
+def get_d1bb_slug(team_id):
+    """Get D1Baseball URL slug for a team."""
+    if team_id in D1BB_SLUGS:
+        return D1BB_SLUGS[team_id]
+    # Try common transformations
+    slug = team_id.replace('-', '').replace(' ', '')
     return slug
 
 
-def find_player_id(conn, team_id, player_name):
-    """Find player ID from player_stats table."""
-    if not player_name or not team_id:
-        return None
-    
-    c = conn.cursor()
-    
-    # Try exact match first
-    c.execute('''
-        SELECT id FROM player_stats 
-        WHERE team_id = ? AND LOWER(name) = LOWER(?)
-        LIMIT 1
-    ''', (team_id, player_name.strip()))
-    row = c.fetchone()
-    if row:
-        return row['id']
-    
-    # Try partial match (last name)
-    parts = player_name.strip().split()
-    if parts:
-        last_name = parts[-1]
-        c.execute('''
-            SELECT id FROM player_stats 
-            WHERE team_id = ? AND LOWER(name) LIKE ?
-            LIMIT 1
-        ''', (team_id, f'%{last_name.lower()}%'))
-        row = c.fetchone()
-        if row:
-            return row['id']
-    
-    return None
-
-
-def parse_lineup_from_snapshot(text, home_team, away_team):
+def parse_lineup_page(text, team_id):
     """
-    Parse lineup data from a D1Baseball snapshot.
+    Parse the lineup page content.
     
-    Returns:
-    {
-        'home_starter': {'name': str, 'id': int or None},
-        'away_starter': {'name': str, 'id': int or None},
-        'home_lineup': [{'name': str, 'position': str}, ...],
-        'away_lineup': [{'name': str, 'position': str}, ...],
-    }
+    Returns list of game lineup records:
+    [
+        {
+            'date': '2026-02-13',
+            'opponent': 'Hofstra',
+            'result': 'W, 6-5',
+            'starting_pitcher': 'Ryan McPherson',
+            'lineup': ['James Nunnallee', 'Ace Reese', ...],  # batting order
+            'positions': {'C': 'Kevin Milewski', '1B': 'Blake Bevis', ...}
+        },
+        ...
+    ]
     """
-    result = {
-        'home_starter': None,
-        'away_starter': None,
-        'home_lineup': [],
-        'away_lineup': [],
-    }
-    
+    games = []
     lines = text.split('\n')
     
-    # Look for patterns like:
-    # "Starting Pitcher" or "SP:" followed by player name
-    # "Lineup" sections with numbered batters
-    
-    # This is a basic parser - D1Baseball's actual format may vary
-    current_team = None
-    in_lineup = False
+    # Find the defensive lineup section (has SP column)
+    in_defensive_section = False
+    current_game = None
     
     for i, line in enumerate(lines):
         line = line.strip()
         
-        # Detect team context
-        if home_team and home_team.lower() in line.lower():
-            current_team = 'home'
-        elif away_team and away_team.lower() in line.lower():
-            current_team = 'away'
+        # Look for game lines: "Fri, Feb 13 vs Hofstra (W, 6-5)"
+        game_match = re.match(
+            r'(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+(Jan|Feb|Mar|Apr|May|Jun)\s+(\d+)\s+'
+            r'(vs|at|@)\s+(.+?)\s+\(([WL]),\s*([\d-]+)\)',
+            line
+        )
         
-        # Starting pitcher patterns
-        sp_patterns = [
-            r'(?:SP|Starting Pitcher|Probable)[:\s]+(.+)',
-            r'(?:RHP|LHP)\s+(.+)',
-        ]
+        if game_match:
+            dow, month, day, home_away, opponent, result, score = game_match.groups()
+            
+            # Build date (assume 2026 season)
+            month_num = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6}.get(month, 2)
+            date_str = f"2026-{month_num:02d}-{int(day):02d}"
+            
+            current_game = {
+                'date': date_str,
+                'day_of_week': dow,
+                'opponent': opponent.strip(),
+                'home_away': 'home' if home_away == 'vs' else 'away',
+                'result': result,
+                'score': score,
+                'starting_pitcher': None,
+                'lineup': [],
+                'positions': {}
+            }
+            games.append(current_game)
+            continue
         
-        for pattern in sp_patterns:
-            match = re.search(pattern, line, re.IGNORECASE)
-            if match and current_team:
-                name = match.group(1).strip()
-                # Clean up name
-                name = re.sub(r'\s*\(.*\)', '', name)  # Remove stats in parens
-                name = re.sub(r'\s*#\d+', '', name)    # Remove jersey numbers
-                if name and len(name) > 2:
-                    result[f'{current_team}_starter'] = {'name': name}
-                    break
-        
-        # Lineup patterns (numbered 1-9)
-        lineup_match = re.match(r'^(\d)[.\)]\s*(.+?)\s+(C|1B|2B|3B|SS|LF|CF|RF|DH|P)', line, re.IGNORECASE)
-        if lineup_match and current_team:
-            order = int(lineup_match.group(1))
-            name = lineup_match.group(2).strip()
-            position = lineup_match.group(3).upper()
-            result[f'{current_team}_lineup'].append({
-                'order': order,
-                'name': name,
-                'position': position
-            })
+        # Look for SP column data - usually appears after position names
+        # The defensive lineup shows: C, 1B, 2B, SS, 3B, LF, CF, RF, DH, SP
+        if current_game and not current_game['starting_pitcher']:
+            # Check if this line contains a player name that might be SP
+            # After the game line, look for position data
+            
+            # Pattern: position assignments often appear tab-separated or in sequence
+            # The SP is typically the last column in the defensive lineup row
+            
+            # Look for known pitcher names or just capture names after DH
+            pass
     
-    return result
+    # More robust parsing: look for the table structure
+    # The page has two tables:
+    # 1. Batting order (1-9)
+    # 2. Defensive positions (C, 1B, 2B, SS, 3B, LF, CF, RF, DH, SP)
+    
+    # Parse the raw text more carefully
+    games = []
+    
+    # Split by game entries
+    game_pattern = re.compile(
+        r'((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+(?:Jan|Feb|Mar|Apr|May|Jun)\s+\d+\s+'
+        r'(?:vs|at|@)\s+.+?\s+\([WL],\s*[\d-]+\))'
+    )
+    
+    # Find all game headers
+    game_headers = list(game_pattern.finditer(text))
+    
+    for idx, match in enumerate(game_headers):
+        header = match.group(1)
+        start_pos = match.end()
+        end_pos = game_headers[idx + 1].start() if idx + 1 < len(game_headers) else len(text)
+        
+        game_section = text[start_pos:end_pos]
+        
+        # Parse header
+        header_match = re.match(
+            r'(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+(Jan|Feb|Mar|Apr|May|Jun)\s+(\d+)\s+'
+            r'(vs|at|@)\s+(.+?)\s+\(([WL]),\s*([\d-]+)\)',
+            header
+        )
+        
+        if not header_match:
+            continue
+            
+        dow, month, day, home_away, opponent, result, score = header_match.groups()
+        month_num = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6}.get(month, 2)
+        date_str = f"2026-{month_num:02d}-{int(day):02d}"
+        
+        game = {
+            'date': date_str,
+            'day_of_week': dow,
+            'opponent': opponent.strip(),
+            'home_away': 'home' if home_away == 'vs' else 'away',
+            'result': result,
+            'score': score,
+            'starting_pitcher': None,
+            'lineup': [],
+        }
+        
+        # Extract names from the game section
+        # Names appear as "Player Name - Position" or just "Player Name"
+        names = re.findall(r'([A-Z][a-z]+ [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', game_section)
+        
+        # The last name in a defensive position row should be SP
+        # Look for the sequence ending in common pitcher indicators
+        if names:
+            game['lineup'] = names[:9]  # First 9 are batting order
+            # Try to find SP - often last in the row
+            if len(names) > 9:
+                game['starting_pitcher'] = names[-1]  # Last name is often SP
+        
+        games.append(game)
+    
+    return games
 
 
-def scrape_lineups_playwright(date_str, dry_run=False):
-    """
-    Scrape lineup data from D1Baseball using Playwright.
-    """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("Error: playwright not installed")
-        return []
+def scrape_team_lineups(team_id, dry_run=False):
+    """Scrape lineup history for a team from D1Baseball."""
+    d1bb_slug = get_d1bb_slug(team_id)
+    url = f"https://d1baseball.com/team/{d1bb_slug}/lineup/"
     
-    conn = get_connection()
-    c = conn.cursor()
-    
-    # Get games for this date
-    c.execute('''
-        SELECT g.id, g.home_team_id, g.away_team_id, 
-               h.name as home_name, a.name as away_name
-        FROM games g
-        JOIN teams h ON g.home_team_id = h.id
-        JOIN teams a ON g.away_team_id = a.id
-        WHERE g.date = ? AND g.status = 'scheduled'
-    ''', (date_str,))
-    games = c.fetchall()
-    
-    if not games:
-        print(f"No scheduled games found for {date_str}")
-        return []
-    
-    print(f"Found {len(games)} scheduled games for {date_str}")
-    
-    SNAPSHOT_DIR.mkdir(exist_ok=True)
-    results = []
+    print(f"\nScraping: {team_id} ({url})")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        context = browser.new_context()
-        page = context.new_page()
-        
-        # Go to D1Baseball scoreboard
-        url = f"https://d1baseball.com/scores/?date={date_str}"
-        print(f"Loading: {url}")
+        page = browser.new_page()
         
         try:
             page.goto(url, wait_until='domcontentloaded', timeout=30000)
@@ -209,164 +232,212 @@ def scrape_lineups_playwright(date_str, dry_run=False):
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             time.sleep(2)
             
-            # Get page content
-            content = page.content()
-            text_content = page.inner_text('body')
+            text = page.inner_text('body')
+            lines = text.split('\n')
             
-            # Save snapshot
-            snapshot_file = SNAPSHOT_DIR / f"d1bb_lineups_{date_str}.txt"
-            with open(snapshot_file, 'w') as f:
-                f.write(f"URL: {url}\n")
-                f.write(f"Date: {datetime.now().isoformat()}\n\n")
-                f.write(text_content)
-            print(f"Saved snapshot: {snapshot_file}")
+            # Find the defensive section header (GAME C 1B 2B ... SP)
+            def_start = None
+            for i, line in enumerate(lines):
+                if line.strip().startswith('GAME\tC\t1B'):
+                    def_start = i
+                    break
             
-            # Try to find lineup data for each game
-            for game in games:
-                game_id = game['id']
-                home_name = game['home_name']
-                away_name = game['away_name']
-                home_id = game['home_team_id']
-                away_id = game['away_team_id']
+            if not def_start:
+                print("  Could not find defensive lineup section")
+                browser.close()
+                return []
+            
+            # Parse games after the header
+            games = []
+            i = def_start + 1
+            
+            while i < len(lines):
+                line = lines[i].strip()
                 
-                print(f"\n  {away_name} @ {home_name}:")
+                # Look for game header
+                game_match = re.match(
+                    r'^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s+(Jan|Feb|Mar|Apr|May|Jun)\s+(\d+)\s+'
+                    r'(vs|at|@)\s+(.+?)\s+\(([WL]),\s*([\d-]+)\)',
+                    line
+                )
                 
-                # Parse lineup from content
-                lineup_data = parse_lineup_from_snapshot(text_content, home_name, away_name)
-                
-                home_starter = lineup_data.get('home_starter')
-                away_starter = lineup_data.get('away_starter')
-                
-                if home_starter or away_starter:
-                    # Try to find player IDs
-                    home_starter_id = None
-                    away_starter_id = None
-                    home_starter_name = None
-                    away_starter_name = None
+                if game_match:
+                    dow, month, day, home_away, opponent, result, score = game_match.groups()
+                    month_num = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6}.get(month, 2)
                     
-                    if home_starter:
-                        home_starter_name = home_starter['name']
-                        home_starter_id = find_player_id(conn, home_id, home_starter_name)
-                        print(f"    Home SP: {home_starter_name}" + 
-                              (f" (ID: {home_starter_id})" if home_starter_id else " (not in DB)"))
+                    # Collect next 10 names (C, 1B, 2B, SS, 3B, LF, CF, RF, DH, SP)
+                    names = []
+                    j = i + 1
+                    while len(names) < 10 and j < len(lines):
+                        name_line = lines[j].strip()
+                        # Full name pattern
+                        if re.match(r'^[A-Z][a-z]+ [A-Z][a-zA-Z]+', name_line):
+                            names.append(name_line)
+                        elif name_line.startswith(('Mon,', 'Tue,', 'Wed,', 'Thu,', 'Fri,', 'Sat,', 'Sun,')):
+                            break  # Next game
+                        elif 'Games' in name_line or 'Most' in name_line or 'About' in name_line:
+                            break  # End of table
+                        j += 1
                     
-                    if away_starter:
-                        away_starter_name = away_starter['name']
-                        away_starter_id = find_player_id(conn, away_id, away_starter_name)
-                        print(f"    Away SP: {away_starter_name}" + 
-                              (f" (ID: {away_starter_id})" if away_starter_id else " (not in DB)"))
-                    
-                    if not dry_run and (home_starter_name or away_starter_name):
-                        # Update or insert pitching matchup
-                        c.execute('SELECT id FROM pitching_matchups WHERE game_id = ?', (game_id,))
-                        existing = c.fetchone()
-                        
-                        if existing:
-                            c.execute('''
-                                UPDATE pitching_matchups SET
-                                    home_starter_id = COALESCE(?, home_starter_id),
-                                    away_starter_id = COALESCE(?, away_starter_id),
-                                    home_starter_name = COALESCE(?, home_starter_name),
-                                    away_starter_name = COALESCE(?, away_starter_name),
-                                    notes = 'd1baseball_lineup'
-                                WHERE game_id = ?
-                            ''', (home_starter_id, away_starter_id, 
-                                  home_starter_name, away_starter_name, game_id))
-                        else:
-                            c.execute('''
-                                INSERT INTO pitching_matchups 
-                                (game_id, home_starter_id, away_starter_id, 
-                                 home_starter_name, away_starter_name, notes)
-                                VALUES (?, ?, ?, ?, ?, 'd1baseball_lineup')
-                            ''', (game_id, home_starter_id, away_starter_id,
-                                  home_starter_name, away_starter_name))
-                        
-                        results.append({
-                            'game_id': game_id,
-                            'home_starter': home_starter_name,
-                            'away_starter': away_starter_name
+                    if len(names) == 10:
+                        sp = names[9]  # 10th position is SP
+                        games.append({
+                            'date': f"2026-{month_num:02d}-{int(day):02d}",
+                            'day_of_week': dow,
+                            'opponent': opponent.strip(),
+                            'home_away': 'home' if home_away == 'vs' else 'away',
+                            'result': result,
+                            'starting_pitcher': sp
                         })
+                    
+                    i = j
                 else:
-                    print(f"    No lineup data found")
+                    i += 1
+                    # Stop if we hit footer content
+                    if 'About Us' in line or 'Contact' in line:
+                        break
+            
+            print(f"  Found {len(games)} games")
+            for g in games:
+                sp = g.get('starting_pitcher', 'Unknown')
+                print(f"    {g['date']} ({g['day_of_week']}) vs {g['opponent']}: SP = {sp}")
+            
+            browser.close()
+            
+            if not dry_run and games:
+                save_lineup_data(team_id, games)
+            
+            return games
             
         except Exception as e:
-            print(f"Error scraping: {e}")
-        finally:
+            print(f"  Error: {e}")
+            import traceback
+            traceback.print_exc()
             browser.close()
-    
-    if not dry_run:
-        conn.commit()
-    conn.close()
-    
-    return results
+            return []
 
 
-def show_current_matchups(date_str=None):
-    """Show pitching matchups we have for a date."""
+def save_lineup_data(team_id, games):
+    """Save lineup/starter data to database."""
     conn = get_connection()
     c = conn.cursor()
     
-    if date_str is None:
-        date_str = datetime.now().strftime('%Y-%m-%d')
+    # Create table if needed
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS lineup_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team_id TEXT NOT NULL,
+            game_date TEXT NOT NULL,
+            game_num INTEGER DEFAULT 1,
+            day_of_week TEXT,
+            opponent TEXT,
+            result TEXT,
+            starting_pitcher TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(team_id, game_date, opponent, game_num)
+        )
+    ''')
+    
+    inserted = 0
+    # Track game numbers for doubleheaders
+    date_opponent_count = {}
+    for game in games:
+        if not game.get('starting_pitcher'):
+            continue
+        
+        key = (game['date'], game['opponent'])
+        game_num = date_opponent_count.get(key, 0) + 1
+        date_opponent_count[key] = game_num
+        
+        try:
+            c.execute('''
+                INSERT OR REPLACE INTO lineup_history 
+                (team_id, game_date, game_num, day_of_week, opponent, result, starting_pitcher)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (team_id, game['date'], game_num, game['day_of_week'], 
+                  game['opponent'], game['result'], game['starting_pitcher']))
+            inserted += 1
+        except Exception as e:
+            print(f"    DB error: {e}")
+    
+    conn.commit()
+    conn.close()
+    print(f"  Saved {inserted} games to lineup_history")
+
+
+def show_team_rotation(team_id):
+    """Show rotation analysis for a team."""
+    conn = get_connection()
+    c = conn.cursor()
     
     c.execute('''
-        SELECT g.id, h.name as home, a.name as away,
-               pm.home_starter_name, pm.away_starter_name, pm.notes
-        FROM games g
-        JOIN teams h ON g.home_team_id = h.id
-        JOIN teams a ON g.away_team_id = a.id
-        LEFT JOIN pitching_matchups pm ON g.id = pm.game_id
-        WHERE g.date = ?
-        ORDER BY g.time
-    ''', (date_str,))
-    
-    print(f"\n=== Pitching Matchups for {date_str} ===")
+        SELECT game_date, day_of_week, opponent, result, starting_pitcher
+        FROM lineup_history
+        WHERE team_id = ?
+        ORDER BY game_date
+    ''', (team_id,))
     
     games = c.fetchall()
-    with_matchups = 0
     
-    for game in games:
-        home_sp = game['home_starter_name'] or 'TBD'
-        away_sp = game['away_starter_name'] or 'TBD'
-        source = f"({game['notes']})" if game['notes'] else ''
-        
-        if game['home_starter_name'] or game['away_starter_name']:
-            with_matchups += 1
-        
-        print(f"  {game['away']:20} @ {game['home']:20}  |  {away_sp:15} vs {home_sp:15} {source}")
+    if not games:
+        print(f"No lineup data for {team_id}")
+        return
     
-    print(f"\n{with_matchups}/{len(games)} games have pitcher data")
+    print(f"\n=== {team_id.upper()} Rotation Analysis ===")
+    print(f"{'Date':<12} {'Day':<4} {'Opponent':<20} {'Result':<4} {'SP':<20}")
+    print("-" * 65)
+    
+    by_dow = {}
+    for g in games:
+        print(f"{g['game_date']:<12} {g['day_of_week']:<4} {g['opponent']:<20} {g['result']:<4} {g['starting_pitcher']:<20}")
+        dow = g['day_of_week']
+        if dow not in by_dow:
+            by_dow[dow] = []
+        by_dow[dow].append(g['starting_pitcher'])
+    
+    print("\n--- By Day of Week ---")
+    for dow in ['Fri', 'Sat', 'Sun', 'Tue', 'Wed', 'Thu', 'Mon']:
+        if dow in by_dow:
+            pitchers = by_dow[dow]
+            from collections import Counter
+            counts = Counter(pitchers)
+            most_common = counts.most_common(1)[0] if counts else ('?', 0)
+            print(f"  {dow}: {most_common[0]} ({most_common[1]}/{len(pitchers)} starts)")
+    
     conn.close()
 
 
 def main():
     parser = argparse.ArgumentParser(description='Scrape D1Baseball lineup data')
-    parser.add_argument('--today', action='store_true', help='Scrape today\'s games')
-    parser.add_argument('--date', type=str, help='Date to scrape (YYYY-MM-DD)')
-    parser.add_argument('--show', action='store_true', help='Show current matchups only')
+    parser.add_argument('--team', type=str, help='Single team to scrape')
+    parser.add_argument('--conference', type=str, help='Conference to scrape (e.g., SEC)')
+    parser.add_argument('--all', action='store_true', help='Scrape all tracked teams')
+    parser.add_argument('--show', type=str, help='Show rotation analysis for team')
     parser.add_argument('--dry-run', action='store_true', help='Don\'t save to database')
     args = parser.parse_args()
     
     if args.show:
-        date_str = args.date or datetime.now().strftime('%Y-%m-%d')
-        show_current_matchups(date_str)
+        show_team_rotation(args.show)
         return
     
-    if args.today:
-        date_str = datetime.now().strftime('%Y-%m-%d')
-    elif args.date:
-        date_str = args.date
+    if args.team:
+        scrape_team_lineups(args.team, dry_run=args.dry_run)
+    elif args.conference:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('SELECT id FROM teams WHERE conference = ?', (args.conference,))
+        teams = [r['id'] for r in c.fetchall()]
+        conn.close()
+        
+        print(f"Scraping {len(teams)} {args.conference} teams...")
+        for team_id in teams:
+            scrape_team_lineups(team_id, dry_run=args.dry_run)
+            time.sleep(BETWEEN_TEAMS_DELAY)
     else:
-        # Default to tomorrow (lineups usually posted day before)
-        date_str = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-    
-    print(f"Scraping lineups for {date_str}")
-    results = scrape_lineups_playwright(date_str, dry_run=args.dry_run)
-    
-    if results:
-        print(f"\n✅ Found {len(results)} games with lineup data")
-    else:
-        print(f"\n⚠️  No lineup data found (may not be posted yet)")
+        print("Usage:")
+        print("  --team mississippi-state  # Single team")
+        print("  --conference SEC          # All SEC teams")
+        print("  --show mississippi-state  # View rotation analysis")
 
 
 if __name__ == '__main__':
