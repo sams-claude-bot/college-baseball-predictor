@@ -110,6 +110,13 @@ class EnsembleModel(BaseModel):
     # Games threshold where preseason models fully decay to MIN_WEIGHT
     PRESEASON_DECAY_GAMES = 200
     
+    # Stats-dependent models that need accumulated season data to be reliable.
+    # These get dampened early season (< STATS_MATURITY_GAMES evaluated).
+    # Weight ramps from EARLY_SEASON_FLOOR up to full weight linearly.
+    STATS_DEPENDENT_MODELS = {"log5", "poisson", "advanced", "pythagorean"}
+    STATS_MATURITY_GAMES = 100  # predictions per model before full trust
+    EARLY_SEASON_FLOOR = 0.02   # near-zero weight until stats mature
+    
     def __init__(self, weights=None):
         """
         Initialize with model weights.
@@ -143,21 +150,21 @@ class EnsembleModel(BaseModel):
         
         # Neural model excluded from ensemble for now — tracking independently
         
-        # Default weights based on 2026 accuracy (updated 2026-02-17)
-        # prior: 85.9%, elo: 84.9%, conference: 83.3%, advanced: 83.1%
-        # log5: 82.1%, poisson: 78.2%, pythagorean: 78.2%, pitching: 69.2%
-        # XGBoost/LightGBM: ~63-72% on holdout tests
+        # Default weights (updated 2026-02-18)
+        # Early season: lean heavily on Elo, pitching, and ML models.
+        # Stats-dependent models (log5, poisson, advanced, pythagorean) get
+        # dampened via STATS_DEPENDENT_MODELS until enough games accumulate.
         self.default_weights = {
-            "prior": 0.16,        # 85.9% - top performer
-            "elo": 0.15,          # 84.9% - very strong
-            "conference": 0.12,   # 83.3%
-            "advanced": 0.12,     # 83.1%
-            "log5": 0.10,         # 82.1%
-            "poisson": 0.08,      # 78.2%
-            "pythagorean": 0.08,  # 78.2%
-            "pitching": 0.05,     # 72.0% - v2 staff quality model
-            "lightgbm": 0.08,     # 63-72% but good on totals
-            "xgboost": 0.06,      # Slightly behind LightGBM
+            "elo": 0.20,          # Strong early season (new Elo config 85.7% day 1)
+            "pitching": 0.20,     # 64.5% today, staff quality doesn't need season stats
+            "lightgbm": 0.18,     # 64.5% today, trained model
+            "xgboost": 0.12,      # 58.1% today, trained model
+            "prior": 0.08,        # Preseason priors, decays with data
+            "conference": 0.06,   # Conference strength, decays with data
+            "advanced": 0.05,     # Stats-dependent, dampened early
+            "pythagorean": 0.04,  # Stats-dependent, dampened early
+            "log5": 0.04,         # Stats-dependent, dampened early
+            "poisson": 0.03,      # Stats-dependent, dampened early
         }
         
         # Momentum adjustment settings
@@ -287,11 +294,20 @@ class EnsembleModel(BaseModel):
             acc = max(recent_accuracy[name], 0.3)
             score = acc ** 3
             
-            # Preseason decay: only apply if models have insufficient real accuracy data
-            # Once we have 50+ evaluated predictions, trust the accuracy numbers
+            # Preseason decay: prior/conference fade as real data accumulates
             if name in self.PRESEASON_MODELS and model_scores[name]['count'] < 50:
                 score *= decay_factor
                 score = max(score, self.MIN_WEIGHT)
+            
+            # Early-season dampening: stats-dependent models get reduced weight
+            # until they have enough evaluated predictions to be trustworthy.
+            # Weight ramps linearly from EARLY_SEASON_FLOOR to full over STATS_MATURITY_GAMES.
+            if name in self.STATS_DEPENDENT_MODELS:
+                n_evaluated = model_scores[name]['count']
+                if n_evaluated < self.STATS_MATURITY_GAMES:
+                    maturity = n_evaluated / self.STATS_MATURITY_GAMES  # 0.0 -> 1.0
+                    dampen = self.EARLY_SEASON_FLOOR + maturity * (1.0 - self.EARLY_SEASON_FLOOR)
+                    score *= dampen
             
             accuracy_scores[name] = score
         
