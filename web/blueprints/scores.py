@@ -99,9 +99,19 @@ def scores():
           AND game_id IN (SELECT id FROM games WHERE date = ?)
     ''', (date_str,))
     stored_nn = {row['game_id']: row['predicted_home_prob'] for row in c2.fetchall()}
+
+    # Load stored runs ensemble totals
+    c2 = conn2.cursor()
+    c2.execute('''
+        SELECT game_id, projected_total
+        FROM totals_predictions
+        WHERE model_name = 'runs_ensemble'
+          AND game_id IN (SELECT id FROM games WHERE date = ?)
+    ''', (date_str,))
+    stored_totals = {row['game_id']: row['projected_total'] for row in c2.fetchall()}
     conn2.close()
 
-    # Add neural predictions and betting lines — stored predictions only, no live models
+    # Add neural predictions, totals, and betting lines — stored predictions only, no live models
     nn_correct = 0
     nn_total = 0
 
@@ -113,8 +123,19 @@ def scores():
             game['away_ml'] = betting_lines_map[key]['away_ml']
             game['over_under'] = betting_lines_map[key]['over_under']
 
-        # Neural model prediction — stored only
+        # Projected total from runs ensemble (stored first, live fallback)
         game_id = game.get('id')
+        if game_id in stored_totals:
+            game['nn_projected_total'] = stored_totals[game_id]
+        elif game.get('status') != 'final':
+            try:
+                from models.runs_ensemble import predict as runs_predict
+                rp = runs_predict(game['home_team_id'], game['away_team_id'], game_id=game_id)
+                game['nn_projected_total'] = rp.get('projected_total')
+            except Exception:
+                pass
+
+        # Neural model prediction — stored only
         stored_nn_prob = stored_nn.get(game_id)
 
         if stored_nn_prob is not None:
