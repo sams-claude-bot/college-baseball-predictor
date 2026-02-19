@@ -2,8 +2,8 @@
 """
 Infer Probable Starters
 
-Analyzes pitcher_game_log to identify rotation patterns and predicts starters
-for upcoming games. Inserts predictions into pitching_matchups table.
+Primary source: lineup_history table (scraped from D1Baseball /lineup/ pages)
+Fallback: pitcher_game_log table (from box scores)
 
 College baseball rotation patterns:
 - Friday/Saturday/Sunday weekend series: Ace/Game2/Game3 starters
@@ -28,15 +28,48 @@ def get_connection():
 def get_team_rotation_history(conn, team_id: str, lookback_days: int = 21):
     """
     Get recent starting pitching history for a team.
-    Returns list of (date, player_id, player_name, day_of_week, innings_pitched)
+    
+    Priority:
+    1. lineup_history (D1Baseball scraped data - most accurate)
+    2. pitcher_game_log (box score data - fallback)
+    
+    Returns list of dicts with date, player_name, day_of_week, source
     """
     c = conn.cursor()
-    
     cutoff_date = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
     
+    results = []
+    seen_dates = set()
+    
+    # First: Try lineup_history (preferred source)
     c.execute('''
-        SELECT g.date, pgl.player_id, ps.name as player_name, pgl.innings_pitched,
-               pgl.earned_runs, pgl.strikeouts
+        SELECT game_date, game_num, day_of_week, starting_pitcher
+        FROM lineup_history
+        WHERE team_id = ?
+        AND game_date >= ?
+        ORDER BY game_date DESC, game_num
+    ''', (team_id, cutoff_date))
+    
+    dow_map = {'Mon': 0, 'Tue': 1, 'Wed': 2, 'Thu': 3, 'Fri': 4, 'Sat': 5, 'Sun': 6}
+    
+    for row in c.fetchall():
+        date_key = (row['game_date'], row['game_num'] or 1)
+        if date_key in seen_dates:
+            continue
+        seen_dates.add(date_key)
+        
+        dow = dow_map.get(row['day_of_week'], 4)
+        results.append({
+            'date': row['game_date'],
+            'player_id': None,  # lineup_history doesn't have IDs
+            'player_name': row['starting_pitcher'],
+            'day_of_week': dow,
+            'source': 'lineup_history'
+        })
+    
+    # Fallback: pitcher_game_log for dates we don't have in lineup_history
+    c.execute('''
+        SELECT g.date, pgl.player_id, ps.name as player_name, pgl.innings_pitched
         FROM pitcher_game_log pgl
         JOIN games g ON pgl.game_id = g.id
         LEFT JOIN player_stats ps ON pgl.player_id = ps.id
@@ -46,18 +79,19 @@ def get_team_rotation_history(conn, team_id: str, lookback_days: int = 21):
         ORDER BY g.date DESC
     ''', (team_id, cutoff_date))
     
-    results = []
     for row in c.fetchall():
+        date_key = (row['date'], 1)  # Assume game 1 for box score data
+        if date_key in seen_dates:
+            continue
+        seen_dates.add(date_key)
+        
         date = datetime.strptime(row['date'], '%Y-%m-%d')
-        day_of_week = date.weekday()  # 0=Mon, 4=Fri, 5=Sat, 6=Sun
         results.append({
             'date': row['date'],
             'player_id': row['player_id'],
             'player_name': row['player_name'] or f"Unknown ({row['player_id']})",
-            'day_of_week': day_of_week,
-            'innings_pitched': row['innings_pitched'],
-            'earned_runs': row['earned_runs'],
-            'strikeouts': row['strikeouts']
+            'day_of_week': date.weekday(),
+            'source': 'pitcher_game_log'
         })
     
     return results
@@ -68,19 +102,19 @@ def analyze_rotation_pattern(starts: list):
     Analyze starts to identify rotation pattern.
     Returns:
     {
-        'friday_starter': (player_id, confidence),
-        'saturday_starter': (player_id, confidence),
-        'sunday_starter': (player_id, confidence),
-        'midweek_starter': (player_id, confidence),
+        'friday_starter': (player_name, confidence),
+        'saturday_starter': (player_name, confidence),
+        'sunday_starter': (player_name, confidence),
+        'midweek_starter': (player_name, confidence),
     }
     """
     if not starts:
         return {}
     
-    # Group starts by day of week
+    # Group starts by day of week (use player_name as key)
     by_day = defaultdict(list)
     for start in starts:
-        by_day[start['day_of_week']].append(start['player_id'])
+        by_day[start['day_of_week']].append(start['player_name'])
     
     rotation = {}
     
@@ -94,12 +128,12 @@ def analyze_rotation_pattern(starts: list):
         if day_starts:
             # Count occurrences
             counts = defaultdict(int)
-            for pid in day_starts:
-                counts[pid] += 1
+            for name in day_starts:
+                counts[name] += 1
             
             # Most frequent starter
             most_common = max(counts.items(), key=lambda x: x[1])
-            player_id, count = most_common
+            player_name, count = most_common
             
             # Confidence based on consistency
             # 2+ starts on same day = high, 1 start = medium
@@ -110,7 +144,7 @@ def analyze_rotation_pattern(starts: list):
             else:
                 confidence = 'low'
             
-            rotation[key] = (player_id, confidence)
+            rotation[key] = (player_name, confidence)
     
     # Midweek starters
     midweek_starts = []
@@ -119,14 +153,14 @@ def analyze_rotation_pattern(starts: list):
     
     if midweek_starts:
         counts = defaultdict(int)
-        for pid in midweek_starts:
-            counts[pid] += 1
+        for name in midweek_starts:
+            counts[name] += 1
         
         most_common = max(counts.items(), key=lambda x: x[1])
-        player_id, count = most_common
+        player_name, count = most_common
         
         confidence = 'high' if count >= 2 else 'medium' if count == 1 else 'low'
-        rotation['midweek_starter'] = (player_id, confidence)
+        rotation['midweek_starter'] = (player_name, confidence)
     
     return rotation
 
@@ -160,6 +194,36 @@ def get_player_name(conn, player_id: int):
     return row['name'] if row else None
 
 
+def find_player_id_by_name(conn, team_id: str, player_name: str):
+    """Look up player_stats ID by name and team."""
+    if not player_name:
+        return None
+    c = conn.cursor()
+    # Try exact match first
+    c.execute('''
+        SELECT id FROM player_stats 
+        WHERE team_id = ? AND LOWER(name) = LOWER(?)
+        LIMIT 1
+    ''', (team_id, player_name))
+    row = c.fetchone()
+    if row:
+        return row['id']
+    
+    # Try partial match (last name)
+    parts = player_name.split()
+    if parts:
+        last_name = parts[-1]
+        c.execute('''
+            SELECT id FROM player_stats 
+            WHERE team_id = ? AND LOWER(name) LIKE ?
+            LIMIT 1
+        ''', (team_id, f'%{last_name.lower()}%'))
+        row = c.fetchone()
+        if row:
+            return row['id']
+    return None
+
+
 def infer_starter_for_game(conn, team_id: str, game_date: str, rotation: dict):
     """
     Infer the probable starter for a team on a specific date.
@@ -179,19 +243,15 @@ def infer_starter_for_game(conn, team_id: str, game_date: str, rotation: dict):
         key = 'midweek_starter'
     
     if key in rotation:
-        player_id, confidence = rotation[key]
-        player_name = get_player_name(conn, player_id)
-        if player_name is None:
-            player_id = None  # Don't insert unresolvable IDs
+        player_name, confidence = rotation[key]
+        player_id = find_player_id_by_name(conn, team_id, player_name)
         return player_id, player_name, confidence
     
     # Fallback: use any starter we know about
     for fallback_key in ['friday_starter', 'saturday_starter', 'sunday_starter', 'midweek_starter']:
         if fallback_key in rotation:
-            player_id, _ = rotation[fallback_key]
-            player_name = get_player_name(conn, player_id)
-            if player_name is None:
-                player_id = None
+            player_name, _ = rotation[fallback_key]
+            player_id = find_player_id_by_name(conn, team_id, player_name)
             return player_id, player_name, 'low'
     
     return None, None, 'none'
@@ -200,15 +260,24 @@ def infer_starter_for_game(conn, team_id: str, game_date: str, rotation: dict):
 def populate_pitching_matchups(conn, dry_run: bool = False):
     """
     Populate pitching_matchups table with inferred starters.
+    Uses lineup_history (D1Baseball) as primary source, pitcher_game_log as fallback.
     """
     c = conn.cursor()
     
-    # Get all teams with recent starts
-    c.execute('''
-        SELECT DISTINCT team_id FROM pitcher_game_log
-        WHERE was_starter = 1
-    ''')
-    teams_with_data = [row['team_id'] for row in c.fetchall()]
+    # Get all teams with recent starts (from either source)
+    teams_with_data = set()
+    
+    # From lineup_history (D1Baseball scrapes)
+    c.execute('SELECT DISTINCT team_id FROM lineup_history')
+    for row in c.fetchall():
+        teams_with_data.add(row['team_id'])
+    
+    # From pitcher_game_log (box scores)
+    c.execute('SELECT DISTINCT team_id FROM pitcher_game_log WHERE was_starter = 1')
+    for row in c.fetchall():
+        teams_with_data.add(row['team_id'])
+    
+    teams_with_data = list(teams_with_data)
     print(f"Found {len(teams_with_data)} teams with starter data")
     
     # Build rotation patterns for all teams

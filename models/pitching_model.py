@@ -193,14 +193,23 @@ class PitchingModel(BaseModel):
 
         return max(0.10, min(0.90, score))
 
-    def _get_starter_stats(self, game_id, team_id, is_home):
-        """Get individual starter stats if we know who's pitching."""
+    def _get_starter_stats(self, game_id, team_id, is_home, game_date=None):
+        """
+        Get individual starter stats if we know who's pitching.
+        
+        Sources (in priority order):
+        1. pitching_matchups table (manually set or inferred)
+        2. lineup_history + day-of-week pattern matching
+        """
         try:
             from scripts.database import get_connection
             conn = get_connection()
             c = conn.cursor()
             
-            # Check pitching_matchups for known starter
+            starter_id = None
+            starter_name = None
+            
+            # Source 1: pitching_matchups (explicit matchup data)
             col = 'home_starter_id' if is_home else 'away_starter_id'
             name_col = 'home_starter_name' if is_home else 'away_starter_name'
             
@@ -210,33 +219,71 @@ class PitchingModel(BaseModel):
             ''', (game_id,))
             row = c.fetchone()
             
-            if not row or not row[0]:
+            if row and (row[0] or row[1]):
+                starter_id = row[0]
+                starter_name = row[1]
+            
+            # Source 2: Infer from lineup_history rotation pattern
+            if not starter_name and game_date:
+                from datetime import datetime
+                dow_map = {0: 'Mon', 1: 'Tue', 2: 'Wed', 3: 'Thu', 4: 'Fri', 5: 'Sat', 6: 'Sun'}
+                try:
+                    dow = datetime.strptime(game_date, '%Y-%m-%d').weekday()
+                except:
+                    dow = 4  # Default to Friday
+                
+                dow_str = dow_map[dow]
+                
+                # Find most common starter for this day of week
+                c.execute('''
+                    SELECT starting_pitcher, COUNT(*) as cnt
+                    FROM lineup_history
+                    WHERE team_id = ? AND day_of_week = ?
+                    GROUP BY starting_pitcher
+                    ORDER BY cnt DESC
+                    LIMIT 1
+                ''', (team_id, dow_str))
+                row = c.fetchone()
+                
+                if row and row['starting_pitcher']:
+                    starter_name = row['starting_pitcher']
+            
+            if not starter_name:
                 conn.close()
                 return None
             
-            starter_id = row[0]
-            starter_name = row[1]
+            # Look up starter's stats by name if we don't have ID
+            if not starter_id and starter_name:
+                c.execute('''
+                    SELECT id FROM player_stats 
+                    WHERE team_id = ? AND LOWER(name) LIKE ?
+                    LIMIT 1
+                ''', (team_id, f'%{starter_name.split()[-1].lower()}%'))
+                row = c.fetchone()
+                if row:
+                    starter_id = row['id']
             
             # Get starter's individual stats
-            c.execute('''
-                SELECT era, whip, k_9, bb_9, fip, innings
-                FROM player_stats
-                WHERE id = ? AND innings > 0
-            ''', (starter_id,))
-            stats = c.fetchone()
-            conn.close()
+            if starter_id:
+                c.execute('''
+                    SELECT era, whip, fip, innings_pitched
+                    FROM player_stats
+                    WHERE id = ? AND innings_pitched > 0
+                ''', (starter_id,))
+                stats = c.fetchone()
+                conn.close()
+                
+                if stats and stats['innings_pitched'] and stats['innings_pitched'] >= 3:  # Lower threshold for early season
+                    return {
+                        'name': starter_name,
+                        'era': stats['era'] or 4.50,
+                        'whip': stats['whip'] or 1.30,
+                        'fip': stats['fip'] or 4.50,
+                        'innings': stats['innings_pitched'],
+                        'is_known': True
+                    }
             
-            if stats and stats['innings'] and stats['innings'] >= 5:
-                return {
-                    'name': starter_name,
-                    'era': stats['era'] or 4.50,
-                    'whip': stats['whip'] or 1.30,
-                    'k_9': stats['k_9'] or 8.0,
-                    'bb_9': stats['bb_9'] or 3.0,
-                    'fip': stats['fip'] or 4.50,
-                    'innings': stats['innings'],
-                    'is_known': True
-                }
+            conn.close()
             return None
         except Exception:
             return None
@@ -258,8 +305,12 @@ class PitchingModel(BaseModel):
         home_starter = None
         away_starter = None
         if game_id:
-            home_starter = self._get_starter_stats(game_id, home_team_id, is_home=True)
-            away_starter = self._get_starter_stats(game_id, away_team_id, is_home=False)
+            home_starter = self._get_starter_stats(game_id, home_team_id, is_home=True, game_date=game_date)
+            away_starter = self._get_starter_stats(game_id, away_team_id, is_home=False, game_date=game_date)
+        elif game_date:
+            # No game_id but we have a date - can still infer from rotation
+            home_starter = self._get_starter_stats(None, home_team_id, is_home=True, game_date=game_date)
+            away_starter = self._get_starter_stats(None, away_team_id, is_home=False, game_date=game_date)
         
         # Get staff quality (used as fallback or blend)
         home_staff = self._get_staff_quality(home_team_id)
