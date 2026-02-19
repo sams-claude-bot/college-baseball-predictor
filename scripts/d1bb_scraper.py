@@ -20,6 +20,9 @@ from datetime import date
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from run_utils import ScriptRunner
+
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
 SLUGS_FILE = PROJECT_DIR / 'config' / 'd1bb_slugs.json'
 OPENCLAW_USER_DATA = Path.home() / '.openclaw' / 'browser' / 'openclaw' / 'user-data'
@@ -412,6 +415,8 @@ def main():
     if not any([args.team, args.conference, args.all_d1]):
         parser.error("Must specify --team, --conference, or --all-d1")
     
+    runner = ScriptRunner("d1bb_scraper")
+    
     # Load slug mapping
     slug_map = load_slug_map()
     
@@ -425,20 +430,21 @@ def main():
     elif args.all_d1:
         teams = get_all_d1_teams(slug_map)
     
-    print(f"Processing {len(teams)} teams...")
+    runner.info(f"Processing {len(teams)} teams...")
     
     # Initialize Playwright with openclaw profile
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        print("ERROR: playwright not installed. Run: pip install playwright && playwright install chromium")
-        sys.exit(1)
+        runner.error("playwright not installed. Run: pip install playwright && playwright install chromium")
+        runner.finish()
     
     totals = {'success': 0, 'failed': 0, 'batters': 0, 'pitchers': 0}
+    failed_teams = []
     
     with sync_playwright() as p:
         if not OPENCLAW_USER_DATA.exists():
-            print(f"WARNING: OpenClaw browser profile not found at {OPENCLAW_USER_DATA}")
+            runner.warn(f"OpenClaw browser profile not found at {OPENCLAW_USER_DATA}")
         
         browser = p.chromium.launch_persistent_context(
             user_data_dir=str(OPENCLAW_USER_DATA),
@@ -450,7 +456,7 @@ def main():
         
         for team_id in teams:
             slug = slug_map.get(team_id, team_id)
-            print(f"\n=== {team_id} (slug: {slug}) ===")
+            runner.info(f"=== {team_id} (slug: {slug}) ===")
             
             try:
                 data = extract_team_stats(page, slug, verbose=args.verbose)
@@ -461,7 +467,7 @@ def main():
                     adv_bat = len(data.get('adv_batting', []))
                     adv_pit = len(data.get('adv_pitching', []))
                     
-                    print(f"  Parsed: {basic_bat} batters, {basic_pit} pitchers (adv: {adv_bat}/{adv_pit})")
+                    runner.info(f"  Parsed: {basic_bat} batters, {basic_pit} pitchers (adv: {adv_bat}/{adv_pit})")
                     
                     if not args.dry_run:
                         resolved = resolve_team_id(db, slug)
@@ -469,19 +475,21 @@ def main():
                             stats = save_team_stats(db, resolved, data)
                             totals['batters'] += stats['batters']
                             totals['pitchers'] += stats['pitchers']
-                            print(f"  Saved: {stats['batters']} batters, {stats['pitchers']} pitchers")
+                            runner.info(f"  Saved: {stats['batters']} batters, {stats['pitchers']} pitchers")
                         else:
-                            print(f"  ERROR: Could not resolve team_id for {slug}")
+                            runner.warn(f"Could not resolve team_id for {slug}")
                     
                     totals['success'] += 1
                 else:
                     totals['failed'] += 1
+                    failed_teams.append(team_id)
                     
             except Exception as e:
-                print(f"  ERROR: {e}")
+                runner.error(f"Error scraping {team_id}: {e}")
                 import traceback
                 traceback.print_exc()
                 totals['failed'] += 1
+                failed_teams.append(team_id)
             
             time.sleep(args.delay)
         
@@ -489,9 +497,16 @@ def main():
     
     db.close()
     
-    print(f"\n{'='*50}")
-    print(f"SUMMARY: {totals['success']} teams, {totals['failed']} failed")
-    print(f"Players: {totals['batters']} batters, {totals['pitchers']} pitchers")
+    runner.add_stat("teams_processed", len(teams))
+    runner.add_stat("teams_success", totals['success'])
+    runner.add_stat("teams_failed", totals['failed'])
+    runner.add_stat("batters", totals['batters'])
+    runner.add_stat("pitchers", totals['pitchers'])
+    
+    if failed_teams:
+        runner.add_stat("failed_teams", ", ".join(failed_teams[:10]))
+    
+    runner.finish()
 
 
 if __name__ == '__main__':

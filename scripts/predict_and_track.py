@@ -21,15 +21,17 @@ from models.predictor_db import Predictor
 from models.nn_totals_model import NNTotalsModel
 from models.nn_spread_model import NNSpreadModel
 from scripts.database import get_connection
+from scripts.run_utils import ScriptRunner
 
 MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
 
-def predict_games(date=None, days=3):
+def predict_games(date=None, days=3, runner=None):
     """Generate and store predictions for upcoming games.
     
     Args:
         date: Specific date (YYYY-MM-DD) to predict. If None, predicts next `days` days.
         days: Number of days to look ahead when date is None (default: 3).
+        runner: Optional ScriptRunner instance for logging.
     """
     from datetime import timedelta
     
@@ -71,7 +73,10 @@ def predict_games(date=None, days=3):
     
     games = cur.fetchall()
     date_label = date_start if date_start == date_end else f"{date_start} to {date_end}"
-    print(f"Found {len(games)} games needing predictions for {date_label}")
+    if runner:
+        runner.info(f"Found {len(games)} games needing predictions for {date_label}")
+    else:
+        print(f"Found {len(games)} games needing predictions for {date_label}")
     
     # Initialize predictors for each model
     predictors = {name: Predictor(model=name) for name in MODEL_NAMES}
@@ -81,8 +86,12 @@ def predict_games(date=None, days=3):
     nn_spread = NNSpreadModel(use_model_predictions=False)
     
     predictions_made = 0
+    models_run = 0
     for game_id, home_id, away_id, home_name, away_name in games:
-        print(f"\n{away_name} @ {home_name}:")
+        if runner:
+            runner.info(f"{away_name} @ {home_name}:")
+        else:
+            print(f"\n{away_name} @ {home_name}:")
         
         # Check which models already have predictions for this game
         cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
@@ -103,10 +112,17 @@ def predict_games(date=None, days=3):
                     VALUES (?, ?, ?, ?, ?)
                 ''', (game_id, model_name, home_prob, home_runs, away_runs))
                 
-                print(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {home_runs:.1f}-{away_runs:.1f}")
+                if runner:
+                    runner.info(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {home_runs:.1f}-{away_runs:.1f}")
+                else:
+                    print(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {home_runs:.1f}-{away_runs:.1f}")
                 predictions_made += 1
+                models_run += 1
             except Exception as e:
-                print(f"  {model_name:12}: ERROR - {e}")
+                if runner:
+                    runner.warn(f"  {model_name:12}: ERROR - {e}")
+                else:
+                    print(f"  {model_name:12}: ERROR - {e}")
         
         # Totals predictions: runs ensemble + per-component models + nn_totals
         cur.execute('''
@@ -133,7 +149,10 @@ def predict_games(date=None, days=3):
                     (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
                     VALUES (?, ?, ?, ?, ?, 'runs_ensemble')
                 ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge))
-                print(f"  {'runs_ens':12}: projected total {ens_total:.1f} (line {dk_line}) → {ens_prediction}")
+                if runner:
+                    runner.info(f"  {'runs_ens':12}: projected total {ens_total:.1f} (line {dk_line}) → {ens_prediction}")
+                else:
+                    print(f"  {'runs_ens':12}: projected total {ens_total:.1f} (line {dk_line}) → {ens_prediction}")
                 
                 # Store per-component model totals (for weight adjustment tracking)
                 for comp_name, comp_data in runs_result.get('model_breakdown', {}).items():
@@ -146,9 +165,15 @@ def predict_games(date=None, days=3):
                             (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
                             VALUES (?, ?, ?, ?, ?, ?)
                         ''', (game_id, dk_line, comp_total, comp_pred, comp_edge, f'runs_{comp_name}'))
-                        print(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f} (line {dk_line}) → {comp_pred}")
+                        if runner:
+                            runner.info(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f} (line {dk_line}) → {comp_pred}")
+                        else:
+                            print(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f} (line {dk_line}) → {comp_pred}")
             except Exception as e:
-                print(f"  {'runs_ens':12}: ERROR - {e}")
+                if runner:
+                    runner.warn(f"  {'runs_ens':12}: ERROR - {e}")
+                else:
+                    print(f"  {'runs_ens':12}: ERROR - {e}")
             
             # NN Totals prediction
             if nn_totals.is_trained():
@@ -162,9 +187,15 @@ def predict_games(date=None, days=3):
                         (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
                         VALUES (?, ?, ?, ?, ?, 'nn_totals')
                     ''', (game_id, dk_line, proj_total, prediction, edge))
-                    print(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
+                    if runner:
+                        runner.info(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
+                    else:
+                        print(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
                 except Exception as e:
-                    print(f"  {'nn_totals':12}: ERROR - {e}")
+                    if runner:
+                        runner.warn(f"  {'nn_totals':12}: ERROR - {e}")
+                    else:
+                        print(f"  {'nn_totals':12}: ERROR - {e}")
         
         # NN Spread prediction  
         if nn_spread.is_trained():
@@ -178,14 +209,23 @@ def predict_games(date=None, days=3):
                     (game_id, model_name, spread_line, projected_margin, prediction, cover_prob)
                     VALUES (?, 'nn_spread', -1.5, ?, ?, ?)
                 ''', (game_id, margin, prediction, cover_prob))
-                print(f"  {'nn_spread':12}: margin {margin:+.1f} | cover prob {cover_prob:.1%}")
+                if runner:
+                    runner.info(f"  {'nn_spread':12}: margin {margin:+.1f} | cover prob {cover_prob:.1%}")
+                else:
+                    print(f"  {'nn_spread':12}: margin {margin:+.1f} | cover prob {cover_prob:.1%}")
             except Exception as e:
-                print(f"  {'nn_spread':12}: ERROR - {e}")
+                if runner:
+                    runner.warn(f"  {'nn_spread':12}: ERROR - {e}")
+                else:
+                    print(f"  {'nn_spread':12}: ERROR - {e}")
     
     conn.commit()
     
     # Validation: Check that all models have predictions for each game
-    print(f"\n--- Validation Check ---")
+    if runner:
+        runner.info("--- Validation Check ---")
+    else:
+        print(f"\n--- Validation Check ---")
     missing = []
     for game_id, home_id, away_id, home_name, away_name in games:
         cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
@@ -195,16 +235,31 @@ def predict_games(date=None, days=3):
             missing.append((game_id, away_name, home_name, missing_models))
     
     if missing:
-        print(f"⚠️  {len(missing)} games missing predictions:")
-        for game_id, away, home, models in missing:
-            print(f"  {away} @ {home}: missing {', '.join(sorted(models))}")
+        msg = f"{len(missing)} games missing predictions"
+        if runner:
+            runner.warn(msg)
+            for game_id, away, home, models in missing:
+                runner.info(f"  {away} @ {home}: missing {', '.join(sorted(models))}")
+        else:
+            print(f"⚠️  {msg}:")
+            for game_id, away, home, models in missing:
+                print(f"  {away} @ {home}: missing {', '.join(sorted(models))}")
     else:
-        print(f"✅ All {len(MODEL_NAMES)} models have predictions for all {len(games)} games")
+        msg = f"All {len(MODEL_NAMES)} models have predictions for all {len(games)} games"
+        if runner:
+            runner.info(msg)
+        else:
+            print(f"✅ {msg}")
     
     conn.close()
-    print(f"\n✅ Stored {predictions_made} predictions for {len(games)} games")
+    if runner:
+        runner.info(f"Stored {predictions_made} predictions for {len(games)} games")
+        runner.add_stat("games_predicted", len(games))
+        runner.add_stat("models_run", models_run)
+    else:
+        print(f"\n✅ Stored {predictions_made} predictions for {len(games)} games")
 
-def evaluate_predictions(date=None):
+def evaluate_predictions(date=None, runner=None):
     """Compare predictions to actual results.
     
     If date is None, evaluates ALL pending predictions (was_correct IS NULL)
@@ -252,7 +307,10 @@ def evaluate_predictions(date=None):
     
     rows = cur.fetchall()
     date_str = date if date else "all pending"
-    print(f"Evaluating {len(rows)} predictions for {date_str}")
+    if runner:
+        runner.info(f"Evaluating {len(rows)} predictions for {date_str}")
+    else:
+        print(f"Evaluating {len(rows)} predictions for {date_str}")
     
     updated = 0
     dates_evaluated = set()
@@ -273,9 +331,17 @@ def evaluate_predictions(date=None):
     conn.close()
     
     if dates_evaluated:
-        print(f"✅ Updated {updated} predictions across {len(dates_evaluated)} date(s): {', '.join(sorted(dates_evaluated))}")
+        msg = f"Updated {updated} predictions across {len(dates_evaluated)} date(s): {', '.join(sorted(dates_evaluated))}"
+        if runner:
+            runner.info(msg)
+            runner.add_stat("games_evaluated", len(dates_evaluated))
+        else:
+            print(f"✅ {msg}")
     else:
-        print(f"✅ No predictions needed evaluation")
+        if runner:
+            runner.info("No predictions needed evaluation")
+        else:
+            print(f"✅ No predictions needed evaluation")
     
     # Evaluate totals predictions
     conn = get_connection()
@@ -307,7 +373,10 @@ def evaluate_predictions(date=None):
     conn.commit()
     conn.close()
     if totals_updated:
-        print(f"✅ Evaluated {totals_updated} totals predictions")
+        if runner:
+            runner.info(f"Evaluated {totals_updated} totals predictions")
+        else:
+            print(f"✅ Evaluated {totals_updated} totals predictions")
 
 def show_accuracy():
     """Show model accuracy statistics"""
@@ -454,13 +523,21 @@ if __name__ == "__main__":
     fix = '--fix' in sys.argv
     
     if cmd == "predict":
-        predict_games(date=date)
+        runner = ScriptRunner("predict_and_track_predict")
+        predict_games(date=date, runner=runner)
+        runner.finish()
     elif cmd == "evaluate":
-        evaluate_predictions(date)
+        runner = ScriptRunner("predict_and_track_evaluate")
+        evaluate_predictions(date, runner=runner)
+        runner.finish()
     elif cmd == "accuracy":
+        runner = ScriptRunner("predict_and_track_accuracy")
         show_accuracy()
+        runner.finish()
     elif cmd == "validate":
+        runner = ScriptRunner("predict_and_track_validate")
         validate_predictions(date=date, fix=fix)
+        runner.finish()
     else:
         print(f"Unknown command: {cmd}")
         print(__doc__)

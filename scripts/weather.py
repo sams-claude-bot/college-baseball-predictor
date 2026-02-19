@@ -14,12 +14,15 @@ Usage:
 import argparse
 import json
 import sqlite3
+import sys
 import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from run_utils import ScriptRunner
 
 # SEC stadium data (lat, lon, is_dome, city, state, stadium_name)
 SEC_VENUES = {
@@ -99,7 +102,7 @@ def get_db():
     return conn
 
 
-def seed_venues():
+def seed_venues(runner=None):
     """Populate venues table with stadium coordinates."""
     db = get_db()
     inserted = 0
@@ -114,11 +117,18 @@ def seed_venues():
             """, (team_id, lat, lon, is_dome, city, state, stadium))
             inserted += 1
         except Exception as e:
-            print(f"  Error for {team_id}: {e}")
+            if runner:
+                runner.error(f"Error for {team_id}: {e}")
+            else:
+                print(f"  Error for {team_id}: {e}")
     
     db.commit()
     db.close()
-    print(f"Seeded {inserted} venues")
+    if runner:
+        runner.info(f"Seeded {inserted} venues")
+        runner.add_stat("venues_seeded", inserted)
+    else:
+        print(f"Seeded {inserted} venues")
     return inserted
 
 
@@ -164,7 +174,7 @@ def fetch_weather(lat: float, lon: float, game_datetime: datetime) -> dict:
     }
 
 
-def fetch_games_weather(date_str: str = None, upcoming: bool = False):
+def fetch_games_weather(date_str: str = None, upcoming: bool = False, runner=None):
     """Fetch weather for games on a specific date or upcoming games."""
     db = get_db()
     
@@ -195,9 +205,13 @@ def fetch_games_weather(date_str: str = None, upcoming: bool = False):
               AND gw.game_id IS NULL
         """, (date_str,)).fetchall()
     
-    print(f"Found {len(games)} games needing weather data")
+    if runner:
+        runner.info(f"Found {len(games)} games needing weather data")
+    else:
+        print(f"Found {len(games)} games needing weather data")
     
     fetched = 0
+    api_errors = 0
     for game in games:
         game_id = game['id']
         lat, lon = game['latitude'], game['longitude']
@@ -218,12 +232,19 @@ def fetch_games_weather(date_str: str = None, upcoming: bool = False):
                 'wind_speed_mph': 0, 'wind_direction_deg': 0, 'wind_gust_mph': 0,
                 'precip_prob_pct': 0, 'cloud_cover_pct': 0
             }
-            print(f"  {game_id}: dome (neutral weather)")
+            if runner:
+                runner.info(f"  {game_id}: dome (neutral weather)")
+            else:
+                print(f"  {game_id}: dome (neutral weather)")
         else:
             weather = fetch_weather(lat, lon, game_dt)
             if not weather:
+                api_errors += 1
                 continue
-            print(f"  {game_id}: {weather['temp_f']:.0f}°F, wind {weather['wind_speed_mph']:.0f}mph @ {weather['wind_direction_deg']}°")
+            if runner:
+                runner.info(f"  {game_id}: {weather['temp_f']:.0f}°F, wind {weather['wind_speed_mph']:.0f}mph @ {weather['wind_direction_deg']}°")
+            else:
+                print(f"  {game_id}: {weather['temp_f']:.0f}°F, wind {weather['wind_speed_mph']:.0f}mph @ {weather['wind_direction_deg']}°")
         
         db.execute("""
             INSERT OR REPLACE INTO game_weather 
@@ -239,7 +260,12 @@ def fetch_games_weather(date_str: str = None, upcoming: bool = False):
     
     db.commit()
     db.close()
-    print(f"Fetched weather for {fetched} games")
+    if runner:
+        runner.info(f"Fetched weather for {fetched} games")
+        runner.add_stat("games_fetched", fetched)
+        runner.add_stat("api_errors", api_errors)
+    else:
+        print(f"Fetched weather for {fetched} games")
     return fetched
 
 
@@ -282,14 +308,18 @@ def main():
     args = parser.parse_args()
     
     if args.command == 'seed-venues':
-        seed_venues()
+        runner = ScriptRunner("weather_seed_venues")
+        seed_venues(runner=runner)
+        runner.finish()
     elif args.command == 'fetch':
+        runner = ScriptRunner("weather_fetch")
         if args.upcoming:
-            fetch_games_weather(upcoming=True)
+            fetch_games_weather(upcoming=True, runner=runner)
         elif args.date:
-            fetch_games_weather(date_str=args.date)
+            fetch_games_weather(date_str=args.date, runner=runner)
         else:
-            print("Specify --date or --upcoming")
+            runner.error("Specify --date or --upcoming")
+        runner.finish()
     elif args.command == 'show':
         if args.date:
             show_weather(args.date)

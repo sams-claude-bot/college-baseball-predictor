@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.database import get_connection
+from scripts.run_utils import ScriptRunner
 
 
 def ensure_tables(conn):
@@ -133,7 +134,6 @@ def snapshot_player_stats(conn, date_str):
         'SELECT COUNT(*) FROM player_stats_snapshots WHERE snapshot_date = ?', (date_str,)
     ).fetchone()[0]
     if existing > 0:
-        print(f"Player stats already snapshotted for {date_str} ({existing} rows), skipping")
         return existing
 
     c.execute('''
@@ -173,7 +173,6 @@ def snapshot_player_stats(conn, date_str):
 
     count = c.rowcount
     conn.commit()
-    print(f"Player stats snapshot: {count} rows for {date_str}")
     return count
 
 
@@ -185,7 +184,6 @@ def snapshot_team_batting_quality(conn, date_str):
         'SELECT COUNT(*) FROM team_batting_quality_snapshots WHERE snapshot_date = ?', (date_str,)
     ).fetchone()[0]
     if existing > 0:
-        print(f"Team batting quality already snapshotted for {date_str} ({existing} rows), skipping")
         return existing
 
     c.execute('''
@@ -215,7 +213,6 @@ def snapshot_team_batting_quality(conn, date_str):
 
     count = c.rowcount
     conn.commit()
-    print(f"Team batting quality snapshot: {count} rows for {date_str}")
     return count
 
 
@@ -227,7 +224,6 @@ def snapshot_team_pitching_quality(conn, date_str):
         'SELECT COUNT(*) FROM team_pitching_quality_snapshots WHERE snapshot_date = ?', (date_str,)
     ).fetchone()[0]
     if existing > 0:
-        print(f"Team pitching quality already snapshotted for {date_str} ({existing} rows), skipping")
         return existing
 
     c.execute('''
@@ -255,7 +251,6 @@ def snapshot_team_pitching_quality(conn, date_str):
 
     count = c.rowcount
     conn.commit()
-    print(f"Team pitching quality snapshot: {count} rows for {date_str}")
     return count
 
 
@@ -267,7 +262,6 @@ def snapshot_team_stats(conn, date_str):
         'SELECT COUNT(*) FROM team_stats_snapshots WHERE snapshot_date = ?', (date_str,)
     ).fetchone()[0]
     if existing > 0:
-        print(f"Team stats already snapshotted for {date_str} ({existing} rows), skipping")
         return existing
 
     c.execute('''
@@ -285,21 +279,26 @@ def snapshot_team_stats(conn, date_str):
 
     count = c.rowcount
     conn.commit()
-    print(f"Team stats snapshot: {count} rows for {date_str}")
     return count
 
 
 def main():
+    runner = ScriptRunner("snapshot_stats")
     today = datetime.now().strftime('%Y-%m-%d')
-    print(f"=== Stats Snapshot for {today} ===")
+    runner.info(f"Snapshotting for {today}")
 
     conn = get_connection()
     ensure_tables(conn)
 
-    snapshot_player_stats(conn, today)
-    snapshot_team_batting_quality(conn, today)
-    snapshot_team_pitching_quality(conn, today)
-    snapshot_team_stats(conn, today)
+    player_count = snapshot_player_stats(conn, today)
+    batting_count = snapshot_team_batting_quality(conn, today)
+    pitching_count = snapshot_team_pitching_quality(conn, today)
+    team_count = snapshot_team_stats(conn, today)
+
+    runner.add_stat("player_stats_rows", player_count)
+    runner.add_stat("team_batting_rows", batting_count)
+    runner.add_stat("team_pitching_rows", pitching_count)
+    runner.add_stat("team_stats_rows", team_count)
 
     # Summary
     c = conn.cursor()
@@ -307,10 +306,10 @@ def main():
                    'team_pitching_quality_snapshots', 'team_stats_snapshots']:
         dates = c.execute(f'SELECT COUNT(DISTINCT snapshot_date) FROM {table}').fetchone()[0]
         rows = c.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]
-        print(f"  {table}: {dates} dates, {rows} total rows")
+        runner.info(f"  {table}: {dates} dates, {rows} total rows")
 
     conn.close()
-    print("Done!")
+    runner.finish()
 
 
 if __name__ == '__main__':

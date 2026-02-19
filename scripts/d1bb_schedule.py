@@ -21,6 +21,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from run_utils import ScriptRunner
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
 SLUGS_FILE = PROJECT_DIR / 'config' / 'd1bb_slugs.json'
 OPENCLAW_USER_DATA = Path.home() / '.openclaw' / 'browser' / 'openclaw' / 'user-data'
@@ -367,6 +369,8 @@ def main():
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     
+    runner = ScriptRunner("d1bb_schedule")
+    
     # Determine dates to scrape
     dates = []
     if args.date:
@@ -377,7 +381,7 @@ def main():
         base = datetime.now()
         dates = [(base + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(args.days)]
     
-    print(f"Scraping schedules for: {', '.join(dates)}")
+    runner.info(f"Scraping schedules for: {', '.join(dates)}")
     
     db = get_db()
     slug_map = load_slug_reverse_map()
@@ -385,10 +389,11 @@ def main():
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        print("ERROR: playwright required")
-        sys.exit(1)
+        runner.error("playwright required")
+        runner.finish()
     
     stats = {'created': 0, 'updated': 0, 'unchanged': 0, 'unresolved': 0, 'replaced': 0}
+    games_found = 0
     
     with sync_playwright() as p:
         browser = p.chromium.launch_persistent_context(
@@ -398,11 +403,12 @@ def main():
         page = browser.new_page()
         
         for date_str in dates:
-            print(f"\n=== {date_str} ===")
+            runner.info(f"=== {date_str} ===")
             
             try:
                 games = extract_games_for_date(page, date_str, verbose=args.verbose)
-                print(f"  Found {len(games)} games")
+                games_found += len(games)
+                runner.info(f"  Found {len(games)} games")
                 
                 for game in games:
                     # Resolve teams
@@ -417,7 +423,7 @@ def main():
                     
                     if not home_id or not away_id:
                         if args.verbose:
-                            print(f"  SKIP: Could not resolve {game.get('away_name')} @ {game.get('home_name')}")
+                            runner.info(f"  SKIP: Could not resolve {game.get('away_name')} @ {game.get('home_name')}")
                         stats['unresolved'] += 1
                         continue
                     
@@ -436,12 +442,12 @@ def main():
                         stats[result] += 1
                         
                         if args.verbose and result != 'unchanged':
-                            print(f"  {result.upper()}: {away_id} @ {home_id}")
+                            runner.info(f"  {result.upper()}: {away_id} @ {home_id}")
                     else:
-                        print(f"  {away_id} @ {home_id} ({game_time or 'TBD'})")
+                        runner.info(f"  {away_id} @ {home_id} ({game_time or 'TBD'})")
                 
             except Exception as e:
-                print(f"  ERROR: {e}")
+                runner.error(f"Error on {date_str}: {e}")
                 import traceback
                 traceback.print_exc()
             
@@ -453,19 +459,21 @@ def main():
         db.commit()
     db.close()
     
-    print(f"\n{'='*40}")
-    print(f"Created: {stats['created']}, Updated: {stats['updated']}, Unchanged: {stats['unchanged']}")
-    print(f"Unresolved teams: {stats['unresolved']}")
+    runner.add_stat("games_found", games_found)
+    runner.add_stat("created", stats['created'])
+    runner.add_stat("updated", stats['updated'])
+    runner.add_stat("unresolved", stats['unresolved'])
     
     # Auto-evaluate predictions for any games that just got final scores
     if not args.dry_run and stats['updated'] > 0:
-        print(f"\n{'='*40}")
-        print("Evaluating predictions for completed games...")
+        runner.info("Evaluating predictions for completed games...")
         try:
             from predict_and_track import evaluate_predictions
             evaluate_predictions()
         except Exception as e:
-            print(f"  Evaluation error: {e}")
+            runner.warn(f"Evaluation error: {e}")
+    
+    runner.finish()
 
 
 if __name__ == '__main__':

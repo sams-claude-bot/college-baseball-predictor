@@ -13,15 +13,14 @@ Usage:
 
 import argparse
 import sqlite3
-import logging
+import sys
 from pathlib import Path
 from datetime import datetime
 
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-log = logging.getLogger('aggregate')
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from run_utils import ScriptRunner
 
 
 def get_db():
@@ -229,22 +228,29 @@ def main():
     parser.add_argument('--show-top', type=int, help='Show top N teams')
     args = parser.parse_args()
     
+    runner = ScriptRunner("aggregate_team_stats")
+    
     db = get_db()
     ensure_team_stats_table(db)
     
     if args.show_top:
         show_top(db, args.show_top)
         db.close()
+        runner.add_stat("mode", "show_top")
+        runner.finish()
         return
     
-    log.info('Computing aggregate team stats...')
+    runner.info('Computing aggregate team stats...')
     updated = compute_team_stats(db, args.team)
-    log.info(f'✅ Updated stats for {updated} teams')
+    runner.info(f'Updated stats for {updated} teams')
+    
+    runner.add_stat("teams_updated", updated)
     
     if not args.team:
         show_top(db, 25)
     
     db.close()
+    runner.finish()
 
 
 if __name__ == '__main__':

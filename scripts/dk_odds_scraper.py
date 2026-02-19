@@ -44,7 +44,7 @@ OPENCLAW_USER_DATA = Path.home() / '.openclaw' / 'browser' / 'openclaw' / 'user-
 RATE_LIMIT_FILE = PROJECT_DIR / 'data' / '.dk_last_scrape'
 
 # DraftKings NCAA baseball URL
-DK_URL = "https://sportsbook.draftkings.com/leagues/baseball/ncaa"
+DK_URL = "https://sportsbook.draftkings.com/leagues/baseball/ncaa-baseball"
 
 # Timing (be respectful!)
 MIN_DELAY = 5.0   # Minimum seconds between actions

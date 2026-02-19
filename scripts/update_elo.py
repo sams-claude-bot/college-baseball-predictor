@@ -17,9 +17,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.elo_model import EloModel
 from scripts.database import get_connection
+from scripts.run_utils import ScriptRunner
 
 
-def update_elo_ratings(date=None, force=False):
+def update_elo_ratings(date=None, force=False, runner=None):
     """Update Elo ratings for completed games not yet in elo_history."""
     conn = get_connection()
     cur = conn.cursor()
@@ -28,7 +29,8 @@ def update_elo_ratings(date=None, force=False):
     
     if force:
         # Force mode: clear elo_history and reprocess everything
-        print("⚠️  Force mode: rebuilding all Elo ratings from scratch")
+        if runner:
+            runner.warn("Force mode: rebuilding all Elo ratings from scratch")
         cur.execute("DELETE FROM elo_history")
         cur.execute("DELETE FROM elo_ratings")
         conn.commit()
@@ -59,12 +61,15 @@ def update_elo_ratings(date=None, force=False):
     games = cur.fetchall()
     
     if not games:
-        print("✅ No new games to process")
+        if runner:
+            runner.info("No new games to process")
         conn.close()
-        return
+        return 0
     
-    print(f"Processing {len(games)} unprocessed games...")
+    if runner:
+        runner.info(f"Processing {len(games)} unprocessed games...")
     updated = 0
+    errors = 0
     
     for game_id, home_id, away_id, home_score, away_score, game_date in games:
         home_won = home_score > away_score
@@ -75,10 +80,13 @@ def update_elo_ratings(date=None, force=False):
                                         game_id=game_id, game_date=game_date)
             updated += 1
         except Exception as e:
-            print(f"  Error updating {game_id}: {e}")
+            if runner:
+                runner.error(f"Error updating {game_id}: {e}")
+            errors += 1
     
     conn.close()
-    print(f"✅ Updated Elo ratings for {updated} games")
+    if runner:
+        runner.info(f"Updated Elo ratings for {updated} games")
     
     # Also evaluate any pending predictions
     if updated > 0:
@@ -86,7 +94,10 @@ def update_elo_ratings(date=None, force=False):
             from scripts.predict_and_track import evaluate_predictions
             evaluate_predictions()
         except Exception as e:
-            print(f"  Evaluation note: {e}")
+            if runner:
+                runner.warn(f"Evaluation note: {e}")
+    
+    return updated, errors
 
 
 if __name__ == "__main__":
@@ -98,4 +109,13 @@ if __name__ == "__main__":
                         help='Rebuild all ratings from scratch (clears elo_history)')
     args = parser.parse_args()
     
-    update_elo_ratings(date=args.date, force=args.force)
+    runner = ScriptRunner("update_elo")
+    
+    result = update_elo_ratings(date=args.date, force=args.force, runner=runner)
+    
+    if result:
+        updated, errors = result
+        runner.add_stat("games_processed", updated)
+        runner.add_stat("errors", errors)
+    
+    runner.finish()

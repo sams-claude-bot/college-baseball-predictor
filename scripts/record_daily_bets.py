@@ -13,6 +13,11 @@ import json
 import sqlite3
 import requests
 from datetime import datetime
+from pathlib import Path
+
+PROJECT_DIR = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from run_utils import ScriptRunner
 
 DB_PATH = 'data/baseball.db'
 API_URL = 'http://localhost:5000/api/best-bets'
@@ -26,9 +31,12 @@ def get_conn():
     return conn
 
 
-def record(date_override=None):
+def record(date_override=None, runner=None):
     """Fetch best bets from the API and record them."""
-    print(f"\n📊 Recording daily best bets...")
+    if runner:
+        runner.info("Recording daily best bets...")
+    else:
+        print(f"\n📊 Recording daily best bets...")
     
     try:
         url = API_URL
@@ -38,12 +46,20 @@ def record(date_override=None):
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        print(f"❌ Failed to fetch best bets from API: {e}")
-        print("   Make sure the web dashboard is running (python3 web/app.py)")
-        sys.exit(1)
+        msg = f"Failed to fetch best bets from API: {e}"
+        if runner:
+            runner.error(msg)
+            runner.finish()
+        else:
+            print(f"❌ {msg}")
+            print("   Make sure the web dashboard is running (python3 web/app.py)")
+            sys.exit(1)
     
     date = data['date']
-    print(f"   Date: {date}")
+    if runner:
+        runner.info(f"Date: {date}")
+    else:
+        print(f"   Date: {date}")
     
     conn = get_conn()
     c = conn.cursor()
@@ -79,10 +95,16 @@ def record(date_override=None):
     conf_recorded = 0
     confident_bets = data.get('confident_bets', [])
     if existing_conf >= MAX_PER_TYPE:
-        print(f"\n🎯 Confident Bets: Already have {existing_conf} bets for {date}, skipping")
+        if runner:
+            runner.info(f"Confident Bets: Already have {existing_conf} bets for {date}, skipping")
+        else:
+            print(f"\n🎯 Confident Bets: Already have {existing_conf} bets for {date}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_conf
-        print(f"\n🎯 Confident Bets ({len(confident_bets)} candidates, {slots} slots):")
+        if runner:
+            runner.info(f"Confident Bets ({len(confident_bets)} candidates, {slots} slots):")
+        else:
+            print(f"\n🎯 Confident Bets ({len(confident_bets)} candidates, {slots} slots):")
         for bet in confident_bets[:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_confident_bets
@@ -97,9 +119,13 @@ def record(date_override=None):
                 conf_recorded += 1
                 sign = '+' if bet.get('moneyline', 0) and bet['moneyline'] > 0 else ''
                 ml_str = f"({sign}{bet['moneyline']})" if bet.get('moneyline') else ""
-                print(f"   🎯 {bet['pick_team_name']} {ml_str} | "
-                      f"{bet['models_agree']}/{bet['models_total']} models | "
-                      f"{bet['avg_prob']*100:.0f}% avg | vs {bet['opponent_name']}")
+                msg = f"   {bet['pick_team_name']} {ml_str} | {bet['models_agree']}/{bet['models_total']} models | {bet['avg_prob']*100:.0f}% avg | vs {bet['opponent_name']}"
+                if runner:
+                    runner.info(msg)
+                else:
+                    print(f"   🎯 {bet['pick_team_name']} {ml_str} | "
+                          f"{bet['models_agree']}/{bet['models_total']} models | "
+                          f"{bet['avg_prob']*100:.0f}% avg | vs {bet['opponent_name']}")
     
     # --- MONEYLINES (EV-based) ---
     existing_ml = c.execute(
@@ -108,10 +134,16 @@ def record(date_override=None):
     
     ml_recorded = 0
     if existing_ml >= MAX_PER_TYPE:
-        print(f"\n💰 EV Moneylines: Already have {existing_ml} bets for {date}, skipping")
+        if runner:
+            runner.info(f"EV Moneylines: Already have {existing_ml} bets for {date}, skipping")
+        else:
+            print(f"\n💰 EV Moneylines: Already have {existing_ml} bets for {date}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_ml
-        print(f"\n💰 EV Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
+        if runner:
+            runner.info(f"EV Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
+        else:
+            print(f"\n💰 EV Moneylines ({len(data['moneylines'])} candidates, {slots} slots):")
         for bet in data['moneylines'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets
@@ -125,8 +157,12 @@ def record(date_override=None):
             if c.rowcount > 0:
                 ml_recorded += 1
                 sign = '+' if bet['moneyline'] > 0 else ''
-                print(f"   📌 {bet['pick_team_name']} ({sign}{bet['moneyline']}) | "
-                      f"edge {bet['edge']:.1f}% | vs {bet['opponent_name']}")
+                msg = f"   {bet['pick_team_name']} ({sign}{bet['moneyline']}) | edge {bet['edge']:.1f}% | vs {bet['opponent_name']}"
+                if runner:
+                    runner.info(msg)
+                else:
+                    print(f"   📌 {bet['pick_team_name']} ({sign}{bet['moneyline']}) | "
+                          f"edge {bet['edge']:.1f}% | vs {bet['opponent_name']}")
     
     # --- SPREADS ---
     existing_sp = c.execute(
@@ -136,10 +172,16 @@ def record(date_override=None):
     
     sp_recorded = 0
     if existing_sp >= MAX_PER_TYPE:
-        print(f"\n📊 Spreads: Already have {existing_sp} bets for {date}, skipping")
+        if runner:
+            runner.info(f"Spreads: Already have {existing_sp} bets for {date}, skipping")
+        else:
+            print(f"\n📊 Spreads: Already have {existing_sp} bets for {date}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_sp
-        print(f"\n📊 Spreads ({len(data['spreads'])} candidates, {slots} slots):")
+        if runner:
+            runner.info(f"Spreads ({len(data['spreads'])} candidates, {slots} slots):")
+        else:
+            print(f"\n📊 Spreads ({len(data['spreads'])} candidates, {slots} slots):")
         for bet in data['spreads'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets_spreads
@@ -149,8 +191,12 @@ def record(date_override=None):
                   bet['odds'], bet['model_projection'], bet['edge'], BET_AMOUNT))
             if c.rowcount > 0:
                 sp_recorded += 1
-                print(f"   📊 {bet['pick']} {bet['line']:+.1f} ({bet['odds']:+g}) | "
-                      f"edge {bet['edge']:.1f} runs")
+                msg = f"   {bet['pick']} {bet['line']:+.1f} ({bet['odds']:+g}) | edge {bet['edge']:.1f} runs"
+                if runner:
+                    runner.info(msg)
+                else:
+                    print(f"   📊 {bet['pick']} {bet['line']:+.1f} ({bet['odds']:+g}) | "
+                          f"edge {bet['edge']:.1f} runs")
     
     # --- TOTALS ---
     existing_tot = c.execute(
@@ -160,10 +206,16 @@ def record(date_override=None):
     
     tot_recorded = 0
     if existing_tot >= MAX_PER_TYPE:
-        print(f"\n🎯 Totals: Already have {existing_tot} bets for {date}, skipping")
+        if runner:
+            runner.info(f"Totals: Already have {existing_tot} bets for {date}, skipping")
+        else:
+            print(f"\n🎯 Totals: Already have {existing_tot} bets for {date}, skipping")
     else:
         slots = MAX_PER_TYPE - existing_tot
-        print(f"\n🎯 Totals ({len(data['totals'])} candidates, {slots} slots):")
+        if runner:
+            runner.info(f"Totals ({len(data['totals'])} candidates, {slots} slots):")
+        else:
+            print(f"\n🎯 Totals ({len(data['totals'])} candidates, {slots} slots):")
         for bet in data['totals'][:slots]:
             c.execute('''
                 INSERT OR IGNORE INTO tracked_bets_spreads
@@ -173,23 +225,36 @@ def record(date_override=None):
                   bet['odds'], bet['model_projection'], bet['edge'], BET_AMOUNT))
             if c.rowcount > 0:
                 tot_recorded += 1
-                print(f"   🎯 {bet['pick']} {bet['line']} ({bet['odds']:+g}) | "
-                      f"proj {bet['model_projection']:.1f} | edge {bet['edge']:.1f} runs")
+                msg = f"   {bet['pick']} {bet['line']} ({bet['odds']:+g}) | proj {bet['model_projection']:.1f} | edge {bet['edge']:.1f} runs"
+                if runner:
+                    runner.info(msg)
+                else:
+                    print(f"   🎯 {bet['pick']} {bet['line']} ({bet['odds']:+g}) | "
+                          f"proj {bet['model_projection']:.1f} | edge {bet['edge']:.1f} runs")
     
     conn.commit()
     conn.close()
     
     total = conf_recorded + ml_recorded + sp_recorded + tot_recorded
-    print(f"\n✅ Recorded {total} new bets (CONF:{conf_recorded} EV-ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
+    if runner:
+        runner.info(f"Recorded {total} new bets (CONF:{conf_recorded} EV-ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
+        runner.add_stat("bets_recorded", total)
+    else:
+        print(f"\n✅ Recorded {total} new bets (CONF:{conf_recorded} EV-ML:{ml_recorded} SPR:{sp_recorded} TOT:{tot_recorded})")
     
     if not confident_bets and not data['moneylines'] and not data['spreads'] and not data['totals']:
-        print("ℹ️  No games with betting lines today (off day or no DK odds scraped)")
+        if runner:
+            runner.info("No games with betting lines today (off day or no DK odds scraped)")
+        else:
+            print("ℹ️  No games with betting lines today (off day or no DK odds scraped)")
 
 
-def evaluate():
+def evaluate(runner=None):
     """Grade completed bets based on final scores."""
     conn = get_conn()
     c = conn.cursor()
+    
+    total_profit = 0.0
     
     # --- Evaluate confident bets (model consensus) ---
     try:
@@ -217,14 +282,23 @@ def evaluate():
             else:
                 profit = -BET_AMOUNT
             
+            total_profit += profit
+            
             c.execute('UPDATE tracked_confident_bets SET won=?, profit=? WHERE id=?',
                       (won, round(profit, 2), row['id']))
             conf_evaluated += 1
             icon = '✅' if won else '❌'
-            print(f"  {icon} CONF: {'W' if won else 'L'} | ${profit:+.2f}")
+            msg = f"CONF: {'W' if won else 'L'} | ${profit:+.2f}"
+            if runner:
+                runner.info(f"  {msg}")
+            else:
+                print(f"  {icon} {msg}")
     except Exception as e:
         conf_evaluated = 0
-        print(f"  ⚠️  Confident bets table not found or error: {e}")
+        if runner:
+            runner.warn(f"Confident bets table not found or error: {e}")
+        else:
+            print(f"  ⚠️  Confident bets table not found or error: {e}")
     
     # --- Evaluate moneylines (EV-based) ---
     # Join via betting_lines to resolve team IDs, then find game by teams+date
@@ -253,11 +327,17 @@ def evaluate():
         else:
             profit = -BET_AMOUNT
         
+        total_profit += profit
+        
         c.execute('UPDATE tracked_bets SET won=?, profit=? WHERE id=?',
                   (won, round(profit, 2), row['id']))
         ml_evaluated += 1
         icon = '✅' if won else '❌'
-        print(f"  {icon} ML: {'W' if won else 'L'} | ${profit:+.2f}")
+        msg = f"ML: {'W' if won else 'L'} | ${profit:+.2f}"
+        if runner:
+            runner.info(f"  {msg}")
+        else:
+            print(f"  {icon} {msg}")
     
     # --- Evaluate spreads & totals ---
     # Note: DraftKings sometimes lists home/away reversed from our games table
@@ -298,11 +378,17 @@ def evaluate():
             else:
                 profit = -BET_AMOUNT
             
+            total_profit += profit
+            
             c.execute('UPDATE tracked_bets_spreads SET won=?, profit=? WHERE id=?',
                       (won, round(profit, 2), row['id']))
             sp_evaluated += 1
             icon = '✅' if won else '❌'
-            print(f"  {icon} SPR: {row['pick']} {row['line']:+.1f} | actual margin {actual_margin:+d} | ${profit:+.2f}")
+            msg = f"SPR: {row['pick']} {row['line']:+.1f} | actual margin {actual_margin:+d} | ${profit:+.2f}"
+            if runner:
+                runner.info(f"  {msg}")
+            else:
+                print(f"  {icon} {msg}")
         
         else:  # total
             if row['pick'] == 'OVER':
@@ -321,17 +407,28 @@ def evaluate():
                 else:
                     profit = -BET_AMOUNT
             
+            total_profit += profit
+            
             c.execute('UPDATE tracked_bets_spreads SET won=?, profit=? WHERE id=?',
                       (won, round(profit, 2), row['id']))
             tot_evaluated += 1
             icon = '✅' if won else '❌'
-            print(f"  {icon} TOT: {row['pick']} {row['line']} | actual {actual_total} | ${profit:+.2f}")
+            msg = f"TOT: {row['pick']} {row['line']} | actual {actual_total} | ${profit:+.2f}"
+            if runner:
+                runner.info(f"  {msg}")
+            else:
+                print(f"  {icon} {msg}")
     
     conn.commit()
     conn.close()
     
     total = conf_evaluated + ml_evaluated + sp_evaluated + tot_evaluated
-    print(f"\n✅ Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
+    if runner:
+        runner.info(f"Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
+        runner.add_stat("bets_evaluated", total)
+        runner.add_stat("profit", f"${total_profit:+.2f}")
+    else:
+        print(f"\n✅ Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
 
 
 if __name__ == '__main__':
@@ -342,9 +439,13 @@ if __name__ == '__main__':
     cmd = sys.argv[1]
     date_arg = sys.argv[2] if len(sys.argv) > 2 else None
     if cmd == 'record':
-        record(date_override=date_arg)
+        runner = ScriptRunner("record_daily_bets_record")
+        record(date_override=date_arg, runner=runner)
+        runner.finish()
     elif cmd == 'evaluate':
-        evaluate()
+        runner = ScriptRunner("record_daily_bets_evaluate")
+        evaluate(runner=runner)
+        runner.finish()
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

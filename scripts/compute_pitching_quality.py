@@ -20,15 +20,14 @@ Usage:
 
 import argparse
 import sqlite3
-import logging
+import sys
 from pathlib import Path
 from datetime import datetime
 
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / "data" / "baseball.db"
-
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-log = logging.getLogger(__name__)
+sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
+from run_utils import ScriptRunner
 
 
 def get_db():
@@ -190,7 +189,7 @@ def compute_team_pitching(db, team_id):
     }
 
 
-def compute_all(db, team_id=None):
+def compute_all(db, team_id=None, runner=None):
     """Compute pitching quality for all teams (or one)."""
     ensure_table(db)
     
@@ -213,7 +212,8 @@ def compute_all(db, team_id=None):
             updated += 1
     
     db.commit()
-    log.info(f"Updated pitching quality for {updated} teams")
+    if runner:
+        runner.info(f"Updated pitching quality for {updated} teams")
     return updated
 
 
@@ -240,11 +240,17 @@ def main():
     parser.add_argument('--show-top', type=int, help='Show top N teams')
     args = parser.parse_args()
     
+    runner = ScriptRunner("compute_pitching_quality")
+    
     db = get_db()
-    compute_all(db, team_id=args.team)
+    updated = compute_all(db, team_id=args.team, runner=runner)
+    
+    runner.add_stat("teams_updated", updated)
     
     if args.show_top:
         show_top(db, args.show_top)
+    
+    runner.finish()
 
 
 if __name__ == '__main__':
