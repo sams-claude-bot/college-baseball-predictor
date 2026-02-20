@@ -263,11 +263,70 @@ def verify(team_slug: str, fix: bool = False, verbose: bool = False):
             print(f"   🗑️  Deleted {game_id}")
             fixed += 1
         
+        # Insert missing games
+        for i in missing:
+            opp = i['opponent']
+            date = i['date']
+            if i['is_home']:
+                home_id, away_id = team_slug, opp
+            else:
+                home_id, away_id = opp, team_slug
+            game_id = f"{date}_{away_id}_{home_id}"
+            
+            # Check it doesn't already exist (could be ID format mismatch)
+            cur.execute('SELECT id FROM games WHERE id = ?', (game_id,))
+            if cur.fetchone():
+                continue
+            
+            # Get score from D1Baseball if available
+            d1g = d1bb_by_date_opp.get((date, opp))
+            home_score = away_score = winner_id = None
+            status = 'scheduled'
+            if d1g and d1g.get('result'):
+                r = d1g['result']
+                if i['is_home']:
+                    home_score = r['team_score']
+                    away_score = r['opp_score']
+                else:
+                    home_score = r['opp_score']
+                    away_score = r['team_score']
+                winner_id = home_id if home_score > away_score else away_id
+                status = 'final'
+            
+            cur.execute('''
+                INSERT INTO games (id, date, home_team_id, away_team_id, home_score, away_score, winner_id, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (game_id, date, home_id, away_id, home_score, away_score, winner_id, status))
+            score_str = f" ({home_score}-{away_score})" if home_score is not None else ""
+            print(f"   ➕ Added {game_id}{score_str}")
+            fixed += 1
+        
+        # Backfill scores on existing games missing them
+        scores_filled = 0
+        for g in db_games:
+            if g['status'] == 'final' or g['home_score'] is not None:
+                continue
+            opp = g['away_team_id'] if g['home_team_id'] == team_slug else g['home_team_id']
+            key = (g['date'], opp)
+            d1g = d1bb_by_date_opp.get(key)
+            if d1g and d1g.get('result'):
+                r = d1g['result']
+                db_is_home = (g['home_team_id'] == team_slug)
+                if db_is_home:
+                    hs, aws = r['team_score'], r['opp_score']
+                else:
+                    hs, aws = r['opp_score'], r['team_score']
+                winner = g['home_team_id'] if hs > aws else g['away_team_id']
+                cur.execute('''
+                    UPDATE games SET home_score=?, away_score=?, winner_id=?, status='final'
+                    WHERE id=?
+                ''', (hs, aws, winner, g['id']))
+                print(f"   📝 Score: {g['id']} → {hs}-{aws}")
+                scores_filled += 1
+        
         conn.commit()
         conn.close()
-        print(f"\n🔧 Fixed {fixed} issues (deleted extra games).")
-        if missing:
-            print(f"   ➕ {len(missing)} missing games need schedule sync to add.")
+        print(f"\n🔧 Fixed {fixed} issues, filled {scores_filled} scores.")
     
     return False
 
