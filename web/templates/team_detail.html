@@ -43,6 +43,31 @@
                         <small class="text-muted">Elo</small>
                     </div>
                 </div>
+                {% if team.sams_rpi %}
+                <hr class="my-2">
+                <div class="row text-center">
+                    <div class="col-3">
+                        <div class="h5 mb-0" style="color: var(--maroon);">#{{ team.sams_rank }}</div>
+                        <small class="text-muted">RPI Rank</small>
+                    </div>
+                    <div class="col-3">
+                        <div class="h5 mb-0">{{ team.sams_rpi|round(4) }}</div>
+                        <small class="text-muted">RPI</small>
+                    </div>
+                    <div class="col-2">
+                        <div class="h6 mb-0">{{ team.rpi_wp|round(3) }}</div>
+                        <small class="text-muted">WP</small>
+                    </div>
+                    <div class="col-2">
+                        <div class="h6 mb-0">{{ team.rpi_owp|round(3) }}</div>
+                        <small class="text-muted">OWP</small>
+                    </div>
+                    <div class="col-2">
+                        <div class="h6 mb-0">{{ team.rpi_oowp|round(3) }}</div>
+                        <small class="text-muted">OOWP</small>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -344,6 +369,82 @@
                     <small class="text-muted">Current Rating</small>
                 </div>
                 <canvas id="eloChart" height="150"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Assumed Lineup -->
+        {% if team.assumed_lineup %}
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list-ol"></i> Assumed Lineup
+                <small class="text-muted float-end">by AB</small>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 25px;" class="text-center">#</th>
+                            <th>Player</th>
+                            <th class="text-center">Pos</th>
+                            <th class="text-end">AVG</th>
+                            <th class="text-end">OPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in team.assumed_lineup %}
+                        <tr>
+                            <td class="text-center text-muted">{{ loop.index }}</td>
+                            <td>{{ p.name }}</td>
+                            <td class="text-center"><small>{{ p.position or '—' }}</small></td>
+                            <td class="text-end">{{ '%.3f'|format(p.batting_avg) if p.batting_avg else '.000' }}</td>
+                            <td class="text-end">{{ '%.3f'|format(p.ops) if p.ops else '.000' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Projected Starters -->
+        {% if team.projected_starters %}
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bullseye"></i> Projected Starters
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        {% for s in team.projected_starters %}
+                        <tr>
+                            <td>{{ s.starter_name or 'TBD' }}</td>
+                            <td class="text-end text-muted"><small>{{ s.date }} {{ s.location }} {{ s.opponent }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Recent Starters -->
+        {% if team.recent_starters %}
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history"></i> Recent Starters
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        {% for s in team.recent_starters %}
+                        <tr>
+                            <td>{{ s.starting_pitcher }}</td>
+                            <td class="text-end text-muted"><small>{{ s.game_date }} vs {{ s.opponent }}</small></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
         {% endif %}

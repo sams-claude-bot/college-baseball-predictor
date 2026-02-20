@@ -30,6 +30,8 @@ def teams():
         all_teams.sort(key=lambda x: (x.get('current_rank') or 999, x['name']))
     elif sort_by == 'win_pct':
         all_teams.sort(key=lambda x: x.get('win_pct', 0), reverse=True)
+    elif sort_by == 'rpi':
+        all_teams.sort(key=lambda x: (x.get('sams_rank') or 9999, x['name']))
     elif sort_by == 'conference':
         all_teams.sort(key=lambda x: (x.get('conference') or 'ZZZ', x['name']))
     else:

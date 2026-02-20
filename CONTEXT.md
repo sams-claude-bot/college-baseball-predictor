@@ -1,13 +1,13 @@
 # College Baseball Predictor — Project Context
 
 > **Read this first.** Single source of truth for understanding the project.
-> Last verified: February 18, 2026
+> Last verified: February 19, 2026
 
 ## What This Is
 
 NCAA D1 college baseball prediction system with a web dashboard. Collects data from D1Baseball and DraftKings, runs 12 prediction models, tracks betting P&L, and serves everything at [baseball.mcdevitt.page](https://baseball.mcdevitt.page).
 
-- **Season:** Feb 14 – June 22, 2026 (CWS in Omaha)
+- **Season:** Feb 13 – June 22, 2026 (CWS in Omaha)
 - **Focus:** Mississippi State + Auburn (featured), all SEC, all Power 4, Top 25, full D1 scores
 - **Stack:** Python 3, SQLite (WAL), Flask, Playwright, PyTorch, XGBoost, LightGBM
 - **Dashboard:** systemd `college-baseball-dashboard.service` → Flask on port 5000
@@ -29,7 +29,7 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 | Team aliases | 704 |
 | Games with weather | 520 |
 | Betting lines captured | 88 |
-| Season date range | Feb 13 – Feb 18 (6 days in) |
+| Season date range | Feb 13 – Feb 19 (7 days in) |
 
 ---
 
@@ -83,6 +83,28 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 | `ensemble_weights_history` | varies | Historical ensemble weight snapshots |
 | `conference_ratings` | varies | Conference strength ratings by season |
 | `preseason_priors` | varies | Preseason rankings, projected win%, returning WAR |
+
+### Active Supporting Tables
+
+| Table | Rows | Purpose |
+|-------|------|---------|
+| `game_batting_stats` | 2,741 | Per-game team batting stats |
+| `game_pitching_stats` | 1,124 | Per-game team pitching stats |
+| `game_predictions` | 1,766 | Game-level prediction records |
+| `historical_games` | 6,184 | Historical game data (2024-2025 seasons) for training |
+| `historical_game_weather` | 5,886 | Historical weather data for training |
+| `team_aggregate_stats` | 284 | Computed team aggregate statistics |
+| `team_sos` | 222 | Strength of schedule ratings |
+| `margin_tracking` | 169 | Margin/spread tracking data |
+| `power_rankings_detail` | 2,208 | Per-model power ranking scores |
+| `team_batting_quality_snapshots` | 585 | Historical batting quality snapshots |
+| `team_pitching_quality_snapshots` | 585 | Historical pitching quality snapshots |
+| `ensemble_weight_log` | 25 | Ensemble weight change log |
+| `tournaments` | 3 | Tournament/postseason data |
+
+### Legacy/Empty Tables (candidates for cleanup)
+
+`ncaa_individual_stats`, `ncaa_team_stats`, `player_boxscore_batting`, `player_boxscore_pitching`, `predictions`, `spread_predictions`, `team_stats`, `team_stats_snapshots` — all empty, likely from earlier iterations.
 
 ### Game ID Format
 `YYYY-MM-DD_away-team_home-team` (e.g. `2026-02-17_cincinnati_auburn`)
@@ -176,7 +198,7 @@ All trainable models (neural, XGBoost, LightGBM) share the same feature pipeline
 
 ## Web Dashboard
 
-Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints/` (1,888 lines across 9 modules). Serves 16 Jinja2 templates.
+Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints/` (2,189 lines across 9 modules). Serves 18 Jinja2 templates.
 
 ### Pages
 
@@ -195,6 +217,10 @@ Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints
 | `/calendar` | `calendar.html` | Game calendar with date navigation |
 | `/tracker` | `tracker.html` | Bet tracking P&L dashboard |
 | `/debug` | `debug.html` | Debug flags and bug reports |
+| `/model-testing` | `model_testing.html` | Model A/B testing tool |
+| `/model-trends` | `model_trends.html` | Model accuracy trends over time |
+
+**Other templates:** `base.html` (layout), `404.html`, `500.html` (error pages)
 
 ### API Endpoints
 | Endpoint | Method | Description |
@@ -219,39 +245,51 @@ ReadWritePaths=/home/sam/college-baseball-predictor/data
 
 ---
 
-## Cron Schedule (OpenClaw)
+## Cron Schedule
 
-All jobs managed via OpenClaw cron (not system cron). Times are CT (America/Chicago).
+Jobs are split between **system cron** (bash scripts, no AI) and **OpenClaw cron** (need AI/browser).
 
-### Active Jobs
+### System Cron (bash scripts in `cron/`)
 
-| Time | Name | Model | What |
-|------|------|-------|------|
-| **Every 15 min, 12PM-11PM** | Score Updates | default | `d1bb_schedule.py --today` — live score polling |
-| **1 AM daily** | Nightly D1 Stats + Schedule | opus | D1BB schedule sync (7 days) + all D1 player stats (~1hr for 311 teams) |
-| **2 AM daily** | Nightly Scores + Pipeline | opus | Backup → D1BB box scores → evaluate bets → update Elo → aggregate stats → evaluate predictions → generate new predictions → push git |
-| **8 AM daily** | DraftKings Odds + Weather | opus | Browser scrape DK odds + Open-Meteo weather for next 3 days |
-| **9 AM daily** | Record Best Bets | opus | `bet_selection_v2.py record` (scrapes DK first if no lines exist) |
-| **9:30 AM daily** | Pre-Game Scheduler | default | Creates one-shot job 15min before first pitch for odds refresh |
-| **Mon 12 PM** | Power Rankings | default | `power_rankings.py --top 25 --store` + restart dashboard |
-| **Mon 10 PM** | D1BB Rankings | opus | Browser scrape Top 25 poll |
-| **Sun 9:30 PM** | Weekly Model Training | opus | `train_all_models.py` — NN + XGB + LGB unified training |
-| **Sun 10 PM** | Weekly Accuracy Report | opus | Full model comparison + P&L summary |
+| Time (CT) | Script | What |
+|-----------|--------|------|
+| **12:30 AM** | `01_schedule_sync.sh` | D1BB schedule sync (7 days) |
+| **1:00 AM** | `02_stats_scrape.sh` | All D1 player stats via D1BB (~25 min) |
+| **1:45 AM** | `03_derived_stats.sh` | Quality tables + aggregates + snapshots |
+| **2:30 AM** | `04_nightly_eval.sh` | Backup → evaluate bets → Elo → evaluate predictions |
+| **8:15 AM** | `05_morning_pipeline.sh` | Weather + predictions + bet selection |
+| **Sun 9:30 PM** | `weekly_training.sh` | NN + XGB + LGB unified training |
+| **Sun 10 PM** | `weekly_accuracy.sh` | Model accuracy report |
+| **Mon 12 PM** | `weekly_power_rankings.sh` | Power rankings generation |
 
-### Disabled Jobs
+Also in system cron (not bash scripts):
+- **Every 15 min, 12PM-11PM**: `d1bb_schedule.py --today` — live score polling
+- **Mon 6 AM**: Lineup scrape
+- **3 AM daily**: Verification job
+
+### OpenClaw Cron (need AI/browser — 3 active jobs)
+
+| Time (CT) | Name | Model | What |
+|-----------|------|-------|------|
+| **8 AM daily** | Odds Scrape | opus | Browser reads DraftKings NCAA page → JSON → `dk_odds_scraper.py load` |
+| **9:30 AM daily** | Pre-Game Scheduler | default | Creates one-shot odds refresh 15 min before first pitch |
+| **Mon 10 PM** | D1BB Rankings | default | Browser reads d1baseball.com Top 25 poll |
+
+### Disabled OpenClaw Jobs
 - Nashville Rent Tracker (3 jobs) — paused
-- Birmingham House Prices (2 jobs) — paused  
+- Birmingham House Prices (2 jobs) — paused
 - Daily Self-Improvement — paused
-- College Baseball Daily Collection — replaced by nightly pipeline
-- Nightly Stats Collection (old) — replaced by D1 Stats + Schedule job
+- Old nightly pipeline jobs (6 jobs) — replaced by system cron
 
 ### Pipeline Order (nightly)
 ```
-1 AM: Schedule sync (7 days) + Player stats (all D1)
-2 AM: DB backup → Box scores (yesterday) → Evaluate bets → Update Elo → Aggregate stats → Evaluate predictions → Generate predictions → Git push
-8 AM: DK odds scrape + Weather fetch
-9 AM: Record best bets
-9:30 AM: Schedule pre-game odds refresh
+12:30 AM: Schedule sync (7 days)
+1:00 AM: Player stats (all D1, ~25 min)
+1:45 AM: Quality tables + aggregates + snapshots
+2:30 AM: Backup → evaluate bets → Elo → evaluate predictions
+8:00 AM: DK odds scrape (OpenClaw, browser)
+8:15 AM: Weather + predictions + bet selection
+9:30 AM: Schedule pre-game odds refresh (OpenClaw)
 ```
 
 ---
@@ -265,7 +303,7 @@ All jobs managed via OpenClaw cron (not system cron). Times are CT (America/Chic
 | `d1bb_schedule.py --days 7` | Schedule sync — finds new games, time changes, cancellations |
 | `d1bb_box_scores.py --date YYYY-MM-DD` | Box score scraper — creates game records + player box scores |
 | `d1bb_scraper.py --all-d1 --delay 2` | All D1 player stats (basic + advanced) via Playwright (~1hr) |
-| `d1bb_advanced_scraper.py --conference SEC` | Advanced stats by conference (wOBA, FIP, xFIP) — all D1 covered via nightly scraper |
+| ~~`d1bb_advanced_scraper.py`~~ | Archived Feb 19 — redundant, `d1bb_scraper.py --all-d1` covers basic + advanced in one pass |
 | `weather.py fetch --upcoming` | Open-Meteo weather for next 3 days of P4 home games |
 
 ### Predictions & Evaluation
@@ -371,12 +409,16 @@ college-baseball-predictor/
 │   ├── weather_model.py         # Weather adjustments
 │   ├── predictor_db.py          # DB helpers for models
 │   ├── compare_models.py        # Model comparison utilities
+│   ├── neural_model_v3.py       # On hold — new features/params, needs more data (revisit mid-season)
+│   ├── lightgbm_model_v2.py     # On hold — same as above
+│   ├── xgboost_model_v2.py      # On hold — same as above
+│   ├── nn_features_enhanced.py  # Enhanced features for v2/v3 models
 │   └── archive/                 # Deprecated models
 ├── scripts/                     # 30+ active scripts
 │   ├── d1bb_schedule.py         # D1BB score/schedule sync (with dedup)
 │   ├── d1bb_box_scores.py       # D1BB box score scraper
 │   ├── d1bb_scraper.py          # D1BB player stats (basic + advanced)
-│   ├── d1bb_advanced_scraper.py # D1BB advanced stats (SEC only)
+│   ├── # d1bb_advanced_scraper.py — archived Feb 19 (redundant with d1bb_scraper.py)
 │   ├── predict_and_track.py     # Prediction generation + evaluation
 │   ├── bet_selection_v2.py      # Bet selection (consensus + EV)
 │   ├── record_daily_bets.py     # Bet grading + P&L
@@ -397,6 +439,13 @@ college-baseball-predictor/
 │   ├── build_pitching_infrastructure.py
 │   ├── add_game.py
 │   ├── finetune_weekly.py       # Legacy weekly fine-tuning
+│   ├── dk_odds_scraper.py       # DK odds loading from JSON
+│   ├── run_utils.py             # ScriptRunner, logging utils
+│   ├── snapshot_stats.py        # Daily stat snapshots
+│   ├── compute_batting_quality.py  # Batting quality tables
+│   ├── compute_pitching_quality.py # Pitching quality tables
+│   ├── d1bb_full_schedule_overwrite.py # Full season schedule tool
+│   ├── d1bb_lineups.py          # D1Baseball lineup scraper
 │   ├── archive/                 # 78 deprecated/one-off scripts
 │   └── custom_scrapers/         # Team-specific scrapers
 ├── web/
@@ -428,7 +477,6 @@ college-baseball-predictor/
 3. **Neural net accuracy dropped** to 74.4% — was 88% early on, possibly overfitting to small sample
 4. **Spreads disabled** in betting — model not calibrated for run lines
 5. **5 teams need custom scrapers** for stats: Georgia Tech (PDF rosters), Arkansas, Kentucky, South Carolina, Vanderbilt
-6. ~~`app.py` is 2,749 lines~~ — **DONE:** Refactored into blueprints (Feb 18)
 
 ## Performance Notes
 - **Web pages use stored predictions only** — reads from `model_predictions` and `totals_predictions` tables (no live model calls except `/game/<id>` detail page)

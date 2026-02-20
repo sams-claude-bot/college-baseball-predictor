@@ -98,8 +98,65 @@
                     <td>{% if m.name == 'ensemble' %}★ {% endif %}{{ m.name }}</td>
                     <td class="text-center">{{ (m.away_prob * 100)|round(1) }}%</td>
                     <td class="text-center">{{ (m.home_prob * 100)|round(1) }}%</td>
-                    <td class="text-center">{{ m.away_runs|round(1) }}-{{ m.home_runs|round(1) }}</td>
+                    <td class="text-center">{% if m.away_runs or m.home_runs %}{{ m.away_runs|round(1) }}-{{ m.home_runs|round(1) }}{% else %}—{% endif %}</td>
                     <td class="text-center">{{ home.name if m.home_prob > 0.5 else away.name }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if totals_models %}
+<!-- Runs Model Breakdown -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-bar-chart"></i> Runs Model Breakdown
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th class="text-center">Line</th>
+                        <th class="text-center">Projected</th>
+                        <th class="text-center">Pick</th>
+                        {% if totals_models[0].actual_total is not none %}
+                        <th class="text-center">Actual</th>
+                        <th class="text-center">Result</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for m in totals_models %}
+                <tr {% if m.model_name == 'runs_ensemble' %}class="table-active fw-bold"{% endif %}>
+                    <td>{% if m.model_name == 'runs_ensemble' %}★ {% endif %}{{ m.model_name }}</td>
+                    <td class="text-center">{{ m.over_under_line if m.over_under_line else '—' }}</td>
+                    <td class="text-center">{{ m.projected_total|round(1) }}</td>
+                    <td class="text-center">
+                        {% if m.prediction %}
+                        <span class="badge {% if m.prediction == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
+                            {{ m.prediction }}
+                        </span>
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    {% if totals_models[0].actual_total is not none %}
+                    <td class="text-center">{{ m.actual_total }}</td>
+                    <td class="text-center">
+                        {% if m.was_correct == 1 %}
+                        <span class="badge bg-success">✓</span>
+                        {% elif m.was_correct == 0 %}
+                        <span class="badge bg-danger">✗</span>
+                        {% else %}
+                        <span class="badge bg-secondary">PUSH</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
                 </tbody>

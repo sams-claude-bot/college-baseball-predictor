@@ -251,7 +251,7 @@ def models():
             JOIN games g ON tp.game_id = g.id
             JOIN teams ht ON g.home_team_id = ht.id
             JOIN teams at ON g.away_team_id = at.id
-            WHERE tp.actual_total IS NOT NULL
+            WHERE tp.actual_total IS NOT NULL AND tp.model_name = 'runs_ensemble'
             ORDER BY tp.predicted_at DESC
             LIMIT 10
         ''')

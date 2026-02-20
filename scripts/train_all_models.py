@@ -570,21 +570,28 @@ def train_gb_models(X_train, y_train, X_val, y_val, task, model_prefix, use_gpu=
 # Main Pipeline
 # ============================================================
 
-def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gpu=True):
+def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gpu=True, full_train=False):
     today = datetime.now()
+    mode_label = "FULL TRAIN" if full_train else f"val last {val_days} days"
     print("=" * 60)
     print("UNIFIED MODEL TRAINING PIPELINE")
     print(f"Date: {today.strftime('%Y-%m-%d %H:%M')}")
-    print(f"Validation window: last {val_days} days")
+    print(f"Mode: {mode_label}")
     print("=" * 60)
     
     # ---- Load 2026 games and split ----
     games_2026 = get_2026_games()
-    train_2026, val_2026, cutoff = split_2026_games(games_2026, val_days=val_days, today=today)
     
-    print(f"\n2026 Games: {len(games_2026)} total")
-    print(f"  Train (before {cutoff}): {len(train_2026)}")
-    print(f"  Validation (last {val_days} days): {len(val_2026)}")
+    if full_train:
+        train_2026 = []
+        val_2026 = games_2026
+        cutoff = 'N/A (full train)'
+        print(f"\n2026 Games: {len(games_2026)} total (all used for finetune+val)")
+    else:
+        train_2026, val_2026, cutoff = split_2026_games(games_2026, val_days=val_days, today=today)
+        print(f"\n2026 Games: {len(games_2026)} total")
+        print(f"  Train (before {cutoff}): {len(train_2026)}")
+        print(f"  Validation (last {val_days} days): {len(val_2026)}")
     
     if len(val_2026) < MIN_VAL_GAMES:
         print(f"\n⚠️  Only {len(val_2026)} validation games (need {MIN_VAL_GAMES}). Waiting for more data.")
@@ -592,8 +599,13 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
     
     # ---- Load historical games ----
     historical = get_historical_games()
-    print(f"  Historical (pre-2026): {len(historical)}")
-    print(f"  Combined training set: {len(historical)} + {len(train_2026)} = {len(historical) + len(train_2026)}")
+    if full_train:
+        print(f"  Historical (pre-2026): {len(historical)}")
+        print(f"  Base training: {len(historical)} historical only")
+        print(f"  Fine-tune/val: {len(val_2026)} (all 2026)")
+    else:
+        print(f"  Historical (pre-2026): {len(historical)}")
+        print(f"  Combined training set: {len(historical)} + {len(train_2026)} = {len(historical) + len(train_2026)}")
     
     if dry_run:
         print("\n🔍 DRY RUN — no models will be trained")
@@ -616,15 +628,25 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
         print("NEURAL NETWORK TRAINING")
         print("=" * 60)
         
-        # Win model: use train_neural_v2 (2-phase: base + finetune)
-        print("\n📊 WIN MODEL (train_neural_v2)")
+        # Win model: use train_neural_slim (40 real features, historical + 2026)
+        print("\n📊 WIN MODEL (train_neural_slim — 40 features)")
         try:
-            from scripts.train_neural_v2 import run as run_nn_v2
-            run_nn_v2(val_days=val_days)
+            from scripts.train_neural_slim import run as run_nn_slim
+            run_nn_slim(val_days=val_days, no_search=True, full_train=full_train)
             results_summary['nn_win'] = {'status': 'completed'}
         except Exception as e:
             print(f"  ❌ Error: {e}")
             results_summary['nn_win'] = {'status': 'error', 'error': str(e)}
+
+        # Totals regression: train_totals_slim (40 features, historical + 2026)
+        print("\n📊 TOTALS MODEL (train_totals_slim — 40 features)")
+        try:
+            from scripts.train_totals_slim import run as run_totals_slim
+            run_totals_slim(val_days=val_days, full_train=full_train)
+            results_summary['nn_slim_totals'] = {'status': 'completed'}
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
+            results_summary['nn_slim_totals'] = {'status': 'error', 'error': str(e)}
         
         # Totals, spread, dow_totals: fine-tune from existing base weights
         for name, config in NN_CONFIGS.items():
@@ -633,16 +655,22 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
             model_type = config['type']
             print(f"\n📊 {name.upper()} ({model_type})")
             
-            X_train, y_train, dow_train = compute_2026_features(
-                train_2026, fc_no_meta, model_type)
-            X_val, y_val, dow_val = compute_2026_features(
-                val_2026, fc_no_meta, model_type)
+            if full_train:
+                # Full train: finetune + validate on all 2026
+                X_train, y_train, dow_train = compute_2026_features(
+                    val_2026, fc_no_meta, model_type)
+                X_val, y_val, dow_val = X_train, y_train, dow_train
+            else:
+                X_train, y_train, dow_train = compute_2026_features(
+                    train_2026, fc_no_meta, model_type)
+                X_val, y_val, dow_val = compute_2026_features(
+                    val_2026, fc_no_meta, model_type)
             
             if X_train is None or X_val is None:
                 print(f"  ⚠️  Insufficient data, skipping")
                 continue
             
-            if len(X_train) < MIN_TRAIN_GAMES:
+            if not full_train and len(X_train) < MIN_TRAIN_GAMES:
                 print(f"  ⚠️  Only {len(X_train)} train games, need {MIN_TRAIN_GAMES}")
                 continue
             
@@ -678,11 +706,17 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
         ]:
             print(f"\n📊 {task_name.upper()}")
             
-            # 2026 features (no meta for GB)
-            X_2026_train, y_2026_train, _ = compute_2026_features(
-                train_2026, fc_no_meta, target_type)
-            X_2026_val, y_2026_val, _ = compute_2026_features(
-                val_2026, fc_no_meta, target_type)
+            if full_train:
+                # Full train: all 2026 used for both train and val
+                X_2026_all, y_2026_all, _ = compute_2026_features(
+                    val_2026, fc_no_meta, target_type)
+                X_2026_train, y_2026_train = X_2026_all, y_2026_all
+                X_2026_val, y_2026_val = X_2026_all, y_2026_all
+            else:
+                X_2026_train, y_2026_train, _ = compute_2026_features(
+                    train_2026, fc_no_meta, target_type)
+                X_2026_val, y_2026_val, _ = compute_2026_features(
+                    val_2026, fc_no_meta, target_type)
             
             # Historical targets for this task
             if target_type == 'moneyline':
@@ -692,7 +726,7 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
             elif target_type == 'spread':
                 _, y_hist, _ = compute_historical_features(historical, 'spread')
             
-            # Combine historical + 2026 train
+            # Combine historical + 2026
             if X_hist is not None and X_2026_train is not None:
                 X_train_combined = np.vstack([X_hist, X_2026_train])
                 y_train_combined = np.concatenate([y_hist, y_2026_train])
@@ -730,8 +764,12 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
     print("TRAINING SUMMARY")
     print("=" * 60)
     print(f"Date: {today.strftime('%Y-%m-%d')}")
+    print(f"Mode: {'full-train' if full_train else 'standard'}")
     print(f"Split: train < {cutoff} | val >= {cutoff}")
-    print(f"Train: {len(historical)} historical + {len(train_2026)} 2026 = {len(historical) + len(train_2026)}")
+    if full_train:
+        print(f"Base train: {len(historical)} historical | Finetune+val: {len(val_2026)} (all 2026)")
+    else:
+        print(f"Train: {len(historical)} historical + {len(train_2026)} 2026 = {len(historical) + len(train_2026)}")
     print(f"Val: {len(val_2026)} games")
     
     for name, res in results_summary.items():
@@ -753,6 +791,8 @@ if __name__ == "__main__":
     parser.add_argument('--gb-only', action='store_true', help='Only train gradient boosting')
     parser.add_argument('--dry-run', action='store_true', help='Show data splits without training')
     parser.add_argument('--no-gpu', action='store_true', help='Disable GPU')
+    parser.add_argument('--full-train', action='store_true',
+                        help='Train base on all historical, finetune+validate on all 2026')
     args = parser.parse_args()
     
     run_training(
@@ -761,4 +801,5 @@ if __name__ == "__main__":
         gb_only=args.gb_only,
         dry_run=args.dry_run,
         use_gpu=not args.no_gpu,
+        full_train=args.full_train,
     )

@@ -43,7 +43,7 @@
         <div class="row">
             {% for game in confident_bets %}
             <div class="col-md-4 mb-3">
-                <div class="card h-100 border-primary">
+                <div class="card h-100 border-primary" data-game-id="{{ game.game_id }}" style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
@@ -88,7 +88,7 @@
         <div class="row">
             {% for game in ev_bets[:6] %}
             <div class="col-md-4 mb-3">
-                <div class="card h-100 border-success">
+                <div class="card h-100 border-success" data-game-id="{{ game.game_id }}" style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
@@ -136,7 +136,7 @@
         <div class="row">
             {% for game in best_totals[:6] %}
             <div class="col-md-4 mb-3">
-                <div class="card h-100 {% if game.total_lean == 'OVER' %}border-success{% else %}border-danger{% endif %}">
+                <div class="card h-100 {% if game.total_lean == 'OVER' %}border-success{% else %}border-danger{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
@@ -200,20 +200,22 @@
                 </thead>
                 <tbody>
                     {% for game in games %}
-                    <tr data-consensus="{{ game.model_agreement.count if game.model_agreement else 0 }}"
+                    <tr data-game-id="{{ game.game_id }}"
+                        data-consensus="{{ game.model_agreement.count if game.model_agreement else 0 }}"
                         data-confidence="{{ game.model_agreement.confidence|round(1) if game.model_agreement and game.model_agreement.confidence else 0 }}"
                         data-edge="{{ game.best_edge|round(1) if game.best_edge else 0 }}"
-                        data-ev="{{ game.ev_per_100|round(1) if game.ev_per_100 else -999 }}">
+                        data-ev="{{ game.ev_per_100|round(1) if game.ev_per_100 else -999 }}"
+                        style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
                         <td>
                             <div class="d-flex flex-column">
                                 <span>
                                     {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
-                                    <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
+                                    <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">{{ game.away_team_name }}</a>
                                 </span>
                                 <small class="text-muted">@</small>
                                 <span>
                                     {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
-                                    <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
+                                    <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">{{ game.home_team_name }}</a>
                                 </span>
                             </div>
                         </td>
@@ -394,4 +396,5 @@ function sortTable(criterion, btn) {
 // Sort by consensus on page load
 document.addEventListener('DOMContentLoaded', () => sortTable('consensus', document.querySelector('.btn-sm.active')));
 </script>
+<script src="/static/js/betting-links.js"></script>
 {% endblock %}

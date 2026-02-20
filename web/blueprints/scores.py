@@ -127,7 +127,7 @@ def scores():
         game_id = game.get('id')
         if game_id in stored_totals:
             game['nn_projected_total'] = stored_totals[game_id]
-        elif game.get('status') != 'final':
+        else:
             try:
                 from models.runs_ensemble import predict as runs_predict
                 rp = runs_predict(game['home_team_id'], game['away_team_id'], game_id=game_id)
@@ -315,6 +315,19 @@ def game_detail(game_id):
             betting_line['home_edge'] = (prediction['home_win_prob'] - dk_home/total) * 100
             betting_line['away_edge'] = (prediction['away_win_prob'] - dk_away/total) * 100
 
+    # Totals model breakdown (runs predictions from totals_predictions)
+    totals_models = []
+    try:
+        c.execute('''
+            SELECT model_name, prediction, over_under_line, projected_total, actual_total, was_correct
+            FROM totals_predictions
+            WHERE game_id = ?
+            ORDER BY CASE model_name WHEN 'runs_ensemble' THEN 0 ELSE 1 END, model_name
+        ''', (game_id,))
+        totals_models = [dict(row) for row in c.fetchall()]
+    except:
+        pass
+
     # Head-to-head history
     c.execute('''
         SELECT date, home_score, away_score, winner_id, home_team_id
@@ -350,4 +363,5 @@ def game_detail(game_id):
         game=game, home=home, away=away,
         prediction=prediction, models=models_list,
         betting_line=betting_line,
-        h2h_games=h2h_games, h2h_record=h2h_record)
+        h2h_games=h2h_games, h2h_record=h2h_record,
+        totals_models=totals_models)

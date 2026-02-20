@@ -111,7 +111,7 @@ def get_games_by_date(date_str, conference=None):
         LEFT JOIN teams at ON g.away_team_id = at.id
         LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
         LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
-        LEFT JOIN betting_lines b ON g.home_team_id = b.home_team_id 
+        LEFT JOIN (SELECT *, MAX(id) as _latest FROM betting_lines GROUP BY date, home_team_id, away_team_id) b ON g.home_team_id = b.home_team_id 
             AND g.away_team_id = b.away_team_id AND g.date = b.date
         WHERE g.date = ?
     '''
@@ -156,9 +156,11 @@ def get_all_teams():
 
     c.execute('''
         SELECT t.id, t.name, t.nickname, t.conference, t.current_rank,
-               e.rating as elo_rating
+               e.rating as elo_rating,
+               r.sams_rpi, r.sams_rank
         FROM teams t
         LEFT JOIN elo_ratings e ON t.id = e.team_id
+        LEFT JOIN team_rpi r ON t.id = r.team_id
         WHERE t.conference != 'Non-D1'
         ORDER BY t.name
     ''')
@@ -182,9 +184,12 @@ def get_team_detail(team_id):
     c = conn.cursor()
 
     c.execute('''
-        SELECT t.*, e.rating as elo_rating
+        SELECT t.*, e.rating as elo_rating,
+               r.sams_rpi, r.sams_rank, r.wp as rpi_wp, r.owp as rpi_owp, r.oowp as rpi_oowp,
+               r.ncaa_rpi, r.ncaa_rank
         FROM teams t
         LEFT JOIN elo_ratings e ON t.id = e.team_id
+        LEFT JOIN team_rpi r ON t.id = r.team_id
         WHERE t.id = ?
     ''', (team_id,))
 
@@ -244,6 +249,50 @@ def get_team_detail(team_id):
             'opponent_name': 'Start', 'rating_change': 0
         })
 
+    # Assumed lineup: top 9 batters by at-bats
+    c.execute('''
+        SELECT name, position, at_bats, batting_avg, ops, home_runs, rbi,
+               woba, wrc_plus
+        FROM player_stats
+        WHERE team_id = ? AND at_bats > 0
+              AND COALESCE(position, '') NOT IN ('P', 'RHP', 'LHP')
+              AND (innings_pitched IS NULL OR innings_pitched = 0 OR at_bats > 10)
+        ORDER BY at_bats DESC
+        LIMIT 9
+    ''', (team_id,))
+    team['assumed_lineup'] = [dict(r) for r in c.fetchall()]
+
+    # Recent starting pitchers (rotation)
+    c.execute('''
+        SELECT starting_pitcher, game_date, opponent
+        FROM lineup_history
+        WHERE team_id = ?
+        ORDER BY game_date DESC
+        LIMIT 5
+    ''', (team_id,))
+    team['recent_starters'] = [dict(r) for r in c.fetchall()]
+
+    # Projected starters from pitching_matchups
+    today = datetime.now().strftime('%Y-%m-%d')
+    c.execute('''
+        SELECT pm.game_id, g.date,
+               CASE WHEN g.home_team_id = ? THEN pm.home_starter_name ELSE pm.away_starter_name END as starter_name,
+               CASE WHEN g.home_team_id = ? THEN pm.home_starter_id ELSE pm.away_starter_id END as starter_id,
+               CASE WHEN g.home_team_id = ? THEN at.name ELSE ht.name END as opponent,
+               CASE WHEN g.home_team_id = ? THEN 'vs' ELSE '@' END as location,
+               pm.notes
+        FROM pitching_matchups pm
+        JOIN games g ON pm.game_id = g.id
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        WHERE (g.home_team_id = ? OR g.away_team_id = ?)
+        AND g.date >= ?
+        AND g.status = 'scheduled'
+        ORDER BY g.date
+        LIMIT 5
+    ''', (team_id, team_id, team_id, team_id, team_id, team_id, today))
+    team['projected_starters'] = [dict(r) for r in c.fetchall()]
+
     conn.close()
     return team
 
@@ -268,7 +317,7 @@ def get_todays_games():
                gw.temp_f as temperature, gw.wind_speed_mph as wind_speed, gw.wind_direction_deg as wind_direction, 
                gw.humidity_pct as humidity, gw.precip_prob_pct as precipitation_prob
         FROM games g
-        LEFT JOIN betting_lines b ON g.home_team_id = b.home_team_id 
+        LEFT JOIN (SELECT *, MAX(id) as _latest FROM betting_lines GROUP BY date, home_team_id, away_team_id) b ON g.home_team_id = b.home_team_id 
             AND g.away_team_id = b.away_team_id AND g.date = b.date
         LEFT JOIN teams ht ON g.home_team_id = ht.id
         LEFT JOIN teams at ON g.away_team_id = at.id

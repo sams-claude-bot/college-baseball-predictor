@@ -37,8 +37,17 @@ def create_app():
     # Configure caching (10-minute TTL, per-worker simple cache)
     app.config['CACHE_TYPE'] = 'SimpleCache'
     app.config['CACHE_DEFAULT_TIMEOUT'] = 600  # 10 minutes
+    app.config['TEMPLATES_AUTO_RELOAD'] = True
     cache = Cache(app)
     app.cache = cache  # Make accessible to blueprints
+
+    @app.after_request
+    def add_cache_headers(response):
+        """Prevent Cloudflare/browser from caching HTML pages"""
+        if 'text/html' in response.content_type:
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+        return response
 
     # Register blueprints
     app.register_blueprint(dashboard_bp)

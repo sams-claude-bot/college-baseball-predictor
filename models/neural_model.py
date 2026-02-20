@@ -26,11 +26,11 @@ import torch
 import torch.nn as nn
 
 from models.base_model import BaseModel
-from models.nn_features import FeatureComputer
+from models.nn_features_slim import SlimFeatureComputer, SlimBaseballNet, NUM_FEATURES as SLIM_NUM_FEATURES
 
-# Paths
-MODEL_PATH = Path(__file__).parent.parent / "data" / "nn_model.pt"
-FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_model_finetuned.pt"
+# Paths — now uses slim model trained on real historical features only
+MODEL_PATH = Path(__file__).parent.parent / "data" / "nn_slim_model.pt"
+FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_slim_model_finetuned.pt"
 
 
 class BaseballNet(nn.Module):
@@ -79,11 +79,9 @@ class NeuralModel(BaseModel):
     description = "PyTorch neural network (model stacking ensemble)"
 
     def __init__(self, use_model_predictions=False):
-        self.feature_computer = FeatureComputer(
-            use_model_predictions=use_model_predictions
-        )
+        self.feature_computer = SlimFeatureComputer()
         self.input_size = self.feature_computer.get_num_features()
-        self.model = BaseballNet(self.input_size)
+        self.model = SlimBaseballNet(self.input_size)
         self.model.eval()
         self._loaded = False
 
@@ -98,7 +96,7 @@ class NeuralModel(BaseModel):
                     saved_size = checkpoint.get('input_size', self.input_size)
                     if saved_size != self.input_size:
                         self.input_size = saved_size
-                        self.model = BaseballNet(saved_size)
+                        self.model = SlimBaseballNet(saved_size)
                         self.model.eval()
                     self.model.load_state_dict(checkpoint['model_state_dict'])
                     self._feature_mean = checkpoint.get('feature_mean')

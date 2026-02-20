@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.predictor_db import Predictor
 from models.nn_totals_model import NNTotalsModel
+from models.nn_totals_slim import SlimTotalsModel
 from models.nn_spread_model import NNSpreadModel
 from scripts.database import get_connection
 from scripts.run_utils import ScriptRunner
@@ -83,6 +84,7 @@ def predict_games(date=None, days=3, runner=None):
     
     # Initialize NN totals and spread models
     nn_totals = NNTotalsModel(use_model_predictions=False)
+    nn_slim_totals = SlimTotalsModel()
     nn_spread = NNSpreadModel(use_model_predictions=False)
     
     predictions_made = 0
@@ -101,10 +103,20 @@ def predict_games(date=None, days=3, runner=None):
             if model_name in existing_models:
                 continue
             try:
-                result = predictor.predict_game(home_name, away_name)
+                # Pass team IDs (not names) to avoid home/away confusion
+                result = predictor.predict_game(home_id, away_id)
                 home_prob = result.get('home_win_probability', 0.5)
                 home_runs = result.get('projected_home_runs', result.get('predicted_home_runs', 0)) or 0
                 away_runs = result.get('projected_away_runs', result.get('predicted_away_runs', 0)) or 0
+                
+                # Sanity check: verify the model understood home/away correctly
+                returned_home = result.get('home_team', '').lower().replace(' ', '-')
+                if returned_home and returned_home != home_id:
+                    # Model returned teams in wrong order — flip probabilities
+                    if runner:
+                        runner.warn(f"  {model_name:12}: HOME/AWAY MISMATCH - expected {home_id}, got {returned_home}. Flipping.")
+                    home_prob = 1 - home_prob
+                    home_runs, away_runs = away_runs, home_runs
                 
                 cur.execute('''
                     INSERT INTO model_predictions 
@@ -125,16 +137,20 @@ def predict_games(date=None, days=3, runner=None):
                     print(f"  {model_name:12}: ERROR - {e}")
         
         # Totals predictions: runs ensemble + per-component models + nn_totals
+        # Runs for ALL games regardless of DK lines
         cur.execute('''
             SELECT over_under FROM betting_lines 
             WHERE home_team_id = ? AND away_team_id = ? AND over_under IS NOT NULL AND over_under > 0
             ORDER BY captured_at DESC LIMIT 1
         ''', (home_id, away_id))
         dk_row = cur.fetchone()
+        dk_line = dk_row[0] if dk_row else None
         
-        if dk_row:
-            dk_line = dk_row[0]
-            
+        # Check if we already have totals for this game
+        cur.execute('SELECT model_name FROM totals_predictions WHERE game_id = ?', (game_id,))
+        existing_totals = {row[0] for row in cur.fetchall()}
+        
+        if 'runs_ensemble' not in existing_totals:
             # Runs ensemble + per-component model totals
             try:
                 from models.runs_ensemble import predict as runs_predict, get_model_projections
@@ -142,61 +158,97 @@ def predict_games(date=None, days=3, runner=None):
                 
                 # Store ensemble totals prediction
                 ens_total = runs_result.get('projected_total', 0)
-                ens_prediction = 'OVER' if ens_total > dk_line else 'UNDER'
-                ens_edge = abs(ens_total - dk_line) / dk_line * 100
+                # Use DK line if available, otherwise store without O/U prediction
+                if dk_line:
+                    ens_prediction = 'OVER' if ens_total > dk_line else 'UNDER'
+                    ens_edge = abs(ens_total - dk_line) / dk_line * 100
+                else:
+                    ens_prediction = None
+                    ens_edge = None
                 cur.execute('''
                     INSERT OR IGNORE INTO totals_predictions 
                     (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
                     VALUES (?, ?, ?, ?, ?, 'runs_ensemble')
                 ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge))
+                line_str = f" (line {dk_line})" if dk_line else ""
+                pred_str = f" → {ens_prediction}" if ens_prediction else ""
                 if runner:
-                    runner.info(f"  {'runs_ens':12}: projected total {ens_total:.1f} (line {dk_line}) → {ens_prediction}")
+                    runner.info(f"  {'runs_ens':12}: projected total {ens_total:.1f}{line_str}{pred_str}")
                 else:
-                    print(f"  {'runs_ens':12}: projected total {ens_total:.1f} (line {dk_line}) → {ens_prediction}")
+                    print(f"  {'runs_ens':12}: projected total {ens_total:.1f}{line_str}{pred_str}")
                 
                 # Store per-component model totals (for weight adjustment tracking)
                 for comp_name, comp_data in runs_result.get('model_breakdown', {}).items():
                     comp_total = comp_data.get('total', 0)
-                    if comp_total > 0:
-                        comp_pred = 'OVER' if comp_total > dk_line else 'UNDER'
-                        comp_edge = abs(comp_total - dk_line) / dk_line * 100
+                    if comp_total > 0 and f'runs_{comp_name}' not in existing_totals:
+                        if dk_line:
+                            comp_pred = 'OVER' if comp_total > dk_line else 'UNDER'
+                            comp_edge = abs(comp_total - dk_line) / dk_line * 100
+                        else:
+                            comp_pred = None
+                            comp_edge = None
                         cur.execute('''
                             INSERT OR IGNORE INTO totals_predictions 
                             (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
                             VALUES (?, ?, ?, ?, ?, ?)
                         ''', (game_id, dk_line, comp_total, comp_pred, comp_edge, f'runs_{comp_name}'))
                         if runner:
-                            runner.info(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f} (line {dk_line}) → {comp_pred}")
+                            runner.info(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f}{line_str}")
                         else:
-                            print(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f} (line {dk_line}) → {comp_pred}")
+                            print(f"  {'runs_'+comp_name:12}: projected total {comp_total:.1f}{line_str}")
             except Exception as e:
                 if runner:
                     runner.warn(f"  {'runs_ens':12}: ERROR - {e}")
                 else:
                     print(f"  {'runs_ens':12}: ERROR - {e}")
-            
-            # NN Totals prediction
-            if nn_totals.is_trained():
-                try:
-                    t_pred = nn_totals.predict_game(home_id, away_id)
-                    proj_total = t_pred.get('projected_total', 0)
-                    prediction = 'OVER' if proj_total > dk_line else 'UNDER'
-                    edge = abs(proj_total - dk_line) / dk_line * 100
-                    cur.execute('''
-                        INSERT OR IGNORE INTO totals_predictions 
-                        (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
-                        VALUES (?, ?, ?, ?, ?, 'nn_totals')
-                    ''', (game_id, dk_line, proj_total, prediction, edge))
-                    if runner:
-                        runner.info(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
-                    else:
-                        print(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
-                except Exception as e:
-                    if runner:
-                        runner.warn(f"  {'nn_totals':12}: ERROR - {e}")
-                    else:
-                        print(f"  {'nn_totals':12}: ERROR - {e}")
         
+        # NN Totals prediction (only if we have a DK line for O/U comparison)
+        if dk_line and nn_totals.is_trained() and 'nn_totals' not in existing_totals:
+            try:
+                t_pred = nn_totals.predict_game(home_id, away_id)
+                proj_total = t_pred.get('projected_total', 0)
+                prediction = 'OVER' if proj_total > dk_line else 'UNDER'
+                edge = abs(proj_total - dk_line) / dk_line * 100
+                cur.execute('''
+                    INSERT OR IGNORE INTO totals_predictions 
+                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
+                    VALUES (?, ?, ?, ?, ?, 'nn_totals')
+                ''', (game_id, dk_line, proj_total, prediction, edge))
+                if runner:
+                    runner.info(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
+                else:
+                    print(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
+            except Exception as e:
+                if runner:
+                    runner.warn(f"  {'nn_totals':12}: ERROR - {e}")
+                else:
+                    print(f"  {'nn_totals':12}: ERROR - {e}")
+        
+        # NN Slim Totals prediction
+        if nn_slim_totals.is_trained() and 'nn_slim_totals' not in existing_totals:
+            try:
+                t_pred = nn_slim_totals.predict_game(home_id, away_id)
+                proj_total = t_pred.get('projected_total', 0)
+                dk = dk_line or 0
+                prediction = 'OVER' if dk and proj_total > dk else 'UNDER' if dk else 'N/A'
+                edge = abs(proj_total - dk) / dk * 100 if dk else 0
+                cur.execute('''
+                    INSERT OR IGNORE INTO totals_predictions 
+                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
+                    VALUES (?, ?, ?, ?, ?, 'nn_slim_totals')
+                ''', (game_id, dk, proj_total, prediction, edge))
+                if runner:
+                    runner.info(f"  {'nn_slim_tot':12}: projected total {proj_total:.1f}" +
+                               (f" (line {dk}) → {prediction}" if dk else ""))
+                else:
+                    print(f"  {'nn_slim_tot':12}: projected total {proj_total:.1f}" +
+                          (f" (line {dk}) → {prediction}" if dk else ""))
+            except Exception as e:
+                if runner:
+                    runner.warn(f"  {'nn_slim_tot':12}: ERROR - {e}")
+                else:
+                    print(f"  {'nn_slim_tot':12}: ERROR - {e}")
+
         # NN Spread prediction  
         if nn_spread.is_trained():
             try:
@@ -220,6 +272,79 @@ def predict_games(date=None, days=3, runner=None):
                     print(f"  {'nn_spread':12}: ERROR - {e}")
     
     conn.commit()
+    
+    # Second pass: ensure ALL scheduled games have totals predictions (not just ones needing ML)
+    cur.execute('''
+        SELECT g.id, g.home_team_id, g.away_team_id, h.name, a.name
+        FROM games g
+        JOIN teams h ON g.home_team_id = h.id
+        JOIN teams a ON g.away_team_id = a.id
+        WHERE g.date BETWEEN ? AND ?
+        AND g.status IN ('scheduled', 'in-progress')
+        AND g.id NOT IN (SELECT DISTINCT game_id FROM totals_predictions WHERE model_name = 'runs_ensemble')
+    ''', (date_start, date_end))
+    totals_missing_games = cur.fetchall()
+    
+    if totals_missing_games:
+        if runner:
+            runner.info(f"Backfilling totals for {len(totals_missing_games)} games missing runs predictions")
+        else:
+            print(f"\nBackfilling totals for {len(totals_missing_games)} games missing runs predictions")
+        
+        for game_id, home_id, away_id, home_name, away_name in totals_missing_games:
+            # Get DK line if available
+            cur.execute('''
+                SELECT over_under FROM betting_lines 
+                WHERE home_team_id = ? AND away_team_id = ? AND over_under IS NOT NULL AND over_under > 0
+                ORDER BY captured_at DESC LIMIT 1
+            ''', (home_id, away_id))
+            dk_row = cur.fetchone()
+            dk_line = dk_row[0] if dk_row else None
+            
+            try:
+                from models.runs_ensemble import predict as runs_predict
+                runs_result = runs_predict(home_id, away_id, total_line=dk_line)
+                
+                ens_total = runs_result.get('projected_total', 0)
+                if dk_line:
+                    ens_prediction = 'OVER' if ens_total > dk_line else 'UNDER'
+                    ens_edge = abs(ens_total - dk_line) / dk_line * 100
+                else:
+                    ens_prediction = None
+                    ens_edge = None
+                cur.execute('''
+                    INSERT OR IGNORE INTO totals_predictions 
+                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
+                    VALUES (?, ?, ?, ?, ?, 'runs_ensemble')
+                ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge))
+                
+                for comp_name, comp_data in runs_result.get('model_breakdown', {}).items():
+                    comp_total = comp_data.get('total', 0)
+                    if comp_total > 0:
+                        if dk_line:
+                            comp_pred = 'OVER' if comp_total > dk_line else 'UNDER'
+                            comp_edge = abs(comp_total - dk_line) / dk_line * 100
+                        else:
+                            comp_pred = None
+                            comp_edge = None
+                        cur.execute('''
+                            INSERT OR IGNORE INTO totals_predictions 
+                            (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        ''', (game_id, dk_line, comp_total, comp_pred, comp_edge, f'runs_{comp_name}'))
+                
+                line_str = f" (line {dk_line})" if dk_line else ""
+                if runner:
+                    runner.info(f"  {away_name} @ {home_name}: {ens_total:.1f}{line_str}")
+                else:
+                    print(f"  {away_name} @ {home_name}: {ens_total:.1f}{line_str}")
+            except Exception as e:
+                if runner:
+                    runner.warn(f"  {away_name} @ {home_name}: ERROR - {e}")
+                else:
+                    print(f"  {away_name} @ {home_name}: ERROR - {e}")
+        
+        conn.commit()
     
     # Validation: Check that all models have predictions for each game
     if runner:
@@ -358,7 +483,10 @@ def evaluate_predictions(date=None, runner=None):
     totals_updated = 0
     for rowid, game_id, prediction, line, model_name, home_score, away_score in totals_rows:
         actual_total = home_score + away_score
-        if actual_total == line:
+        if prediction is None or line is None:
+            # No DK line — just record actual total, no correct/incorrect
+            correct = None
+        elif actual_total == line:
             correct = None  # Push
         elif prediction == 'OVER':
             correct = 1 if actual_total > line else 0

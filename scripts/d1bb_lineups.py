@@ -35,30 +35,19 @@ except ImportError:
 
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
+SLUGS_PATH = PROJECT_DIR / 'config' / 'd1bb_slugs.json'
 
 sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
 from team_resolver import resolve_team as db_resolve_team
 
-# D1Baseball team slug mapping (their URL slugs differ from ours)
-D1BB_SLUGS = {
-    'mississippi-state': 'missst',
-    'ole-miss': 'olemiss', 
-    'texas-am': 'texasam',
-    'lsu': 'lsu',
-    'florida': 'florida',
-    'georgia': 'georgia',
-    'auburn': 'auburn',
-    'alabama': 'alabama',
-    'arkansas': 'arkansas',
-    'tennessee': 'tennessee',
-    'vanderbilt': 'vanderbilt',
-    'kentucky': 'kentucky',
-    'south-carolina': 'southcarolina',
-    'missouri': 'missouri',
-    'texas': 'texas',
-    'oklahoma': 'oklahoma',
-    # Add more as needed
-}
+# Load D1BB slugs from config (311 teams)
+import json
+if SLUGS_PATH.exists():
+    _slug_data = json.load(open(SLUGS_PATH))
+    D1BB_SLUGS = _slug_data.get('team_id_to_d1bb_slug', _slug_data)
+else:
+    print(f"Warning: {SLUGS_PATH} not found, using empty slug map")
+    D1BB_SLUGS = {}
 
 # Timing
 PAGE_LOAD_WAIT = 5
@@ -433,10 +422,35 @@ def main():
         for team_id in teams:
             scrape_team_lineups(team_id, dry_run=args.dry_run)
             time.sleep(BETWEEN_TEAMS_DELAY)
+    elif args.all:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('SELECT id FROM teams ORDER BY conference, id')
+        teams = [r['id'] for r in c.fetchall()]
+        conn.close()
+        
+        print(f"Scraping all {len(teams)} teams...")
+        success = 0
+        failed = 0
+        for i, team_id in enumerate(teams):
+            print(f"\n[{i+1}/{len(teams)}] ", end='')
+            try:
+                games = scrape_team_lineups(team_id, dry_run=args.dry_run)
+                if games:
+                    success += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                print(f"  FAILED: {e}")
+                failed += 1
+            time.sleep(BETWEEN_TEAMS_DELAY)
+        
+        print(f"\n=== Done: {success} teams with data, {failed} failed/empty ===")
     else:
         print("Usage:")
         print("  --team mississippi-state  # Single team")
         print("  --conference SEC          # All SEC teams")
+        print("  --all                     # All tracked teams")
         print("  --show mississippi-state  # View rotation analysis")
 
 

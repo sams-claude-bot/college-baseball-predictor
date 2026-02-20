@@ -286,7 +286,7 @@ def _get_bias_correction() -> float:
         ''')
         row = c.fetchone()
         conn.close()
-        if row and row['n'] and row['n'] >= 10:
+        if row and row['n'] and row['n'] >= 50:
             return row['bias'] or 0.0
         return 0.0
     except Exception:
