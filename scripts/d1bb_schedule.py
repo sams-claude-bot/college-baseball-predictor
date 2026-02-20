@@ -463,7 +463,8 @@ def main():
                         (date_str,)
                     )
                     db_scheduled = [row['id'] for row in cursor.fetchall()]
-                    phantom_ids = [gid for gid in db_scheduled if gid not in d1bb_game_ids]
+                    # Don't prune _gm2+ doubleheader games — scores page doesn't list them separately
+                    phantom_ids = [gid for gid in db_scheduled if gid not in d1bb_game_ids and '_gm' not in gid]
                     
                     if phantom_ids:
                         if not args.dry_run:
