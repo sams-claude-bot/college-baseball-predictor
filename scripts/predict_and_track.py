@@ -18,9 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models.predictor_db import Predictor
-from models.nn_totals_model import NNTotalsModel
 from models.nn_totals_slim import SlimTotalsModel
-from models.nn_spread_model import NNSpreadModel
 from scripts.database import get_connection
 from scripts.run_utils import ScriptRunner
 
@@ -82,10 +80,8 @@ def predict_games(date=None, days=3, runner=None):
     # Initialize predictors for each model
     predictors = {name: Predictor(model=name) for name in MODEL_NAMES}
     
-    # Initialize NN totals and spread models
-    nn_totals = NNTotalsModel(use_model_predictions=False)
+    # Initialize NN slim totals model
     nn_slim_totals = SlimTotalsModel()
-    nn_spread = NNSpreadModel(use_model_predictions=False)
     
     predictions_made = 0
     models_run = 0
@@ -202,28 +198,6 @@ def predict_games(date=None, days=3, runner=None):
                 else:
                     print(f"  {'runs_ens':12}: ERROR - {e}")
         
-        # NN Totals prediction (only if we have a DK line for O/U comparison)
-        if dk_line and nn_totals.is_trained() and 'nn_totals' not in existing_totals:
-            try:
-                t_pred = nn_totals.predict_game(home_id, away_id)
-                proj_total = t_pred.get('projected_total', 0)
-                prediction = 'OVER' if proj_total > dk_line else 'UNDER'
-                edge = abs(proj_total - dk_line) / dk_line * 100
-                cur.execute('''
-                    INSERT OR IGNORE INTO totals_predictions 
-                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
-                    VALUES (?, ?, ?, ?, ?, 'nn_totals')
-                ''', (game_id, dk_line, proj_total, prediction, edge))
-                if runner:
-                    runner.info(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
-                else:
-                    print(f"  {'nn_totals':12}: projected total {proj_total:.1f} (line {dk_line}) → {prediction}")
-            except Exception as e:
-                if runner:
-                    runner.warn(f"  {'nn_totals':12}: ERROR - {e}")
-                else:
-                    print(f"  {'nn_totals':12}: ERROR - {e}")
-        
         # NN Slim Totals prediction
         if nn_slim_totals.is_trained() and 'nn_slim_totals' not in existing_totals:
             try:
@@ -249,27 +223,7 @@ def predict_games(date=None, days=3, runner=None):
                 else:
                     print(f"  {'nn_slim_tot':12}: ERROR - {e}")
 
-        # NN Spread prediction  
-        if nn_spread.is_trained():
-            try:
-                s_pred = nn_spread.predict_game(home_id, away_id)
-                margin = s_pred.get('projected_margin', 0)
-                cover_prob = s_pred.get('cover_prob', 0.5)
-                prediction = 'HOME_COVER' if margin > -1.5 else 'AWAY_COVER'
-                cur.execute('''
-                    INSERT OR IGNORE INTO spread_predictions
-                    (game_id, model_name, spread_line, projected_margin, prediction, cover_prob)
-                    VALUES (?, 'nn_spread', -1.5, ?, ?, ?)
-                ''', (game_id, margin, prediction, cover_prob))
-                if runner:
-                    runner.info(f"  {'nn_spread':12}: margin {margin:+.1f} | cover prob {cover_prob:.1%}")
-                else:
-                    print(f"  {'nn_spread':12}: margin {margin:+.1f} | cover prob {cover_prob:.1%}")
-            except Exception as e:
-                if runner:
-                    runner.warn(f"  {'nn_spread':12}: ERROR - {e}")
-                else:
-                    print(f"  {'nn_spread':12}: ERROR - {e}")
+        # Old nn_spread removed — spreads disabled
     
     conn.commit()
     
