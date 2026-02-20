@@ -356,6 +356,13 @@ def get_todays_games():
     games = [dict(row) for row in c.fetchall()]
     conn.close()
 
+    # Fill in missing team names from team IDs (for opponents not in teams table)
+    for game in games:
+        if not game.get('home_team_name') and game.get('home_team_id'):
+            game['home_team_name'] = game['home_team_id'].replace('-', ' ').title()
+        if not game.get('away_team_name') and game.get('away_team_id'):
+            game['away_team_name'] = game['away_team_id'].replace('-', ' ').title()
+
     # Add stored predictions to each game (no live model calls)
     conn2 = get_connection()
     stored = {}
@@ -1014,6 +1021,13 @@ def get_games_for_date_with_predictions(date_str):
 
     games = [dict(row) for row in c.fetchall()]
     conn.close()
+
+    # Fill in missing team names from team IDs
+    for game in games:
+        if not game.get('home_team_name') and game.get('home_team_id'):
+            game['home_team_name'] = game['home_team_id'].replace('-', ' ').title()
+        if not game.get('away_team_name') and game.get('away_team_id'):
+            game['away_team_name'] = game['away_team_id'].replace('-', ' ').title()
 
     # Load pre-game predictions from model_predictions table (recorded BEFORE games)
     conn2 = get_connection()
