@@ -345,10 +345,16 @@ def api_best_bets():
     spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
     best_spreads = spread_candidates[:6] if SPREADS_ENABLED else []
 
-    # Confident bets (7/10+ models agree, sorted by confidence score)
+    # Confident bets (7/10+ models agree, cap heavy favorites at -300)
+    MAX_FAVORITE_CONSENSUS = -300
+    def _pick_ml(g):
+        pick = g.get('model_agreement', {}).get('pick', 'home')
+        return g.get('home_ml') if pick == 'home' else g.get('away_ml')
+
     confident_candidates = [g for g in games
                            if g.get('model_agreement')
-                           and g['model_agreement']['count'] >= 7]
+                           and g['model_agreement']['count'] >= 7
+                           and (_pick_ml(g) is None or _pick_ml(g) >= MAX_FAVORITE_CONSENSUS)]
     confident_candidates.sort(key=lambda x: x['model_agreement']['confidence'], reverse=True)
     best_confident = confident_candidates[:6]
 

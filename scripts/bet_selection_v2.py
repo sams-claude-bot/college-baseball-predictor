@@ -36,7 +36,7 @@ ML_EDGE_THRESHOLD = 8.0       # Was 5%, raised to 8%
 ML_EDGE_UNDERDOG = 15.0       # Higher threshold for underdogs (+100 or more)
 ML_CONSENSUS_MIN = 7          # Require 7/10 models to agree
 ML_MAX_FAVORITE = -200        # Don't bet heavy favorites for EV bets
-ML_MAX_FAVORITE_CONSENSUS = -300  # Allow heavier favorites when consensus is high
+ML_MAX_FAVORITE_CONSENSUS = -300  # Cap for consensus bets too
 ML_MIN_UNDERDOG = 250         # Don't bet extreme underdogs (unlikely to hit)
 
 # Model probability sanity checks

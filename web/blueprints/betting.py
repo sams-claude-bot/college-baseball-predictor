@@ -66,9 +66,17 @@ def betting():
     games_with_edge.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
 
     # Confident bets (7/10+ models agree, sorted by adjusted edge)
+    # Cap at -300: heavy favorites aren't worth betting even with consensus
+    MAX_FAVORITE_ML = -300
+
+    def passes_favorite_cap(g):
+        ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
+        return ml is None or ml >= MAX_FAVORITE_ML
+
     confident_candidates = [g for g in games
                            if g.get('model_agreement')
-                           and g['model_agreement']['count'] >= 7]
+                           and g['model_agreement']['count'] >= 7
+                           and passes_favorite_cap(g)]
     confident_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
     confident_bets = confident_candidates[:6]
 
@@ -76,7 +84,8 @@ def betting():
     confident_ids = {g['game_id'] for g in confident_bets}
     ev_candidates = [g for g in games_with_edge
                      if g['game_id'] not in confident_ids
-                     and g.get('best_edge', 0) >= ML_EDGE_FAVORITE]
+                     and g.get('best_edge', 0) >= ML_EDGE_FAVORITE
+                     and passes_favorite_cap(g)]
     ev_candidates.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
     ev_bets = ev_candidates[:6]
 

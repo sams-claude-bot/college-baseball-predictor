@@ -37,6 +37,7 @@ def get_teams_needing_check(db, threshold=3):
             (SELECT COUNT(*) FROM games g 
              WHERE (g.home_team_id=t.id OR g.away_team_id=t.id)) as total
         FROM teams t
+        GROUP BY t.id
         HAVING finals < ?
         ORDER BY finals ASC, t.name
     ''', (threshold,))

@@ -60,6 +60,22 @@ def debug():
             suspicious_teams.append(entry)
     teams_over_3 = suspicious_teams
 
+    # Teams with fewer than 3 final games (potential data gaps)
+    c.execute('''
+        SELECT t.id, t.name, t.conference,
+            COUNT(g.id) as game_count,
+            SUM(CASE WHEN g.winner_id = t.id THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN g.winner_id != t.id AND g.winner_id IS NOT NULL THEN 1 ELSE 0 END) as losses,
+            MIN(g.date) as first_game,
+            MAX(g.date) as last_game
+        FROM teams t
+        LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id) AND g.status = 'final'
+        GROUP BY t.id
+        HAVING game_count < 3
+        ORDER BY game_count ASC, t.name
+    ''')
+    low_game_teams = [dict(row) for row in c.fetchall()]
+
     # Load flags from JSON file
     flags_path = base_dir / 'data' / 'debug_flags.json'
     flags = {}
@@ -154,7 +170,8 @@ def debug():
         orphan_count=orphan_count,
         recent_dates=recent_dates,
         bug_reports=bug_reports,
-        failed_scrapes=failed_scrapes
+        failed_scrapes=failed_scrapes,
+        low_game_teams=low_game_teams
     )
 
 

@@ -43,6 +43,7 @@ class EloModel(BaseModel):
     def __init__(self):
         self.ratings = {}
         self._conference_cache = {}
+        self._base_runs_cache = None
         self._load_ratings()
     
     def _load_ratings(self):
@@ -111,7 +112,8 @@ class EloModel(BaseModel):
             except Exception:
                 start_elo = ELO_TEAM_START_OVERRIDES.get(team_id, self.BASE_RATING)
             self.ratings[team_id] = start_elo
-            self._save_rating(team_id, start_elo)
+            # Don't write to DB here — only save during update_ratings
+            # This avoids write locks during read-only prediction calls
         return self.ratings[team_id]
     
     def _save_rating(self, team_id, rating, increment_games=False):
@@ -260,17 +262,19 @@ class EloModel(BaseModel):
         # Project runs based on rating differential
         # Higher rated teams score more, allow less
         rating_diff = (home_rating - away_rating) / 100
-        # Use actual league average instead of hardcoded 5.5
-        try:
-            from scripts.database import get_connection
-            _conn = get_connection()
-            _r = _conn.cursor().execute(
-                'SELECT AVG(home_score + away_score) / 2.0 FROM games WHERE home_score IS NOT NULL'
-            ).fetchone()
-            _conn.close()
-            base_runs = _r[0] if _r and _r[0] else 6.5
-        except Exception:
-            base_runs = 6.5
+        # Use cached league average (one query per session, not per prediction)
+        if self._base_runs_cache is None:
+            try:
+                from scripts.database import get_connection
+                _conn = get_connection()
+                _r = _conn.cursor().execute(
+                    'SELECT AVG(home_score + away_score) / 2.0 FROM games WHERE home_score IS NOT NULL'
+                ).fetchone()
+                _conn.close()
+                self._base_runs_cache = _r[0] if _r and _r[0] else 6.5
+            except Exception:
+                self._base_runs_cache = 6.5
+        base_runs = self._base_runs_cache
         
         home_runs = base_runs + rating_diff * 0.5
         away_runs = base_runs - rating_diff * 0.5
