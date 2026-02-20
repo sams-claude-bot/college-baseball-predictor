@@ -648,10 +648,9 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
             print(f"  ❌ Error: {e}")
             results_summary['nn_slim_totals'] = {'status': 'error', 'error': str(e)}
         
-        # Totals, spread, dow_totals: fine-tune from existing base weights
-        for name, config in NN_CONFIGS.items():
-            if name == 'win':
-                continue  # Already handled above
+        # OLD NN models (totals, spread, dow_totals) — DEPRECATED, replaced by nn_slim
+        # Skip these entirely — only nn_slim_win and nn_slim_totals are active
+        for name, config in []:  # was: NN_CONFIGS.items()
             model_type = config['type']
             print(f"\n📊 {name.upper()} ({model_type})")
             
