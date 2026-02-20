@@ -304,7 +304,7 @@ def get_todays_games():
     conn = get_connection()
     c = conn.cursor()
 
-    # Combine games from both games table and betting_lines (DK may have games not in schedule)
+    # Games from schedule only — betting lines joined on when available
     c.execute('''
         SELECT g.id, g.date, g.time, g.status,
                g.home_team_id, g.away_team_id,
@@ -325,33 +325,8 @@ def get_todays_games():
         LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
         LEFT JOIN game_weather gw ON g.id = gw.game_id
         WHERE g.date = ?
-
-        UNION
-
-        SELECT b.game_id as id, b.date, NULL as time, NULL as status,
-               b.home_team_id, b.away_team_id,
-               NULL as home_score, NULL as away_score,
-               b.home_ml, b.away_ml, b.over_under,
-               b.home_spread as run_line, b.home_spread_odds as run_line_odds,
-               ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
-               at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
-               he.rating as home_elo, ae.rating as away_elo,
-               NULL as temperature, NULL as wind_speed, NULL as wind_direction, NULL as humidity, NULL as precipitation_prob
-        FROM betting_lines b
-        LEFT JOIN teams ht ON b.home_team_id = ht.id
-        LEFT JOIN teams at ON b.away_team_id = at.id
-        LEFT JOIN elo_ratings he ON b.home_team_id = he.team_id
-        LEFT JOIN elo_ratings ae ON b.away_team_id = ae.team_id
-        WHERE b.date = ?
-        AND NOT EXISTS (
-            SELECT 1 FROM games g 
-            WHERE g.home_team_id = b.home_team_id 
-            AND g.away_team_id = b.away_team_id 
-            AND g.date = b.date
-        )
-
-        ORDER BY time, id
-    ''', (today, today))
+        ORDER BY g.time, g.id
+    ''', (today,))
 
     games = [dict(row) for row in c.fetchall()]
     conn.close()
