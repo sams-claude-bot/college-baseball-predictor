@@ -392,7 +392,7 @@ def main():
         runner.error("playwright required")
         runner.finish()
     
-    stats = {'created': 0, 'updated': 0, 'unchanged': 0, 'unresolved': 0, 'replaced': 0}
+    stats = {'created': 0, 'updated': 0, 'unchanged': 0, 'unresolved': 0, 'replaced': 0, 'pruned': 0}
     games_found = 0
     
     with sync_playwright() as p:
@@ -404,6 +404,7 @@ def main():
         
         for date_str in dates:
             runner.info(f"=== {date_str} ===")
+            d1bb_game_ids = set()  # Track which games D1Baseball lists for this date
             
             try:
                 games = extract_games_for_date(page, date_str, verbose=args.verbose)
@@ -427,6 +428,14 @@ def main():
                         stats['unresolved'] += 1
                         continue
                     
+                    # Track this game as confirmed by D1Baseball
+                    game_id = f"{date_str}_{away_id}_{home_id}"
+                    d1bb_game_ids.add(game_id)
+                    # Also track the reverse ID in case DB has home/away swapped
+                    ghost = _find_existing_game(db, date_str, home_id, away_id)
+                    if ghost:
+                        d1bb_game_ids.add(ghost['id'])
+                    
                     # Parse time
                     game_time = parse_time(game.get('time_text'), date_str)
                     
@@ -446,6 +455,29 @@ def main():
                     else:
                         runner.info(f"  {away_id} @ {home_id} ({game_time or 'TBD'})")
                 
+                # Prune: remove scheduled DB games for this date not found on D1Baseball
+                # Only prune if we found a reasonable number of games (avoid wiping on scrape failure)
+                if len(d1bb_game_ids) >= 10:
+                    cursor = db.execute(
+                        "SELECT id FROM games WHERE date = ? AND status = 'scheduled'",
+                        (date_str,)
+                    )
+                    db_scheduled = [row['id'] for row in cursor.fetchall()]
+                    phantom_ids = [gid for gid in db_scheduled if gid not in d1bb_game_ids]
+                    
+                    if phantom_ids:
+                        if not args.dry_run:
+                            for pid in phantom_ids:
+                                db.execute("DELETE FROM games WHERE id = ?", (pid,))
+                                if args.verbose:
+                                    runner.info(f"  PRUNED: {pid}")
+                            runner.info(f"  Pruned {len(phantom_ids)} phantom games for {date_str}")
+                        else:
+                            runner.info(f"  Would prune {len(phantom_ids)} phantom games for {date_str}")
+                            for pid in phantom_ids:
+                                runner.info(f"    {pid}")
+                        stats['pruned'] += len(phantom_ids)
+                
             except Exception as e:
                 runner.error(f"Error on {date_str}: {e}")
                 import traceback
@@ -463,6 +495,7 @@ def main():
     runner.add_stat("created", stats['created'])
     runner.add_stat("updated", stats['updated'])
     runner.add_stat("unresolved", stats['unresolved'])
+    runner.add_stat("pruned", stats['pruned'])
     
     # Auto-evaluate predictions for any games that just got final scores
     if not args.dry_run and stats['updated'] > 0:
