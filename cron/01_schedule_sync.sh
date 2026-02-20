@@ -5,7 +5,7 @@ cd /home/sam/college-baseball-predictor
 LOG="logs/cron/$(date +%Y-%m-%d)_01_schedule_sync.log"
 
 echo "=== Schedule Sync $(date) ===" >> "$LOG"
-python3 -u scripts/d1bb_schedule.py --days 7 >> "$LOG" 2>&1
+python3 -u scripts/d1bb_team_sync.py --delay 0.5 >> "$LOG" 2>&1
 echo "--- Verification ---" >> "$LOG"
 python3 -c "
 import sqlite3
