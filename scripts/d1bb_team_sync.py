@@ -90,7 +90,9 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
         else:
             home_id, away_id = opp_id, team_id
         
-        game_id = f"{date}_{away_id}_{home_id}"
+        game_num = g.get('game_num', 1)
+        dh_suffix = f"_gm{game_num}" if game_num > 1 else ""
+        game_id = f"{date}_{away_id}_{home_id}{dh_suffix}"
         
         # Check if game exists
         existing = db.execute(
@@ -100,21 +102,33 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
         
         # Also check with swapped home/away (ESPN sometimes gets this wrong)
         if not existing:
-            alt_id = f"{date}_{home_id}_{away_id}"
+            alt_id = f"{date}_{home_id}_{away_id}{dh_suffix}"
             existing = db.execute(
                 "SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games WHERE id = ?",
                 (alt_id,)
             ).fetchone()
         
         # Try fuzzy match: same date, same teams in any order
+        # For doubleheaders (game_num > 1), only match games with the same suffix
         if not existing:
-            existing = db.execute("""
-                SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games
-                WHERE date = ? AND (
-                    (home_team_id = ? AND away_team_id = ?) OR
-                    (home_team_id = ? AND away_team_id = ?)
-                )
-            """, (date, home_id, away_id, away_id, home_id)).fetchone()
+            if game_num == 1:
+                # For game 1, match any non-DH game on this date with these teams
+                existing = db.execute("""
+                    SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games
+                    WHERE date = ? AND id NOT LIKE '%_gm%' AND (
+                        (home_team_id = ? AND away_team_id = ?) OR
+                        (home_team_id = ? AND away_team_id = ?)
+                    )
+                """, (date, home_id, away_id, away_id, home_id)).fetchone()
+            else:
+                # For game 2+, only match games with matching _gm suffix
+                existing = db.execute("""
+                    SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games
+                    WHERE date = ? AND id LIKE ? AND (
+                        (home_team_id = ? AND away_team_id = ?) OR
+                        (home_team_id = ? AND away_team_id = ?)
+                    )
+                """, (date, f'%_gm{game_num}', home_id, away_id, away_id, home_id)).fetchone()
         
         if existing:
             # Game exists — check if we need to update scores

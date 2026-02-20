@@ -63,7 +63,7 @@ def fetch_d1bb_schedule(d1bb_slug: str) -> list:
     
     games = []
     reverse_slugs = load_reverse_slug_map()
-    seen = set()
+    seen = {}  # (date, opp_slug) -> count, for doubleheader tracking
     
     # Use only the full-team-schedule table to avoid duplicates from mobile view
     table_match = re.search(r'full-team-schedule.*?</table>', html, re.DOTALL)
@@ -86,11 +86,10 @@ def fetch_d1bb_schedule(d1bb_slug: str) -> list:
         if opp_slug == d1bb_slug:
             continue
         
-        # Dedupe by (date, opponent)
+        # Track doubleheaders — count games per (date, opponent)
         key = (date_str, opp_slug)
-        if key in seen:
-            continue
-        seen.add(key)
+        seen[key] = seen.get(key, 0) + 1
+        game_num = seen[key]  # 1 = first game, 2 = second game of DH, etc.
         
         # Determine home/away from the text between date link and team link
         # "@" in the middle section means away; "vs" means home/neutral
@@ -120,6 +119,7 @@ def fetch_d1bb_schedule(d1bb_slug: str) -> list:
             'opponent_team_id': opp_team_id,
             'is_home': is_home,
             'result': result,
+            'game_num': game_num,  # 1 = single/first game, 2+ = doubleheader
         })
     
     return games
