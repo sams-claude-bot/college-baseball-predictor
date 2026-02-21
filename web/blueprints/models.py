@@ -209,6 +209,7 @@ def models():
                 SUM(CASE WHEN was_correct = 0 THEN 1 ELSE 0 END) as incorrect
             FROM totals_predictions
             WHERE was_correct IS NOT NULL
+            AND prediction IS NOT NULL AND prediction != ''
         ''')
         totals_overall = dict(c.fetchone())
 
@@ -252,11 +253,13 @@ def models():
             JOIN teams ht ON g.home_team_id = ht.id
             JOIN teams at ON g.away_team_id = at.id
             WHERE tp.actual_total IS NOT NULL AND tp.model_name = 'runs_ensemble'
+            AND tp.prediction IS NOT NULL AND tp.prediction != ''
+            AND tp.over_under_line IS NOT NULL
             ORDER BY tp.predicted_at DESC
             LIMIT 10
         ''')
         recent_totals = [dict(row) for row in c.fetchall()]
-    except:
+    except Exception:
         totals_overall = {'total': 0, 'correct': 0, 'incorrect': 0}
         totals_by_type = []
         totals_by_edge = []

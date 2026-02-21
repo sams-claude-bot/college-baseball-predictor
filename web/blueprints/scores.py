@@ -77,7 +77,7 @@ def scores():
     c.execute('''
         SELECT home_team_id, away_team_id, home_ml, away_ml, over_under
         FROM betting_lines
-        WHERE date = ?
+        WHERE date = ? AND book = 'draftkings'
     ''', (date_str,))
     betting_lines_map = {}
     for row in c.fetchall():
@@ -300,7 +300,7 @@ def game_detail(game_id):
     # DK lines
     c.execute('''
         SELECT * FROM betting_lines 
-        WHERE home_team_id = ? AND away_team_id = ?
+        WHERE home_team_id = ? AND away_team_id = ? AND book = 'draftkings'
         ORDER BY captured_at DESC LIMIT 1
     ''', (home_id, away_id))
     line_row = c.fetchone()

@@ -111,7 +111,7 @@ def get_games_by_date(date_str, conference=None):
         LEFT JOIN teams at ON g.away_team_id = at.id
         LEFT JOIN elo_ratings he ON g.home_team_id = he.team_id
         LEFT JOIN elo_ratings ae ON g.away_team_id = ae.team_id
-        LEFT JOIN (SELECT *, MAX(id) as _latest FROM betting_lines GROUP BY date, home_team_id, away_team_id) b ON g.home_team_id = b.home_team_id 
+        LEFT JOIN (SELECT *, MAX(id) as _latest FROM betting_lines WHERE book = 'draftkings' GROUP BY date, home_team_id, away_team_id) b ON g.home_team_id = b.home_team_id 
             AND g.away_team_id = b.away_team_id AND g.date = b.date
         WHERE g.date = ?
     '''
@@ -317,7 +317,7 @@ def get_todays_games():
                gw.temp_f as temperature, gw.wind_speed_mph as wind_speed, gw.wind_direction_deg as wind_direction, 
                gw.humidity_pct as humidity, gw.precip_prob_pct as precipitation_prob
         FROM games g
-        LEFT JOIN (SELECT *, MAX(id) as _latest FROM betting_lines GROUP BY date, home_team_id, away_team_id) b ON g.home_team_id = b.home_team_id 
+        LEFT JOIN (SELECT *, MAX(id) as _latest FROM betting_lines WHERE book = 'draftkings' GROUP BY date, home_team_id, away_team_id) b ON g.home_team_id = b.home_team_id 
             AND g.away_team_id = b.away_team_id AND g.date = b.date
         LEFT JOIN teams ht ON g.home_team_id = ht.id
         LEFT JOIN teams at ON g.away_team_id = at.id
@@ -391,7 +391,7 @@ def get_value_picks(limit=5):
         FROM betting_lines b
         LEFT JOIN teams ht ON b.home_team_id = ht.id
         LEFT JOIN teams at ON b.away_team_id = at.id
-        WHERE b.date >= ? AND b.date <= ?
+        WHERE b.date >= ? AND b.date <= ? AND b.book = 'draftkings'
         ORDER BY b.date
         LIMIT 100
     ''', (today, three_days))
@@ -652,6 +652,7 @@ def get_betting_games(date_str=None):
 
     today = date_str or datetime.now().strftime('%Y-%m-%d')
 
+    # Query DraftKings lines
     c.execute('''
         SELECT b.*, 
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
@@ -661,11 +662,59 @@ def get_betting_games(date_str=None):
         LEFT JOIN teams ht ON b.home_team_id = ht.id
         LEFT JOIN teams at ON b.away_team_id = at.id
         LEFT JOIN games g ON b.game_id = g.id
-        WHERE b.date = ?
+        WHERE b.date = ? AND b.book = 'draftkings'
         ORDER BY b.captured_at DESC
     ''', (today,))
+    dk_lines = {row['game_id']: dict(row) for row in c.fetchall()}
 
-    lines = [dict(row) for row in c.fetchall()]
+    # Query FanDuel lines
+    c.execute('''
+        SELECT b.home_team_id, b.away_team_id, b.game_id,
+               b.home_ml as fd_home_ml, b.away_ml as fd_away_ml,
+               b.over_under as fd_over_under, b.over_odds as fd_over_odds,
+               b.under_odds as fd_under_odds
+        FROM betting_lines b
+        WHERE b.date = ? AND b.book = 'fanduel'
+    ''', (today,))
+    fd_lines = {row['game_id']: dict(row) for row in c.fetchall()}
+
+    # Merge: start with DK as base, attach FD fields
+    lines = []
+    for game_id, line in dk_lines.items():
+        fd = fd_lines.get(game_id, {})
+        line['fd_home_ml'] = fd.get('fd_home_ml')
+        line['fd_away_ml'] = fd.get('fd_away_ml')
+        line['fd_over_under'] = fd.get('fd_over_under')
+        line['fd_over_odds'] = fd.get('fd_over_odds')
+        line['fd_under_odds'] = fd.get('fd_under_odds')
+        lines.append(line)
+
+    # Also add FD-only games (no DK line)
+    for game_id, fd in fd_lines.items():
+        if game_id not in dk_lines:
+            # Need full game info for FD-only lines
+            c.execute('''
+                SELECT b.*, 
+                       ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
+                       at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
+                       g.status, g.home_score, g.away_score
+                FROM betting_lines b
+                LEFT JOIN teams ht ON b.home_team_id = ht.id
+                LEFT JOIN teams at ON b.away_team_id = at.id
+                LEFT JOIN games g ON b.game_id = g.id
+                WHERE b.game_id = ? AND b.book = 'fanduel'
+            ''', (game_id,))
+            row = c.fetchone()
+            if row:
+                line = dict(row)
+                # Copy ML/OU from FD into the main fields (used for edge calc)
+                line['fd_home_ml'] = line['home_ml']
+                line['fd_away_ml'] = line['away_ml']
+                line['fd_over_under'] = line['over_under']
+                line['fd_over_odds'] = line.get('over_odds')
+                line['fd_under_odds'] = line.get('under_odds')
+                lines.append(line)
+
     conn.close()
 
     # Load stored pre-game predictions (calculated once daily by predict_and_track)

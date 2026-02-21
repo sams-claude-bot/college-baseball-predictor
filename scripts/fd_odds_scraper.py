@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
-DraftKings NCAA Baseball Odds — DB loader.
+FanDuel NCAA Baseball Odds — DB loader.
 
-This script does NOT scrape DraftKings itself. The cron agent opens the DK page
+Same pattern as dk_odds_scraper.py. The cron agent opens the FanDuel page
 visually and extracts odds into a JSON file. This script loads that JSON into
-the betting_lines table.
+the betting_lines table with book='fanduel'.
 
 Usage:
-    python3 scripts/dk_odds_scraper.py load <json_file>   # Load odds from JSON
-    python3 scripts/dk_odds_scraper.py load --stdin        # Read JSON from stdin
-    python3 scripts/dk_odds_scraper.py status              # Show today's lines
+    python3 scripts/fd_odds_scraper.py load <json_file>   # Load odds from JSON
+    python3 scripts/fd_odds_scraper.py load --stdin        # Read JSON from stdin
+    python3 scripts/fd_odds_scraper.py status              # Show today's lines
 
 JSON format (array of games):
 [
   {
-    "away": "Cincinnati",
-    "home": "UAB",
-    "away_ml": -220,
-    "home_ml": 170,
+    "away": "Nebraska Cornhuskers",
+    "home": "Louisville Cardinals",
+    "away_ml": 136,
+    "home_ml": -174,
     "spread": -1.5,
-    "away_spread_odds": -145,
-    "home_spread_odds": 114,
-    "over_under": 13.5,
-    "over_odds": -115,
-    "under_odds": -105
+    "away_spread_odds": -136,
+    "home_spread_odds": 106,
+    "over_under": 12.5,
+    "over_odds": -108,
+    "under_odds": -118
   }
 ]
 
@@ -46,6 +46,7 @@ from team_resolver import resolve_team
 
 PROJECT_DIR = Path(__file__).parent.parent
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
+BOOK = 'fanduel'
 
 
 def get_db():
@@ -55,7 +56,11 @@ def get_db():
 
 
 def resolve_team_name(name):
-    """Resolve a DraftKings display name to our team_id."""
+    """Resolve a FanDuel display name to our team_id.
+    
+    FanDuel uses 'Team Mascot' format (e.g., 'Nebraska Cornhuskers').
+    The team_resolver handles stripping mascots via aliases.
+    """
     if not name:
         return None
     result = resolve_team(name)
@@ -136,7 +141,7 @@ def load_odds(games_json, date_str=None, runner=None):
 
         try:
             existing = db.execute(
-                "SELECT id FROM betting_lines WHERE game_id = ? AND book = 'draftkings'", (game_id,)
+                "SELECT id FROM betting_lines WHERE game_id = ? AND book = ?", (game_id, BOOK)
             ).fetchone()
 
             if existing:
@@ -152,10 +157,10 @@ def load_odds(games_json, date_str=None, runner=None):
                         over_odds = COALESCE(?, over_odds),
                         under_odds = COALESCE(?, under_odds),
                         captured_at = CURRENT_TIMESTAMP
-                    WHERE game_id = ?
+                    WHERE game_id = ? AND book = ?
                 """, (home_ml, away_ml, home_spread, home_spread_odds,
                       away_spread, away_spread_odds, over_under, over_odds,
-                      under_odds, game_id))
+                      under_odds, game_id, BOOK))
                 updated += 1
             else:
                 db.execute("""
@@ -163,8 +168,8 @@ def load_odds(games_json, date_str=None, runner=None):
                         (game_id, date, home_team_id, away_team_id, book,
                          home_ml, away_ml, home_spread, home_spread_odds,
                          away_spread, away_spread_odds, over_under, over_odds, under_odds)
-                    VALUES (?, ?, ?, ?, 'draftkings', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (game_id, date_str, home_id, away_id,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (game_id, date_str, home_id, away_id, BOOK,
                       home_ml, away_ml, home_spread, home_spread_odds,
                       away_spread, away_spread_odds, over_under, over_odds, under_odds))
                 added += 1
@@ -185,7 +190,7 @@ def load_odds(games_json, date_str=None, runner=None):
 
 
 def show_status(runner):
-    """Show today's betting lines."""
+    """Show today's FanDuel betting lines."""
     db = get_db()
     today = datetime.now().strftime('%Y-%m-%d')
 
@@ -194,11 +199,11 @@ def show_status(runner):
         FROM betting_lines bl
         LEFT JOIN teams h ON bl.home_team_id = h.id
         LEFT JOIN teams a ON bl.away_team_id = a.id
-        WHERE bl.date = ?
+        WHERE bl.date = ? AND bl.book = ?
         ORDER BY bl.captured_at
-    """, (today,)).fetchall()
+    """, (today, BOOK)).fetchall()
 
-    runner.info(f"Betting lines for {today}: {len(rows)} games")
+    runner.info(f"FanDuel lines for {today}: {len(rows)} games")
     
     ml_count = sum(1 for r in rows if r['home_ml'] is not None)
     ou_count = sum(1 for r in rows if r['over_under'] is not None)
@@ -223,14 +228,14 @@ def show_status(runner):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='DraftKings NCAA Baseball Odds Loader')
+    parser = argparse.ArgumentParser(description='FanDuel NCAA Baseball Odds Loader')
     parser.add_argument('command', choices=['load', 'status'], help='Command to run')
     parser.add_argument('file', nargs='?', help='JSON file to load (or --stdin)')
     parser.add_argument('--stdin', action='store_true', help='Read JSON from stdin')
     parser.add_argument('--date', help='Override date (YYYY-MM-DD)')
     args = parser.parse_args()
 
-    runner = ScriptRunner("dk_odds")
+    runner = ScriptRunner("fd_odds")
 
     if args.command == 'status':
         show_status(runner)

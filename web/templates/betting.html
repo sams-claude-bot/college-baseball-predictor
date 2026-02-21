@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1"><i class="bi bi-currency-dollar"></i> Betting Analysis</h1>
-        <p class="text-muted mb-0">Compare model predictions to DraftKings lines and find value</p>
+        <p class="text-muted mb-0">Compare model predictions to DraftKings &amp; FanDuel lines and find value</p>
     </div>
     <div>
         <select class="form-select form-select-sm" style="width: auto;"
@@ -186,15 +186,16 @@
                 <thead>
                     <tr>
                         <th>Matchup</th>
-                        <th class="text-center">DK Lines</th>
+                        <th class="text-center">DK ML</th>
+                        <th class="text-center">FD ML</th>
                         <th class="text-center" style="cursor:pointer" onclick="sortTable('consensus', null)">Consensus ↕</th>
                         <th class="text-center" style="cursor:pointer" onclick="sortTable('confidence', null)">Blended ↕</th>
                         <th class="text-center">Neural</th>
                         <th class="text-center">Ensemble</th>
                         <th class="text-center" style="cursor:pointer" onclick="sortTable('edge', null)">Edge ↕</th>
-                        <th class="text-center">O/U</th>
+                        <th class="text-center">DK O/U</th>
+                        <th class="text-center">FD O/U</th>
                         <th class="text-center">NN Total</th>
-                        <th class="text-center">NN Spread</th>
                         <th class="text-center" style="cursor:pointer" onclick="sortTable('ev', null)">EV/100 ↕</th>
                     </tr>
                 </thead>
@@ -224,6 +225,14 @@
                                 <span>{{ game.away_ml|format_odds }}</span>
                                 <span>{{ game.home_ml|format_odds }}</span>
                             </div>
+                        </td>
+                        <td class="text-center">
+                            {% if game.fd_away_ml or game.fd_home_ml %}
+                            <div class="d-flex flex-column">
+                                <span>{{ game.fd_away_ml|format_odds }}</span>
+                                <span>{{ game.fd_home_ml|format_odds }}</span>
+                            </div>
+                            {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
                             {% if game.model_agreement %}
@@ -278,21 +287,16 @@
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
+                            {% if game.fd_over_under %}
+                            <small class="text-muted">{{ game.fd_over_under }}</small>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
                             {% if game.nn_total %}
                             <span class="fw-bold">{{ game.nn_total|round(1) }}</span>
                             {% if game.nn_over_prob and game.over_under %}
                             <br><small class="{% if game.nn_over_prob > 0.55 %}text-success{% elif game.nn_under_prob > 0.55 %}text-danger{% else %}text-muted{% endif %}">
                                 {% if game.nn_over_prob > 0.5 %}O {{ (game.nn_over_prob * 100)|round(0) }}%{% else %}U {{ (game.nn_under_prob * 100)|round(0) }}%{% endif %}
-                            </small>
-                            {% endif %}
-                            {% else %}—{% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if game.nn_margin is defined and game.nn_margin is not none %}
-                            <span class="fw-bold">{{ '%+.1f'|format(game.nn_margin) }}</span>
-                            {% if game.nn_cover_prob %}
-                            <br><small class="{% if game.nn_cover_prob > 0.55 %}text-success{% elif game.nn_cover_prob < 0.45 %}text-danger{% else %}text-muted{% endif %}">
-                                Cover {{ (game.nn_cover_prob * 100)|round(0) }}%
                             </small>
                             {% endif %}
                             {% else %}—{% endif %}

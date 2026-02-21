@@ -81,7 +81,7 @@ def api_predict():
     c = conn.cursor()
     c.execute('''
         SELECT * FROM betting_lines 
-        WHERE home_team_id = ? AND away_team_id = ?
+        WHERE home_team_id = ? AND away_team_id = ? AND book = 'draftkings'
         ORDER BY captured_at DESC LIMIT 1
     ''', (home_id, away_id))
     line = c.fetchone()
