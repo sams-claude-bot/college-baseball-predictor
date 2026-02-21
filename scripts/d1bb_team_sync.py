@@ -121,14 +121,15 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
                     )
                 """, (date, home_id, away_id, away_id, home_id)).fetchone()
             else:
-                # For game 2+, only match games with matching _gm suffix
+                # For game 2+, match games with _gm2 OR _g2 suffix (both conventions exist)
                 existing = db.execute("""
                     SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games
-                    WHERE date = ? AND id LIKE ? AND (
+                    WHERE date = ? AND (id LIKE ? OR id LIKE ?) AND (
                         (home_team_id = ? AND away_team_id = ?) OR
                         (home_team_id = ? AND away_team_id = ?)
                     )
-                """, (date, f'%_gm{game_num}', home_id, away_id, away_id, home_id)).fetchone()
+                """, (date, f'%_gm{game_num}', f'%_g{game_num}',
+                      home_id, away_id, away_id, home_id)).fetchone()
         
         if existing:
             # Game exists — check if we need to update scores

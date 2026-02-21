@@ -419,16 +419,108 @@ def evaluate(runner=None):
             else:
                 print(f"  {icon} {msg}")
     
+    # === PARLAY EVALUATION ===
+    parlay_evaluated = 0
+    c = conn.cursor()
+    c.execute('''
+        SELECT tp.id, tp.date, tp.legs_json, tp.num_legs, tp.decimal_odds, tp.bet_amount
+        FROM tracked_parlays tp
+        WHERE tp.won IS NULL
+    ''')
+    pending_parlays = [dict(r) for r in c.fetchall()]
+    
+    for row in pending_parlays:
+        legs = json.loads(row['legs_json'])
+        legs_won = 0
+        legs_resolved = 0
+        all_resolved = True
+        
+        for leg in legs:
+            game_id = leg['game_id']
+            g = c.execute('SELECT home_team_id, away_team_id, home_score, away_score, status FROM games WHERE id=?',
+                         (game_id,)).fetchone()
+            if not g or g['status'] != 'final':
+                all_resolved = False
+                break
+            
+            legs_resolved += 1
+            leg_type = leg.get('type', '')
+            
+            if leg_type in ('CONSENSUS', 'ML'):
+                pick_team = leg.get('pick', '')
+                # Find which team was picked by matching name
+                # Check if the pick won
+                pick_id = leg.get('pick_team_id', '')
+                if not pick_id:
+                    # Match by name from consensus/ev data
+                    # The pick field has team name — check winner
+                    home_won = g['home_score'] > g['away_score']
+                    # We need to figure out if pick was home or away
+                    # Look it up from tracked tables
+                    tb = c.execute('SELECT is_home FROM tracked_confident_bets WHERE game_id=? AND pick_team_name=?',
+                                  (game_id, pick_team)).fetchone()
+                    if not tb:
+                        tb = c.execute('SELECT is_home FROM tracked_bets WHERE game_id=? AND pick_team_name=?',
+                                      (game_id, pick_team)).fetchone()
+                    if tb:
+                        won = (home_won and tb['is_home']) or (not home_won and not tb['is_home'])
+                    else:
+                        # Fallback: check if pick matches home or away team name
+                        home_name = c.execute('SELECT name FROM teams WHERE id=?', (g['home_team_id'],)).fetchone()
+                        won = home_won if (home_name and pick_team == home_name['name']) else not home_won
+                    if won:
+                        legs_won += 1
+                else:
+                    won = (g['home_score'] > g['away_score'] and pick_id == g['home_team_id']) or \
+                          (g['away_score'] > g['home_score'] and pick_id == g['away_team_id'])
+                    if won:
+                        legs_won += 1
+                        
+            elif leg_type == 'Total':
+                pick_str = leg.get('pick', '')  # e.g. "OVER 13.0"
+                parts = pick_str.split()
+                if len(parts) == 2:
+                    direction = parts[0]  # OVER or UNDER
+                    line = float(parts[1])
+                    actual = g['home_score'] + g['away_score']
+                    if direction == 'OVER' and actual > line:
+                        legs_won += 1
+                    elif direction == 'UNDER' and actual < line:
+                        legs_won += 1
+                    elif actual == line:
+                        legs_won += 1  # Push = win for parlay purposes
+        
+        if not all_resolved:
+            continue
+        
+        bet_amount = row['bet_amount']
+        won = 1 if legs_won == row['num_legs'] else 0
+        if won:
+            profit = round(bet_amount * (row['decimal_odds'] - 1), 2)
+        else:
+            profit = -bet_amount
+        
+        c.execute('UPDATE tracked_parlays SET won=?, profit=?, legs_won=? WHERE id=?',
+                  (won, profit, legs_won, row['id']))
+        parlay_evaluated += 1
+        total_profit += profit
+        icon = '✅' if won else '❌'
+        msg = f"PARLAY: {legs_won}/{row['num_legs']} legs | ${profit:+.2f}"
+        if runner:
+            runner.info(f"  {msg}")
+        else:
+            print(f"  {icon} {msg}")
+
     conn.commit()
     conn.close()
     
-    total = conf_evaluated + ml_evaluated + sp_evaluated + tot_evaluated
+    total = conf_evaluated + ml_evaluated + sp_evaluated + tot_evaluated + parlay_evaluated
     if runner:
-        runner.info(f"Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
+        runner.info(f"Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated} PARLAY:{parlay_evaluated})")
         runner.add_stat("bets_evaluated", total)
         runner.add_stat("profit", f"${total_profit:+.2f}")
     else:
-        print(f"\n✅ Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated})")
+        print(f"\n✅ Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated} PARLAY:{parlay_evaluated})")
 
 
 if __name__ == '__main__':

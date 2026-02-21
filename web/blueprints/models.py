@@ -221,6 +221,7 @@ def models():
                 SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct
             FROM totals_predictions
             WHERE was_correct IS NOT NULL
+            AND prediction IS NOT NULL AND prediction != '' AND prediction != 'N/A'
             GROUP BY prediction
         ''')
         totals_by_type = [dict(row) for row in c.fetchall()]
@@ -238,10 +239,25 @@ def models():
                 SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct
             FROM totals_predictions
             WHERE was_correct IS NOT NULL
+            AND prediction IS NOT NULL AND prediction != '' AND prediction != 'N/A'
             GROUP BY edge_bucket
             ORDER BY MIN(edge_pct) DESC
         ''')
         totals_by_edge = [dict(row) for row in c.fetchall()]
+
+        # No-line games: MAE stats for games without a betting line
+        c.execute('''
+            SELECT 
+                COUNT(*) as total,
+                ROUND(AVG(ABS(projected_total - actual_total)), 2) as mae,
+                ROUND(AVG(projected_total), 1) as avg_projected,
+                ROUND(AVG(actual_total), 1) as avg_actual
+            FROM totals_predictions
+            WHERE actual_total IS NOT NULL
+            AND (prediction = 'N/A' OR over_under_line IS NULL)
+            AND model_name = 'runs_ensemble'
+        ''')
+        totals_no_line = dict(c.fetchone())
 
         # Recent totals predictions
         c.execute('''
@@ -263,6 +279,7 @@ def models():
         totals_overall = {'total': 0, 'correct': 0, 'incorrect': 0}
         totals_by_type = []
         totals_by_edge = []
+        totals_no_line = {'total': 0, 'mae': 0, 'avg_projected': 0, 'avg_actual': 0}
         recent_totals = []
 
     conn.close()
@@ -311,5 +328,6 @@ def models():
                           totals_overall=totals_overall,
                           totals_by_type=totals_by_type,
                           totals_by_edge=totals_by_edge,
+                          totals_no_line=totals_no_line,
                           recent_totals=recent_totals,
                           rolling_data=rolling_data)

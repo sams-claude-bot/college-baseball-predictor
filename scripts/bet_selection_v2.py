@@ -48,7 +48,9 @@ TOTALS_MIN_CONFIDENCE = 0.6   # Model confidence in the pick
 
 SPREADS_ENABLED = False       # DISABLED - 0/5 record, model not calibrated
 
-MAX_BETS_PER_DAY = 3          # Reduced from 6 to be more selective
+MAX_CONSENSUS_PER_DAY = 6     # Track up to 6 consensus bets
+MAX_EV_PER_DAY = 6            # Track up to 6 EV bets
+MAX_TOTALS_PER_DAY = 6        # Track up to 6 totals bets
 BASE_BET = 100                # Base unit
 
 # ============ KELLY CRITERION ============
@@ -280,7 +282,6 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
             })
     
     # Sort by ADJUSTED edge: consensus adds bonus, underdogs get discounted
-    # This keeps EV as primary but rewards model agreement and distrusts underdog edges
     for b in results['bets']:
         ml = b.get('moneyline') or b.get('odds') or -110
         b['adjusted_edge'] = calculate_adjusted_edge(
@@ -289,17 +290,31 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
             models_agree=b.get('models_agree', 5)
         )
     
-    results['bets'].sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
-    if len(results['bets']) > MAX_BETS_PER_DAY:
-        overflow = results['bets'][MAX_BETS_PER_DAY:]
-        results['bets'] = results['bets'][:MAX_BETS_PER_DAY]
-        for bet in overflow:
+    # Cap each category separately
+    consensus_bets = [b for b in results['bets'] if b['type'] == 'CONSENSUS']
+    ev_bets = [b for b in results['bets'] if b['type'] == 'ML']
+    total_bets = [b for b in results['bets'] if b['type'] == 'TOTAL']
+    
+    consensus_bets.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
+    ev_bets.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
+    total_bets.sort(key=lambda x: x.get('edge', 0), reverse=True)
+    
+    def cap_and_reject(bet_list, limit, label):
+        kept = bet_list[:limit]
+        for bet in bet_list[limit:]:
             results['rejections'].append({
                 'type': bet['type'],
                 'game': bet.get('pick_team_name') or bet.get('pick'),
                 'edge': bet['edge'],
-                'reasons': [f'exceeded {MAX_BETS_PER_DAY} bets/day limit']
+                'reasons': [f'exceeded {limit} {label}/day limit']
             })
+        return kept
+    
+    consensus_bets = cap_and_reject(consensus_bets, MAX_CONSENSUS_PER_DAY, 'consensus')
+    ev_bets = cap_and_reject(ev_bets, MAX_EV_PER_DAY, 'EV')
+    total_bets = cap_and_reject(total_bets, MAX_TOTALS_PER_DAY, 'totals')
+    
+    results['bets'] = consensus_bets + ev_bets + total_bets
     
     return results
 
@@ -353,6 +368,99 @@ def print_analysis(results: dict):
         print("\n  ⚠️  SPREADS DISABLED (0/5 historical, needs recalibration)")
 
 
+def build_parlay(results: dict) -> dict:
+    """Build a 4-leg parlay from the day's best picks (ML + totals mix)."""
+    PARLAY_ML_CAP = -250
+    PARLAY_MIN_PROB = 0.62
+    PARLAY_MAX_PROB = 0.88
+    PARLAY_MIN_EDGE = 5.0
+    PARLAY_BET = 25
+
+    ml_candidates = []
+    for b in results['bets']:
+        if b['type'] not in ('CONSENSUS', 'ML'):
+            continue
+        ml = b.get('moneyline')
+        if ml is None or ml < PARLAY_ML_CAP:
+            continue
+        prob = b.get('model_prob', 0.5)
+        if not (PARLAY_MIN_PROB <= prob <= PARLAY_MAX_PROB):
+            continue
+        if b.get('edge', 0) < PARLAY_MIN_EDGE:
+            continue
+        # Score: peak around 77% prob with good edge
+        prob_score = 1.0 - abs(prob - 0.77) * 3
+        ml_candidates.append({**b, 'parlay_score': prob_score * b.get('edge', 0)})
+    ml_candidates.sort(key=lambda x: x['parlay_score'], reverse=True)
+
+    totals_candidates = []
+    for b in results['bets']:
+        if b['type'] != 'TOTAL':
+            continue
+        if b.get('edge', 0) < 3.0:
+            continue
+        est_prob = min(0.5 + abs(b['edge']) * 0.06, 0.85)
+        totals_candidates.append({**b, 'est_prob': est_prob})
+    totals_candidates.sort(key=lambda x: x.get('edge', 0), reverse=True)
+
+    # Build: up to 3 ML + fill with totals
+    legs = []
+    used_ids = set()
+    for c in ml_candidates:
+        if len(legs) >= 3:
+            break
+        if c['game_id'] not in used_ids:
+            legs.append({
+                'type': c['type'], 'game_id': c['game_id'], 'date': c.get('date', ''),
+                'pick': c.get('pick_team_name', ''), 'matchup': f"{c.get('opponent_name', '')} vs {c.get('pick_team_name', '')}",
+                'odds': c['moneyline'], 'prob': c['model_prob'], 'edge': c['edge'],
+            })
+            used_ids.add(c['game_id'])
+    for c in totals_candidates:
+        if len(legs) >= 4:
+            break
+        legs.append({
+            'type': 'Total', 'game_id': c['game_id'], 'date': c.get('date', ''),
+            'pick': f"{c['pick']} {c['line']}", 'matchup': c['game_id'].replace('_', ' '),
+            'odds': c.get('odds', -110), 'prob': c.get('est_prob', 0.5), 'edge': c['edge'],
+        })
+    # Fill remaining with ML if needed
+    for c in ml_candidates:
+        if len(legs) >= 4:
+            break
+        if c['game_id'] not in used_ids:
+            legs.append({
+                'type': c['type'], 'game_id': c['game_id'], 'date': c.get('date', ''),
+                'pick': c.get('pick_team_name', ''), 'matchup': f"{c.get('opponent_name', '')} vs {c.get('pick_team_name', '')}",
+                'odds': c['moneyline'], 'prob': c['model_prob'], 'edge': c['edge'],
+            })
+            used_ids.add(c['game_id'])
+
+    if len(legs) < 4:
+        return None
+
+    def ml_to_decimal(ml):
+        return 1 + ml / 100 if ml > 0 else 1 + 100 / abs(ml)
+
+    decimal_odds = 1.0
+    combined_prob = 1.0
+    for leg in legs:
+        decimal_odds *= ml_to_decimal(leg['odds'])
+        combined_prob *= leg['prob']
+
+    american = round((decimal_odds - 1) * 100) if decimal_odds > 2 else round(-100 / (decimal_odds - 1))
+
+    return {
+        'legs': legs,
+        'num_legs': len(legs),
+        'american_odds': american,
+        'decimal_odds': round(decimal_odds, 4),
+        'model_prob': round(combined_prob, 4),
+        'bet_amount': PARLAY_BET,
+        'payout': round(PARLAY_BET * decimal_odds, 2),
+    }
+
+
 def record_bets(results: dict):
     """Record recommended bets to database."""
     if not results['bets']:
@@ -404,6 +512,21 @@ def record_bets(results: dict):
             if c.rowcount > 0:
                 recorded += 1
     
+    # Record parlay
+    parlay = build_parlay(results)
+    if parlay:
+        date = results['date']
+        c.execute('''
+            INSERT OR IGNORE INTO tracked_parlays
+            (date, legs_json, num_legs, american_odds, decimal_odds, model_prob, bet_amount, payout)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (date, json.dumps(parlay['legs']), parlay['num_legs'],
+              parlay['american_odds'], parlay['decimal_odds'], parlay['model_prob'],
+              parlay['bet_amount'], parlay['payout']))
+        if c.rowcount > 0:
+            recorded += 1
+            print(f"\n🎰 Parlay recorded: {parlay['num_legs']} legs, +{parlay['american_odds']}, ${parlay['bet_amount']} to win ${parlay['payout']}")
+
     conn.commit()
     conn.close()
     

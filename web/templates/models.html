@@ -479,6 +479,24 @@
                     </tbody>
                 </table>
                 {% endif %}
+
+                {% if totals_no_line and totals_no_line.total > 0 %}
+                <h6 class="mb-2 mt-3">No Betting Line ({{ totals_no_line.total }} games):</h6>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <h5 class="mb-0">{{ totals_no_line.mae }}</h5>
+                        <small class="text-muted">MAE (runs)</small>
+                    </div>
+                    <div class="col-4">
+                        <h5 class="mb-0">{{ totals_no_line.avg_projected }}</h5>
+                        <small class="text-muted">Avg Projected</small>
+                    </div>
+                    <div class="col-4">
+                        <h5 class="mb-0">{{ totals_no_line.avg_actual }}</h5>
+                        <small class="text-muted">Avg Actual</small>
+                    </div>
+                </div>
+                {% endif %}
                 
                 {% else %}
                 <div class="text-center py-4">

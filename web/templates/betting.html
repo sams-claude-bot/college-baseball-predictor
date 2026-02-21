@@ -31,6 +31,102 @@
     </div>
 </div>
 
+<!-- 4-Leg Parlay -->
+{% if parlay_legs and parlay_legs|length == 4 %}
+<div class="card mb-4">
+    <div class="card-header" style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white;">
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-trophy-fill"></i> 4-Leg Parlay of the Day</span>
+            <div>
+                <span class="badge bg-light text-dark">+{{ parlay_american }}</span>
+                <span class="badge bg-light text-dark">${{ parlay_payout }} on $10</span>
+                <span class="badge bg-light text-dark">{{ parlay_prob }}% implied</span>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for leg in parlay_legs %}
+            <div class="col-md-3 mb-3">
+                <div class="card h-100 {% if leg.type == 'ML' %}border-primary{% else %}border-info{% endif %}" 
+                     style="cursor:pointer" onclick="window.location='/game/{{ leg.game_id }}'">
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge {% if leg.type == 'ML' %}bg-primary{% else %}bg-info{% endif %}">{{ leg.type }}</span>
+                            <span class="badge bg-dark">Leg {{ loop.index }}</span>
+                        </div>
+                        <h6 class="mb-1 fw-bold">{{ leg.pick_label }}</h6>
+                        <small class="text-muted d-block mb-2">{{ leg.matchup }}</small>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">{{ leg.odds|format_odds }}</span>
+                            <span class="text-success small">{{ (leg.prob * 100)|round(0) }}% conf</span>
+                        </div>
+                        <div class="mt-1">
+                            <small class="text-muted">+{{ leg.edge|round(1) }}% edge</small>
+                            {% if leg.models_agree and leg.models_agree >= 7 %}
+                            <span class="badge bg-secondary ms-1" style="font-size: 0.65rem;">{{ leg.models_agree }}/12</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i> 
+                Mix of ML &amp; totals picks in the sweet spot: ~75-85% confidence, moderate lines, strong edge. No -300+ chalk.
+            </small>
+            <button class="btn btn-sm btn-outline-light" onclick="shareParlay()" style="border-color: #a855f7; color: #7c3aed;">
+                <i class="bi bi-share-fill"></i> Share Card
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden shareable parlay card -->
+<div id="parlayShareCard" style="position:absolute;left:-9999px;top:0;">
+    <div style="width:600px;padding:32px;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);border-radius:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:white;">
+        <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:14px;text-transform:uppercase;letter-spacing:2px;color:#a855f7;margin-bottom:4px;">⚾ College Baseball Predictor</div>
+            <div style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">4-Leg Parlay of the Day</div>
+            <div style="font-size:13px;color:#94a3b8;margin-top:4px;">{{ parlay_legs[0].game.date if parlay_legs else '' }}</div>
+        </div>
+        {% for leg in parlay_legs %}
+        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:14px 18px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid {% if leg.type == 'ML' %}#7c3aed{% else %}#06b6d4{% endif %};">
+            <div>
+                <div style="font-size:11px;color:{% if leg.type == 'ML' %}#a855f7{% else %}#22d3ee{% endif %};text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">Leg {{ loop.index }} • {{ leg.type }}</div>
+                <div style="font-size:18px;font-weight:700;">{{ leg.pick_label }}</div>
+                <div style="font-size:12px;color:#94a3b8;">{{ leg.matchup }}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:20px;font-weight:800;color:{% if leg.odds > 0 %}#4ade80{% else %}white{% endif %};">{{ '%+d'|format(leg.odds) }}</div>
+                <div style="font-size:11px;color:#94a3b8;">{{ (leg.prob * 100)|round(0) }}% conf</div>
+            </div>
+        </div>
+        {% endfor %}
+        <div style="margin-top:18px;display:flex;justify-content:space-around;text-align:center;background:rgba(124,58,237,0.2);border-radius:12px;padding:14px;">
+            <div>
+                <div style="font-size:24px;font-weight:800;color:#a855f7;">+{{ parlay_american }}</div>
+                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Parlay Odds</div>
+            </div>
+            <div style="border-left:1px solid rgba(255,255,255,0.1);"></div>
+            <div>
+                <div style="font-size:24px;font-weight:800;color:#4ade80;">${{ parlay_payout }}</div>
+                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Pays on $10</div>
+            </div>
+            <div style="border-left:1px solid rgba(255,255,255,0.1);"></div>
+            <div>
+                <div style="font-size:24px;font-weight:800;color:#fbbf24;">{{ parlay_prob }}%</div>
+                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Model Prob</div>
+            </div>
+        </div>
+        <div style="text-align:center;margin-top:14px;font-size:11px;color:#475569;">baseball.mcdevitt.page</div>
+    </div>
+</div>
+{% endif %}
+
+
 {% if confident_bets %}
 <div class="card mb-4">
     <div class="card-header bg-maroon">
@@ -399,6 +495,68 @@ function sortTable(criterion, btn) {
 
 // Sort by consensus on page load
 document.addEventListener('DOMContentLoaded', () => sortTable('consensus', document.querySelector('.btn-sm.active')));
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+async function shareParlay() {
+    const card = document.getElementById('parlayShareCard');
+    if (!card) return;
+    
+    // Temporarily make visible for rendering
+    card.style.position = 'fixed';
+    card.style.left = '0';
+    card.style.top = '0';
+    card.style.zIndex = '-1';
+    card.style.opacity = '1';
+    
+    try {
+        const canvas = await html2canvas(card.firstElementChild, {
+            backgroundColor: null,
+            scale: 2,
+            useCORS: true,
+            logging: false,
+        });
+        
+        // Hide again
+        card.style.position = 'absolute';
+        card.style.left = '-9999px';
+        
+        // Try native share (mobile), fallback to download
+        canvas.toBlob(async (blob) => {
+            const file = new File([blob], 'parlay-of-the-day.png', { type: 'image/png' });
+            
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: '4-Leg Parlay of the Day',
+                        text: 'Check out today\'s parlay pick! ⚾'
+                    });
+                    return;
+                } catch (e) {
+                    if (e.name === 'AbortError') return;
+                }
+            }
+            
+            // Desktop: download. Mobile already handled above via navigator.share.
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'parlay-of-the-day.png';
+            a.click();
+            URL.revokeObjectURL(url);
+            const btn = document.querySelector('[onclick="shareParlay()"]');
+            const origHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-download"></i> Downloaded!';
+            setTimeout(() => btn.innerHTML = origHtml, 2000);
+        }, 'image/png');
+    } catch (e) {
+        card.style.position = 'absolute';
+        card.style.left = '-9999px';
+        console.error('Share failed:', e);
+        alert('Failed to generate image');
+    }
+}
 </script>
 <script src="/static/js/betting-links.js"></script>
 {% endblock %}
