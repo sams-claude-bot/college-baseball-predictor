@@ -80,8 +80,8 @@ class LGBMoneylineModel(BaseModel):
                 'model': self.name,
                 'home_win_probability': 0.5,
                 'away_win_probability': 0.5,
-                'projected_home_runs': 4.5,
-                'projected_away_runs': 4.5,
+                'projected_home_runs': None,
+                'projected_away_runs': None,
                 'confidence': 'none (model not trained)',
             }
 
@@ -108,8 +108,8 @@ class LGBMoneylineModel(BaseModel):
             'model': self.name,
             'home_win_probability': round(home_prob, 4),
             'away_win_probability': round(1 - home_prob, 4),
-            'projected_home_runs': 4.5,
-            'projected_away_runs': 4.5,
+            'projected_home_runs': None,
+            'projected_away_runs': None,
             'confidence': 'high' if abs(home_prob - 0.5) > 0.2 else 'medium',
         }
 
@@ -159,8 +159,8 @@ class LGBTotalsModel(BaseModel):
                 'under_prob': 0.5,
                 'home_win_probability': 0.5,
                 'away_win_probability': 0.5,
-                'projected_home_runs': 4.5,
-                'projected_away_runs': 4.5,
+                'projected_home_runs': None,
+                'projected_away_runs': None,
                 'confidence': 'none (model not trained)',
             }
 
@@ -205,8 +205,8 @@ class LGBTotalsModel(BaseModel):
             'under_prob': round(max(0.01, min(0.99, under_prob)), 4),
             'home_win_probability': 0.5,
             'away_win_probability': 0.5,
-            'projected_home_runs': round(home_runs, 2),
-            'projected_away_runs': round(away_runs, 2),
+            'projected_home_runs': None,
+            'projected_away_runs': None,
             'confidence': 'high' if std < 3.0 else 'medium',
         }
 
@@ -256,8 +256,8 @@ class LGBSpreadModel(BaseModel):
                 'away_cover_prob': 0.5,
                 'home_win_probability': 0.5,
                 'away_win_probability': 0.5,
-                'projected_home_runs': 4.5,
-                'projected_away_runs': 4.5,
+                'projected_home_runs': None,
+                'projected_away_runs': None,
                 'confidence': 'none (model not trained)',
             }
 
@@ -300,8 +300,8 @@ class LGBSpreadModel(BaseModel):
             'away_cover_prob': round(max(0.01, min(0.99, 1 - home_cover_prob)), 4),
             'home_win_probability': round(home_prob, 4),
             'away_win_probability': round(1 - home_prob, 4),
-            'projected_home_runs': 4.5,
-            'projected_away_runs': 4.5,
+            'projected_home_runs': None,
+            'projected_away_runs': None,
             'confidence': 'high' if abs(predicted_margin) > 3 else 'medium',
         }
 

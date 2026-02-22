@@ -192,18 +192,38 @@ def get_quality_adjustment(team_id: str, opponent_id: str) -> tuple:
 def calculate_expected_runs(team_offense: float, opponent_defense: float, 
                             league_avg: float, home_advantage: float = 0.3,
                             quality_offense: float = 1.0,
-                            quality_defense: float = 1.0) -> float:
+                            quality_defense: float = 1.0,
+                            team_games: int = 0,
+                            opponent_games: int = 0) -> float:
     """
     Calculate expected runs for a team.
     
     Uses log5-style adjustment with quality modifiers:
     Expected = (Team_Offense * Opponent_AllowedRate / League_Average) * quality_blend
     
+    With small samples, regresses inputs toward league average to prevent
+    extreme splits (e.g. 7 runs/home game × 8 allowed/away game) from
+    producing absurd projections.
+    
     quality_offense: multiplier from batting quality (1.0 = avg)
     quality_defense: multiplier from opponent pitching quality (1.0 = avg)
+    team_games: number of games for the offensive team (for regression)
+    opponent_games: number of games for the defensive team (for regression)
     """
     if league_avg == 0:
         league_avg = 5.5
+    
+    # Regress toward league average with small samples
+    # At 0 games: 100% league avg. At 20+ games: ~85% real data.
+    # This prevents 3-game home splits from dominating.
+    def regress(value, n_games, prior=league_avg):
+        # Bayesian-style: weight = n / (n + k), where k = 10 (prior strength)
+        k = 10
+        weight = n_games / (n_games + k)
+        return weight * value + (1 - weight) * prior
+    
+    team_offense = regress(team_offense, team_games)
+    opponent_defense = regress(opponent_defense, opponent_games)
     
     expected = (team_offense * opponent_defense) / league_avg
     
@@ -214,7 +234,8 @@ def calculate_expected_runs(team_offense: float, opponent_defense: float,
     
     expected += home_advantage  # Home teams score ~0.3 more runs on average
     
-    return max(0.5, expected)  # Floor at 0.5 runs
+    # Hard cap: no team realistically averages more than 12 runs/game
+    return max(0.5, min(expected, 12.0))
 
 
 def build_probability_matrix(lambda_a: float, lambda_b: float) -> List[List[float]]:
@@ -393,7 +414,9 @@ def predict(team_a: str, team_b: str,
             league_avg,
             home_adv,
             quality_offense=qa_off,
-            quality_defense=qb_def  # B's pitching quality affects A's runs
+            quality_defense=qb_def,  # B's pitching quality affects A's runs
+            team_games=stats_a['games'],
+            opponent_games=stats_b['games']
         )
         lambda_b = calculate_expected_runs(
             stats_b['avg_scored_away'] if not neutral_site else stats_b['avg_scored'],
@@ -401,7 +424,9 @@ def predict(team_a: str, team_b: str,
             league_avg,
             0.0,
             quality_offense=qb_off,
-            quality_defense=qa_def  # A's pitching quality affects B's runs
+            quality_defense=qa_def,  # A's pitching quality affects B's runs
+            team_games=stats_b['games'],
+            opponent_games=stats_a['games']
         )
     else:
         lambda_a = calculate_expected_runs(
@@ -410,7 +435,9 @@ def predict(team_a: str, team_b: str,
             league_avg,
             0.0,
             quality_offense=qa_off,
-            quality_defense=qb_def
+            quality_defense=qb_def,
+            team_games=stats_a['games'],
+            opponent_games=stats_b['games']
         )
         lambda_b = calculate_expected_runs(
             stats_b['avg_scored_home'] if not neutral_site else stats_b['avg_scored'],
@@ -418,7 +445,9 @@ def predict(team_a: str, team_b: str,
             league_avg,
             home_adv,
             quality_offense=qb_off,
-            quality_defense=qa_def
+            quality_defense=qa_def,
+            team_games=stats_b['games'],
+            opponent_games=stats_a['games']
         )
     
     # Apply weather adjustment to expected runs (learned from historical data)

@@ -401,8 +401,8 @@ function displayResults(data, homeId, awayId) {
             <td>${modelName === 'ensemble' ? '★ ' : ''}${modelName}</td>
             <td class="text-center">${(model.home_win_prob * 100).toFixed(1)}%</td>
             <td class="text-center">${(model.away_win_prob * 100).toFixed(1)}%</td>
-            <td class="text-center">${model.projected_home_runs.toFixed(1)}</td>
-            <td class="text-center">${model.projected_away_runs.toFixed(1)}</td>
+            <td class="text-center">${model.projected_home_runs != null ? model.projected_home_runs.toFixed(1) : '-'}</td>
+            <td class="text-center">${model.projected_away_runs != null ? model.projected_away_runs.toFixed(1) : '-'}</td>
             <td class="text-center" style="color: ${pickColor}">${pick}</td>
         `;
         tbody.appendChild(row);

@@ -550,7 +550,7 @@ class EnsembleModel(BaseModel):
             runs_weight = 0
             for name, pred in predictions.items():
                 w = self.weights.get(name, 0)
-                if w > 0 and pred.get('projected_home_runs', 0) > 0:
+                if w > 0 and pred.get('projected_home_runs') is not None and pred['projected_home_runs'] > 0:
                     home_runs += pred['projected_home_runs'] * w
                     away_runs += pred['projected_away_runs'] * w
                     runs_weight += w
