@@ -282,6 +282,17 @@ def models():
         totals_no_line = {'total': 0, 'mae': 0, 'avg_projected': 0, 'avg_actual': 0}
         recent_totals = []
 
+    # Calibration report (if available)
+    try:
+        c.execute('''
+            SELECT model_name, a, b, n_samples, updated_at
+            FROM model_calibration
+            ORDER BY model_name
+        ''')
+        calibration_report = [dict(row) for row in c.fetchall()]
+    except Exception:
+        calibration_report = []
+
     conn.close()
 
     # Rolling accuracy data for chart
@@ -330,4 +341,5 @@ def models():
                           totals_by_edge=totals_by_edge,
                           totals_no_line=totals_no_line,
                           recent_totals=recent_totals,
-                          rolling_data=rolling_data)
+                          rolling_data=rolling_data,
+                          calibration_report=calibration_report)

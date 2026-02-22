@@ -67,15 +67,15 @@
         <div class="row text-center">
             <div class="col-5">
                 <div class="h2 {% if prediction.away_win_prob > 0.5 %}text-success{% else %}text-muted{% endif %}">{{ (prediction.away_win_prob * 100)|round(1) }}%</div>
-                <div class="text-muted">{{ (prediction.projected_away_runs)|round(1) }} runs</div>
+                <div class="text-muted">{{ (prediction.projected_away_runs|round(1) ~ ' runs') if prediction.projected_away_runs is not none else '—' }}</div>
             </div>
             <div class="col-2 d-flex align-items-center justify-content-center flex-column">
                 <small class="text-muted">Total</small>
-                <div class="fw-bold">{{ (prediction.projected_total)|round(1) }}</div>
+                <div class="fw-bold">{{ prediction.projected_total|round(1) if prediction.projected_total is not none else '—' }}</div>
             </div>
             <div class="col-5">
                 <div class="h2 {% if prediction.home_win_prob > 0.5 %}text-success{% else %}text-muted{% endif %}">{{ (prediction.home_win_prob * 100)|round(1) }}%</div>
-                <div class="text-muted">{{ (prediction.projected_home_runs)|round(1) }} runs</div>
+                <div class="text-muted">{{ (prediction.projected_home_runs|round(1) ~ ' runs') if prediction.projected_home_runs is not none else '—' }}</div>
             </div>
         </div>
     </div>
@@ -98,7 +98,7 @@
                     <td>{% if m.name == 'ensemble' %}★ {% endif %}{{ m.name }}</td>
                     <td class="text-center">{{ (m.away_prob * 100)|round(1) }}%</td>
                     <td class="text-center">{{ (m.home_prob * 100)|round(1) }}%</td>
-                    <td class="text-center">{% if m.away_runs or m.home_runs %}{{ m.away_runs|round(1) }}-{{ m.home_runs|round(1) }}{% else %}—{% endif %}</td>
+                    <td class="text-center">{% if m.away_runs is not none and m.home_runs is not none %}{{ m.away_runs|round(1) }}-{{ m.home_runs|round(1) }}{% else %}—{% endif %}</td>
                     <td class="text-center">{{ home.name if m.home_prob > 0.5 else away.name }}</td>
                 </tr>
                 {% endfor %}

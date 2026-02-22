@@ -10,9 +10,6 @@ echo "=== Full Train $(date) ===" >> "$LOG"
 echo "--- Training all models (--full-train) ---" >> "$LOG"
 python3 -u scripts/train_all_models.py --full-train --no-gpu >> "$LOG" 2>&1
 
-echo "--- Git commit ---" >> "$LOG"
-git add -A && git commit -m "Daily model training $(date +%Y-%m-%d)" --author="sams-claude-bot <sams-claude-bot@users.noreply.github.com>" >> "$LOG" 2>&1 && git push origin master >> "$LOG" 2>&1 || echo "Nothing to commit" >> "$LOG"
-
 echo "--- Verification ---" >> "$LOG"
 python3 -c "
 import os, torch, pickle

@@ -86,10 +86,16 @@
                 <div class="d-flex gap-2 flex-wrap">
                     {% for game in recent_form %}
                     {% set is_home = game.home_team_id == team.id %}
-                    {% set won = game.winner_id == team.id %}
+                    {% set has_scores = game.home_score is not none and game.away_score is not none %}
+                    {% set won = (game.winner_id == team.id) if game.winner_id else ((game.home_score > game.away_score) if (has_scores and is_home) else ((game.away_score > game.home_score) if has_scores else false)) %}
                     {% set opponent = game.away_team_name if is_home else game.home_team_name %}
+                    {% if game.status == 'final' and game.home_score is not none and game.away_score is not none and game.winner_id %}
+                    {% set our_score = [game.home_score, game.away_score]|max if won else [game.home_score, game.away_score]|min %}
+                    {% set their_score = [game.home_score, game.away_score]|min if won else [game.home_score, game.away_score]|max %}
+                    {% else %}
                     {% set our_score = game.home_score if is_home else game.away_score %}
                     {% set their_score = game.away_score if is_home else game.home_score %}
+                    {% endif %}
                     
                     <div class="text-center p-2 rounded {% if won %}bg-success text-white{% else %}bg-danger text-white{% endif %}"
                          style="min-width: 60px;" title="{{ 'W' if won else 'L' }} vs {{ opponent }} {{ our_score }}-{{ their_score }}">
@@ -123,9 +129,15 @@
                             {% set is_home = game.home_team_id == team.id %}
                             {% set opponent_id = game.away_team_id if is_home else game.home_team_id %}
                             {% set opponent = game.away_team_name if is_home else game.home_team_name %}
-                            {% set won = game.winner_id == team.id %}
+                            {% set has_scores = game.home_score is not none and game.away_score is not none %}
+                            {% set won = (game.winner_id == team.id) if game.winner_id else ((game.home_score > game.away_score) if (has_scores and is_home) else ((game.away_score > game.home_score) if has_scores else false)) %}
+                            {% if game.status == 'final' and game.home_score is not none and game.away_score is not none and game.winner_id %}
+                            {% set our_score = [game.home_score, game.away_score]|max if won else [game.home_score, game.away_score]|min %}
+                            {% set their_score = [game.home_score, game.away_score]|min if won else [game.home_score, game.away_score]|max %}
+                            {% else %}
                             {% set our_score = game.home_score if is_home else game.away_score %}
                             {% set their_score = game.away_score if is_home else game.home_score %}
+                            {% endif %}
                             
                             <tr>
                                 <td>

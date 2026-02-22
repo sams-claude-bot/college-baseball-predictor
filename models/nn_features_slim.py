@@ -192,8 +192,13 @@ class SlimFeatureComputer:
         # Get completed games before date
         c.execute("""
             SELECT home_team_id, away_team_id, home_score, away_score, date
-            FROM games WHERE (home_team_id = ? OR away_team_id = ?)
-            AND status = 'final' AND date < ? ORDER BY date ASC
+            FROM games
+            WHERE (home_team_id = ? OR away_team_id = ?)
+              AND status = 'final'
+              AND home_score IS NOT NULL
+              AND away_score IS NOT NULL
+              AND date < ?
+            ORDER BY date ASC
         """, (team_id, team_id, game_date))
 
         games = []

@@ -37,6 +37,10 @@ unevaled = db.execute('SELECT COUNT(*) FROM model_predictions mp JOIN games g ON
 print(f'Unevaluated predictions on final games: {unevaled}')
 " >> "$LOG" 2>&1
 
-echo "--- Git commit ---" >> "$LOG"
-git add -A && git commit -m "Nightly eval $YESTERDAY" --author="sams-claude-bot <sams-claude-bot@users.noreply.github.com>" >> "$LOG" 2>&1 && git push origin master >> "$LOG" 2>&1 || echo "Nothing to commit" >> "$LOG"
+echo "--- Integrity Guard ---" >> "$LOG"
+python3 scripts/integrity_guard.py >> "$LOG" 2>&1
+
+echo "--- Doubleheader Suffix Audit ---" >> "$LOG"
+python3 scripts/doubleheader_suffix_audit.py >> "$LOG" 2>&1 || true
+
 echo "=== Done $(date) ===" >> "$LOG"

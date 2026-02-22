@@ -159,10 +159,11 @@ def scores():
         nn_correct = sum(1 for g in games if g.get('nn_correct'))
         nn_total = sum(1 for g in games if g.get('nn_correct') is not None)
 
-    # Split into completed, in-progress, and scheduled
+    # Split into completed, in-progress, scheduled, and postponed
     completed_games = [g for g in games if g['status'] == 'final']
     in_progress_games = [g for g in games if g['status'] == 'in-progress']
-    scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress')]
+    postponed_games = [g for g in games if g['status'] in ('postponed', 'canceled')]
+    scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress', 'postponed', 'canceled')]
 
     # Calculate prev/next dates
     prev_date = (display_date - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -205,6 +206,7 @@ def scores():
                           completed_games=completed_games,
                           in_progress_games=in_progress_games,
                           scheduled_games=scheduled_games,
+                          postponed_games=postponed_games,
                           selected_date=date_str,
                           display_date=display_date,
                           prev_date=prev_date,
@@ -279,19 +281,19 @@ def game_detail(game_id):
             'name': r['model_name'],
             'home_prob': home_prob,
             'away_prob': 1 - home_prob,
-            'home_runs': r['predicted_home_runs'] or 0,
-            'away_runs': r['predicted_away_runs'] or 0
+            'home_runs': r['predicted_home_runs'],
+            'away_runs': r['predicted_away_runs']
         }
         models_list.append(entry)
         if r['model_name'] == 'ensemble':
-            home_runs = r['predicted_home_runs'] or 0
-            away_runs = r['predicted_away_runs'] or 0
+            home_runs = r['predicted_home_runs']
+            away_runs = r['predicted_away_runs']
             prediction = {
                 'home_win_prob': home_prob,
                 'away_win_prob': 1 - home_prob,
                 'projected_home_runs': home_runs,
                 'projected_away_runs': away_runs,
-                'projected_total': home_runs + away_runs
+                'projected_total': (home_runs + away_runs) if (home_runs is not None and away_runs is not None) else None
             }
 
     # Sort: ensemble first, then by home_prob desc

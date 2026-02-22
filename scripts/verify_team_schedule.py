@@ -86,10 +86,20 @@ def fetch_d1bb_schedule(d1bb_slug: str) -> list:
         if opp_slug == d1bb_slug:
             continue
         
-        # Track doubleheaders — count games per (date, opponent)
+        # Track doubleheaders — prefer explicit G1/G2 markers when present,
+        # otherwise fall back to sequence per (date, opponent).
+        explicit_num = None
+        dh_match = re.search(r'\b(?:G|GAME)\s*([12])\b', middle, re.IGNORECASE)
+        if not dh_match:
+            # look shortly after opponent link too
+            after_probe = table_html[m.end():m.end() + 180]
+            dh_match = re.search(r'\b(?:G|GAME)\s*([12])\b', re.sub(r'<[^>]+>', ' ', after_probe), re.IGNORECASE)
+        if dh_match:
+            explicit_num = int(dh_match.group(1))
+
         key = (date_str, opp_slug)
         seen[key] = seen.get(key, 0) + 1
-        game_num = seen[key]  # 1 = first game, 2 = second game of DH, etc.
+        game_num = explicit_num if explicit_num else seen[key]  # 1 = first game, 2 = second game
         
         # Determine home/away from the text between date link and team link
         # "@" in the middle section means away; "vs" means home/neutral

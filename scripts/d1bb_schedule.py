@@ -129,6 +129,12 @@ def extract_games_for_date(page, date_str, verbose=False):
                 // Get game time/status from the tile - time is first line
                 const tileText = container.innerText.trim();
                 const firstLine = tileText.split(String.fromCharCode(10))[0].trim();
+
+                // Detect explicit doubleheader labels like "G1", "G2", "Game 1", "Game 2"
+                const dhMatch = tileText.match(/\b(?:GAME|G)\s*([12])\b/i);
+                if (dhMatch) {
+                    game.game_num = parseInt(dhMatch[1]);
+                }
                 // Check if first line looks like a time (e.g., "2:00 PM", "11:30 AM")
                 if (firstLine.includes(':') && (firstLine.toUpperCase().includes('AM') || firstLine.toUpperCase().includes('PM'))) {
                     game.time_text = firstLine;
@@ -148,7 +154,15 @@ def extract_games_for_date(page, date_str, verbose=False):
                 
                 if (game.away_slug && game.home_slug) {
                     // Dedupe: D1BB shows each game twice (once per conference)
-                    const key = [game.away_slug, game.home_slug].sort().join('_');
+                    const key = [
+                        game.away_slug,
+                        game.home_slug,
+                        game.game_num || 0,
+                        game.time_text || '',
+                        game.status || '',
+                        game.away_score ?? '',
+                        game.home_score ?? ''
+                    ].join('|');
                     if (!seen.has(key)) {
                         seen.add(key);
                         results.push(game);
@@ -262,7 +276,7 @@ def _get_team_aliases(db, team_id):
     return ids
 
 
-def _find_existing_game(db, date, home_id, away_id):
+def _find_existing_game(db, date, home_id, away_id, game_num=1):
     """Find an existing game by date + teams, handling ID mismatches and home/away swaps.
     
     Returns the existing game row (dict) or None.
@@ -282,25 +296,53 @@ def _find_existing_game(db, date, home_id, away_id):
             combos.append((a, h))   # swapped
     
     for h, a in combos:
-        row = db.execute(
-            "SELECT id, home_score, away_score, home_team_id, away_team_id FROM games WHERE date = ? AND home_team_id = ? AND away_team_id = ?",
-            (date, h, a)
-        ).fetchone()
+        if game_num and int(game_num) > 1:
+            row = db.execute(
+                """SELECT id, home_score, away_score, home_team_id, away_team_id
+                   FROM games
+                   WHERE date = ? AND home_team_id = ? AND away_team_id = ?
+                     AND (id LIKE ? OR id LIKE ?)
+                """,
+                (date, h, a, f'%_gm{int(game_num)}', f'%_g{int(game_num)}')
+            ).fetchone()
+        else:
+            row = db.execute(
+                """SELECT id, home_score, away_score, home_team_id, away_team_id
+                   FROM games
+                   WHERE date = ? AND home_team_id = ? AND away_team_id = ?
+                     AND id NOT LIKE '%_gm%'
+                """,
+                (date, h, a)
+            ).fetchone()
         if row:
             return row
 
     return None
 
 
-def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_score=None, status=None, inning_text=None):
-    """Insert or update a game. Handles ESPN ghost dedup."""
-    
-    # Generate game ID - match existing format: YYYY-MM-DD_away_home
-    game_id = f"{date}_{away_id}_{home_id}"
-    
-    # Check if exact ID exists
-    cursor = db.execute("SELECT id, home_score, away_score FROM games WHERE id = ?", (game_id,))
-    existing = cursor.fetchone()
+def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_score=None, status=None, inning_text=None, game_num=None):
+    """Insert or update a game. Handles ESPN ghost dedup + DH suffix variants."""
+
+    game_num = int(game_num) if game_num else 1
+
+    # Canonical ID format: unsuffixed for game 1, _gmN for game 2+
+    canonical_id = f"{date}_{away_id}_{home_id}" + (f"_gm{game_num}" if game_num > 1 else "")
+
+    # Recognize legacy suffixes too
+    candidate_ids = [canonical_id]
+    if game_num == 1:
+        candidate_ids += [f"{date}_{away_id}_{home_id}_g1", f"{date}_{away_id}_{home_id}_gm1"]
+    else:
+        candidate_ids += [f"{date}_{away_id}_{home_id}_g{game_num}"]
+
+    existing = None
+    game_id = canonical_id
+    for cid in candidate_ids:
+        row = db.execute("SELECT id, home_score, away_score FROM games WHERE id = ?", (cid,)).fetchone()
+        if row:
+            existing = row
+            game_id = cid
+            break
     
     if existing:
         # Update if we have new info
@@ -342,7 +384,7 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
         return 'unchanged'
     
     # No exact ID match — check for ESPN ghost with different ID but same matchup
-    ghost = _find_existing_game(db, date, home_id, away_id)
+    ghost = _find_existing_game(db, date, home_id, away_id, game_num=game_num)
     if ghost and ghost['id'] != game_id:
         # Found an ESPN-sourced game with different ID — replace it
         return _replace_espn_ghost(db, ghost['id'], game_id, date, home_id, away_id,
@@ -354,8 +396,8 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         game_id, date, time, home_id, away_id, home_score, away_score,
-        home_id if home_score and away_score and home_score > away_score else
-        away_id if home_score and away_score and away_score > home_score else None
+        home_id if home_score is not None and away_score is not None and home_score > away_score else
+        away_id if home_score is not None and away_score is not None and away_score > home_score else None
     ))
     return 'created'
 
@@ -429,10 +471,19 @@ def main():
                         continue
                     
                     # Track this game as confirmed by D1Baseball
-                    game_id = f"{date_str}_{away_id}_{home_id}"
+                    game_num = int(game.get('game_num') or 1)
+                    base_id = f"{date_str}_{away_id}_{home_id}"
+                    game_id = base_id + (f"_gm{game_num}" if game_num > 1 else "")
                     d1bb_game_ids.add(game_id)
-                    # Also track the reverse ID in case DB has home/away swapped
-                    ghost = _find_existing_game(db, date_str, home_id, away_id)
+                    # Track legacy suffix variants too
+                    if game_num == 1:
+                        d1bb_game_ids.add(f"{base_id}_g1")
+                        d1bb_game_ids.add(f"{base_id}_gm1")
+                    else:
+                        d1bb_game_ids.add(f"{base_id}_g{game_num}")
+
+                    # Also track existing matched row in case DB has home/away swapped
+                    ghost = _find_existing_game(db, date_str, home_id, away_id, game_num=game_num)
                     if ghost:
                         d1bb_game_ids.add(ghost['id'])
                     
@@ -446,7 +497,8 @@ def main():
                             home_score=game.get('home_score'),
                             away_score=game.get('away_score'),
                             status=game.get('status'),
-                            inning_text=game.get('inning_text')
+                            inning_text=game.get('inning_text'),
+                            game_num=game.get('game_num')
                         )
                         stats[result] += 1
                         

@@ -116,6 +116,49 @@
             </div>
         </div>
 
+        <!-- Calibration Report -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-sliders"></i> Calibration Report (Platt)
+            </div>
+            <div class="card-body">
+                {% if calibration_report %}
+                <div class="small text-muted mb-2">
+                    Per-model Platt calibration fit from recent evaluated predictions.<br>
+                    <strong>How to read:</strong> <code>a</code> controls confidence scaling (1.0 ≈ unchanged, &lt;1.0 softens extremes, &gt;1.0 sharpens),
+                    <code>b</code> is bias correction (positive shifts toward home team, negative toward away), and
+                    <code>Samples</code> is the number of graded predictions used in the fit.
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th class="text-center">a</th>
+                                <th class="text-center">b</th>
+                                <th class="text-center">Samples</th>
+                                <th class="text-center">Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in calibration_report %}
+                            <tr>
+                                <td><strong>{{ row.model_name }}</strong></td>
+                                <td class="text-center">{{ '%.3f'|format(row.a) }}</td>
+                                <td class="text-center">{{ '%.3f'|format(row.b) }}</td>
+                                <td class="text-center"><span class="badge bg-secondary">{{ row.n_samples }}</span></td>
+                                <td class="text-center"><small>{{ row.updated_at }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-muted small">No calibration data yet. Run <code>scripts/update_model_calibration.py</code>.</div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Model Descriptions -->
         <div class="card">
             <div class="card-header">

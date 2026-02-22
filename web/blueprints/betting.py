@@ -52,7 +52,27 @@ def betting():
         if g.get('model_agreement') and g['model_agreement']['count'] >= 7:
             consensus_lookup[g['game_id']] = g['model_agreement']['count']
 
-    # Add adjusted_edge to all games
+    def classify_bucket(game):
+        """Classify game into confidence buckets based on pick-side probability."""
+        pick_side = game.get('best_pick')
+
+        # Fallback to consensus pick if best_pick isn't set
+        if not pick_side and game.get('model_agreement'):
+            pick_side = game['model_agreement'].get('pick')
+
+        model_home_prob = game.get('model_home_prob')
+        if model_home_prob is None:
+            return None
+
+        pick_prob = model_home_prob if pick_side != 'away' else (1 - model_home_prob)
+
+        if pick_prob >= 0.70:
+            return {'key': 'heavy_favorite', 'label': 'Heavy Favorite', 'color': 'success', 'prob': pick_prob}
+        if pick_prob >= 0.60:
+            return {'key': 'moderate_edge', 'label': 'Moderate Edge', 'color': 'primary', 'prob': pick_prob}
+        return {'key': 'coin_flip', 'label': 'Coin Flip', 'color': 'secondary', 'prob': pick_prob}
+
+    # Add adjusted_edge + bucket to all games
     for g in games:
         if g.get('best_edge'):
             ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
@@ -60,6 +80,8 @@ def betting():
             g['adjusted_edge'] = calc_adjusted_edge(g['best_edge'], ml, models)
             g['models_agree'] = models
             g['is_underdog'] = ml > 0 if ml else False
+
+        g['bucket'] = classify_bucket(g)
 
     # Sort by adjusted edge
     games_with_edge = [g for g in games if g.get('adjusted_edge')]

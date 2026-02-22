@@ -102,7 +102,9 @@ class LGBMoneylineModel(BaseModel):
 
         X = features.reshape(1, -1)
         home_prob = float(self.model.predict_proba(X)[0, 1])
-        home_prob = max(0.05, min(0.95, home_prob))
+        # Avoid hard 95/5 plateaus from clipping; shrink extreme confidence smoothly.
+        home_prob = 0.5 + (home_prob - 0.5) * 0.9
+        home_prob = max(0.01, min(0.99, home_prob))
 
         return {
             'model': self.name,
@@ -282,7 +284,8 @@ class LGBSpreadModel(BaseModel):
         # Convert margin to win probability
         import math
         home_prob = 1.0 / (1.0 + math.exp(-predicted_margin / 3.0))
-        home_prob = max(0.05, min(0.95, home_prob))
+        home_prob = 0.5 + (home_prob - 0.5) * 0.9
+        home_prob = max(0.01, min(0.99, home_prob))
 
         # Cover probability given a spread line
         std = 4.0

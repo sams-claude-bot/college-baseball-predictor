@@ -418,6 +418,38 @@
 </div>
 {% endif %}
 
+<!-- Postponed/Canceled Games -->
+{% if postponed_games is defined and postponed_games %}
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-x-circle"></i> Postponed / Canceled
+        <span class="badge bg-warning text-dark ms-2">{{ postponed_games|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="row g-0">
+            {% for game in postponed_games %}
+            <div class="col-12 col-md-6 col-lg-4 p-2">
+                <div class="border rounded p-3 h-100 opacity-50">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">{{ game.time or 'TBD' }}</small>
+                        <span class="badge bg-warning text-dark">{{ game.status|capitalize }}</span>
+                    </div>
+                    <div class="mb-1">
+                        {% if game.away_rank %}<span class="badge bg-maroon me-1">{{ game.away_rank }}</span>{% endif %}
+                        <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
+                    </div>
+                    <div>
+                        {% if game.home_rank %}<span class="badge bg-maroon me-1">{{ game.home_rank }}</span>{% endif %}
+                        <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- No Games Found -->
 {% if not completed_games and not in_progress_games and not scheduled_games %}
 <div class="card">

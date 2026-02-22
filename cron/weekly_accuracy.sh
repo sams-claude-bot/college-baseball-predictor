@@ -30,6 +30,4 @@ for bt in ['spread','total']:
     else: print(f'{bt} P&L: no data')
 " >> "$LOG" 2>&1
 
-echo "--- Git commit ---" >> "$LOG"
-git add -A && git commit -m "Weekly accuracy report $(date +%Y-%m-%d)" --author="sams-claude-bot <sams-claude-bot@users.noreply.github.com>" >> "$LOG" 2>&1 && git push origin master >> "$LOG" 2>&1 || echo "Nothing to commit" >> "$LOG"
 echo "=== Done $(date) ===" >> "$LOG"

@@ -5,7 +5,7 @@ TODAY=$(date +%Y-%m-%d)
 echo "=== Overnight Pipeline Status: $TODAY ==="
 echo ""
 
-JOBS="01_schedule_sync 02_stats_scrape 03_derived_stats 04_nightly_eval full_train 05_morning_pipeline"
+JOBS="01_schedule_and_finalize 02_stats_scrape 03_derived_stats 04_nightly_eval full_train 05_morning_pipeline"
 
 for job in $JOBS; do
     LOG="logs/cron/${TODAY}_${job}.log"
@@ -21,7 +21,7 @@ for job in $JOBS; do
     fi
     
     # Check for errors
-    ERRORS=$(grep -ci "error\|traceback\|failed\|exception" "$LOG" 2>/dev/null || echo 0)
+    ERRORS=$(grep -Eci "error|traceback|failed|exception" "$LOG" 2>/dev/null)
     LAST_LINE=$(tail -1 "$LOG")
     
     if echo "$LAST_LINE" | grep -qi "done\|ok\|complete\|finish"; then
@@ -87,6 +87,14 @@ unevaled = db.execute('SELECT COUNT(*) FROM model_predictions mp JOIN games g ON
 if unevaled > 0:
     print(f'⚠️  {unevaled} unevaluated predictions on final games')
 "
+
+echo ""
+echo "=== Integrity Guard (live) ==="
+python3 scripts/integrity_guard.py || true
+
+echo ""
+echo "=== Doubleheader Suffix Audit (live) ==="
+python3 scripts/doubleheader_suffix_audit.py || true
 
 echo ""
 echo "=== Log Sizes ==="

@@ -27,6 +27,9 @@
             <span><span class="badge bg-primary">X/12</span> Number of models agreeing on pick</span>
             <span><span class="badge bg-success">AGREE</span> Both NN &amp; Ensemble agree with &gt;60% confidence</span>
             <span><span class="badge bg-danger">SPLIT</span> Models disagree on the winner</span>
+            <span><span class="badge bg-success">Heavy Favorite</span> Pick-side model probability ≥ 70%</span>
+            <span><span class="badge bg-primary">Moderate Edge</span> Pick-side model probability 60-69%</span>
+            <span><span class="badge bg-secondary">Coin Flip</span> Pick-side model probability &lt; 60%</span>
         </div>
     </div>
 </div>
@@ -148,6 +151,9 @@
                                 {% if game.adjusted_edge %}
                                 <span class="badge bg-success">{{ game.adjusted_edge|round(1) }}% adj</span>
                                 {% endif %}
+                                {% if game.bucket %}
+                                <span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span>
+                                {% endif %}
                             </div>
                         </div>
                         <h6 class="mb-1">
@@ -199,6 +205,9 @@
                                 {% endif %}
                                 {% if game.is_underdog %}
                                 <span class="badge bg-warning text-dark" title="50% edge discount applied">🐕</span>
+                                {% endif %}
+                                {% if game.bucket %}
+                                <span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span>
                                 {% endif %}
                             </div>
                         </div>
@@ -314,6 +323,9 @@
                                     {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
                                     <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">{{ game.home_team_name }}</a>
                                 </span>
+                                {% if game.bucket %}
+                                <small class="mt-1"><span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span></small>
+                                {% endif %}
                             </div>
                         </td>
                         <td class="text-center">

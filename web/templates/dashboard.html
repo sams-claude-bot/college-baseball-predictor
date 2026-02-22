@@ -133,7 +133,11 @@
                                 </td>
                                 <td class="text-center hide-mobile">
                                     {% if game.prediction %}
-                                    <small>{{ (game.prediction.projected_away_runs|round(1)) }}-{{ (game.prediction.projected_home_runs|round(1)) }}</small>
+                                    <small>
+                                        {% if game.prediction.projected_away_runs is not none and game.prediction.projected_home_runs is not none %}
+                                        {{ game.prediction.projected_away_runs|round(1) }}-{{ game.prediction.projected_home_runs|round(1) }}
+                                        {% else %}—{% endif %}
+                                    </small>
                                     {% else %}—{% endif %}
                                 </td>
                                 <td class="text-center hide-mobile">

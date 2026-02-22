@@ -27,6 +27,4 @@ print(f'Pitching quality: {pq} teams')
 print(f'Batting quality: {bq} teams')
 " >> "$LOG" 2>&1
 
-echo "--- Git commit ---" >> "$LOG"
-git add -A && git commit -m "Nightly stats $(date +%Y-%m-%d)" --author="sams-claude-bot <sams-claude-bot@users.noreply.github.com>" >> "$LOG" 2>&1 && git push origin master >> "$LOG" 2>&1 || echo "Nothing to commit" >> "$LOG"
 echo "=== Done $(date) ===" >> "$LOG"

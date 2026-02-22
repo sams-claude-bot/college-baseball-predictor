@@ -40,7 +40,7 @@ def update_elo_ratings(date=None, force=False, runner=None):
     # elo_history has 2 entries per game (one per team), so we check for either
     if date:
         cur.execute('''
-            SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.date
+            SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.winner_id, g.date
             FROM games g
             WHERE g.date = ? 
               AND g.home_score IS NOT NULL
@@ -50,7 +50,7 @@ def update_elo_ratings(date=None, force=False, runner=None):
         ''', (date,))
     else:
         cur.execute('''
-            SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.date
+            SELECT g.id, g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.winner_id, g.date
             FROM games g
             WHERE g.home_score IS NOT NULL
               AND g.status = 'final'
@@ -71,12 +71,29 @@ def update_elo_ratings(date=None, force=False, runner=None):
     updated = 0
     errors = 0
     
-    for game_id, home_id, away_id, home_score, away_score, game_date in games:
-        home_won = home_score > away_score
-        margin = abs(home_score - away_score)
-        
+    for game_id, home_id, away_id, home_score, away_score, winner_id, game_date in games:
         try:
-            result = elo.update_ratings(home_id, away_id, home_won, margin=margin, 
+            # SQLite may return scores as TEXT depending on table history/migrations.
+            hs = int(home_score)
+            aws = int(away_score)
+        except (TypeError, ValueError):
+            if runner:
+                runner.error(f"Invalid score values for {game_id}: home={home_score}, away={away_score}")
+            errors += 1
+            continue
+
+        # Prefer winner_id when present (more robust for tournament home/away quirks).
+        if winner_id == home_id:
+            home_won = True
+        elif winner_id == away_id:
+            home_won = False
+        else:
+            home_won = hs > aws
+
+        margin = abs(hs - aws)
+
+        try:
+            result = elo.update_ratings(home_id, away_id, home_won, margin=margin,
                                         game_id=game_id, game_date=game_date)
             updated += 1
         except Exception as e:

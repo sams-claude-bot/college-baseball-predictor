@@ -4,6 +4,8 @@ Predict games and track model performance.
 
 Usage:
     python predict_and_track.py predict [DATE]       # Generate predictions for games
+    python predict_and_track.py predict --refresh-existing          # Smart refresh (today+1 + changed games)
+    python predict_and_track.py predict --refresh-existing --refresh-all  # Full refresh window
     python predict_and_track.py evaluate [DATE]      # Grade predictions against results
     python predict_and_track.py accuracy             # Show overall model accuracy
     python predict_and_track.py validate [--fix]     # Check for missing predictions
@@ -12,6 +14,7 @@ Usage:
 
 import sys
 import sqlite3
+import math
 from datetime import datetime
 from pathlib import Path
 
@@ -24,7 +27,29 @@ from scripts.run_utils import ScriptRunner
 
 MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
 
-def predict_games(date=None, days=3, runner=None):
+
+def _load_calibration_params(cur):
+    try:
+        cur.execute("SELECT model_name, a, b, n_samples FROM model_calibration")
+        return {r[0]: (float(r[1]), float(r[2]), int(r[3])) for r in cur.fetchall()}
+    except Exception:
+        return {}
+
+
+def _apply_platt(p, params):
+    if params is None:
+        return p
+    a, b, n = params
+    if n < 120:
+        return p
+    p = min(max(float(p), 1e-6), 1 - 1e-6)
+    x = math.log(p / (1 - p))
+    z = a * x + b
+    calibrated = 1.0 / (1.0 + math.exp(-z))
+    return min(max(calibrated, 0.001), 0.999)
+
+
+def predict_games(date=None, days=3, runner=None, refresh_existing=False, refresh_all=False):
     """Generate and store predictions for upcoming games.
     
     Args:
@@ -36,6 +61,7 @@ def predict_games(date=None, days=3, runner=None):
     
     conn = get_connection()
     cur = conn.cursor()
+    calibration_params = _load_calibration_params(cur)
     
     if date:
         date_start = date
@@ -43,32 +69,67 @@ def predict_games(date=None, days=3, runner=None):
     else:
         today = datetime.now()
         date_start = today.strftime("%Y-%m-%d")
-        date_end = (today + timedelta(days=days-1)).strftime("%Y-%m-%d")
+        # Smart default for refresh-existing: today + 1 day
+        if refresh_existing and not refresh_all:
+            date_end = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            date_end = (today + timedelta(days=days-1)).strftime("%Y-%m-%d")
     
-    # Get games that are missing predictions from ANY model
-    cur.execute('''
-        SELECT DISTINCT g.id, g.home_team_id, g.away_team_id, h.name, a.name
-        FROM games g
-        JOIN teams h ON g.home_team_id = h.id
-        JOIN teams a ON g.away_team_id = a.id
-        WHERE g.date BETWEEN ? AND ?
-        AND g.status = 'scheduled'
-        AND (
-            -- Games with no predictions at all
-            g.id NOT IN (SELECT DISTINCT game_id FROM model_predictions)
-            -- OR games missing predictions from some models
-            OR g.id IN (
-                SELECT game_id FROM (
-                    SELECT g2.id as game_id, COUNT(DISTINCT mp.model_name) as model_count
-                    FROM games g2
-                    LEFT JOIN model_predictions mp ON g2.id = mp.game_id
-                    WHERE g2.date BETWEEN ? AND ?
-                    GROUP BY g2.id
-                    HAVING model_count < ?
+    if refresh_existing:
+        if refresh_all:
+            # Full brute-force refresh across date window
+            cur.execute('''
+                SELECT DISTINCT g.id, g.home_team_id, g.away_team_id, h.name, a.name
+                FROM games g
+                JOIN teams h ON g.home_team_id = h.id
+                JOIN teams a ON g.away_team_id = a.id
+                WHERE g.date BETWEEN ? AND ?
+                  AND g.status IN ('scheduled', 'in-progress')
+            ''', (date_start, date_end))
+        else:
+            # Smart refresh: today+1 window plus games changed since last prediction
+            cur.execute('''
+                SELECT DISTINCT g.id, g.home_team_id, g.away_team_id, h.name, a.name
+                FROM games g
+                JOIN teams h ON g.home_team_id = h.id
+                JOIN teams a ON g.away_team_id = a.id
+                WHERE g.status IN ('scheduled', 'in-progress')
+                  AND (
+                        g.date BETWEEN ? AND ?
+                        OR EXISTS (
+                            SELECT 1
+                            FROM model_predictions mp
+                            WHERE mp.game_id = g.id
+                              AND datetime(mp.predicted_at) < datetime(g.updated_at)
+                        )
+                        OR g.id NOT IN (SELECT DISTINCT game_id FROM model_predictions)
+                  )
+            ''', (date_start, date_end))
+    else:
+        # Get games that are missing predictions from ANY model
+        cur.execute('''
+            SELECT DISTINCT g.id, g.home_team_id, g.away_team_id, h.name, a.name
+            FROM games g
+            JOIN teams h ON g.home_team_id = h.id
+            JOIN teams a ON g.away_team_id = a.id
+            WHERE g.date BETWEEN ? AND ?
+            AND g.status = 'scheduled'
+            AND (
+                -- Games with no predictions at all
+                g.id NOT IN (SELECT DISTINCT game_id FROM model_predictions)
+                -- OR games missing predictions from some models
+                OR g.id IN (
+                    SELECT game_id FROM (
+                        SELECT g2.id as game_id, COUNT(DISTINCT mp.model_name) as model_count
+                        FROM games g2
+                        LEFT JOIN model_predictions mp ON g2.id = mp.game_id
+                        WHERE g2.date BETWEEN ? AND ?
+                        GROUP BY g2.id
+                        HAVING model_count < ?
+                    )
                 )
             )
-        )
-    ''', (date_start, date_end, date_start, date_end, len(MODEL_NAMES)))
+        ''', (date_start, date_end, date_start, date_end, len(MODEL_NAMES)))
     
     games = cur.fetchall()
     date_label = date_start if date_start == date_end else f"{date_start} to {date_end}"
@@ -94,16 +155,16 @@ def predict_games(date=None, days=3, runner=None):
         # Check which models already have predictions for this game
         cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
         existing_models = {row[0] for row in cur.fetchall()}
-        
+
         for model_name, predictor in predictors.items():
-            if model_name in existing_models:
+            if (not refresh_existing) and model_name in existing_models:
                 continue
             try:
                 # Pass team IDs (not names) to avoid home/away confusion
                 result = predictor.predict_game(home_id, away_id)
                 home_prob = result.get('home_win_probability', 0.5)
-                home_runs = result.get('projected_home_runs', result.get('predicted_home_runs', 0)) or 0
-                away_runs = result.get('projected_away_runs', result.get('predicted_away_runs', 0)) or 0
+                home_runs = result.get('projected_home_runs', result.get('predicted_home_runs'))
+                away_runs = result.get('projected_away_runs', result.get('predicted_away_runs'))
                 
                 # Sanity check: verify the model understood home/away correctly
                 returned_home = result.get('home_team', '').lower().replace(' ', '-')
@@ -114,16 +175,25 @@ def predict_games(date=None, days=3, runner=None):
                     home_prob = 1 - home_prob
                     home_runs, away_runs = away_runs, home_runs
                 
+                home_prob = _apply_platt(home_prob, calibration_params.get(model_name))
+
                 cur.execute('''
                     INSERT INTO model_predictions 
                     (game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs)
                     VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(game_id, model_name) DO UPDATE SET
+                        predicted_home_prob = excluded.predicted_home_prob,
+                        predicted_home_runs = excluded.predicted_home_runs,
+                        predicted_away_runs = excluded.predicted_away_runs,
+                        predicted_at = CURRENT_TIMESTAMP
                 ''', (game_id, model_name, home_prob, home_runs, away_runs))
                 
                 if runner:
-                    runner.info(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {home_runs:.1f}-{away_runs:.1f}")
+                    runs_str = f"{home_runs:.1f}-{away_runs:.1f}" if (home_runs is not None and away_runs is not None) else "—"
+                    runner.info(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {runs_str}")
                 else:
-                    print(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {home_runs:.1f}-{away_runs:.1f}")
+                    runs_str = f"{home_runs:.1f}-{away_runs:.1f}" if (home_runs is not None and away_runs is not None) else "—"
+                    print(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {runs_str}")
                 predictions_made += 1
                 models_run += 1
             except Exception as e:
@@ -603,10 +673,12 @@ if __name__ == "__main__":
     cmd = sys.argv[1]
     date = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith('--') else None
     fix = '--fix' in sys.argv
+    refresh_existing = '--refresh-existing' in sys.argv
+    refresh_all = '--refresh-all' in sys.argv
     
     if cmd == "predict":
         runner = ScriptRunner("predict_and_track_predict")
-        predict_games(date=date, runner=runner)
+        predict_games(date=date, runner=runner, refresh_existing=refresh_existing, refresh_all=refresh_all)
         runner.finish()
     elif cmd == "evaluate":
         runner = ScriptRunner("predict_and_track_evaluate")

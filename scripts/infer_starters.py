@@ -255,19 +255,29 @@ def populate_pitching_matchups(conn, days_ahead=7, dry_run=False):
         
         rot = rotations[team_id]
         series_list = group_upcoming_into_series(games)
-        
+
+        # Tournament weekends can have 1-game "series" vs different opponents each day.
+        # In those cases, keep a rolling weekend slot (Game 1/2/3) across singleton sets
+        # so we don't assign the Game 1 starter every day.
+        weekend_singleton_slot = 0
+
         for series in series_list:
             first_date = datetime.strptime(series[0]['date'], '%Y-%m-%d')
             is_weekend = first_date.weekday() in WEEKEND_DAYS or (
                 len(series) >= 3 and any(
-                    datetime.strptime(g['date'], '%Y-%m-%d').weekday() in WEEKEND_DAYS 
+                    datetime.strptime(g['date'], '%Y-%m-%d').weekday() in WEEKEND_DAYS
                     for g in series
                 )
             )
-            
+
+            singleton_weekend_series = is_weekend and len(series) == 1
+
             for i, game in enumerate(series):
                 game_id = game['id']
                 pos = i + 1
+                if singleton_weekend_series:
+                    pos = (weekend_singleton_slot % 3) + 1
+                    weekend_singleton_slot += 1
                 
                 if game_id not in predictions:
                     predictions[game_id] = {
