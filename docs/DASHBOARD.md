@@ -1,7 +1,10 @@
 # Dashboard Pages & Data Sources
 
+> Scope: dashboard routes, page data dependencies, and page freshness notes.
+> For canonical cron/runbook details and active-vs-legacy cron context, use `CONTEXT.md`.
+
 **URL:** baseball.mcdevitt.page  
-**Service:** `college-baseball-dashboard.service` → Flask on port 5000  
+**Service (canonical repo unit file):** `web/college-baseball-dashboard.service` → Flask on port 5000  
 **Code:** `web/blueprints/`
 
 ---
@@ -22,7 +25,7 @@
 ### `/calendar` — Schedule Calendar
 - **Shows:** Monthly calendar view of all scheduled/completed games
 - **Data:** `games`
-- **Updated by:** `01_schedule_sync.sh` (12:30 AM, 7-day lookahead)
+- **Updated by:** `01_schedule_and_finalize.sh` (merged schedule/finalize step; active crontab entry)
 
 ### `/game/<game_id>` — Game Detail
 - **Shows:** Full breakdown per model, win probabilities, run projections, weather, starters
@@ -106,11 +109,11 @@
 ## Data Flow Summary
 
 ```
-12:30 AM  01_schedule_sync     → games (schedule + phantom pruning)
+ 5:00 AM  01_schedule_and_finalize → games (schedule sync + finalize/catchup)
  1:00 AM  02_stats_scrape      → player_stats
  1:45 AM  03_derived_stats     → team_batting_quality, team_pitching_quality, snapshots
  2:30 AM  04_nightly_eval      → elo_ratings, model_predictions (eval), tracked_bets (eval)
- 3:30 AM  full_train           → nn_slim_model.pt, xgb_*.pkl, lgb_*.pkl (model weights)
+ 3:30 AM  full_train.sh        → nn_slim_model.pt, xgb_*.pkl, lgb_*.pkl (model weights)
  6:00 AM  scrape_all_lineups   → lineup_history (Mondays)
  8:00 AM  DK odds scrape (AI)  → betting_lines
  8:15 AM  05_morning_pipeline  → game_weather, model_predictions (new), tracked_bets (new)

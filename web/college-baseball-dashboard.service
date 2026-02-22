@@ -1,3 +1,6 @@
+# Canonical repo service unit source (current preferred copy).
+# config/baseball-dashboard.service is retained as a legacy/reference copy during cleanup.
+# Comment-only header added for documentation clarity; no runtime behavior change.
 [Unit]
 Description=College Baseball Predictor Dashboard
 After=network.target

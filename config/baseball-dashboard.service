@@ -1,3 +1,6 @@
+# Legacy/copy service unit kept for reference during cleanup.
+# Canonical repo service unit source is: web/college-baseball-dashboard.service
+# Do not assume this file matches the active deployed unit without diffing first.
 [Unit]
 Description=College Baseball Predictor Dashboard
 After=network.target

@@ -82,10 +82,11 @@ See `CONTEXT.md` for full documentation — data pipeline, cron schedule, databa
 
 ## Documentation Status
 
-- `CONTEXT.md` is the operational source of truth.
-- `MANIFEST.md` is the code classification/inventory file.
-- `docs/DASHBOARD.md` is dashboard route/data mapping.
-- Cleanup planning and doc-sync checklist:
+- `README.md` (this file) is for overview + quickstart only.
+- `CONTEXT.md` is the canonical operational source of truth (cron flow, runtime behavior, deployment notes).
+- `MANIFEST.md` is the canonical path/classification inventory (what files are active, cron-adjacent, one-shot, archived).
+- `docs/DASHBOARD.md` is the dashboard route/data dependency reference only.
+- Cleanup planning and status tracking:
   - `docs/CLEANUP_AUDIT_2026-02-22.md`
   - `docs/CLEANUP_CHECKLIST.md`
-
+  - `docs/CLEANUP_PROGRESS_2026-02-22.md`

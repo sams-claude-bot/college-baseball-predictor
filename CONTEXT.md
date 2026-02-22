@@ -6,6 +6,7 @@
 > ⚠️ Documentation sync is in progress. For active cleanup/status tracking, see:
 > - `docs/CLEANUP_AUDIT_2026-02-22.md`
 > - `docs/CLEANUP_CHECKLIST.md`
+> - `docs/CLEANUP_PROGRESS_2026-02-22.md`
 
 ## What This Is
 
@@ -17,6 +18,13 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 - **Dashboard:** systemd `college-baseball-dashboard.service` → Flask on port 5000
 - **Public URL:** baseball.mcdevitt.page (Cloudflare Tunnel + Access)
 - **Repo:** github.com/sams-claude-bot/college-baseball-predictor
+
+## Documentation Ownership (Canonical)
+
+- `CONTEXT.md` (this file) is the canonical operational reference.
+- `README.md` is overview/quickstart only and intentionally omits full operational detail.
+- `MANIFEST.md` is the canonical file classification/path inventory.
+- `docs/DASHBOARD.md` is limited to dashboard routes/data dependencies (not full cron/runbook docs).
 
 ## Current Status (as of Feb 18)
 
@@ -238,7 +246,9 @@ Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints
 
 ### Service Configuration
 
-> Note: there are currently two service unit files in the repo (`config/baseball-dashboard.service` and `web/college-baseball-dashboard.service`). Consolidation to a single canonical source is tracked in `docs/CLEANUP_CHECKLIST.md`.
+> Canonical repo service unit source: `web/college-baseball-dashboard.service`.
+> `config/baseball-dashboard.service` is retained as a legacy/copy reference during cleanup (no behavior change in this pass).
+> Consolidation/move decisions remain tracked in `docs/CLEANUP_CHECKLIST.md`.
 
 ```ini
 # /home/sam/college-baseball-predictor/web/college-baseball-dashboard.service
@@ -256,16 +266,17 @@ ReadWritePaths=/home/sam/college-baseball-predictor/data
 
 Jobs are split between **system cron** (bash scripts, no AI) and **OpenClaw cron** (need AI/browser).
 
-Note: `cron/` contains some legacy/overlap scripts (for example `01_schedule_sync.sh`, `01b_late_scores.sh`) alongside merged flows. Treat the active crontab entries as authoritative when in doubt.
+Note: `cron/` contains both active entrypoints and retained legacy/overlap scripts (for example `01_schedule_sync.sh`, `01b_late_scores.sh`). The merged nightly step is `01_schedule_and_finalize.sh`. Treat active crontab entries as authoritative when in doubt.
 
 ### System Cron (bash scripts in `cron/`)
 
 | Time (CT) | Script | What |
 |-----------|--------|------|
-| **12:30 AM** | `01_schedule_sync.sh` | D1BB schedule sync (7 days) |
+| **5:00 AM** | `01_schedule_and_finalize.sh` | Merged schedule sync + finalize yesterday + late catchup verification |
 | **1:00 AM** | `02_stats_scrape.sh` | All D1 player stats via D1BB (~25 min) |
 | **1:45 AM** | `03_derived_stats.sh` | Quality tables + aggregates + snapshots |
 | **2:30 AM** | `04_nightly_eval.sh` | Backup → evaluate bets → Elo → evaluate predictions |
+| **3:30 AM** | `full_train.sh` | Full model retraining (`train_all_models.py --full-train`) |
 | **8:15 AM** | `05_morning_pipeline.sh` | Weather + predictions + bet selection |
 | **Sun 9:30 PM** | `weekly_training.sh` | NN + XGB + LGB unified training |
 | **Sun 10 PM** | `weekly_accuracy.sh` | Model accuracy report |
@@ -292,10 +303,11 @@ Also in system cron (not bash scripts):
 
 ### Pipeline Order (nightly)
 ```
-12:30 AM: Schedule sync (7 days)
+5:00 AM: Schedule + finalize + late catchup (merged step)
 1:00 AM: Player stats (all D1, ~25 min)
 1:45 AM: Quality tables + aggregates + snapshots
 2:30 AM: Backup → evaluate bets → Elo → evaluate predictions
+3:30 AM: Full retrain (optional/active system cron entrypoint)
 8:00 AM: DK odds scrape (OpenClaw, browser)
 8:15 AM: Weather + predictions + bet selection
 9:30 AM: Schedule pre-game odds refresh (OpenClaw)
