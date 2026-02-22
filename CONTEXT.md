@@ -1,7 +1,11 @@
 # College Baseball Predictor — Project Context
 
 > **Read this first.** Single source of truth for understanding the project.
-> Last verified: February 19, 2026
+> Last verified: February 22, 2026
+> 
+> ⚠️ Documentation sync is in progress. For active cleanup/status tracking, see:
+> - `docs/CLEANUP_AUDIT_2026-02-22.md`
+> - `docs/CLEANUP_CHECKLIST.md`
 
 ## What This Is
 
@@ -233,6 +237,9 @@ Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints
 | `/api/bug-report` | POST/PATCH | Submit/update bug reports |
 
 ### Service Configuration
+
+> Note: there are currently two service unit files in the repo (`config/baseball-dashboard.service` and `web/college-baseball-dashboard.service`). Consolidation to a single canonical source is tracked in `docs/CLEANUP_CHECKLIST.md`.
+
 ```ini
 # /home/sam/college-baseball-predictor/web/college-baseball-dashboard.service
 [Service]
@@ -248,6 +255,8 @@ ReadWritePaths=/home/sam/college-baseball-predictor/data
 ## Cron Schedule
 
 Jobs are split between **system cron** (bash scripts, no AI) and **OpenClaw cron** (need AI/browser).
+
+Note: `cron/` contains some legacy/overlap scripts (for example `01_schedule_sync.sh`, `01b_late_scores.sh`) alongside merged flows. Treat the active crontab entries as authoritative when in doubt.
 
 ### System Cron (bash scripts in `cron/`)
 

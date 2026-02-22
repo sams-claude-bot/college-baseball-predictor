@@ -79,3 +79,13 @@ PYTHONPATH=. python3 scripts/train_all_models.py
 ```
 
 See `CONTEXT.md` for full documentation — data pipeline, cron schedule, database schema, model details, betting system.
+
+## Documentation Status
+
+- `CONTEXT.md` is the operational source of truth.
+- `MANIFEST.md` is the code classification/inventory file.
+- `docs/DASHBOARD.md` is dashboard route/data mapping.
+- Cleanup planning and doc-sync checklist:
+  - `docs/CLEANUP_AUDIT_2026-02-22.md`
+  - `docs/CLEANUP_CHECKLIST.md`
+
