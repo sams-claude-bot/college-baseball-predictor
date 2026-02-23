@@ -157,10 +157,12 @@ def get_all_teams():
     c.execute('''
         SELECT t.id, t.name, t.nickname, t.conference, t.current_rank,
                e.rating as elo_rating,
-               r.sams_rpi, r.sams_rank
+               r.sams_rpi, r.sams_rank,
+               ts.overall_sos
         FROM teams t
         LEFT JOIN elo_ratings e ON t.id = e.team_id
         LEFT JOIN team_rpi r ON t.id = r.team_id
+        LEFT JOIN team_sos ts ON t.id = ts.team_id
         WHERE t.conference != 'Non-D1'
         ORDER BY t.name
     ''')

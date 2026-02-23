@@ -73,6 +73,40 @@ def resolve_team_name(name):
     return slug
 
 
+def validate_home_away(db, date_str, home_id, away_id, runner=None):
+    """
+    Validate home/away orientation against the games table.
+    
+    Returns:
+        (home_id, away_id, swapped) - corrected IDs and whether a swap occurred
+    """
+    warn = runner.warn if runner else print
+    
+    # Check for exact match first
+    row = db.execute("""
+        SELECT id, home_team_id, away_team_id 
+        FROM games 
+        WHERE date = ? AND home_team_id = ? AND away_team_id = ?
+    """, (date_str, home_id, away_id)).fetchone()
+    
+    if row:
+        return home_id, away_id, False  # Correct orientation
+    
+    # Check if teams are swapped
+    row = db.execute("""
+        SELECT id, home_team_id, away_team_id 
+        FROM games 
+        WHERE date = ? AND home_team_id = ? AND away_team_id = ?
+    """, (date_str, away_id, home_id)).fetchone()
+    
+    if row:
+        warn(f"  ⚠️  HOME/AWAY SWAP DETECTED: {away_id} @ {home_id} -> correcting to {home_id} @ {away_id}")
+        return away_id, home_id, True  # Return corrected: actual_home, actual_away
+    
+    # No matching game found
+    return home_id, away_id, False
+
+
 def load_odds(games_json, date_str=None, runner=None):
     """Load parsed odds into betting_lines table.
     
@@ -93,6 +127,7 @@ def load_odds(games_json, date_str=None, runner=None):
     added = 0
     updated = 0
     failed = 0
+    swapped = 0
 
     for g in games_json:
         away_name = g.get('away', '').strip()
@@ -112,6 +147,22 @@ def load_odds(games_json, date_str=None, runner=None):
                 runner.warn(f"Could not resolve: {away_name} -> {away_id}, {home_name} -> {home_id}")
             failed += 1
             continue
+
+        # Validate home/away orientation against games table
+        home_id, away_id, was_swapped = validate_home_away(db, date_str, home_id, away_id, runner)
+        
+        # If swapped, we also need to swap the odds
+        if was_swapped:
+            swapped += 1
+            # Swap ML
+            g['away_ml'], g['home_ml'] = g.get('home_ml'), g.get('away_ml')
+            # Swap spread (flip sign and swap odds)
+            if g.get('spread') is not None:
+                g['spread'] = -g['spread']
+            if g.get('home_spread') is not None:
+                g['home_spread'] = -g['home_spread']
+            g['away_spread_odds'], g['home_spread_odds'] = g.get('home_spread_odds'), g.get('away_spread_odds')
+            # Note: O/U stays the same
 
         game_id = f"{date_str}_{away_id}_{home_id}"
 
@@ -186,7 +237,7 @@ def load_odds(games_json, date_str=None, runner=None):
     db.commit()
     db.close()
 
-    return added, updated, failed
+    return added, updated, failed, swapped
 
 
 def show_status(runner):
@@ -263,12 +314,14 @@ def main():
 
         runner.info(f"Loading {len(games)} games from {'stdin' if args.stdin else args.file}")
 
-        added, updated, failed = load_odds(games, date_str=args.date, runner=runner)
+        added, updated, failed, swapped = load_odds(games, date_str=args.date, runner=runner)
 
         runner.add_stat("games_in_json", len(games))
         runner.add_stat("added", added)
         runner.add_stat("updated", updated)
         runner.add_stat("failed", failed)
+        if swapped > 0:
+            runner.add_stat("home_away_swaps_corrected", swapped)
 
         if failed > 0 and (added + updated) == 0:
             runner.error("All games failed to load")

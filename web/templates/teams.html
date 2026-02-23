@@ -26,6 +26,7 @@
         <a href="/teams?sort=rank" class="btn btn-sm {% if sort_by == 'rank' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Rank</a>
         <a href="/teams?sort=win_pct" class="btn btn-sm {% if sort_by == 'win_pct' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Win %</a>
         <a href="/teams?sort=rpi" class="btn btn-sm {% if sort_by == 'rpi' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">RPI</a>
+        <a href="/teams?sort=sos" class="btn btn-sm {% if sort_by == 'sos' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">SOS</a>
         <a href="/teams?sort=conference" class="btn btn-sm {% if sort_by == 'conference' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Conference</a>
     </div>
 </div>
@@ -42,6 +43,7 @@
                     <th class="text-center">Win %</th>
                     <th class="text-end">Elo Rating</th>
                     <th class="text-center">RPI Rank</th>
+                    <th class="text-center">SOS</th>
                 </tr>
             </thead>
             <tbody>
@@ -95,6 +97,13 @@
                     <td class="text-center">
                         {% if team.sams_rank %}
                         <strong>#{{ team.sams_rank }}</strong>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if team.overall_sos is not none %}
+                        {{ '%.3f'|format(team.overall_sos) }}
                         {% else %}
                         <span class="text-muted">—</span>
                         {% endif %}

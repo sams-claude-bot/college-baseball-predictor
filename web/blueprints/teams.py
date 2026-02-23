@@ -34,6 +34,8 @@ def teams():
         all_teams.sort(key=lambda x: (x.get('sams_rank') or 9999, x['name']))
     elif sort_by == 'conference':
         all_teams.sort(key=lambda x: (x.get('conference') or 'ZZZ', x['name']))
+    elif sort_by == 'sos':
+        all_teams.sort(key=lambda x: x.get('overall_sos') or -9999, reverse=True)
     else:
         all_teams.sort(key=lambda x: x['name'])
 
