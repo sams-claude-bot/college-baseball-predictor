@@ -21,9 +21,10 @@ from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
 from models.ensemble_model import EnsembleModel, PoissonModelWrapper
 from models.neural_model import NeuralModel
-from models.nn_totals_model import NNTotalsModel
-from models.nn_spread_model import NNSpreadModel
-from models.nn_dow_totals_model import NNDoWTotalsModel
+# Deprecated: nn_totals, nn_spread, nn_dow_totals — trained on historical data we no longer have
+# from models.nn_totals_model import NNTotalsModel
+# from models.nn_spread_model import NNSpreadModel
+# from models.nn_dow_totals_model import NNDoWTotalsModel
 from models.xgboost_model import XGBMoneylineModel, XGBTotalsModel, XGBSpreadModel
 from models.lightgbm_model import LGBMoneylineModel, LGBTotalsModel, LGBSpreadModel
 from models.momentum_model import get_momentum_score
@@ -40,9 +41,7 @@ MODELS = {
     "prior": PriorModel(),
     "poisson": PoissonModelWrapper(),
     "neural": NeuralModel(use_model_predictions=False),
-    "nn_totals": NNTotalsModel(use_model_predictions=False),
-    "nn_spread": NNSpreadModel(use_model_predictions=False),
-    "nn_dow_totals": NNDoWTotalsModel(use_model_predictions=False),
+    # Deprecated: nn_totals, nn_spread, nn_dow_totals removed (no historical data to retrain)
     "xgboost": XGBMoneylineModel(use_model_predictions=False),
     "xgb_totals": XGBTotalsModel(use_model_predictions=False),
     "xgb_spread": XGBSpreadModel(use_model_predictions=False),

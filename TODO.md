@@ -6,6 +6,10 @@
 - [ ] **6. Rebuild schedule sync as record verification job** — D1Baseball conference pages, 3 AM, push pipeline back
 - [x] **9. Doubleheader game 2 tracking bug** — *(resolved: 114 gm2 games scored correctly, 0 missing)*
 - [ ] **11. Early season regression for all run models** — Bayesian dampening like Poisson fix
+- [ ] **15. NCAA stats scraper — expand to all 9 stat types** *(Tue Feb 25)*
+  - Currently only collecting ERA + OBP (2 of 9)
+  - Missing: batting_avg, fielding_pct, scoring, slugging, k_per_9, whip, k_bb_ratio
+  - Need historical seasons (2021-2025) for nn_slim retraining
 
 ## Models
 - [ ] **1. Runs ensemble auto-weights** — use accuracy from games WITHOUT DK lines to adjust component weights
