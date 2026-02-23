@@ -681,8 +681,11 @@ def get_betting_games(date_str=None):
     fd_lines = {row['game_id']: dict(row) for row in c.fetchall()}
 
     # Merge: start with DK as base, attach FD fields
+    # Skip final games - they shouldn't appear on betting page
     lines = []
     for game_id, line in dk_lines.items():
+        if line.get('status') == 'final':
+            continue  # Don't show completed games
         fd = fd_lines.get(game_id, {})
         line['fd_home_ml'] = fd.get('fd_home_ml')
         line['fd_away_ml'] = fd.get('fd_away_ml')
@@ -709,6 +712,8 @@ def get_betting_games(date_str=None):
             row = c.fetchone()
             if row:
                 line = dict(row)
+                if line.get('status') == 'final':
+                    continue  # Don't show completed games
                 # Copy ML/OU from FD into the main fields (used for edge calc)
                 line['fd_home_ml'] = line['home_ml']
                 line['fd_away_ml'] = line['away_ml']

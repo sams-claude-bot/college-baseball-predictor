@@ -23,48 +23,53 @@
 .agreement-meter {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
+    white-space: nowrap;
 }
 .agreement-meter .meter-dots {
-    display: flex;
-    gap: 2px;
-}
-.agreement-meter .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #dee2e6;
-    transition: all 0.2s;
-}
-.agreement-meter .dot.filled {
-    transform: scale(1.1);
-}
-.agreement-meter .meter-label {
-    font-weight: 600;
-    font-size: 0.75rem;
-}
-.agreement-meter-sm .dot {
-    width: 6px;
-    height: 6px;
-}
-.agreement-meter-sm .meter-label {
-    font-size: 0.65rem;
-}
-.agreement-meter-lg .dot {
-    width: 10px;
-    height: 10px;
+    display: inline-flex;
+    align-items: center;
     gap: 3px;
 }
+.agreement-meter .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #e9ecef;
+    flex-shrink: 0;
+}
+.agreement-meter .dot.filled {
+    box-shadow: 0 0 2px rgba(0,0,0,0.2);
+}
+.agreement-meter .meter-label {
+    font-weight: 700;
+    font-size: 0.8rem;
+    min-width: 32px;
+}
+.agreement-meter-sm .meter-dots {
+    gap: 2px;
+}
+.agreement-meter-sm .dot {
+    width: 5px;
+    height: 5px;
+}
+.agreement-meter-sm .meter-label {
+    font-size: 0.7rem;
+    min-width: 28px;
+}
+.agreement-meter-lg .dot {
+    width: 9px;
+    height: 9px;
+}
+.agreement-meter-lg .meter-dots {
+    gap: 4px;
+}
 .agreement-meter-lg .meter-label {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
 }
-/* Pulse animation for high agreement */
-@keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
+/* Subtle glow for high agreement */
 .agreement-meter .dot.filled.bg-success {
-    animation: pulse-dot 2s ease-in-out infinite;
+    box-shadow: 0 0 4px rgba(25, 135, 84, 0.5);
 }
 </style>
 <div class="d-flex justify-content-between align-items-center mb-4">
