@@ -4,7 +4,7 @@
 
 ## Pipeline & Data
 - [ ] **6. Rebuild schedule sync as record verification job** — D1Baseball conference pages, 3 AM, push pipeline back
-- [ ] **9. Doubleheader game 2 tracking bug** — scores not updating for gm2 *(partially fixed: finalize_games.py handles it, but root cause in d1bb_schedule.py remains)*
+- [x] **9. Doubleheader game 2 tracking bug** — *(resolved: 114 gm2 games scored correctly, 0 missing)*
 - [ ] **11. Early season regression for all run models** — Bayesian dampening like Poisson fix
 
 ## Models
@@ -15,7 +15,7 @@
 - [ ] **14. Trained meta-ensemble** (when ~500+ games tracked, ~early March):
   - XGBoost/logistic regression stacking model
   - Inputs: all model win probs, run projections, model agreement stats, game context, rolling model accuracy
-  - **Immediate**: audit what we're storing per game in `model_predictions` — make sure we're capturing everything needed to train it (individual model confidence, run projections, context features). Add columns/table now so we don't lose weeks of data waiting.
+  - **Audit complete (2026-02-22)**: All needed features available via joins — no schema changes required. model_predictions has all 12 model probs + runs. Context (Elo, conference, neutral) joins from games/elo_ratings. Agreement/spread computed at training time.
 
 ## Verification & Cleanup
 - [ ] **2. Verify nn_slim_totals is wired into runs/totals projections**
