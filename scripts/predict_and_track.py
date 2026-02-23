@@ -507,7 +507,7 @@ def evaluate_predictions(date=None, runner=None):
     totals_updated = 0
     for rowid, game_id, prediction, line, model_name, home_score, away_score in totals_rows:
         actual_total = home_score + away_score
-        if prediction is None or line is None:
+        if prediction is None or line is None or prediction == 'N/A' or line == 0:
             # No DK line — just record actual total, no correct/incorrect
             correct = None
         elif actual_total == line:
