@@ -25,4 +25,4 @@
 - [ ] **3. Power rankings top 25** — downloadable card
 - [ ] **4. Parlay of the day** — live scores on parlay card or highlighted on scores tab
 - [ ] **7. Exact score consensus indicator** — when models converge, show ✓ in table
-- [ ] **10. Add SOS sort option to teams page**
+- [x] **10. Add SOS sort option to teams page** *(done 2026-02-22)*
