@@ -2,7 +2,71 @@
 
 {% block title %}Betting Analysis - College Baseball Predictor{% endblock %}
 
+{# Macro for visual model agreement meter #}
+{% macro agreement_meter(count, total, size='md') %}
+{% set pct = (count / total * 100) if total > 0 else 0 %}
+{% set color = 'success' if count >= 9 else ('primary' if count >= 7 else ('warning' if count >= 5 else 'secondary')) %}
+<div class="agreement-meter agreement-meter-{{ size }}" title="{{ count }}/{{ total }} models agree">
+    <div class="meter-dots">
+        {% for i in range(total) %}
+        <span class="dot {% if i < count %}filled bg-{{ color }}{% endif %}"></span>
+        {% endfor %}
+    </div>
+    <div class="meter-label {% if count >= 9 %}text-success{% elif count >= 7 %}text-primary{% elif count >= 5 %}text-warning{% else %}text-muted{% endif %}">
+        {{ count }}/{{ total }}
+    </div>
+</div>
+{% endmacro %}
+
 {% block content %}
+<style>
+.agreement-meter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.agreement-meter .meter-dots {
+    display: flex;
+    gap: 2px;
+}
+.agreement-meter .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dee2e6;
+    transition: all 0.2s;
+}
+.agreement-meter .dot.filled {
+    transform: scale(1.1);
+}
+.agreement-meter .meter-label {
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+.agreement-meter-sm .dot {
+    width: 6px;
+    height: 6px;
+}
+.agreement-meter-sm .meter-label {
+    font-size: 0.65rem;
+}
+.agreement-meter-lg .dot {
+    width: 10px;
+    height: 10px;
+    gap: 3px;
+}
+.agreement-meter-lg .meter-label {
+    font-size: 0.85rem;
+}
+/* Pulse animation for high agreement */
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+.agreement-meter .dot.filled.bg-success {
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+</style>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h3 mb-1"><i class="bi bi-currency-dollar"></i> Betting Analysis</h1>
@@ -147,27 +211,26 @@
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
                             <div>
-                                <span class="badge bg-primary">{{ game.model_agreement.count }}/{{ game.model_agreement.total }} models</span>
                                 {% if game.adjusted_edge %}
-                                <span class="badge bg-success">{{ game.adjusted_edge|round(1) }}% adj</span>
+                                <span class="badge bg-success">+{{ game.adjusted_edge|round(1) }}%</span>
                                 {% endif %}
                                 {% if game.bucket %}
                                 <span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span>
                                 {% endif %}
                             </div>
                         </div>
-                        <h6 class="mb-1">
+                        <h6 class="mb-1 fw-bold">
                             {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
                         </h6>
                         <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span>
+                        <div class="mb-2">
+                            {{ agreement_meter(game.model_agreement.count, game.model_agreement.total, 'md') }}
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">
                                 {% if game.model_agreement.pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}
                             </span>
-                            <span class="badge bg-info">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% avg conf</span>
-                        </div>
-                        <div class="small text-muted" title="{{ game.model_agreement.models_for|join(', ') }}">
-                            <i class="bi bi-check-circle text-success"></i> {{ game.model_agreement.models_for[:3]|join(', ') }}{% if game.model_agreement.models_for|length > 3 %}...{% endif %}
+                            <span class="badge bg-info">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% conf</span>
                         </div>
                     </div>
                 </div>
@@ -200,8 +263,8 @@
                                 {% else %}
                                 <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
                                 {% endif %}
-                                {% if game.models_agree and game.models_agree >= 7 %}
-                                <span class="badge bg-primary">{{ game.models_agree }}/{{ game.model_agreement.total if game.model_agreement else 12 }}</span>
+                                {% if game.models_agree and game.models_agree >= 6 %}
+                                {{ agreement_meter(game.models_agree, game.model_agreement.total if game.model_agreement else 11, 'sm') }}
                                 {% endif %}
                                 {% if game.is_underdog %}
                                 <span class="badge bg-warning text-dark" title="50% edge discount applied">🐕</span>
@@ -345,11 +408,10 @@
                         <td class="text-center">
                             {% if game.model_agreement %}
                             {% set ma = game.model_agreement %}
-                            <span class="badge {% if ma.count >= 9 %}bg-success{% elif ma.count >= 7 %}bg-primary{% else %}bg-secondary{% endif %}" 
-                                  title="{{ ma.models_for|join(', ') }}">
-                                {{ ma.count }}/{{ ma.total }}
-                            </span>
-                            <br><small class="text-muted">{% if ma.pick == 'home' %}{{ (game.home_team_name or 'Home')[:8] }}{% else %}{{ (game.away_team_name or 'Away')[:8] }}{% endif %}</small>
+                            <div title="{{ ma.models_for|join(', ') }}">
+                                {{ agreement_meter(ma.count, ma.total, 'sm') }}
+                            </div>
+                            <small class="text-muted">{% if ma.pick == 'home' %}{{ (game.home_team_name or 'Home')[:8] }}{% else %}{{ (game.away_team_name or 'Away')[:8] }}{% endif %}</small>
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
