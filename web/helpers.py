@@ -443,10 +443,13 @@ def get_value_picks(limit=5):
                 continue
             model_home_prob = stored_ens['prob']
 
-            # Model agreement from stored predictions
+            # Model agreement from stored predictions — majority vote
             game_models = stored_vp_agreement.get(game_id, {})
-            ens_home = model_home_prob > 0.5
-            models_agree = sum(1 for m, p in game_models.items() if m != 'ensemble' and (p > 0.5) == ens_home) if game_models else 5
+            exclude_agg = {'ensemble', 'meta_ensemble', 'runs_ensemble'}
+            home_count = sum(1 for m, p in game_models.items() if m not in exclude_agg and p > 0.5)
+            away_count = sum(1 for m, p in game_models.items() if m not in exclude_agg and p <= 0.5)
+            # models_agree = count for the majority side
+            models_agree = max(home_count, away_count)
 
             # Calculate edge
             home_edge = (model_home_prob - dk_home_fair) * 100
@@ -790,18 +793,29 @@ def get_betting_games(date_str=None):
             
             line['blend_info'] = 'pre-game'
 
-            # Model consensus from stored predictions
+            # Model consensus from stored predictions — majority vote, not ensemble-driven
             game_models = stored_model_agreement.get(game_id, {})
             if game_models:
-                ens_home = stored_ens['prob'] > 0.5
-                models_for = [m for m, p in game_models.items() if (p > 0.5) == ens_home and m != 'ensemble']
-                models_against = [m for m, p in game_models.items() if (p > 0.5) != ens_home and m != 'ensemble']
-                all_probs = [p if ens_home else (1-p) for m, p in game_models.items() if m != 'ensemble']
-                avg_prob = sum(all_probs) / len(all_probs) if all_probs else 0.5
+                # Exclude ensemble and meta_ensemble from voting — they're aggregates
+                exclude = {'ensemble', 'meta_ensemble', 'runs_ensemble'}
+                home_voters = [m for m, p in game_models.items() if m not in exclude and p > 0.5]
+                away_voters = [m for m, p in game_models.items() if m not in exclude and p <= 0.5]
+                
+                if len(home_voters) >= len(away_voters):
+                    consensus_pick = 'home'
+                    models_for = home_voters
+                    models_against = away_voters
+                    avg_prob = sum(game_models[m] for m in home_voters) / len(home_voters) if home_voters else 0.5
+                else:
+                    consensus_pick = 'away'
+                    models_for = away_voters
+                    models_against = home_voters
+                    avg_prob = sum(1 - game_models[m] for m in away_voters) / len(away_voters) if away_voters else 0.5
+                
                 line['model_agreement'] = {
                     'count': len(models_for),
                     'total': len(models_for) + len(models_against),
-                    'pick': 'home' if ens_home else 'away',
+                    'pick': consensus_pick,
                     'avg_prob': avg_prob,
                     'confidence': avg_prob,
                     'models_for': models_for,
