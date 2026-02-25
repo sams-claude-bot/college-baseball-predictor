@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Risk Engine (Experimental){% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1"><i class="bi bi-flask"></i> Bet Risk Engine v1 (Experimental)</h1>
+    <p class="text-muted mb-0">Live preview of risk scoring, Kelly sizing, and exposure caps.</p>
+  </div>
+  <a class="btn btn-sm btn-outline-secondary" href="/betting"><i class="bi bi-arrow-left"></i> Back to Betting</a>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between">
+    <span>Engine Config</span>
+    <span class="badge {% if risk_engine.mode == 'fractional_kelly' %}bg-success{% else %}bg-secondary{% endif %}">{{ risk_engine.mode }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-2"><small class="text-muted d-block">Bankroll</small><strong>${{ '%.0f'|format(risk_engine.bankroll) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Peak</small><strong>${{ '%.0f'|format(risk_engine.bankroll_peak) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Kelly Fraction</small><strong>{{ '%.2f'|format(risk_engine.kelly_fraction) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Min Stake</small><strong>${{ '%.0f'|format(risk_engine.min_stake) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Max Stake</small><strong>${{ '%.0f'|format(risk_engine.max_stake) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Drawdown Throttle</small><strong>{{ (risk_engine.drawdown_threshold*100)|round(0) }}% → x{{ '%.2f'|format(risk_engine.drawdown_multiplier) }}</strong></div>
+    </div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Experimental P&L (Fractional Kelly)</span>
+    <span class="badge bg-dark">{{ risk_pnl.mode }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-2"><small class="text-muted d-block">Total Bets</small><strong>{{ risk_pnl.total_bets }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Settled</small><strong>{{ risk_pnl.settled_bets }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">W-L</small><strong>{{ risk_pnl.wins }}-{{ risk_pnl.losses }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Staked</small><strong>${{ '%.2f'|format(risk_pnl.staked) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">Profit</small><strong class="{% if risk_pnl.profit >= 0 %}text-success{% else %}text-danger{% endif %}">${{ '%.2f'|format(risk_pnl.profit) }}</strong></div>
+      <div class="col-md-2"><small class="text-muted d-block">ROI</small><strong class="{% if risk_pnl.roi_pct >= 0 %}text-success{% else %}text-danger{% endif %}">{{ '%.2f'|format(risk_pnl.roi_pct) }}%</strong></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Today\'s Risk-Scored Bets</span>
+    <small class="text-muted">Date: {{ risk_preview.date if risk_preview.date else 'N/A' }}</small>
+  </div>
+  <div class="card-body">
+    {% if risk_preview.error %}
+      <div class="alert alert-warning mb-0">{{ risk_preview.error }}</div>
+    {% elif risk_preview.bets %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Pick</th>
+              <th class="text-end">Edge</th>
+              <th class="text-end">Risk Score</th>
+              <th class="text-end">Kelly Used</th>
+              <th class="text-end">Suggested Stake</th>
+              <th>Exposure Bucket</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in risk_preview.bets %}
+            <tr>
+              <td><span class="badge bg-dark">{{ b.type }}</span></td>
+              <td>{{ b.pick_team_name if b.pick_team_name else (b.pick ~ ' ' ~ b.line) }}</td>
+              <td class="text-end">{{ '%.1f'|format(b.edge if b.edge is not none else 0) }}</td>
+              <td class="text-end">{{ '%.2f'|format(b.risk_score if b.risk_score is not none else 0) }}</td>
+              <td class="text-end">{{ '%.4f'|format(b.kelly_fraction_used if b.kelly_fraction_used is not none else 0) }}</td>
+              <td class="text-end fw-bold">${{ '%.2f'|format(b.suggested_stake if b.suggested_stake is not none else (b.bet_amount if b.bet_amount is not none else 0)) }}</td>
+              <td><small class="text-muted">{{ b.exposure_bucket if b.exposure_bucket else '—' }}</small></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <small class="text-muted">Recommendations: {{ risk_preview.bets|length }} | Rejections: {{ risk_preview.rejections|length if risk_preview.rejections is defined else 0 }}</small>
+    {% else %}
+      <div class="alert alert-secondary mb-0">No bets generated for current settings.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

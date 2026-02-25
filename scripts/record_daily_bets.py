@@ -304,8 +304,8 @@ def evaluate(runner=None):
     # Join via betting_lines to resolve team IDs, then find game by teams+date
     # Note: DraftKings sometimes lists home/away reversed from our games table
     c.execute('''
-        SELECT tb.id, tb.game_id, tb.date, tb.pick_team_id, tb.moneyline,
-               g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.status
+        SELECT DISTINCT tb.id, tb.game_id, tb.date, tb.pick_team_id, tb.moneyline,
+               g.home_team_id, g.away_team_id, g.home_score, g.away_score, g.status, g.winner_id
         FROM tracked_bets tb
         LEFT JOIN betting_lines bl ON tb.game_id = bl.game_id
         LEFT JOIN games g ON g.date = tb.date AND g.status = 'final'
@@ -315,11 +315,18 @@ def evaluate(runner=None):
         WHERE tb.won IS NULL AND g.status = 'final'
     ''')
     ml_evaluated = 0
+    seen_ids = set()
     for row in c.fetchall():
         row = dict(row)
-        home_won = row['home_score'] > row['away_score']
-        picked_home = row['pick_team_id'] == row['home_team_id']
-        won = 1 if (picked_home == home_won) else 0
+        if row['id'] in seen_ids:
+            continue  # skip duplicate rows from multi-book join
+        seen_ids.add(row['id'])
+        # Grade by comparing pick directly to winner — no is_home dependency
+        winner_id = row.get('winner_id')
+        if not winner_id:
+            # Derive winner from scores
+            winner_id = row['home_team_id'] if row['home_score'] > row['away_score'] else row['away_team_id']
+        won = 1 if row['pick_team_id'] == winner_id else 0
         
         ml = row['moneyline']
         if won:

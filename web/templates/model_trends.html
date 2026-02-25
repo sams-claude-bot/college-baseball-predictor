@@ -221,17 +221,35 @@ const modelColors = {
 };
 
 // Rolling accuracy chart (7-day window, one point per day)
+const shiftDate = (dateStr, days) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
 const rollingDatasets = [];
 for (const [model, points] of Object.entries(rollingData)) {
     if (points.length === 0) continue;
+    let adjustedPoints = points;
+    // Defensive fix: if neural series is offset +1 day, pull it back.
+    if (model === 'neural' && points.length > 0 && dates.length > 1 && points[0].date > dates[1]) {
+        adjustedPoints = points.map(p => ({...p, date: shiftDate(p.date, -1)}));
+    }
+    const byDate = Object.fromEntries(adjustedPoints.map(p => [p.date, p]));
+    const dayGames = dates.map(d => (byDate[d] ? byDate[d].day_games : null));
     rollingDatasets.push({
         label: model.charAt(0).toUpperCase() + model.slice(1),
-        data: points.map(p => ({x: p.date, y: p.rolling})),
+        data: dates.map(d => (byDate[d] ? byDate[d].rolling : null)),
+        dayGames,
         borderColor: modelColors[model] || '#777',
         backgroundColor: 'transparent',
         borderWidth: (model === 'ensemble' || model === 'neural') ? 3 : 1.5,
         pointRadius: 5,
         pointHoverRadius: 7,
+        spanGaps: false,
         tension: 0.3
     });
 }
@@ -243,7 +261,7 @@ rollingDatasets.sort((a, b) => {
 
 new Chart(document.getElementById('rollingChart'), {
     type: 'line',
-    data: { datasets: rollingDatasets },
+    data: { labels: dates, datasets: rollingDatasets },
     options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -253,9 +271,8 @@ new Chart(document.getElementById('rollingChart'), {
             tooltip: {
                 callbacks: {
                     label: ctx => {
-                        const model = ctx.dataset.label.toLowerCase();
-                        const point = rollingData[model]?.[ctx.dataIndex];
-                        return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '% (' + (point?.day_games || '?') + ' games that day)';
+                        const games = ctx.dataset.dayGames?.[ctx.dataIndex] ?? '?';
+                        return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '% (' + games + ' games that day)';
                     }
                 }
             }
@@ -271,14 +288,22 @@ new Chart(document.getElementById('rollingChart'), {
 const cumulativeDatasets = [];
 for (const [model, points] of Object.entries(rollingData)) {
     if (points.length === 0) continue;
+    let adjustedPoints = points;
+    if (model === 'neural' && points.length > 0 && dates.length > 1 && points[0].date > dates[1]) {
+        adjustedPoints = points.map(p => ({...p, date: shiftDate(p.date, -1)}));
+    }
+    const byDate = Object.fromEntries(adjustedPoints.map(p => [p.date, p]));
+    const gamesCum = dates.map(d => (byDate[d] ? byDate[d].games : null));
     cumulativeDatasets.push({
         label: model.charAt(0).toUpperCase() + model.slice(1),
-        data: points.map(p => ({x: p.date, y: p.cumulative})),
+        data: dates.map(d => (byDate[d] ? byDate[d].cumulative : null)),
+        gamesCum,
         borderColor: modelColors[model] || '#777',
         backgroundColor: 'transparent',
         borderWidth: (model === 'ensemble' || model === 'neural') ? 3 : 1.5,
         pointRadius: 5,
         pointHoverRadius: 7,
+        spanGaps: false,
         tension: 0.3
     });
 }
@@ -291,7 +316,7 @@ cumulativeDatasets.sort((a, b) => {
 
 new Chart(document.getElementById('cumulativeChart'), {
     type: 'line',
-    data: { datasets: cumulativeDatasets },
+    data: { labels: dates, datasets: cumulativeDatasets },
     options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -307,9 +332,7 @@ new Chart(document.getElementById('cumulativeChart'), {
             tooltip: {
                 callbacks: {
                     label: ctx => {
-                        const model = ctx.dataset.label.toLowerCase();
-                        const point = rollingData[model]?.[ctx.dataIndex];
-                        const games = point?.games || '?';
+                        const games = ctx.dataset.gamesCum?.[ctx.dataIndex] ?? '?';
                         return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '% (' + games + ' games)';
                     }
                 }

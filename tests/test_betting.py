@@ -120,6 +120,78 @@ class TestKellyFraction:
         k = kelly_fraction(0.95, 100, fraction=1.0)  # Full Kelly with huge edge
         assert k <= 2.0, f"Kelly should be capped at 2.0, got {k}"
 
+    def test_fractional_kelly_suggested_stake_uses_bankroll(self):
+        """Risk engine stake sizing should scale by bankroll and be bounded."""
+        from bet_selection_v2 import suggest_stake_for_bet
+
+        bet = {
+            'type': 'ML',
+            'date': '2026-02-24',
+            'pick_team_id': 1,
+            'pick_team_name': 'Test U',
+            'moneyline': 100,
+            'model_prob': 0.60,
+            'models_agree': 8,
+            'models_total': 10,
+        }
+        sizing = suggest_stake_for_bet(
+            bet,
+            risk_mode='fractional_kelly',
+            bankroll=5000,
+            peak_bankroll=5000,
+            min_stake=10,
+            max_stake=200,
+            fixed_stake=100,
+            kelly_fraction_cfg=0.25,
+        )
+
+        assert sizing['kelly_fraction_used'] > 0
+        assert 10 <= sizing['suggested_stake'] <= 200
+        assert 0 <= sizing['risk_score'] <= 1
+
+
+class TestRiskThrottleAndCorrelation:
+    """Risk engine control behavior tests."""
+
+    def test_drawdown_throttle_applies_after_threshold(self):
+        from bet_selection_v2 import drawdown_kelly_multiplier
+
+        assert drawdown_kelly_multiplier(0.05, threshold=0.10, multiplier_below_threshold=0.5) == 1.0
+        assert drawdown_kelly_multiplier(0.15, threshold=0.10, multiplier_below_threshold=0.5) == 0.5
+
+    def test_correlation_cap_reduces_and_rejects_same_team_exposure(self):
+        from bet_selection_v2 import apply_correlation_caps
+
+        results = {
+            'date': '2026-02-24',
+            'bets': [
+                {
+                    'type': 'ML', 'date': '2026-02-24', 'game_id': 'g1',
+                    'pick_team_id': 42, 'pick_team_name': 'A',
+                    'edge': 10.0, 'suggested_stake': 150.0, 'bet_amount': 150.0,
+                },
+                {
+                    'type': 'ML', 'date': '2026-02-24', 'game_id': 'g2',
+                    'pick_team_id': 42, 'pick_team_name': 'A',
+                    'edge': 9.0, 'suggested_stake': 100.0, 'bet_amount': 100.0,
+                },
+                {
+                    'type': 'ML', 'date': '2026-02-24', 'game_id': 'g3',
+                    'pick_team_id': 42, 'pick_team_name': 'A',
+                    'edge': 8.0, 'suggested_stake': 100.0, 'bet_amount': 100.0,
+                },
+            ],
+            'rejections': [],
+        }
+
+        capped = apply_correlation_caps(results)
+
+        assert len(capped['bets']) == 2
+        assert capped['bets'][0]['suggested_stake'] == 150.0
+        assert capped['bets'][1]['suggested_stake'] == 50.0
+        assert capped['bets'][1]['correlation_capped'] is True
+        assert any('correlation cap reached' in r['reasons'][0] for r in capped['rejections'])
+
 
 class TestEdgeCalculation:
     """Test edge calculation logic."""

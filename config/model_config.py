@@ -91,12 +91,63 @@ BET_MODEL_PROB_FLOOR = 0.55      # Don't bet below 55% model probability
 BET_MODEL_PROB_CEILING = 0.88    # Cap model probability at 88%
 
 # =============================================================================
+# Betting Risk Engine (v1)
+# =============================================================================
+# Modes:
+# - "fixed": legacy fixed stake sizing (uses BET_RISK_FIXED_STAKE)
+# - "fractional_kelly": bankroll-aware sizing with drawdown/correlation controls
+BET_RISK_ENGINE_MODE = "fractional_kelly"
+
+# Legacy fixed sizing (preserved for backward compatibility)
+BET_RISK_FIXED_STAKE = 100.0
+
+# Fractional Kelly sizing controls
+BET_RISK_BANKROLL = 5000.0
+BET_RISK_MIN_STAKE = 25.0
+BET_RISK_MAX_STAKE = 250.0
+BET_RISK_KELLY_FRACTION = 0.25   # 25% Kelly default (conservative)
+
+# Drawdown-aware throttle (step-down)
+BET_RISK_BANKROLL_PEAK = 5000.0
+BET_RISK_DRAWDOWN_THRESHOLD = 0.10        # 10% drawdown
+BET_RISK_DRAWDOWN_FRACTION_MULTIPLIER = 0.50  # halve Kelly fraction when exceeded
+
+# Edge quality score (0-1) weighting
+BET_RISK_EDGE_QUALITY_WEIGHT_CONSENSUS = 0.50
+BET_RISK_EDGE_QUALITY_WEIGHT_CALIBRATION = 0.25
+BET_RISK_EDGE_QUALITY_WEIGHT_COVERAGE = 0.25
+BET_RISK_CALIBRATION_PROXY_DEFAULT = 0.50   # TODO: replace with live calibration confidence
+BET_RISK_COVERAGE_PROXY_DEFAULT = 0.50      # TODO: replace with feature/data completeness metrics
+
+# Correlation / concentration caps (aggregate stake exposure)
+BET_RISK_CORRELATION_CAP_ENABLED = True
+BET_RISK_MAX_EXPOSURE_PER_TEAM = 200.0
+BET_RISK_MAX_EXPOSURE_PER_CONFERENCE = 350.0
+BET_RISK_MAX_EXPOSURE_PER_DAY = 800.0
+
+# =============================================================================
 # Run Projections
 # =============================================================================
 RUNS_LEAGUE_AVG_DEFAULT = 6.5    # Default league average runs per team
 RUNS_TOTAL_DEFAULT = 11.0        # Default total runs per game
 RUNS_FLOOR = 0.5                 # Minimum expected runs per team
 RUNS_CEILING = 15.0              # Maximum expected runs per team (sanity check)
+
+# Poisson model safeguards/tunables (kept conservative for backward compatibility)
+POISSON_ENABLE_OPPONENT_ADJUSTMENT = True
+POISSON_OPPONENT_ADJUSTMENT_STRENGTH = 0.6
+POISSON_LAMBDA_MIN = 0.5
+POISSON_LAMBDA_MAX = 12.0
+POISSON_OFFENSE_STRENGTH_MIN = 0.85
+POISSON_OFFENSE_STRENGTH_MAX = 1.15
+POISSON_DEFENSE_FACTOR_MIN = 0.85
+POISSON_DEFENSE_FACTOR_MAX = 1.15
+
+# Totals overdispersion handling (only affects totals probabilities, not win matrix)
+POISSON_ENABLE_OVERDISPERSION = True
+POISSON_OVERDISPERSION_MIN_SAMPLES = 8
+POISSON_OVERDISPERSION_VAR_MEAN_RATIO = 1.35
+POISSON_OVERDISPERSION_MAX_VAR_MULTIPLIER = 2.5
 
 # Day-of-week rotation expectations (0=Mon, 6=Sun)
 # Weight for rotation vs bullpen ERA when projecting runs

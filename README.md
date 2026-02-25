@@ -80,6 +80,17 @@ PYTHONPATH=. python3 scripts/train_all_models.py
 
 See `CONTEXT.md` for full documentation — data pipeline, cron schedule, database schema, model details, betting system.
 
+## Betting Risk Engine v1 (Selection Flow)
+
+`scripts/bet_selection_v2.py` now supports a config-driven risk engine with:
+
+- Legacy fixed stake mode (`BET_RISK_ENGINE_MODE = "fixed"`, default)
+- Fractional Kelly mode (`"fractional_kelly"`) with bankroll/min/max stake caps
+- Drawdown-aware Kelly throttle
+- Correlation exposure caps (team / conference / day buckets)
+
+Risk knobs live in `config/model_config.py`. Recommendation outputs include `risk_score`, `kelly_fraction_used`, `suggested_stake`, and `exposure_bucket`.
+
 ## Documentation Status
 
 - `README.md` (this file) is for overview + quickstart only.

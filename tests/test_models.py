@@ -306,6 +306,42 @@ class TestGBMModelWeights:
 
 class TestEnsembleModel:
     """Tests for the ensemble model."""
+
+    def test_sample_ramp_multiplier_behaves_as_floor_then_full(self):
+        """Sample ramp should start at floor and reach full at threshold."""
+        from models.ensemble_model import EnsembleModel
+
+        floor = EnsembleModel.SAMPLE_RAMP_FLOOR
+        threshold = EnsembleModel.SAMPLE_RAMP_THRESHOLD
+
+        assert EnsembleModel._ramp_multiplier(0, floor, threshold) == pytest.approx(floor)
+        mid = EnsembleModel._ramp_multiplier(threshold // 2, floor, threshold)
+        assert floor < mid < 1.0
+        assert EnsembleModel._ramp_multiplier(threshold, floor, threshold) == pytest.approx(1.0)
+        assert EnsembleModel._ramp_multiplier(threshold + 10, floor, threshold) == pytest.approx(1.0)
+
+    def test_hard_rebalance_sets_target_weights_and_preserves_disabled(self):
+        """Hard rebalance should ignore incremental drift and keep disabled models at zero."""
+        from models.ensemble_model import EnsembleModel
+
+        ensemble = EnsembleModel.__new__(EnsembleModel)
+        ensemble.models = {"a": object(), "b": object(), "c": object()}
+        ensemble.default_weights = {"a": 0.6, "b": 0.4, "c": 0.0}  # c disabled
+        ensemble.weights = {"a": 0.9, "b": 0.1, "c": 0.0}
+        ensemble.ADJUSTMENT_RATE = 0.25
+
+        target = {"a": 0.2, "b": 0.8, "c": 0.0}
+
+        _, incremental_after, _ = ensemble._apply_target_weights(target.copy(), mode="incremental")
+        assert incremental_after["c"] == 0.0
+        assert incremental_after["a"] != pytest.approx(0.2)
+        assert incremental_after["b"] != pytest.approx(0.8)
+
+        ensemble.weights = {"a": 0.9, "b": 0.1, "c": 0.0}
+        _, hard_after, _ = ensemble._apply_target_weights(target.copy(), mode="hard_rebalance")
+        assert hard_after["c"] == 0.0
+        assert hard_after["a"] == pytest.approx(0.2)
+        assert hard_after["b"] == pytest.approx(0.8)
     
     def test_ensemble_loads_all_component_models(self):
         """Ensemble should load its component models."""

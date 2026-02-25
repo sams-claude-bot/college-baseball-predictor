@@ -275,12 +275,12 @@ def add_team(team_id, name, nickname=None, conference=None, division=None,
         INSERT INTO teams (id, name, nickname, conference, division, athletics_url, preseason_rank)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
-            name=excluded.name,
-            nickname=excluded.nickname,
-            conference=excluded.conference,
-            division=excluded.division,
-            athletics_url=excluded.athletics_url,
-            preseason_rank=excluded.preseason_rank,
+            name=COALESCE(excluded.name, teams.name),
+            nickname=COALESCE(excluded.nickname, teams.nickname),
+            conference=COALESCE(excluded.conference, teams.conference),
+            division=COALESCE(excluded.division, teams.division),
+            athletics_url=COALESCE(excluded.athletics_url, teams.athletics_url),
+            preseason_rank=COALESCE(excluded.preseason_rank, teams.preseason_rank),
             updated_at=CURRENT_TIMESTAMP
     ''', (team_id, name, nickname, conference, division, athletics_url, preseason_rank))
     

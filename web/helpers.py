@@ -163,7 +163,7 @@ def get_all_teams():
         LEFT JOIN elo_ratings e ON t.id = e.team_id
         LEFT JOIN team_rpi r ON t.id = r.team_id
         LEFT JOIN team_sos ts ON t.id = ts.team_id
-        WHERE t.conference != 'Non-D1'
+        WHERE COALESCE(t.conference, '') != 'Non-D1'
         ORDER BY t.name
     ''')
 

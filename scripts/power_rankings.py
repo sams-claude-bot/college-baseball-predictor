@@ -18,6 +18,8 @@ Usage:
 import sys
 import gc
 import argparse
+import time
+import sqlite3
 from pathlib import Path
 from datetime import datetime
 
@@ -31,12 +33,13 @@ import logging
 # Suppress noisy model warnings during bulk simulation
 logging.getLogger().setLevel(logging.ERROR)
 
+import database as db_module
 from database import get_connection
 
 # Models that produce meaningful win probabilities (not totals/spread-only)
 WIN_PROB_MODELS = [
     "pythagorean", "elo", "log5", "advanced", "pitching",
-    "conference", "prior", "poisson", "neural", "xgboost", "lightgbm",
+    "conference", "prior", "poisson", "nn_slim", "xgboost", "lightgbm",
 ]
 
 # Ensemble weights for composite power score (mirrors ensemble_model defaults)
@@ -51,21 +54,41 @@ MODEL_WEIGHTS = {
     "pitching": 0.05,
     "lightgbm": 0.08,
     "xgboost": 0.06,
-    "neural": 0.00,  # tracked independently, not in ensemble
+    "nn_slim": 0.00,  # tracked independently, not in ensemble
 }
 
 # Short names for display
 ABBREV = {
     'pythagorean': 'Pyth', 'elo': 'Elo', 'log5': 'Log5',
     'advanced': 'Adv', 'pitching': 'Pitch', 'conference': 'Conf',
-    'prior': 'Prior', 'poisson': 'Pois', 'neural': 'NN',
+    'prior': 'Prior', 'poisson': 'Pois', 'nn_slim': 'NNs',
     'xgboost': 'XGB', 'lightgbm': 'LGB', 'ensemble': 'Ens',
 }
+
+READ_DB_PATH = None
+WRITE_DB_PATH = None
+
+
+def configure_read_db(db_path):
+    """Point shared database module at the DB used for all model reads."""
+    global READ_DB_PATH
+    if db_path:
+        READ_DB_PATH = str(Path(db_path))
+        db_module.DB_PATH = Path(READ_DB_PATH)
+
+
+def get_db_connection(db_path=None):
+    """Open a SQLite connection to an explicit path (or current default DB)."""
+    target = Path(db_path) if db_path else Path(db_module.DB_PATH)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(target, timeout=30)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def get_eligible_teams(min_games=3):
     """Get teams with enough completed games for meaningful predictions."""
-    conn = get_connection()
+    conn = get_db_connection(READ_DB_PATH)
     c = conn.cursor()
     c.execute('''
         SELECT t.id, t.name, t.conference, COUNT(g.id) as games_played
@@ -111,7 +134,7 @@ def load_single_model(model_name):
         elif model_name == "poisson":
             from models.ensemble_model import PoissonModelWrapper
             return PoissonModelWrapper()
-        elif model_name == "neural":
+        elif model_name in ("nn_slim", "neural"):
             from models.neural_model import NeuralModel
             return NeuralModel(use_model_predictions=False)
         elif model_name == "xgboost":
@@ -160,13 +183,17 @@ def run_round_robin_single_model(model, teams, verbose=False):
 
             try:
                 pred = model.predict_game(home_id, away_id, neutral_site=True)
-                home_prob = pred.get('home_win_probability', 0.5)
-                away_prob = pred.get('away_win_probability', 1.0 - home_prob)
-                home_runs = pred.get('projected_home_runs', 0)
-                away_runs = pred.get('projected_away_runs', 0)
+
+                def _num(v, default=0.0):
+                    return default if v is None else float(v)
+
+                home_prob = _num(pred.get('home_win_probability', 0.5), 0.5)
+                away_prob = _num(pred.get('away_win_probability', 1.0 - home_prob), 1.0 - home_prob)
+                home_runs = _num(pred.get('projected_home_runs', 0), 0.0)
+                away_runs = _num(pred.get('projected_away_runs', 0), 0.0)
             except Exception:
                 home_prob = away_prob = 0.5
-                home_runs = away_runs = 0
+                home_runs = away_runs = 0.0
                 acc[home_id]['errors'] += 1
                 acc[away_id]['errors'] += 1
 
@@ -200,9 +227,9 @@ def run_round_robin_single_model(model, teams, verbose=False):
     return acc
 
 
-def ensure_tables():
+def ensure_tables(db_path=None):
     """Create DB tables if needed."""
-    conn = get_connection()
+    conn = get_db_connection(db_path or WRITE_DB_PATH)
     c = conn.cursor()
 
     c.execute('''
@@ -250,37 +277,48 @@ def ensure_tables():
 
 def store_model_detail(model_name, model_results, date_str):
     """Store one model's round-robin results into power_rankings_detail."""
-    conn = get_connection()
-    c = conn.cursor()
-
     # Compute per-model ranks
     sorted_tids = sorted(model_results.keys(),
                          key=lambda t: -model_results[t]['avg_win_prob'])
     model_ranks = {tid: i + 1 for i, tid in enumerate(sorted_tids)}
 
-    # Clear this model's rows for the date
-    c.execute('DELETE FROM power_rankings_detail WHERE model_name = ? AND date = ?',
-              (model_name, date_str))
+    # Retry on transient SQLite lock contention
+    attempts = 5
+    for attempt in range(1, attempts + 1):
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute('PRAGMA busy_timeout = 120000')
+        try:
+            # Clear this model's rows for the date
+            c.execute('DELETE FROM power_rankings_detail WHERE model_name = ? AND date = ?',
+                      (model_name, date_str))
 
-    for tid, r in model_results.items():
-        c.execute('''
-            INSERT INTO power_rankings_detail
-            (team_id, model_name, avg_win_prob, avg_run_diff,
-             avg_projected_runs, dominance_pct, model_rank, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            tid, model_name, r['avg_win_prob'], r['avg_run_diff'],
-            r['avg_projected_runs'], r['dominance_pct'],
-            model_ranks[tid], date_str
-        ))
+            for tid, r in model_results.items():
+                c.execute('''
+                    INSERT INTO power_rankings_detail
+                    (team_id, model_name, avg_win_prob, avg_run_diff,
+                     avg_projected_runs, dominance_pct, model_rank, date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    tid, model_name, r['avg_win_prob'], r['avg_run_diff'],
+                    r['avg_projected_runs'], r['dominance_pct'],
+                    model_ranks[tid], date_str
+                ))
 
-    conn.commit()
-    conn.close()
+            conn.commit()
+            conn.close()
+            return
+        except Exception as e:
+            conn.close()
+            if 'database is locked' in str(e).lower() and attempt < attempts:
+                time.sleep(2 * attempt)
+                continue
+            raise
 
 
 def load_all_model_scores(date_str):
     """Load per-model avg_win_prob from power_rankings_detail for composite calculation."""
-    conn = get_connection()
+    conn = get_db_connection(WRITE_DB_PATH)
     c = conn.cursor()
     c.execute('''
         SELECT team_id, model_name, avg_win_prob, avg_run_diff,
@@ -331,9 +369,11 @@ def compute_composite(model_scores, team_ids):
     return composite
 
 
-def get_previous_rankings():
+def get_previous_rankings(db_path=None, conn=None):
     """Get the most recent power rankings for movement tracking."""
-    conn = get_connection()
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db_connection(db_path or WRITE_DB_PATH)
     c = conn.cursor()
     try:
         c.execute('''
@@ -344,45 +384,87 @@ def get_previous_rankings():
         prev = {row['team_id']: row['rank'] for row in c.fetchall()}
     except Exception:
         prev = {}
-    conn.close()
+    if own_conn:
+        conn.close()
     return prev
 
 
-def store_composite_rankings(composite, model_scores, teams, date_str):
-    """Store the final composite rankings into power_rankings table."""
-    prev = get_previous_rankings()
+def store_power_rankings_results(composite, model_scores, teams, date_str, write_db_path=None):
+    """Store model detail + composite rankings in one short transaction."""
+    target_db = write_db_path or WRITE_DB_PATH
+    ensure_tables(target_db)
+
     team_info = {t['id']: t for t in teams}
     ranked_ids = sorted(composite.keys(), key=lambda tid: -composite[tid])
+    detail_rows = 0
+    model_ranks_by_model = {}
+    for model_name, model_results in model_scores.items():
+        sorted_tids = sorted(model_results.keys(), key=lambda t: -model_results[t]['avg_win_prob'])
+        model_ranks_by_model[model_name] = {tid: i + 1 for i, tid in enumerate(sorted_tids)}
+        detail_rows += len(model_results)
 
-    conn = get_connection()
+    conn = get_db_connection(target_db)
     c = conn.cursor()
-    c.execute('DELETE FROM power_rankings WHERE date = ?', (date_str,))
+    c.execute('PRAGMA busy_timeout = 120000')
 
-    for rank_idx, tid in enumerate(ranked_ids):
-        rank = rank_idx + 1
-        prev_rank = prev.get(tid)
-        rank_change = (prev_rank - rank) if prev_rank else None
+    # Retry on transient SQLite lock contention
+    attempts = 5
+    for attempt in range(1, attempts + 1):
+        try:
+            print(f"[store] Writing {detail_rows} detail rows + {len(ranked_ids)} composite rows to {target_db}")
+            c.execute('BEGIN IMMEDIATE')
+            c.execute('DELETE FROM power_rankings_detail WHERE date = ?', (date_str,))
+            c.execute('DELETE FROM power_rankings WHERE date = ?', (date_str,))
 
-        # Use ensemble stats if available
-        ens = model_scores.get('ensemble', {}).get(tid, {})
-        run_diff = ens.get('avg_run_diff')
-        proj_runs = ens.get('avg_projected_runs')
-        dom_pct = ens.get('dominance_pct')
+            for model_name, model_results in model_scores.items():
+                model_ranks = model_ranks_by_model[model_name]
+                for tid, r in model_results.items():
+                    c.execute('''
+                        INSERT INTO power_rankings_detail
+                        (team_id, model_name, avg_win_prob, avg_run_diff,
+                         avg_projected_runs, dominance_pct, model_rank, date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        tid, model_name, r['avg_win_prob'], r['avg_run_diff'],
+                        r['avg_projected_runs'], r['dominance_pct'],
+                        model_ranks[tid], date_str
+                    ))
 
-        c.execute('''
-            INSERT INTO power_rankings
-            (team_id, rank, power_score, avg_win_prob, avg_run_diff,
-             avg_projected_runs, dominance_pct, prev_rank, rank_change, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            tid, rank, composite[tid], composite[tid],
-            run_diff, proj_runs, dom_pct,
-            prev_rank, rank_change, date_str
-        ))
+            prev = get_previous_rankings(conn=conn)
+            for rank_idx, tid in enumerate(ranked_ids):
+                rank = rank_idx + 1
+                prev_rank = prev.get(tid)
+                rank_change = (prev_rank - rank) if prev_rank else None
 
-    conn.commit()
+                # Use ensemble stats if available
+                ens = model_scores.get('ensemble', {}).get(tid, {})
+                run_diff = ens.get('avg_run_diff')
+                proj_runs = ens.get('avg_projected_runs')
+                dom_pct = ens.get('dominance_pct')
+
+                c.execute('''
+                    INSERT INTO power_rankings
+                    (team_id, rank, power_score, avg_win_prob, avg_run_diff,
+                     avg_projected_runs, dominance_pct, prev_rank, rank_change, date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    tid, rank, composite[tid], composite[tid],
+                    run_diff, proj_runs, dom_pct,
+                    prev_rank, rank_change, date_str
+                ))
+
+            conn.commit()
+            print(f"[store] ✅ Stored {len(ranked_ids)} composite power rankings for {date_str}")
+            break
+        except Exception as e:
+            conn.rollback()
+            if 'database is locked' in str(e).lower() and attempt < attempts:
+                wait_s = 2 * attempt
+                print(f"[store] database locked, retrying in {wait_s}s (attempt {attempt}/{attempts})")
+                time.sleep(wait_s)
+                continue
+            raise
     conn.close()
-    print(f"✅ Stored {len(ranked_ids)} composite power rankings for {date_str}")
 
 
 def print_rankings(model_scores, composite, teams, top_n=25, conference=None, single_model=None):
@@ -471,77 +553,81 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', help='Show progress')
     parser.add_argument('--all', action='store_true', help='Show all teams')
     parser.add_argument('--model', type=str, help='Show rankings for a single model')
+    parser.add_argument('--db-path', type=str, help='Override DB path for both reads and writes')
+    parser.add_argument('--read-db', type=str, help='Read source DB path (for snapshot runs)')
+    parser.add_argument('--write-db', type=str, help='Write target DB path (for live DB finalization)')
     args = parser.parse_args()
+
+    if args.db_path:
+        if not args.read_db:
+            args.read_db = args.db_path
+        if not args.write_db:
+            args.write_db = args.db_path
+
+    if args.model == 'neural':
+        args.model = 'nn_slim'
+
+    configure_read_db(args.read_db)
+    global WRITE_DB_PATH
+    if args.write_db:
+        WRITE_DB_PATH = str(Path(args.write_db))
 
     date_str = datetime.now().strftime('%Y-%m-%d')
 
-    print(f"🏟️  Generating Multi-Model Power Rankings...")
-    print(f"   Min games: {args.min_games}")
+    print("[init] Generating Multi-Model Power Rankings")
+    if READ_DB_PATH:
+        print(f"[init] Read DB: {READ_DB_PATH}")
+    if WRITE_DB_PATH:
+        print(f"[init] Write DB: {WRITE_DB_PATH}")
+    print(f"[init] Min games: {args.min_games}")
 
     teams = get_eligible_teams(args.min_games)
-    print(f"   Eligible teams: {len(teams)}")
+    print(f"[init] Eligible teams: {len(teams)}")
     n = len(teams)
     total = n * (n - 1) // 2
 
     # All models to run (individual only — ensemble is redundant since
     # the composite score already blends individual model results)
     all_model_names = [m for m in WIN_PROB_MODELS]
-    print(f"   Models: {', '.join(all_model_names)} ({len(all_model_names)} total)")
-    print(f"   Matchups per model: {total:,}")
-    print(f"   Total predictions: {total * len(all_model_names):,}")
+    print(f"[init] Models: {', '.join(all_model_names)} ({len(all_model_names)} total)")
+    print(f"[init] Matchups per model: {total:,}")
+    print(f"[init] Total predictions: {total * len(all_model_names):,}")
     print()
 
-    ensure_tables()
+    if args.store:
+        print("[store] Ensuring destination tables exist")
+        ensure_tables()
 
     # Process one model at a time to keep memory low
     completed_models = []
+    model_scores = {}
     for model_name in all_model_names:
-        print(f"  📊 Running {model_name}...")
+        print(f"[models] Running {model_name}...")
         model = load_single_model(model_name)
         if model is None:
-            print(f"     Skipped (not available/trained)")
+            print(f"[models] {model_name}: skipped (not available/trained)")
             continue
 
         model_results = run_round_robin_single_model(model, teams, verbose=args.verbose)
+        model_scores[model_name] = model_results
         errors = sum(r['errors'] for r in model_results.values())
         if errors:
-            print(f"     ⚠️  {errors} prediction errors (used 0.5 fallback)")
-
-        if args.store:
-            store_model_detail(model_name, model_results, date_str)
-            print(f"     ✅ Stored to DB")
+            print(f"[models] {model_name}: {errors} prediction errors (used 0.5 fallback)")
 
         completed_models.append(model_name)
 
         # Free memory before next model
         del model
-        del model_results
         gc.collect()
 
-    print(f"\n  Completed {len(completed_models)}/{len(all_model_names)} models")
-
-    # Now load scores back from DB (or from memory if not storing)
-    if args.store:
-        model_scores = load_all_model_scores(date_str)
-    else:
-        # Re-run without storing — need to keep in memory
-        # For non-store mode, do a lighter pass
-        print("  (Re-running for display — use --store to avoid this)")
-        model_scores = {}
-        for model_name in completed_models:
-            model = load_single_model(model_name)
-            if model is None:
-                continue
-            model_scores[model_name] = run_round_robin_single_model(model, teams, verbose=False)
-            del model
-            gc.collect()
+    print(f"\n[models] Completed {len(completed_models)}/{len(all_model_names)} models")
 
     # Composite score
     team_ids = [t['id'] for t in teams]
     composite = compute_composite(model_scores, team_ids)
 
     if args.store:
-        store_composite_rankings(composite, model_scores, teams, date_str)
+        store_power_rankings_results(composite, model_scores, teams, date_str, write_db_path=WRITE_DB_PATH)
 
     top_n = len(teams) if args.all else args.top
     print_rankings(model_scores, composite, teams, top_n=top_n,

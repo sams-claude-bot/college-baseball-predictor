@@ -155,6 +155,18 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
                 else:
                     hs, aws = away_score, home_score
 
+                # D1BB can occasionally have home/away labeling that doesn't match our row
+                # (especially neutral-site events). Use W/L outcome from the current team page
+                # as a consistency check and swap orientation when needed.
+                outcome = r.get('outcome')
+                if outcome in ('W', 'L'):
+                    team_score_in_existing = hs if team_id == ex_home else aws
+                    opp_score_in_existing = aws if team_id == ex_home else hs
+                    should_win = (outcome == 'W')
+                    is_win_now = team_score_in_existing > opp_score_in_existing
+                    if is_win_now != should_win:
+                        hs, aws = aws, hs
+
                 winner = ex_home if hs > aws else ex_away if aws > hs else None
 
                 # If already final with identical score/winner, skip.
