@@ -343,12 +343,16 @@ def get_todays_games():
     # Add stored predictions to each game (no live model calls)
     conn2 = get_connection()
     stored = {}
+    # Prefer meta_ensemble as the displayed primary model; fall back to ensemble
     for row in conn2.execute('''
-        SELECT game_id, predicted_home_prob, predicted_home_runs, predicted_away_runs
-        FROM model_predictions WHERE model_name = 'ensemble'
+        SELECT game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs
+        FROM model_predictions WHERE model_name IN ('meta_ensemble', 'ensemble')
         AND game_id IN (SELECT id FROM games WHERE date = ?)
     ''', (today,)).fetchall():
-        stored[row['game_id']] = row
+        if row['model_name'] == 'meta_ensemble':
+            stored[row['game_id']] = row
+        elif row['game_id'] not in stored:
+            stored[row['game_id']] = row
     conn2.close()
 
     for game in games:
@@ -410,7 +414,10 @@ def get_value_picks(limit=5):
         FROM model_predictions
         WHERE game_id IN (SELECT id FROM games WHERE date >= ? AND date <= ?)
     ''', (today, three_days)).fetchall():
-        if row['model_name'] == 'ensemble':
+        # Prefer meta_ensemble as primary model; fall back to ensemble
+        if row['model_name'] == 'meta_ensemble':
+            stored_vp[row['game_id']] = {'prob': row['predicted_home_prob']}
+        elif row['model_name'] == 'ensemble' and row['game_id'] not in stored_vp:
             stored_vp[row['game_id']] = {'prob': row['predicted_home_prob']}
         if row['game_id'] not in stored_vp_agreement:
             stored_vp_agreement[row['game_id']] = {}
@@ -982,11 +989,14 @@ def get_recent_results(days_back=3):
     conn_rr = get_connection()
     stored_rr = {}
     for row in conn_rr.execute('''
-        SELECT game_id, predicted_home_prob FROM model_predictions
-        WHERE model_name = 'ensemble'
+        SELECT game_id, model_name, predicted_home_prob FROM model_predictions
+        WHERE model_name IN ('meta_ensemble', 'ensemble')
         AND game_id IN (SELECT id FROM games WHERE date >= ? AND date < ?)
     ''', (start_date, today_str)).fetchall():
-        stored_rr[row['game_id']] = row['predicted_home_prob']
+        if row['model_name'] == 'meta_ensemble':
+            stored_rr[row['game_id']] = row['predicted_home_prob']
+        elif row['game_id'] not in stored_rr:
+            stored_rr[row['game_id']] = row['predicted_home_prob']
     conn_rr.close()
 
     for game in games:

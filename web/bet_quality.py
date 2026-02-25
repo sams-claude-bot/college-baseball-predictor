@@ -167,7 +167,7 @@ def bet_quality_score(bet, category='consensus'):
         model_prob * 0.4
         + (1.0 - abs(model_prob - vi)) * 0.3
         + (models_agree / 12.0) * 0.2
-        + meta_prob * 0.1
+        + (meta_prob or model_prob) * 0.1
     )
     return round(score, 4)
 
