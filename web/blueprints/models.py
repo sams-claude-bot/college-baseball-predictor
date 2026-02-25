@@ -287,12 +287,47 @@ def models():
             LIMIT 10
         ''')
         recent_totals = [dict(row) for row in c.fetchall()]
+
+        # MAE per totals model
+        c.execute('''
+            SELECT 
+                tp.model_name,
+                COUNT(*) as n,
+                ROUND(AVG(ABS(tp.projected_total - (g.home_score + g.away_score))), 2) as mae,
+                ROUND(AVG(tp.projected_total), 1) as avg_predicted,
+                ROUND(AVG(g.home_score + g.away_score), 1) as avg_actual
+            FROM totals_predictions tp
+            JOIN games g ON tp.game_id = g.id
+            WHERE g.status = 'final'
+              AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
+            GROUP BY tp.model_name
+            ORDER BY mae ASC
+        ''')
+        totals_mae_by_model = [dict(row) for row in c.fetchall()]
+
+        # O/U split per model
+        c.execute('''
+            SELECT 
+                model_name,
+                prediction,
+                COUNT(*) as total,
+                SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct,
+                ROUND(100.0 * SUM(was_correct) / COUNT(*), 1) as hit_rate
+            FROM totals_predictions
+            WHERE was_correct IS NOT NULL
+              AND prediction IN ('OVER', 'UNDER')
+            GROUP BY model_name, prediction
+            ORDER BY model_name, prediction
+        ''')
+        totals_ou_split = [dict(row) for row in c.fetchall()]
     except Exception:
         totals_overall = {'total': 0, 'correct': 0, 'incorrect': 0}
         totals_by_type = []
         totals_by_edge = []
         totals_no_line = {'total': 0, 'mae': 0, 'avg_projected': 0, 'avg_actual': 0}
         recent_totals = []
+        totals_mae_by_model = []
+        totals_ou_split = []
 
     # Calibration report (if available)
     try:
@@ -306,6 +341,40 @@ def models():
         calibration_report = []
 
     conn.close()
+
+    # Meta-ensemble feature importance + accuracy
+    meta_feature_importance = {}
+    meta_accuracy = {}
+    try:
+        from models.meta_ensemble import MetaEnsemble
+        _meta = MetaEnsemble()
+        meta_feature_importance = _meta.get_feature_importance()
+        if meta_feature_importance:
+            meta_feature_importance = dict(sorted(meta_feature_importance.items(), key=lambda x: -x[1]))
+    except Exception:
+        pass
+
+    # Meta-ensemble accuracy from model_predictions
+    try:
+        conn_meta = get_connection()
+        cm = conn_meta.cursor()
+        cm.execute('''
+            SELECT model_name,
+                COUNT(*) as total,
+                SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct,
+                ROUND(100.0 * SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) as accuracy
+            FROM model_predictions
+            WHERE was_correct IS NOT NULL
+            AND model_name IN ('meta_ensemble', 'ensemble', 'prior', 'neural', 'elo')
+            GROUP BY model_name
+            ORDER BY accuracy DESC
+        ''')
+        meta_accuracy = {row['model_name']: {
+            'total': row['total'], 'correct': row['correct'], 'accuracy': row['accuracy']
+        } for row in cm.fetchall()}
+        conn_meta.close()
+    except Exception:
+        pass
 
     # Rolling accuracy data for chart
     conn3 = get_connection()
@@ -353,5 +422,9 @@ def models():
                           totals_by_edge=totals_by_edge,
                           totals_no_line=totals_no_line,
                           recent_totals=recent_totals,
+                          totals_mae_by_model=totals_mae_by_model,
+                          totals_ou_split=totals_ou_split,
                           rolling_data=rolling_data,
-                          calibration_report=calibration_report)
+                          calibration_report=calibration_report,
+                          meta_feature_importance=meta_feature_importance,
+                          meta_accuracy=meta_accuracy)

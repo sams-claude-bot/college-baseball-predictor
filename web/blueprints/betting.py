@@ -260,6 +260,42 @@ def tracker():
         else:
             bucket_stats.append({'label': key, 'count': 0, 'wins': 0, 'win_rate': 0, 'pl': 0, 'roi': 0})
 
+    # --- ML BUCKET ANALYSIS (by moneyline range) ---
+    # Combines consensus + EV bets for ML bucket breakdown
+    all_ml_bets = []
+    for b in consensus_bets:
+        all_ml_bets.append({'ml': b.get('moneyline', 0), 'won': b['won'], 'profit': b['profit']})
+    for b in ev_bets:
+        all_ml_bets.append({'ml': b.get('moneyline', 0), 'won': b['won'], 'profit': b['profit']})
+
+    ml_bucket_stats = []
+    ml_bucket_defs = [
+        ('Heavy Fav (<-200)', lambda ml: ml is not None and ml < -200),
+        ('Light Fav (-200 to -100)', lambda ml: ml is not None and -200 <= ml <= -100),
+        ('Underdog (+ML)', lambda ml: ml is not None and ml > 0),
+    ]
+    for label, test_fn in ml_bucket_defs:
+        bb = [b for b in all_ml_bets if test_fn(b['ml'])]
+        if bb:
+            bw = sum(1 for x in bb if x['won'])
+            bp = sum(x['profit'] for x in bb)
+            ml_bucket_stats.append({
+                'label': label,
+                'count': len(bb),
+                'wins': bw,
+                'win_rate': round(bw / len(bb) * 100, 1),
+                'pl': round(bp, 2),
+                'roi': round(bp / (len(bb) * 100) * 100, 1)
+            })
+        else:
+            ml_bucket_stats.append({'label': label, 'count': 0, 'wins': 0, 'win_rate': 0, 'pl': 0, 'roi': 0})
+
+    # Recommendation based on data
+    underdog_bucket = ml_bucket_stats[2] if len(ml_bucket_stats) > 2 else None
+    bet_recommendation = None
+    if underdog_bucket and underdog_bucket['count'] >= 3 and underdog_bucket['win_rate'] < 40:
+        bet_recommendation = f"⚠️ Underdog bets: {underdog_bucket['wins']}W-{underdog_bucket['count'] - underdog_bucket['wins']}L ({underdog_bucket['win_rate']}%), ${underdog_bucket['pl']:+.0f}. New filters now skip all underdogs."
+
     return render_template('tracker.html',
                           consensus_bets=consensus_bets,
                           pending_consensus=pending_consensus,
@@ -276,6 +312,8 @@ def tracker():
                           ev_running_pl=ev_running_pl,
                           totals_running_pl=totals_running_pl,
                           bucket_stats=bucket_stats,
+                          ml_bucket_stats=ml_bucket_stats,
+                          bet_recommendation=bet_recommendation,
                           parlay_bets=parlay_bets,
                           pending_parlays=pending_parlays,
                           parlay_stats=parlay_stats,

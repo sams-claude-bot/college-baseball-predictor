@@ -28,6 +28,7 @@ from models.neural_model import NeuralModel
 from models.xgboost_model import XGBMoneylineModel, XGBTotalsModel, XGBSpreadModel
 from models.lightgbm_model import LGBMoneylineModel, LGBTotalsModel, LGBSpreadModel
 from models.momentum_model import get_momentum_score
+from models.meta_ensemble import MetaEnsemble
 from scripts.database import get_connection
 
 # All available models
@@ -48,7 +49,8 @@ MODELS = {
     "lightgbm": LGBMoneylineModel(use_model_predictions=False),
     "lgb_totals": LGBTotalsModel(use_model_predictions=False),
     "lgb_spread": LGBSpreadModel(use_model_predictions=False),
-    "ensemble": EnsembleModel()
+    "ensemble": EnsembleModel(),
+    "meta_ensemble": MetaEnsemble(),
 }
 
 def normalize_team_id(name):

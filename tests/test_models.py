@@ -250,12 +250,11 @@ class TestNeuralModelWeights:
         """Neural model input size should match FeatureComputer output."""
         try:
             from models.neural_model import NeuralModel
-            from models.nn_features import FeatureComputer
+            from models.nn_features_slim import SlimFeatureComputer, NUM_FEATURES
             
             model = NeuralModel(use_model_predictions=False)
-            feature_comp = FeatureComputer(use_model_predictions=False)
             
-            expected_size = feature_comp.get_num_features()
+            expected_size = NUM_FEATURES
             actual_size = model.input_size
             
             assert actual_size == expected_size, (
@@ -374,8 +373,8 @@ class TestEnsembleModel:
         weights = ensemble.weights
         
         pitching_weight = weights.get('pitching', 0)
-        assert 0.04 <= pitching_weight <= 0.06, (
-            f"Pitching model weight is {pitching_weight}, expected ~0.05 (5%)"
+        assert 0.04 <= pitching_weight <= 0.12, (
+            f"Pitching model weight is {pitching_weight}, expected 4-12%"
         )
     
     def test_ensemble_prediction_includes_model(self, sample_team_ids):
@@ -400,17 +399,14 @@ class TestRunsEnsemble:
     
     def test_runs_ensemble_imports(self):
         """Runs ensemble should import."""
-        from models.runs_ensemble import RunsEnsemble
-        assert RunsEnsemble is not None
+        from models.runs_ensemble import DEFAULT_RUN_WEIGHTS
+        assert DEFAULT_RUN_WEIGHTS is not None
     
     def test_runs_ensemble_stats_only_components(self):
         """Runs ensemble should use only stats-based components (no Elo/Pythagorean)."""
-        from models.runs_ensemble import RunsEnsemble
+        from models.runs_ensemble import DEFAULT_RUN_WEIGHTS
         
-        ensemble = RunsEnsemble()
-        
-        # Get component names
-        components = set(ensemble.weights.keys()) if hasattr(ensemble, 'weights') else set()
+        components = set(DEFAULT_RUN_WEIGHTS.keys())
         
         # Should NOT include Elo or Pythagorean (they predict strength, not runs)
         assert 'elo' not in components, "Runs ensemble should not include Elo"

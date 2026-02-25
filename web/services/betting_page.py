@@ -12,6 +12,10 @@ from config import model_config as cfg
 from bet_selection_v2 import analyze_games
 
 from web.helpers import get_all_conferences, get_betting_games
+from web.bet_quality import (
+    passes_quality_gate, bet_quality_score, has_vegas_disagreement,
+    vegas_implied_prob, MAX_PER_TYPE as QUALITY_MAX_PER_TYPE
+)
 
 
 def build_betting_page_context(conference=''):
@@ -116,8 +120,30 @@ def build_betting_page_context(conference=''):
         and g['model_agreement']['count'] >= 7
         and passes_favorite_cap(g)
     ]
-    confident_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
-    confident_bets = confident_candidates[:6]
+    # Apply v3 quality gates to confident bets
+    quality_confident = []
+    for g in confident_candidates:
+        agreement = g['model_agreement']
+        pick = agreement.get('pick', 'home')
+        ml = g.get('home_ml') if pick == 'home' else g.get('away_ml')
+        bet_check = {
+            'moneyline': ml,
+            'avg_prob': agreement.get('avg_prob', 0.5),
+            'models_agree': agreement['count'],
+            'pick_team_name': g.get('home_team_name') if pick == 'home' else g.get('away_team_name'),
+        }
+        passes, reason = passes_quality_gate(bet_check, category='consensus')
+        # Add disagreement flag for display
+        prob = agreement.get('avg_prob', 0.5)
+        disagrees, _, vi, diff = has_vegas_disagreement(prob, ml)
+        g['vegas_disagreement'] = disagrees
+        g['disagreement_pp'] = round(diff * 100, 1)
+        g['rejection_reason'] = reason
+        if passes:
+            g['quality_score'] = bet_quality_score(bet_check, 'consensus')
+            quality_confident.append(g)
+    quality_confident.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
+    confident_bets = quality_confident[:QUALITY_MAX_PER_TYPE]
 
     # EV bets — pure raw edge over DK line (exclude consensus picks)
     confident_ids = {g['game_id'] for g in confident_bets}
@@ -127,8 +153,29 @@ def build_betting_page_context(conference=''):
         and g.get('best_edge', 0) >= ML_EDGE_FAVORITE
         and passes_favorite_cap(g)
     ]
-    ev_candidates.sort(key=lambda x: x.get('best_edge', 0), reverse=True)
-    ev_bets = ev_candidates[:6]
+    # Apply v3 quality gates to EV bets
+    quality_ev = []
+    for g in ev_candidates:
+        pick = g.get('best_pick', 'home')
+        ml = g.get('home_ml') if pick == 'home' else g.get('away_ml')
+        prob = g.get('model_home_prob', 0.5) if pick == 'home' else g.get('model_away_prob', 0.5)
+        bet_check = {
+            'moneyline': ml,
+            'model_prob': prob,
+            'edge': g.get('best_edge', 0),
+            'models_agree': g.get('models_agree', 5),
+            'pick_team_name': g.get('home_team_name') if pick == 'home' else g.get('away_team_name'),
+        }
+        passes, reason = passes_quality_gate(bet_check, category='ev')
+        disagrees, _, vi, diff = has_vegas_disagreement(prob, ml)
+        g['vegas_disagreement'] = disagrees
+        g['disagreement_pp'] = round(diff * 100, 1)
+        g['rejection_reason'] = reason
+        if passes:
+            g['quality_score'] = bet_quality_score(bet_check, 'ev')
+            quality_ev.append(g)
+    quality_ev.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
+    ev_bets = quality_ev[:QUALITY_MAX_PER_TYPE]
 
     # Best totals (3+ runs edge)
     games_with_totals = [g for g in games if g.get('over_under')]
@@ -189,7 +236,10 @@ def build_betting_page_context(conference=''):
         if abs(g['total_diff']) < 2.0:  # At least 2 runs projected difference
             continue
         total_edge_pct = g.get('total_edge', 0)
-        if total_edge_pct < 15:
+        if g.get('total_prob'):
+            if g['total_prob'] < 0.58:
+                continue
+        elif total_edge_pct < 15:
             continue
         parlay_totals_candidates.append({
             'game': g,
@@ -197,7 +247,7 @@ def build_betting_page_context(conference=''):
             'pick_label': f"{g['total_lean']} {g['over_under']}",
             'pick_team': g['total_lean'],
             'odds': -110,  # Standard totals juice
-            'prob': min(0.5 + abs(g['total_diff']) * 0.06, 0.85),  # Rough estimate
+            'prob': g.get('total_prob', min(0.5 + abs(g['total_diff']) * 0.06, 0.85)),
             'edge': total_edge_pct,
             'total_diff': g['total_diff'],
             'game_id': g['game_id'],

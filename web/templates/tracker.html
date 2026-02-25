@@ -248,6 +248,48 @@
     </div>
 </div>
 
+<!-- ML Bucket Analysis -->
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-bar-chart-fill"></i> Win Rate by Moneyline Bucket (All ML Bets)</div>
+            <div class="card-body">
+                {% if bet_recommendation %}
+                <div class="alert alert-warning mb-3">{{ bet_recommendation }}</div>
+                {% endif %}
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>ML Bucket</th>
+                            <th class="text-center">Bets</th>
+                            <th class="text-center">Win%</th>
+                            <th class="text-center">P&L</th>
+                            <th class="text-center">ROI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in ml_bucket_stats %}
+                        <tr>
+                            <td><strong>{{ b.label }}</strong></td>
+                            <td class="text-center">{{ b.count }}</td>
+                            <td class="text-center {% if b.win_rate >= 55 %}text-success{% elif b.win_rate < 50 %}text-danger{% endif %}">
+                                {{ b.win_rate }}%
+                            </td>
+                            <td class="text-center {% if b.pl > 0 %}text-success{% elif b.pl < 0 %}text-danger{% endif %}">
+                                {{ '+' if b.pl > 0 else '' }}${{ b.pl }}
+                            </td>
+                            <td class="text-center {% if b.roi > 0 %}text-success{% elif b.roi < 0 %}text-danger{% endif %}">
+                                {{ '+' if b.roi > 0 else '' }}{{ b.roi }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Tabs for bet type history -->
 <div class="card mt-4">
     <div class="card-header">

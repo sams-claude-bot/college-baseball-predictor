@@ -193,6 +193,7 @@
             <li><strong>Rolling Accuracy:</strong> Shows each model's accuracy over the last 30 predictions. Smooths out day-to-day variance.</li>
             <li><strong>Cumulative Accuracy:</strong> Shows overall accuracy from season start. More stable but slower to react to changes.</li>
             <li><strong>Early Season Note:</strong> With few games, accuracy will be volatile. Trends become meaningful after 50+ predictions per model.</li>
+            <li><strong><span style="color: #7c3aed;">Purple dashed lines</span></strong> mark major model architecture changes. Look for accuracy shifts after these dates.</li>
         </ul>
     </div>
 </div>
@@ -203,6 +204,41 @@
 {% if rolling_data %}
 const rollingData = {{ rolling_data|tojson }};
 const dates = {{ dates|tojson }};
+
+// Architecture overhaul markers
+const OVERHAUL_EVENTS = [
+    { date: '2026-02-24', label: 'v2 Overhaul', detail: 'Meta-ensemble, NegBin totals, DOW/temp/volatility adjustments' }
+];
+
+// Build annotation config for Chart.js annotation plugin
+function buildOverhaulAnnotations(chartDates) {
+    const annotations = {};
+    OVERHAUL_EVENTS.forEach((evt, i) => {
+        const idx = chartDates.indexOf(evt.date);
+        if (idx >= 0) {
+            annotations['overhaul' + i] = {
+                type: 'line',
+                xMin: evt.date,
+                xMax: evt.date,
+                borderColor: '#7c3aed',
+                borderWidth: 2,
+                borderDash: [6, 4],
+                label: {
+                    display: true,
+                    content: evt.label,
+                    position: 'start',
+                    backgroundColor: '#7c3aed',
+                    color: '#fff',
+                    font: { size: 11, weight: 'bold' },
+                    padding: { top: 4, bottom: 4, left: 6, right: 6 },
+                    borderRadius: 4,
+                    yAdjust: -10
+                }
+            };
+        }
+    });
+    return annotations;
+}
 
 // Color palette for models
 const modelColors = {
@@ -275,6 +311,9 @@ new Chart(document.getElementById('rollingChart'), {
                         return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '% (' + games + ' games that day)';
                     }
                 }
+            },
+            annotation: {
+                annotations: buildOverhaulAnnotations(dates)
             }
         },
         scales: {
@@ -336,6 +375,9 @@ new Chart(document.getElementById('cumulativeChart'), {
                         return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '% (' + games + ' games)';
                     }
                 }
+            },
+            annotation: {
+                annotations: buildOverhaulAnnotations(dates)
             }
         },
         scales: {

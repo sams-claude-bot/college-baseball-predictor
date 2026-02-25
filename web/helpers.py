@@ -745,10 +745,11 @@ def get_betting_games(date_str=None):
         stored_model_agreement[row['game_id']][row['model_name']] = row['predicted_home_prob']
     
     tp_rows = conn_sp.execute('''
-        SELECT game_id, projected_total FROM totals_predictions
+        SELECT game_id, projected_total, over_prob, under_prob FROM totals_predictions
         WHERE model_name = 'runs_ensemble'
     ''').fetchall()
     stored_totals = {row['game_id']: row['projected_total'] for row in tp_rows}
+    stored_totals_probs = {row['game_id']: {'over_prob': row['over_prob'], 'under_prob': row['under_prob']} for row in tp_rows}
     conn_sp.close()
 
     # Add model analysis to each
@@ -821,7 +822,16 @@ def get_betting_games(date_str=None):
                 else:
                     line['total_diff'] = line['projected_total'] - line['over_under']
                 line['total_lean'] = 'OVER' if line['total_diff'] > 0 else 'UNDER'
-                line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
+                stored_ou = stored_totals_probs.get(game_id)
+                if stored_ou and stored_ou.get('over_prob'):
+                    lean_prob = stored_ou['over_prob'] if line['total_lean'] == 'OVER' else stored_ou['under_prob']
+                    line['total_prob'] = lean_prob
+                    line['total_edge'] = round(abs(lean_prob - 0.5) * 100, 1)
+                    line['over_prob'] = stored_ou['over_prob']
+                    line['under_prob'] = stored_ou['under_prob']
+                else:
+                    line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
+                    line['total_prob'] = min(0.5 + abs(line['total_diff']) * 0.04, 0.85)
 
             # EV calculation (per $100)
             if line['best_pick'] == 'home':

@@ -25,7 +25,7 @@ from models.nn_totals_slim import SlimTotalsModel
 from scripts.database import get_connection
 from scripts.run_utils import ScriptRunner
 
-MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble']
+MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'ensemble', 'meta_ensemble']
 
 
 def _load_calibration_params(cur):
@@ -139,7 +139,11 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
         print(f"Found {len(games)} games needing predictions for {date_label}")
     
     # Initialize predictors for each model
-    predictors = {name: Predictor(model=name) for name in MODEL_NAMES}
+    predictors = {name: Predictor(model=name) for name in MODEL_NAMES if name != 'meta_ensemble'}
+    
+    # Initialize meta-ensemble (runs after other models)
+    from models.meta_ensemble import MetaEnsemble
+    meta_ensemble = MetaEnsemble()
     
     # Initialize NN slim totals model
     nn_slim_totals = SlimTotalsModel()
@@ -202,6 +206,31 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 else:
                     print(f"  {model_name:12}: ERROR - {e}")
         
+        # Meta-ensemble prediction (after all other models have run)
+        if (refresh_existing or 'meta_ensemble' not in existing_models):
+            try:
+                conn.commit()  # ensure other predictions are visible
+                meta_prob = meta_ensemble.predict(game_id=game_id)
+                cur.execute('''
+                    INSERT INTO model_predictions 
+                    (game_id, model_name, predicted_home_prob)
+                    VALUES (?, 'meta_ensemble', ?)
+                    ON CONFLICT(game_id, model_name) DO UPDATE SET
+                        predicted_home_prob = excluded.predicted_home_prob,
+                        predicted_at = CURRENT_TIMESTAMP
+                ''', (game_id, meta_prob))
+                if runner:
+                    runner.info(f"  {'meta_ensemble':12}: {meta_prob*100:5.1f}% {home_name}")
+                else:
+                    print(f"  {'meta_ensemble':12}: {meta_prob*100:5.1f}% {home_name}")
+                predictions_made += 1
+                models_run += 1
+            except Exception as e:
+                if runner:
+                    runner.warn(f"  {'meta_ensemble':12}: ERROR - {e}")
+                else:
+                    print(f"  {'meta_ensemble':12}: ERROR - {e}")
+
         # Totals predictions: runs ensemble + per-component models + nn_totals
         # Runs for ALL games regardless of DK lines
         cur.execute('''
@@ -224,18 +253,24 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 
                 # Store ensemble totals prediction
                 ens_total = runs_result.get('projected_total', 0)
+                ou_data = runs_result.get('over_under', {})
+                over_prob = ou_data.get('over_prob')
+                under_prob = ou_data.get('under_prob')
                 # Use DK line if available, otherwise store without O/U prediction
                 if dk_line:
                     ens_prediction = 'OVER' if ens_total > dk_line else 'UNDER'
-                    ens_edge = abs(ens_total - dk_line) / dk_line * 100
+                    if over_prob is not None:
+                        ens_edge = abs(over_prob - 0.5) * 100
+                    else:
+                        ens_edge = abs(ens_total - dk_line) / dk_line * 100
                 else:
                     ens_prediction = None
                     ens_edge = None
                 cur.execute('''
                     INSERT OR IGNORE INTO totals_predictions 
-                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
-                    VALUES (?, ?, ?, ?, ?, 'runs_ensemble')
-                ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge))
+                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name, over_prob, under_prob)
+                    VALUES (?, ?, ?, ?, ?, 'runs_ensemble', ?, ?)
+                ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge, over_prob, under_prob))
                 line_str = f" (line {dk_line})" if dk_line else ""
                 pred_str = f" → {ens_prediction}" if ens_prediction else ""
                 if runner:
@@ -330,17 +365,23 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 runs_result = runs_predict(home_id, away_id, total_line=dk_line)
                 
                 ens_total = runs_result.get('projected_total', 0)
+                ou_data = runs_result.get('over_under', {})
+                over_prob = ou_data.get('over_prob')
+                under_prob = ou_data.get('under_prob')
                 if dk_line:
                     ens_prediction = 'OVER' if ens_total > dk_line else 'UNDER'
-                    ens_edge = abs(ens_total - dk_line) / dk_line * 100
+                    if over_prob is not None:
+                        ens_edge = abs(over_prob - 0.5) * 100
+                    else:
+                        ens_edge = abs(ens_total - dk_line) / dk_line * 100
                 else:
                     ens_prediction = None
                     ens_edge = None
                 cur.execute('''
                     INSERT OR IGNORE INTO totals_predictions 
-                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name)
-                    VALUES (?, ?, ?, ?, ?, 'runs_ensemble')
-                ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge))
+                    (game_id, over_under_line, projected_total, prediction, edge_pct, model_name, over_prob, under_prob)
+                    VALUES (?, ?, ?, ?, ?, 'runs_ensemble', ?, ?)
+                ''', (game_id, dk_line, ens_total, ens_prediction, ens_edge, over_prob, under_prob))
                 
                 for comp_name, comp_data in runs_result.get('model_breakdown', {}).items():
                     comp_total = comp_data.get('total', 0)
@@ -530,6 +571,83 @@ def evaluate_predictions(date=None, runner=None):
         else:
             print(f"✅ Evaluated {totals_updated} totals predictions")
 
+def show_totals_accuracy():
+    """Show totals model accuracy: MAE and O/U record"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    # MAE per model
+    cur.execute('''
+        SELECT 
+            tp.model_name,
+            COUNT(*) as n,
+            ROUND(AVG(ABS(tp.projected_total - (g.home_score + g.away_score))), 2) as mae,
+            ROUND(AVG(tp.projected_total), 1) as avg_predicted,
+            ROUND(AVG(g.home_score + g.away_score), 1) as avg_actual
+        FROM totals_predictions tp
+        JOIN games g ON tp.game_id = g.id
+        WHERE g.status = 'final'
+          AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
+        GROUP BY tp.model_name
+        ORDER BY mae ASC
+    ''')
+
+    print("\n📊 TOTALS MODEL ACCURACY — MAE (Mean Absolute Error)")
+    print("=" * 65)
+    print(f"{'Model':<20} {'Games':>6} {'MAE':>7} {'Avg Pred':>9} {'Avg Actual':>11}")
+    print("-" * 65)
+    for row in cur.fetchall():
+        print(f"{row[0]:<20} {row[1]:>6} {row[2]:>7.2f} {row[3]:>9.1f} {row[4]:>11.1f}")
+
+    # O/U record per model
+    cur.execute('''
+        SELECT 
+            model_name,
+            COUNT(*) as total,
+            SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN was_correct = 0 THEN 1 ELSE 0 END) as losses,
+            ROUND(100.0 * SUM(was_correct) / COUNT(*), 1) as hit_rate
+        FROM totals_predictions
+        WHERE was_correct IS NOT NULL
+        GROUP BY model_name
+        ORDER BY hit_rate DESC
+    ''')
+
+    print("\n📊 TOTALS MODEL ACCURACY — O/U Record")
+    print("=" * 55)
+    print(f"{'Model':<20} {'W':>5} {'L':>5} {'Total':>6} {'Hit%':>7}")
+    print("-" * 55)
+    for row in cur.fetchall():
+        print(f"{row[0]:<20} {row[2]:>5} {row[3]:>5} {row[1]:>6} {row[4]:>6.1f}%")
+
+    # Over/Under split per model
+    cur.execute('''
+        SELECT 
+            model_name,
+            prediction,
+            COUNT(*) as total,
+            SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct,
+            ROUND(100.0 * SUM(was_correct) / COUNT(*), 1) as hit_rate
+        FROM totals_predictions
+        WHERE was_correct IS NOT NULL
+          AND prediction IN ('OVER', 'UNDER')
+        GROUP BY model_name, prediction
+        ORDER BY model_name, prediction
+    ''')
+
+    print("\n📊 TOTALS MODEL ACCURACY — Over/Under Split")
+    print("=" * 60)
+    print(f"{'Model':<20} {'Dir':<7} {'W':>5} {'Total':>6} {'Hit%':>7}")
+    print("-" * 60)
+    for row in cur.fetchall():
+        correct = row[3]
+        total = row[2]
+        losses = total - correct
+        print(f"{row[0]:<20} {row[1]:<7} {correct:>5} {total:>6} {row[4]:>6.1f}%")
+
+    conn.close()
+
+
 def show_accuracy():
     """Show model accuracy statistics"""
     conn = get_connection()
@@ -688,9 +806,55 @@ if __name__ == "__main__":
         runner = ScriptRunner("predict_and_track_accuracy")
         show_accuracy()
         runner.finish()
+    elif cmd == "totals_accuracy":
+        runner = ScriptRunner("predict_and_track_totals_accuracy")
+        show_totals_accuracy()
+        runner.finish()
     elif cmd == "validate":
         runner = ScriptRunner("predict_and_track_validate")
         validate_predictions(date=date, fix=fix)
+        runner.finish()
+    elif cmd == "backfill_totals_probs":
+        runner = ScriptRunner("backfill_totals_probs")
+        runner.info("Backfilling over_prob/under_prob for existing totals_predictions...")
+        import sqlite3
+        conn = sqlite3.connect('data/baseball.db')
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        rows = cur.execute('''
+            SELECT tp.id, tp.game_id, tp.over_under_line, tp.projected_total,
+                   g.home_team_id, g.away_team_id
+            FROM totals_predictions tp
+            JOIN games g ON tp.game_id = g.id
+            WHERE tp.model_name = 'runs_ensemble'
+              AND tp.over_prob IS NULL
+              AND tp.over_under_line IS NOT NULL
+              AND tp.over_under_line > 0
+        ''').fetchall()
+        runner.info(f"Found {len(rows)} rows to backfill")
+        updated = 0
+        errors = 0
+        from models.runs_ensemble import predict as runs_predict
+        for row in rows:
+            try:
+                result = runs_predict(row['home_team_id'], row['away_team_id'], total_line=row['over_under_line'])
+                ou_data = result.get('over_under', {})
+                over_prob = ou_data.get('over_prob')
+                under_prob = ou_data.get('under_prob')
+                if over_prob is not None:
+                    edge = abs(over_prob - 0.5) * 100
+                    cur.execute('''
+                        UPDATE totals_predictions SET over_prob = ?, under_prob = ?, edge_pct = ?
+                        WHERE id = ?
+                    ''', (over_prob, under_prob, edge, row['id']))
+                    updated += 1
+            except Exception as e:
+                errors += 1
+                if errors <= 5:
+                    runner.warn(f"  Error for game {row['game_id']}: {e}")
+        conn.commit()
+        conn.close()
+        runner.info(f"Backfilled {updated} rows ({errors} errors)")
         runner.finish()
     else:
         print(f"Unknown command: {cmd}")

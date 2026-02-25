@@ -314,7 +314,7 @@
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
                             <span class="badge {% if game.total_lean == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
-                                {{ game.total_lean }} +{{ game.total_edge|round(0) }}%
+                                {% if game.total_prob %}{{ game.total_lean }} {{ (game.total_prob * 100)|round(0) }}%{% else %}{{ game.total_lean }} +{{ game.total_edge|round(0) }}%{% endif %}
                             </span>
                         </div>
                         <h6 class="mb-1">{{ game.away_team_name }} @ {{ game.home_team_name }}</h6>

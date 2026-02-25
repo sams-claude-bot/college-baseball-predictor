@@ -22,7 +22,7 @@ from run_utils import ScriptRunner
 DB_PATH = 'data/baseball.db'
 API_URL = 'http://localhost:5000/api/best-bets'
 BET_AMOUNT = 100
-MAX_PER_TYPE = 6
+MAX_PER_TYPE = 4  # Reduced from 6: quality > quantity (v3, 2026-02-24)
 
 
 def get_conn():

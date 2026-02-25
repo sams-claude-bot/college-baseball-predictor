@@ -20,6 +20,10 @@ from web.helpers import (
     american_to_implied_prob, compute_model_agreement,
     calculate_adjusted_edge, UNDERDOG_EDGE_DISCOUNT
 )
+from web.bet_quality import (
+    passes_quality_gate, bet_quality_score, has_vegas_disagreement,
+    vegas_implied_prob, MAX_PER_TYPE, get_meta_ensemble_prob
+)
 
 api_bp = Blueprint('api', __name__)
 
@@ -209,25 +213,23 @@ def api_teams():
 
 @api_bp.route('/api/best-bets')
 def api_best_bets():
-    """Return best bets for a date with adjusted edge calculation.
+    """Return best bets for a date with quality-gated selection.
 
-    v2 Logic:
-    - Underdog edges discounted 50% (market usually right)
-    - Consensus bonus: +1% per model above 5 (max +5%)
-    - Spreads DISABLED (0/5 historical)
-    - Stricter thresholds: 8% favorites, 15% underdogs
+    v3 Logic (2026-02-24 overhaul based on -$742 P&L analysis):
+    - NO underdog bets (2W-6L, 25% win rate, -$325)
+    - Require model prob >= 65%
+    - Skip when model disagrees with Vegas by >25pp (model error, not value)
+    - Require 5pp+ margin over breakeven
+    - Consensus: 8+ models must agree
+    - EV: 10%+ edge required
+    - Max 4 bets per category (quality > quantity)
+    - Quality score ranking instead of raw edge
 
     Query param: ?date=YYYY-MM-DD (defaults to today)
     """
     date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     games = get_betting_games(date_str)
 
-    # === v2 THRESHOLDS ===
-    ML_EDGE_FAVORITE = 8.0
-    ML_EDGE_UNDERDOG = 15.0
-    ML_MAX_FAVORITE = -200
-    ML_MAX_FAVORITE_CONSENSUS = -300
-    ML_MIN_UNDERDOG = 250
     SPREADS_ENABLED = False
 
     # Filter to only games with model predictions
@@ -239,127 +241,18 @@ def api_best_bets():
         if g.get('model_agreement') and g['model_agreement'].get('count', 0) >= 7:
             consensus_lookup[g['game_id']] = g['model_agreement']['count']
 
-    # Best moneyline bets with adjusted edge
-    ml_candidates = []
-    for g in games:
-        raw_edge = g.get('best_edge', 0)
-        if g['best_pick'] == 'home':
-            ml = g.get('home_ml')
-        else:
-            ml = g.get('away_ml')
-
-        if ml is None:
-            continue
-
-        is_underdog = ml > 0
-        threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_FAVORITE
-
-        if raw_edge < threshold:
-            continue
-        if ml < ML_MAX_FAVORITE:
-            continue
-        if ml > ML_MIN_UNDERDOG:
-            continue
-
-        models = consensus_lookup.get(g['game_id'], 5)
-        adj_edge = calculate_adjusted_edge(raw_edge, ml, models)
-
-        ml_candidates.append({**g, 'adjusted_edge': adj_edge, 'models_agree': models})
-
-    ml_candidates.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
-    best_ml = ml_candidates[:6]
-
-    ml_bets = []
-    for g in best_ml:
-        if g['best_pick'] == 'home':
-            pick_id = g['home_team_id']
-            pick_name = g['home_team_name']
-            opp_name = g['away_team_name']
-            ml = g['home_ml']
-            prob = g['model_home_prob']
-            dk_imp = g['dk_home_fair']
-            is_home = 1
-        else:
-            pick_id = g['away_team_id']
-            pick_name = g['away_team_name']
-            opp_name = g['home_team_name']
-            ml = g['away_ml']
-            prob = g['model_away_prob']
-            dk_imp = g['dk_away_fair']
-            is_home = 0
-        ml_bets.append({
-            'game_id': g['game_id'], 'date': g['date'],
-            'pick_team_id': pick_id, 'pick_team_name': pick_name,
-            'opponent_name': opp_name, 'is_home': is_home,
-            'moneyline': ml, 'model_prob': round(prob, 4),
-            'dk_implied': round(dk_imp, 4),
-            'edge': round(g['best_edge'], 2),
-            'adjusted_edge': round(g.get('adjusted_edge', g['best_edge']), 2),
-            'models_agree': g.get('models_agree', 5),
-            'is_underdog': ml > 0 if ml else False
-        })
-
-    # Best totals (3+ runs edge, top 6)
-    TOTALS_EDGE_RUNS = 3.0
-    totals_candidates = [g for g in games
-                        if abs(g.get('total_diff', 0)) >= TOTALS_EDGE_RUNS
-                        and g.get('over_under')]
-    totals_candidates.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
-    best_totals = totals_candidates[:6]
-
-    totals_bets = []
-    for g in best_totals:
-        pick = g.get('total_lean', 'UNDER')
-        odds = g.get('under_odds', -110) if pick == 'UNDER' else g.get('over_odds', -110)
-        totals_bets.append({
-            'game_id': g['game_id'], 'date': g['date'],
-            'pick': pick, 'line': g['over_under'],
-            'odds': odds or -110,
-            'model_projection': round(g.get('projected_total', 0), 2),
-            'edge': round(abs(g.get('total_diff', 0)), 2)
-        })
-
-    # Best spreads (top 6 by NN margin diff from line)
-    spread_candidates = []
-    for g in games:
-        if g.get('home_spread') and g.get('nn_margin') is not None:
-            margin = g['nn_margin']
-            spread = g['home_spread']
-            diff = abs(margin - spread)
-            if diff >= 1.0:  # At least 1 run edge
-                if margin > spread:
-                    pick = g['home_team_name']
-                    line = spread
-                    odds = g.get('home_spread_odds', -110)
-                else:
-                    pick = g['away_team_name']
-                    line = g.get('away_spread', -spread)
-                    odds = g.get('away_spread_odds', -110)
-                spread_candidates.append({
-                    'game_id': g['game_id'], 'date': g['date'],
-                    'pick': pick, 'line': line,
-                    'odds': odds or -110,
-                    'model_projection': round(margin, 2),
-                    'edge': round(diff, 2)
-                })
-    spread_candidates.sort(key=lambda x: x['edge'], reverse=True)
-    best_spreads = spread_candidates[:6] if SPREADS_ENABLED else []
-
-    # Confident bets (7/10+ models agree, cap heavy favorites at -300)
-    MAX_FAVORITE_CONSENSUS = -300
+    # --- CONFIDENT BETS (Model Consensus) with quality gates ---
     def _pick_ml(g):
         pick = g.get('model_agreement', {}).get('pick', 'home')
         return g.get('home_ml') if pick == 'home' else g.get('away_ml')
 
     confident_candidates = [g for g in games
                            if g.get('model_agreement')
-                           and g['model_agreement']['count'] >= 7
-                           and (_pick_ml(g) is None or _pick_ml(g) >= MAX_FAVORITE_CONSENSUS)]
-    confident_candidates.sort(key=lambda x: x['model_agreement']['confidence'], reverse=True)
-    best_confident = confident_candidates[:6]
+                           and g['model_agreement']['count'] >= 7]
 
     confident_bets = []
-    for g in best_confident:
+    confident_rejections = []
+    for g in confident_candidates:
         agreement = g['model_agreement']
         if agreement['pick'] == 'home':
             pick_id = g['home_team_id']
@@ -373,7 +266,15 @@ def api_best_bets():
             opp_name = g['home_team_name']
             ml = g.get('away_ml')
             is_home = 0
-        confident_bets.append({
+
+        # Try to get meta_ensemble probability
+        meta_prob = get_meta_ensemble_prob(g['game_id'], pick_id)
+        if meta_prob is not None:
+            # Adjust for pick direction
+            if agreement['pick'] == 'away':
+                meta_prob = 1.0 - meta_prob
+
+        bet_info = {
             'game_id': g['game_id'], 'date': g['date'],
             'pick_team_id': pick_id, 'pick_team_name': pick_name,
             'opponent_name': opp_name, 'is_home': is_home,
@@ -381,23 +282,147 @@ def api_best_bets():
             'models_agree': agreement['count'],
             'models_total': agreement['total'],
             'avg_prob': round(agreement['avg_prob'], 4),
+            'meta_prob': round(meta_prob, 4) if meta_prob else None,
             'confidence': round(agreement['confidence'], 4),
             'models_for': agreement['models_for'],
             'models_against': agreement['models_against']
-        })
+        }
+
+        # Apply quality gate
+        passes, reason = passes_quality_gate(bet_info, category='consensus')
+
+        # Add Vegas disagreement flag
+        prob_for_check = meta_prob or agreement['avg_prob']
+        disagrees, mp, vi, diff = has_vegas_disagreement(prob_for_check, ml)
+        bet_info['vegas_disagreement'] = disagrees
+        bet_info['vegas_implied'] = round(vi, 4) if vi else None
+        bet_info['disagreement_pp'] = round(diff * 100, 1)
+
+        if passes:
+            bet_info['quality_score'] = bet_quality_score(bet_info, 'consensus')
+            confident_bets.append(bet_info)
+        else:
+            bet_info['rejection_reason'] = reason
+            confident_rejections.append(bet_info)
+
+    # Sort by quality score, take top MAX_PER_TYPE
+    confident_bets.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
+    confident_bets = confident_bets[:MAX_PER_TYPE]
+
+    # --- EV MONEYLINE BETS with quality gates ---
+    ml_bets = []
+    ml_rejections = []
+    confident_ids = {g['game_id'] for g in confident_bets}
+
+    for g in games:
+        raw_edge = g.get('best_edge', 0)
+        if g['best_pick'] == 'home':
+            pick_id = g['home_team_id']
+            pick_name = g['home_team_name']
+            opp_name = g['away_team_name']
+            ml = g.get('home_ml')
+            prob = g.get('model_home_prob', 0.5)
+            dk_imp = g.get('dk_home_fair', 0.5)
+        else:
+            pick_id = g['away_team_id']
+            pick_name = g['away_team_name']
+            opp_name = g['home_team_name']
+            ml = g.get('away_ml')
+            prob = g.get('model_away_prob', 0.5)
+            dk_imp = g.get('dk_away_fair', 0.5)
+
+        if ml is None or g['game_id'] in confident_ids:
+            continue
+
+        # Get meta_ensemble probability
+        meta_prob = get_meta_ensemble_prob(g['game_id'], pick_id)
+        if meta_prob is not None and g['best_pick'] == 'away':
+            meta_prob = 1.0 - meta_prob
+
+        models = consensus_lookup.get(g['game_id'], 5)
+
+        bet_info = {
+            'game_id': g['game_id'], 'date': g['date'],
+            'pick_team_id': pick_id, 'pick_team_name': pick_name,
+            'opponent_name': opp_name, 'is_home': 1 if g['best_pick'] == 'home' else 0,
+            'moneyline': ml, 'model_prob': round(prob, 4),
+            'meta_prob': round(meta_prob, 4) if meta_prob else None,
+            'dk_implied': round(dk_imp, 4),
+            'edge': round(raw_edge, 2),
+            'models_agree': models,
+        }
+
+        # Apply quality gate
+        passes, reason = passes_quality_gate(bet_info, category='ev')
+
+        # Add Vegas disagreement flag
+        prob_for_check = meta_prob or prob
+        disagrees, mp, vi, diff = has_vegas_disagreement(prob_for_check, ml)
+        bet_info['vegas_disagreement'] = disagrees
+        bet_info['vegas_implied'] = round(vi, 4) if vi else None
+        bet_info['disagreement_pp'] = round(diff * 100, 1)
+        bet_info['is_underdog'] = ml > 0 if ml else False
+
+        if passes:
+            bet_info['quality_score'] = bet_quality_score(bet_info, 'ev')
+            ml_bets.append(bet_info)
+        else:
+            bet_info['rejection_reason'] = reason
+            ml_rejections.append(bet_info)
+
+    ml_bets.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
+    ml_bets = ml_bets[:MAX_PER_TYPE]
+
+    # --- TOTALS with quality gates ---
+    totals_bets = []
+    totals_rejections = []
+    for g in games:
+        if not g.get('over_under') or not g.get('total_diff'):
+            continue
+        pick = g.get('total_lean', 'UNDER')
+        odds = g.get('under_odds', -110) if pick == 'UNDER' else g.get('over_odds', -110)
+
+        bet_info = {
+            'game_id': g['game_id'], 'date': g['date'],
+            'pick': pick, 'line': g['over_under'],
+            'odds': odds or -110,
+            'model_projection': round(g.get('projected_total', 0), 2),
+            'edge': round(abs(g.get('total_diff', 0)), 2),
+            'over_prob': g.get('over_prob'),
+            'under_prob': g.get('under_prob'),
+        }
+
+        passes, reason = passes_quality_gate(bet_info, category='totals')
+        if passes:
+            totals_bets.append(bet_info)
+        else:
+            bet_info['rejection_reason'] = reason
+            totals_rejections.append(bet_info)
+
+    totals_bets.sort(key=lambda x: x.get('edge', 0), reverse=True)
+    totals_bets = totals_bets[:MAX_PER_TYPE]
+
+    # --- SPREADS (still disabled) ---
+    best_spreads = []
 
     return jsonify({
         'date': date_str,
-        'version': 2,
-        'thresholds': {
-            'ml_favorite': ML_EDGE_FAVORITE,
-            'ml_underdog': ML_EDGE_UNDERDOG,
-            'totals_runs': TOTALS_EDGE_RUNS,
-            'spreads_enabled': SPREADS_ENABLED
+        'version': 3,
+        'quality_gates': {
+            'max_per_type': MAX_PER_TYPE,
+            'no_underdogs': True,
+            'min_model_prob': 0.65,
+            'max_vegas_disagreement_pp': 25,
+            'min_margin_pp': 5,
+            'consensus_min_models': 8,
+            'ev_min_edge': 10.0,
         },
         'confident_bets': confident_bets,
+        'confident_rejections': confident_rejections[:6],  # Show top rejections for transparency
         'moneylines': ml_bets,
+        'ml_rejections': ml_rejections[:6],
         'totals': totals_bets,
+        'totals_rejections': totals_rejections[:6],
         'spreads': best_spreads,
-        'spreads_disabled_reason': 'Model not calibrated (0/5 historical)' if not SPREADS_ENABLED else None
+        'spreads_disabled_reason': 'Model not calibrated (0/5 historical)'
     })
