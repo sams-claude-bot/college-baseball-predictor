@@ -1,6 +1,6 @@
 # College Baseball Predictor — TODO
 
-*Execute after Tue 8 PM (Feb 25, 2026)*
+*Updated Feb 24, 2026 (post-overhaul)*
 
 ## Pipeline & Data
 - [ ] **6. Rebuild schedule sync as record verification job** — D1Baseball conference pages, 3 AM, push pipeline back
@@ -12,14 +12,19 @@
   - Need historical seasons (2021-2025) for nn_slim retraining
 
 ## Models
-- [ ] **1. Runs ensemble auto-weights** — use accuracy from games WITHOUT DK lines to adjust component weights
+- [x] **1. Runs ensemble auto-weights** — *(done 2026-02-24: MAE-based + O/U accuracy blended weighting)*
 - [ ] **5. Review Poisson model** once more data accumulates
-- [ ] **12. Parlay totals** — use real Poisson CDF instead of fake formula
-- [ ] **13. Auto-update ensemble weights** — rolling accuracy, weekly recalc
-- [ ] **14. Trained meta-ensemble** (when ~500+ games tracked, ~early March):
-  - XGBoost/logistic regression stacking model
-  - Inputs: all model win probs, run projections, model agreement stats, game context, rolling model accuracy
-  - **Audit complete (2026-02-22)**: All needed features available via joins — no schema changes required. model_predictions has all 12 model probs + runs. Context (Elo, conference, neutral) joins from games/elo_ratings. Agreement/spread computed at training time.
+- [x] **12. Parlay totals** — *(done 2026-02-24: real NegBin+Poisson CDF probabilities replace fake formulas)*
+- [ ] **13. Auto-update ensemble weights** — rolling accuracy, weekly recalc *(partially done: meta-ensemble retraining script exists)*
+- [x] **14. Trained meta-ensemble** — *(done 2026-02-24: XGBoost+LogReg stacking, 77.5% walk-forward accuracy, 18 features, integrated into pipeline)*
+- [ ] **16. Weekly meta-ensemble retraining cron** — retrain as more games accumulate
+- [ ] **17. Probability calibration** — Platt/isotonic calibration for all models (betting P&L audit showed probabilities are overconfident)
+- [ ] **18. Model confidence intervals** — track prediction uncertainty, not just point estimates
+
+## Betting
+- [x] **Betting quality gates (v3)** — *(done 2026-02-24: no underdogs, margin requirements, Vegas disagreement cap, team cooldowns)*
+- [ ] **19. Track CLV (Closing Line Value)** — compare model prob vs closing line to measure edge quality
+- [ ] **20. Kelly sizing with calibrated probabilities** — current Kelly uses uncalibrated probs
 
 ## Verification & Cleanup
 - [ ] **2. Verify nn_slim_totals is wired into runs/totals projections**
@@ -30,3 +35,14 @@
 - [ ] **4. Parlay of the day** — live scores on parlay card or highlighted on scores tab
 - [ ] **7. Exact score consensus indicator** — when models converge, show ✓ in table
 - [x] **10. Add SOS sort option to teams page** *(done 2026-02-22)*
+
+## Completed (Feb 24, 2026 Overhaul)
+- Fixed 10 failing tests (90→114 passing)
+- Totals accuracy audit (measurement bug: was 68% not 35%)
+- MAE + O/U accuracy metrics (CLI + dashboard)
+- Runs Ensemble v2 (NegBin, no pitching, OVER gate, context adjustment)
+- DOW + temperature + volatility + MAE auto-weights for totals
+- Real NegBin CDF for parlays/betting page
+- Meta-ensemble (77.5% walk-forward)
+- Models page overhaul + trend chart markers
+- Betting v3 quality gates (simulated +$381 improvement)
