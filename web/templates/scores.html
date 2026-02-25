@@ -134,7 +134,7 @@
             {% for game in in_progress_games %}
             <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border border-success rounded p-3 h-100" 
-                     style="cursor:pointer; background: rgba(25,135,84,0.05);"
+                     style="cursor:pointer; background: rgba(25,135,84,0.08);"
                      onclick="window.location='/game/{{ game.id }}'">
                     
                     <div class="d-flex justify-content-between align-items-center mb-2">

@@ -218,6 +218,19 @@
         
         /* Game cards */
         .game-card { border-left: 4px solid #5D1725; }
+        .game-card .border.rounded,
+        .game-card .border-success.rounded {
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .game-card .border.rounded:hover,
+        .game-card .border-success.rounded:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        [data-theme="dark"] .game-card .border.rounded:hover,
+        [data-theme="dark"] .game-card .border-success.rounded:hover {
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
         .game-time { font-size: 0.85rem; color: var(--text-muted); }
         
         /* Dark mode toggle */
@@ -259,6 +272,162 @@
         
         /* Text helpers */
         .text-muted { color: var(--text-muted) !important; }
+
+        /* ─── Dark mode polish ─── */
+        /* Borders */
+        [data-theme="dark"] .border,
+        [data-theme="dark"] .border-top,
+        [data-theme="dark"] .border-bottom {
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="dark"] .border.rounded,
+        [data-theme="dark"] .border-success.rounded {
+            border-color: var(--border-color) !important;
+        }
+
+        /* Game cards on scores page */
+        [data-theme="dark"] .border.rounded.p-3,
+        [data-theme="dark"] .border-success.rounded.p-3 {
+            background-color: var(--bg-card) !important;
+        }
+        [data-theme="dark"] .border-success.rounded {
+            border-color: #198754 !important;
+        }
+
+        /* Badges */
+        [data-theme="dark"] .badge.bg-light {
+            background-color: var(--light-grey) !important;
+            color: var(--text-primary) !important;
+        }
+        [data-theme="dark"] .badge.bg-light.text-dark {
+            color: var(--text-primary) !important;
+        }
+        [data-theme="dark"] .badge.bg-secondary {
+            background-color: #3a3a5e !important;
+        }
+
+        /* Buttons */
+        [data-theme="dark"] .btn-outline-secondary {
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .btn-outline-secondary:hover,
+        [data-theme="dark"] .btn-outline-secondary.active {
+            background-color: rgba(139, 58, 74, 0.3);
+            border-color: var(--maroon);
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] .btn-outline-primary {
+            color: #6ea8fe;
+            border-color: #6ea8fe;
+        }
+
+        /* Form controls */
+        [data-theme="dark"] .form-select,
+        [data-theme="dark"] .form-control {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .form-select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%239a9ab0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+        }
+        [data-theme="dark"] .form-select option {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        /* Table overrides */
+        [data-theme="dark"] .table-hover tbody tr:hover {
+            --bs-table-hover-bg: rgba(139, 58, 74, 0.15);
+            background-color: rgba(139, 58, 74, 0.15);
+        }
+        [data-theme="dark"] .table-success,
+        [data-theme="dark"] .table-success > td {
+            --bs-table-bg: rgba(25, 135, 84, 0.15);
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] .table-warning,
+        [data-theme="dark"] .table-warning > td {
+            --bs-table-bg: rgba(255, 193, 7, 0.1);
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] .table-info,
+        [data-theme="dark"] .table-info > td {
+            --bs-table-bg: rgba(13, 202, 240, 0.1);
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] .table-active {
+            --bs-table-bg: rgba(139, 58, 74, 0.15);
+            color: var(--text-primary);
+        }
+        [data-theme="dark"] td, [data-theme="dark"] th {
+            border-color: var(--border-color);
+        }
+
+        /* Bootstrap text colors */
+        [data-theme="dark"] .text-dark {
+            color: var(--text-primary) !important;
+        }
+
+        /* Specific card sections */
+        [data-theme="dark"] .card-body {
+            background-color: var(--bg-card);
+        }
+        [data-theme="dark"] .card-header:not(.bg-maroon) {
+            background-color: var(--bg-card-header);
+            border-bottom-color: var(--border-color);
+        }
+
+        /* Modals */
+        [data-theme="dark"] .modal-content {
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+        }
+        [data-theme="dark"] .modal-header,
+        [data-theme="dark"] .modal-footer {
+            border-color: var(--border-color);
+        }
+
+        /* Filter bar in dark mode */
+        [data-theme="dark"] .filter-bar .btn-group .btn.active {
+            background-color: var(--maroon);
+            border-color: var(--maroon);
+        }
+
+        /* Links */
+        [data-theme="dark"] a:not(.nav-link):not(.team-link):not(.btn):not(.navbar-brand) {
+            color: #6ea8fe;
+        }
+        [data-theme="dark"] a:not(.nav-link):not(.team-link):not(.btn):not(.navbar-brand):hover {
+            color: #9ec5fe;
+        }
+
+        /* Betting page cards */
+        [data-theme="dark"] .border-primary {
+            border-color: var(--maroon) !important;
+        }
+
+        /* Scrollbar */
+        [data-theme="dark"] ::-webkit-scrollbar {
+            width: 8px;
+        }
+        [data-theme="dark"] ::-webkit-scrollbar-track {
+            background: var(--bg-body);
+        }
+        [data-theme="dark"] ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+            background: var(--grey);
+        }
+
+        /* Footer */
+        [data-theme="dark"] footer {
+            color: var(--text-muted);
+        }
         
         /* Mobile */
         @media (max-width: 768px) {
