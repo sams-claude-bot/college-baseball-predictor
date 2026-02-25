@@ -42,9 +42,9 @@ from models.nn_totals_slim import TotalsNet
 
 class TestFeatureDefinitions:
 
-    def test_num_features_is_58(self):
-        """v3 should have exactly 58 features (24 per team x2 + 3 game + 7 weather)."""
-        assert NUM_FEATURES == 58, f"Expected 58 features, got {NUM_FEATURES}"
+    def test_num_features_is_61(self):
+        """v3+bias-fix should have exactly 61 features (24 per team x2 + 3 game + 7 weather + 3 strength-diff)."""
+        assert NUM_FEATURES == 61, f"Expected 61 features, got {NUM_FEATURES}"
 
     def test_feature_names_count_matches(self):
         assert len(FEATURE_NAMES) == NUM_FEATURES
@@ -392,7 +392,7 @@ class TestMixup:
 
     def test_mixup_preserves_shape(self):
         from scripts.train_neural_slim import mixup_data
-        x = torch.randn(16, 58)
+        x = torch.randn(16, NUM_FEATURES)
         y = torch.rand(16)
         mx, my = mixup_data(x, y, alpha=0.2)
         assert mx.shape == x.shape
@@ -400,7 +400,7 @@ class TestMixup:
 
     def test_mixup_alpha_zero_is_identity(self):
         from scripts.train_neural_slim import mixup_data
-        x = torch.randn(16, 58)
+        x = torch.randn(16, NUM_FEATURES)
         y = torch.rand(16)
         mx, my = mixup_data(x, y, alpha=0.0)
         assert torch.allclose(mx, x)

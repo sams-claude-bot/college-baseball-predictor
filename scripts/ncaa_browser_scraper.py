@@ -29,13 +29,14 @@ DATA_DIR = PROJECT_DIR / 'data'
 # NCAA stat codes: stat_seq → (name, ranking_period for final stats)
 # ranking_period varies by season — use "Final Statistics" option
 STAT_CODES = {
+    # Team stats (not individual!) — verify at stats.ncaa.org Team section
     'era':          211,
     'batting_avg':  210,
     'fielding_pct': 212,
     'scoring':      213,
-    'slugging':     321,
+    'slugging':     327,   # 327=team, 321=individual
     'hr_per_game':  323,
-    'obp':          504,
+    'obp':          589,   # 589=team, 504=individual
     'k_per_9':      425,
     'bb_per_9':     509,
     'whip':         597,
@@ -48,13 +49,96 @@ STAT_CODES = {
 # Final stats ranking_period codes (found by inspecting the dropdown)
 # "Final Statistics" ranking_period codes per season
 # These change yearly — verify via the rp dropdown on stats.ncaa.org
+# Use None for in-progress seasons — will auto-detect latest available period
 SEASON_RANKING_PERIODS = {
-    2025: 104,  # 06/22/2025-Final Statistics
-    2024: 100,  # 06/24/2024-Final Statistics
-    2023: 94,   # 06/26/2023-Final Statistics
-    2022: 90,   # 06/26/2022-Final Statistics
-    2021: 96,   # 06/30/2021-Final Statistics
+    2026: None,  # In-progress season — auto-detect latest ranking period
+    2025: 104,   # 06/22/2025-Final Statistics
+    2024: 100,   # 06/24/2024-Final Statistics
+    2023: 94,    # 06/26/2023-Final Statistics
+    2022: 90,    # 06/26/2022-Final Statistics
+    2021: 96,    # 06/30/2021-Final Statistics
 }
+
+
+def detect_latest_ranking_period(season, page=None, runner=None):
+    """
+    Auto-detect the latest ranking period for a season by reading the
+    #rp dropdown on stats.ncaa.org. Returns the ranking_period int or None.
+    
+    Works with either a playwright page object or via openclaw CLI.
+    """
+    log = runner.info if runner else print
+    warn = runner.warn if runner else print
+    
+    url = (f"https://stats.ncaa.org/rankings/change_sport_year_div?"
+           f"sport_code=MBA&academic_year={season}&division=1")
+    
+    if page:
+        # Playwright CDP mode
+        try:
+            page.goto(url, timeout=30000, wait_until='networkidle')
+            page.wait_for_selector('select#rp', timeout=10000)
+            
+            rp_options = page.evaluate("""
+                () => {
+                    const sel = document.querySelector('select#rp');
+                    if (!sel) return [];
+                    return Array.from(sel.options).map(o => ({
+                        value: parseFloat(o.value),
+                        text: o.textContent.trim(),
+                        selected: o.selected
+                    }));
+                }
+            """)
+        except Exception as e:
+            warn(f"Failed to detect ranking period via playwright: {e}")
+            return None
+    else:
+        # CLI mode (openclaw browser)
+        try:
+            nav_result = subprocess.run(
+                ['openclaw', 'browser', 'navigate', '--profile', 'openclaw', '--url', url],
+                capture_output=True, text=True, timeout=30
+            )
+            if nav_result.returncode != 0:
+                warn(f"Navigation failed: {nav_result.stderr}")
+                return None
+            
+            time.sleep(4)
+            
+            extract_result = subprocess.run(
+                ['openclaw', 'browser', 'eval', '--profile', 'openclaw', '--js',
+                 '() => { const sel = document.querySelector("select#rp"); '
+                 'if (!sel) return []; '
+                 'return Array.from(sel.options).map(o => ({value: parseFloat(o.value), '
+                 'text: o.textContent.trim(), selected: o.selected})); }'],
+                capture_output=True, text=True, timeout=15
+            )
+            if extract_result.returncode != 0:
+                warn(f"Extraction failed: {extract_result.stderr}")
+                return None
+            
+            rp_options = json.loads(extract_result.stdout)
+        except Exception as e:
+            warn(f"Failed to detect ranking period via CLI: {e}")
+            return None
+    
+    if not rp_options:
+        warn(f"No ranking period options found for {season}")
+        return None
+    
+    # The first option (selected=true) is the latest/most recent
+    # Pick the one with the highest value (most recent cumulative stats)
+    # Filter out weekly ranges (text contains " - ") — prefer cumulative dates
+    cumulative = [o for o in rp_options if ' - ' not in o.get('text', '')]
+    if cumulative:
+        best = max(cumulative, key=lambda o: o['value'])
+    else:
+        best = max(rp_options, key=lambda o: o['value'])
+    
+    rp = int(best['value'])
+    log(f"Auto-detected ranking period for {season}: {rp} ({best.get('text', '?')})")
+    return rp
 
 # JS to extract all table rows after showing all entries
 EXTRACT_TABLE_JS = """
@@ -116,14 +200,20 @@ SHOW_ALL_JS = """
 """
 
 
-def scrape_stat(season, stat_name, stat_code, runner):
-    """Scrape a single stat for a single season using playwright CDP."""
-    import websocket
-    
-    ranking_period = SEASON_RANKING_PERIODS.get(season)
-    if not ranking_period:
-        runner.warn(f"No ranking period for season {season}, skipping")
+def scrape_stat(season, stat_name, stat_code, runner, _rp_cache={}):
+    """Scrape a single stat for a single season using openclaw CLI."""
+    ranking_period = SEASON_RANKING_PERIODS.get(season, 'MISSING')
+    if ranking_period == 'MISSING':
+        runner.warn(f"Season {season} not configured, skipping")
         return None
+    if ranking_period is None:
+        # Auto-detect for in-progress season (cache across calls)
+        if season not in _rp_cache:
+            _rp_cache[season] = detect_latest_ranking_period(season, runner=runner)
+        ranking_period = _rp_cache[season]
+        if not ranking_period:
+            runner.warn(f"Could not auto-detect ranking period for {season}, skipping")
+            return None
     
     url = (f"https://stats.ncaa.org/rankings/national_ranking?"
            f"academic_year={season}&division=1&ranking_period={ranking_period}"
@@ -172,12 +262,20 @@ def scrape_stat(season, stat_name, stat_code, runner):
         return None
 
 
-def scrape_stat_playwright(season, stat_name, stat_code, page, runner):
+def scrape_stat_playwright(season, stat_name, stat_code, page, runner, _rp_cache={}):
     """Scrape using an existing playwright page connected via CDP."""
-    ranking_period = SEASON_RANKING_PERIODS.get(season)
-    if not ranking_period:
-        runner.warn(f"No ranking period for season {season}, skipping")
+    ranking_period = SEASON_RANKING_PERIODS.get(season, 'MISSING')
+    if ranking_period == 'MISSING':
+        runner.warn(f"Season {season} not configured, skipping")
         return None
+    if ranking_period is None:
+        # Auto-detect for in-progress season (cache across calls)
+        if season not in _rp_cache:
+            _rp_cache[season] = detect_latest_ranking_period(season, page=page, runner=runner)
+        ranking_period = _rp_cache[season]
+        if not ranking_period:
+            runner.warn(f"Could not auto-detect ranking period for {season}, skipping")
+            return None
     
     url = (f"https://stats.ncaa.org/rankings/national_ranking?"
            f"academic_year={season}&division=1&ranking_period={ranking_period}"
@@ -220,8 +318,8 @@ def scrape_stat_playwright(season, stat_name, stat_code, page, runner):
 
 def main():
     parser = argparse.ArgumentParser(description='NCAA Stats Browser Scraper')
-    parser.add_argument('--seasons', default='2021,2022,2023,2024,2025',
-                       help='Comma-separated seasons (default: 2021-2025)')
+    parser.add_argument('--seasons', default='2026',
+                       help='Comma-separated seasons (default: 2026 current season)')
     parser.add_argument('--stats', default='all',
                        help='Comma-separated stat names or "all" (default: all)')
     parser.add_argument('--delay', type=float, default=2.0,

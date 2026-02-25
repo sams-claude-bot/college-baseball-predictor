@@ -69,7 +69,7 @@ def predict(team_a: str, team_b: str,
         weather_components['has_data'] = True
     
     # Calculate expected runs for each team
-    home_adv = 0.0 if neutral_site else 0.5
+    home_adv = 0.0 if neutral_site else 0.3
     
     # Get quality adjustments from batting/pitching tables
     qa_off, qa_def = get_quality_adjustment(team_a, team_b)  # A's offense, B's pitching

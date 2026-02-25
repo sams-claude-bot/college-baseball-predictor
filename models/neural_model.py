@@ -37,7 +37,7 @@ def _build_model_from_config(config_name, input_size):
     try:
         from scripts.train_neural_slim import CONFIGS, build_model
         if config_name in CONFIGS:
-            return build_model(CONFIGS[config_name])
+            return build_model(CONFIGS[config_name], input_size=input_size)
     except Exception:
         pass
     # Fallback to default constructor

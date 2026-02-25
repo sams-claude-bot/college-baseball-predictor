@@ -107,18 +107,24 @@ def get_device():
 # Model building with optional residual connections
 # ============================================================
 
-def build_model(config):
+def build_model(config, input_size=None):
     """Build a SlimBaseballNet with custom architecture.
 
     If config['residual'] is True, pairs of same-dimension hidden layers
     are wrapped in ResidualBlocks. Otherwise, uses standard feedforward.
+    
+    Args:
+        config: model architecture config dict
+        input_size: override input feature count (for loading old checkpoints).
+                    Defaults to NUM_FEATURES if not specified.
     """
     hidden = config['hidden']
     dropout = config['dropout']
     use_residual = config.get('residual', False)
+    feat_size = input_size or NUM_FEATURES
 
     layers = []
-    in_size = NUM_FEATURES
+    in_size = feat_size
 
     for i, (h, d) in enumerate(zip(hidden, dropout)):
         layers.append(nn.Linear(in_size, h))
@@ -135,7 +141,7 @@ def build_model(config):
     layers.append(nn.Linear(in_size, 1))
     layers.append(nn.Sigmoid())
 
-    model = SlimBaseballNet(NUM_FEATURES)
+    model = SlimBaseballNet(feat_size)
     model.net = nn.Sequential(*layers)
     return model
 

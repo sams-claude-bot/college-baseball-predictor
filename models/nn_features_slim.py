@@ -5,7 +5,8 @@ Slim Neural Network Feature Pipeline — v3
 v3 changes:
   - 9 NCAA team stats per team (×2 = 18 new features)
   - Residual block architecture with GELU activation
-  - Total: 58 features
+  - 3 strength-differential features for home bias reduction
+  - Total: 61 features
 
 Per team (×2 = 48):
   - elo, win_pct_all, win_pct_last10, win_pct_last20
@@ -20,6 +21,8 @@ Game-level (3):
   - elo_diff, is_neutral_site, is_conference_game
 Weather (7):
   - temp, humidity, wind_speed, wind_dir_sin, wind_dir_cos, precip, is_dome
+Strength-differential (3):
+  - strength_diff_magnitude, is_home_int, is_early_season
 """
 
 import math
@@ -39,7 +42,7 @@ from scripts.database import get_connection
 
 DEFAULT_ELO = 1500
 ELO_K = 32
-ELO_HOME_ADV = 90
+ELO_HOME_ADV = 50
 
 DEFAULT_WEATHER = {
     'temp_f': 65.0, 'humidity_pct': 55.0, 'wind_speed_mph': 6.0,
@@ -85,8 +88,10 @@ FEATURE_NAMES.extend([
     'weather_wind_dir_sin', 'weather_wind_dir_cos',
     'weather_precip_prob_norm', 'weather_is_dome',
 ])
+# Strength-differential features (3) — appended last for backward compat with old checkpoints
+FEATURE_NAMES.extend(['strength_diff_magnitude', 'is_home_int', 'is_early_season'])
 
-NUM_FEATURES = len(FEATURE_NAMES)  # 58
+NUM_FEATURES = len(FEATURE_NAMES)  # 61
 
 
 # ===========================================================
@@ -398,6 +403,16 @@ class SlimFeatureComputer:
                           if row[k] is not None}
         features.extend(_weather_features(w_data))
 
+        # Strength-differential features (appended last for backward compat)
+        features.append(abs(home_elo - away_elo) / 400.0)  # strength_diff_magnitude
+        features.append(1.0)  # is_home_int (home perspective)
+        try:
+            month = int(game_date[5:7])
+            day = int(game_date[8:10])
+            features.append(1.0 if (month < 3 or (month == 3 and day < 15)) else 0.0)
+        except (ValueError, IndexError):
+            features.append(0.0)
+
         conn.close()
         return np.array(features, dtype=np.float32)
 
@@ -578,6 +593,16 @@ class SlimHistoricalFeatureComputer:
         features.append(0.0)  # conference unknown in historical
 
         features.extend(_weather_features(weather_row))
+
+        # Strength-differential features (appended last for backward compat)
+        features.append(abs(home_feats[0] - away_feats[0]) / 400.0)  # strength_diff_magnitude
+        features.append(1.0)  # is_home_int (home perspective)
+        try:
+            month = int(date_str[5:7])
+            day = int(date_str[8:10])
+            features.append(1.0 if (month < 3 or (month == 3 and day < 15)) else 0.0)
+        except (ValueError, IndexError):
+            features.append(0.0)
 
         label = 1.0 if game_row['home_score'] > game_row['away_score'] else 0.0
         return np.array(features, dtype=np.float32), label

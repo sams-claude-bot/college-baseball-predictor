@@ -14,8 +14,8 @@ PROB_CEILING = 0.98  # Maximum win probability (98%)
 # =============================================================================
 # Home Field Advantage
 # =============================================================================
-HOME_ADVANTAGE_PROB = 0.07       # Win probability boost for home team (~7%) — bumped from 3.5% based on 64% observed home win rate early season. Consider lowering to ~5% when conference play starts.
-HOME_ADVANTAGE_ELO = 90          # Elo points added for home team (was 50)
+HOME_ADVANTAGE_PROB = 0.04       # Win probability boost for home team (~4%) — MLB HFA is ~3-4%; college close-game data shows ~50% home win rate, true HFA is modest
+HOME_ADVANTAGE_ELO = 50          # Elo points added for home team — reduced from 90; prior value caused 88-92% home picks in close games
 HOME_ADVANTAGE_RUNS = 0.04       # Run multiplier for home team (1.04x)
 AWAY_DISADVANTAGE_RUNS = 0.98    # Run multiplier for away team (0.98x)
 
