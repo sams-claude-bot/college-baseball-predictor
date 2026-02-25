@@ -458,3 +458,132 @@ def live_scores():
             has_live = True
     
     return jsonify({'games': games, 'has_live': has_live, 'date': date_str})
+
+
+@api_bp.route('/api/elo-card')
+def elo_card_image():
+    """Generate a shareable Elo Top 25 PNG image."""
+    from PIL import Image, ImageDraw, ImageFont
+    from io import BytesIO
+    from flask import send_file
+    
+    conn = get_connection()
+    
+    # Get Elo Top 25
+    rows = conn.execute('''
+        SELECT t.id as team_id, t.name, t.conference, e.rating,
+               (SELECT COUNT(*) FROM games WHERE (home_team_id = t.id AND winner_id = t.id) OR (away_team_id = t.id AND winner_id = t.id)) as wins,
+               (SELECT COUNT(*) FROM games WHERE ((home_team_id = t.id OR away_team_id = t.id) AND winner_id IS NOT NULL AND winner_id != t.id)) as losses
+        FROM elo_ratings e
+        JOIN teams t ON e.team_id = t.id
+        ORDER BY e.rating DESC
+        LIMIT 25
+    ''').fetchall()
+    conn.close()
+    
+    # Image dimensions
+    W, H = 600, 900
+    
+    # Colors
+    bg_dark = (15, 23, 42)
+    bg_row_top5 = (20, 30, 60)
+    bg_row_mid = (18, 27, 50)
+    bg_row = (17, 25, 45)
+    white = (232, 232, 232)
+    blue = (96, 165, 250)
+    purple = (167, 139, 250)
+    gray = (100, 116, 139)
+    light_gray = (148, 163, 184)
+    
+    img = Image.new('RGB', (W, H), bg_dark)
+    draw = ImageDraw.Draw(img)
+    
+    # Fonts
+    try:
+        font_bold = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 14)
+        font_reg = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 13)
+        font_small = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 11)
+        font_title = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 24)
+        font_subtitle = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 12)
+    except:
+        font_bold = font_reg = font_small = font_title = font_subtitle = ImageFont.load_default()
+    
+    # Header
+    draw.text((W//2, 24), 'COLLEGE BASEBALL PREDICTOR', fill=gray, font=font_small, anchor='mt')
+    draw.text((W//2, 48), 'Elo Top 25', fill=white, font=font_title, anchor='mt')
+    
+    from datetime import datetime
+    draw.text((W//2, 78), datetime.now().strftime('%B %d, %Y'), fill=gray, font=font_subtitle, anchor='mt')
+    
+    # Rankings
+    y = 100
+    row_h = 30
+    logo_dir = Path(__file__).parent.parent / 'static' / 'logos'
+    
+    for i, team in enumerate(rows):
+        rank = i + 1
+        row_y = y + i * row_h
+        
+        # Row background
+        if rank <= 5:
+            row_bg = bg_row_top5
+        elif rank <= 10:
+            row_bg = bg_row_mid
+        else:
+            row_bg = bg_row
+        
+        # Alternating subtle stripe
+        if rank % 2 == 0:
+            row_bg = tuple(min(c + 3, 255) for c in row_bg)
+        
+        draw.rounded_rectangle([(16, row_y), (W - 16, row_y + row_h - 2)], radius=6, fill=row_bg)
+        
+        # Rank number
+        rank_color = blue if rank <= 5 else (purple if rank <= 10 else gray)
+        draw.text((36, row_y + row_h//2), str(rank), fill=rank_color, font=font_bold, anchor='mm')
+        
+        # Team logo
+        logo_path = logo_dir / f"{team['team_id']}.png"
+        if logo_path.exists():
+            try:
+                logo = Image.open(logo_path).convert('RGBA')
+                logo = logo.resize((22, 22), Image.LANCZOS)
+                # Add subtle circle behind logo for dark logos
+                circle_bg = Image.new('RGBA', (26, 26), (0, 0, 0, 0))
+                circle_draw = ImageDraw.Draw(circle_bg)
+                circle_draw.ellipse([(0, 0), (25, 25)], fill=(30, 40, 65, 200))
+                img.paste(circle_bg, (52, row_y + 2), circle_bg)
+                img.paste(logo, (54, row_y + 4), logo)
+            except:
+                pass
+        
+        # Team name
+        draw.text((80, row_y + 6), team['name'], fill=white, font=font_bold)
+        
+        # Conference
+        conf = team['conference'] or ''
+        if conf:
+            name_width = draw.textlength(team['name'], font=font_bold)
+            draw.text((84 + name_width, row_y + 8), conf, fill=gray, font=font_small)
+        
+        # Record
+        record = f"{team['wins']}-{team['losses']}"
+        draw.text((W - 120, row_y + 8), record, fill=light_gray, font=font_reg)
+        
+        # Elo rating
+        rating = int(team['rating'])
+        elo_color = blue if rating >= 1600 else (purple if rating >= 1550 else white)
+        draw.text((W - 36, row_y + 6), str(rating), fill=elo_color, font=font_bold, anchor='rt')
+    
+    # Footer line
+    footer_y = y + 25 * row_h + 10
+    draw.line([(50, footer_y), (W - 50, footer_y)], fill=(30, 40, 60), width=1)
+    draw.text((W//2, footer_y + 14), 'baseball.mcdevitt.page', fill=gray, font=font_small, anchor='mt')
+    
+    # Save to buffer
+    buf = BytesIO()
+    img.save(buf, format='PNG', optimize=True)
+    buf.seek(0)
+    
+    return send_file(buf, mimetype='image/png', download_name='elo-top-25.png',
+                     as_attachment=request.args.get('download', '0') == '1')
