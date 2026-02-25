@@ -29,23 +29,87 @@ MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference
 
 
 def _load_calibration_params(cur):
+    """Load calibration parameters, supporting both Platt and isotonic methods."""
+    import json as _json
     try:
-        cur.execute("SELECT model_name, a, b, n_samples FROM model_calibration")
-        return {r[0]: (float(r[1]), float(r[2]), int(r[3])) for r in cur.fetchall()}
+        cur.execute("SELECT model_name, a, b, n_samples, method, isotonic_json FROM model_calibration")
+        params = {}
+        for r in cur.fetchall():
+            name = r[0]
+            method = r[4] if r[4] else "platt"
+            if method == "isotonic" and r[5]:
+                iso_data = _json.loads(r[5])
+                params[name] = {
+                    "method": "isotonic",
+                    "x": iso_data["x"],
+                    "y": iso_data["y"],
+                    "n": int(r[3]),
+                }
+            else:
+                params[name] = {
+                    "method": "platt",
+                    "a": float(r[1]),
+                    "b": float(r[2]),
+                    "n": int(r[3]),
+                }
+        return params
     except Exception:
         return {}
 
 
-def _apply_platt(p, params):
+def _apply_calibration(p, params):
+    """Apply calibration (Platt or isotonic) to a raw probability."""
     if params is None:
         return p
-    a, b, n = params
+    n = params.get("n", 0)
     if n < 120:
         return p
+
+    method = params.get("method", "platt")
+
+    if method == "isotonic":
+        return _apply_isotonic(p, params)
+    else:
+        return _apply_platt(p, params)
+
+
+def _apply_platt(p, params):
+    a = params["a"]
+    b = params["b"]
     p = min(max(float(p), 1e-6), 1 - 1e-6)
     x = math.log(p / (1 - p))
     z = a * x + b
     calibrated = 1.0 / (1.0 + math.exp(-z))
+    return min(max(calibrated, 0.001), 0.999)
+
+
+def _apply_isotonic(p, params):
+    """Apply isotonic calibration using stored breakpoints via linear interpolation."""
+    x_thresh = params["x"]
+    y_thresh = params["y"]
+    p = float(p)
+    if len(x_thresh) == 0:
+        return p
+    if p <= x_thresh[0]:
+        return max(y_thresh[0], 0.001)
+    if p >= x_thresh[-1]:
+        return min(y_thresh[-1], 0.999)
+    # Binary search for interval then linear interpolation
+    lo, hi = 0, len(x_thresh) - 1
+    while lo < hi - 1:
+        mid = (lo + hi) // 2
+        if x_thresh[mid] <= p:
+            lo = mid
+        else:
+            hi = mid
+    # Linear interpolation between x_thresh[lo] and x_thresh[hi]
+    x0, x1 = x_thresh[lo], x_thresh[hi]
+    y0, y1 = y_thresh[lo], y_thresh[hi]
+    if x1 == x0:
+        calibrated = y0
+    else:
+        t = (p - x0) / (x1 - x0)
+        calibrated = y0 + t * (y1 - y0)
     return min(max(calibrated, 0.001), 0.999)
 
 
@@ -62,7 +126,16 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
     conn = get_connection()
     cur = conn.cursor()
     calibration_params = _load_calibration_params(cur)
-    
+
+    # Ensure raw_home_prob column exists
+    try:
+        cur.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='model_predictions'")
+        schema_row = cur.fetchone()
+        if schema_row and "raw_home_prob" not in schema_row[0]:
+            cur.execute("ALTER TABLE model_predictions ADD COLUMN raw_home_prob REAL")
+    except Exception:
+        pass
+
     if date:
         date_start = date
         date_end = date
@@ -179,18 +252,20 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                     home_prob = 1 - home_prob
                     home_runs, away_runs = away_runs, home_runs
                 
-                home_prob = _apply_platt(home_prob, calibration_params.get(model_name))
+                raw_prob = home_prob
+                home_prob = _apply_calibration(home_prob, calibration_params.get(model_name))
 
                 cur.execute('''
-                    INSERT INTO model_predictions 
-                    (game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO model_predictions
+                    (game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs, raw_home_prob)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON CONFLICT(game_id, model_name) DO UPDATE SET
                         predicted_home_prob = excluded.predicted_home_prob,
                         predicted_home_runs = excluded.predicted_home_runs,
                         predicted_away_runs = excluded.predicted_away_runs,
+                        raw_home_prob = excluded.raw_home_prob,
                         predicted_at = CURRENT_TIMESTAMP
-                ''', (game_id, model_name, home_prob, home_runs, away_runs))
+                ''', (game_id, model_name, home_prob, home_runs, away_runs, raw_prob))
                 
                 if runner:
                     runs_str = f"{home_runs:.1f}-{away_runs:.1f}" if (home_runs is not None and away_runs is not None) else "—"
