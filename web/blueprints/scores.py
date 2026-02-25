@@ -285,7 +285,16 @@ def game_detail(game_id):
             'away_runs': r['predicted_away_runs']
         }
         models_list.append(entry)
-        if r['model_name'] == 'ensemble':
+        # Prefer meta_ensemble as primary; fall back to ensemble
+        if r['model_name'] == 'meta_ensemble':
+            prediction = {
+                'home_win_prob': home_prob,
+                'away_win_prob': 1 - home_prob,
+                'projected_home_runs': r['predicted_home_runs'],
+                'projected_away_runs': r['predicted_away_runs'],
+                'projected_total': (r['predicted_home_runs'] + r['predicted_away_runs']) if (r['predicted_home_runs'] is not None and r['predicted_away_runs'] is not None) else None
+            }
+        elif r['model_name'] == 'ensemble' and prediction is None:
             home_runs = r['predicted_home_runs']
             away_runs = r['predicted_away_runs']
             prediction = {
@@ -296,8 +305,8 @@ def game_detail(game_id):
                 'projected_total': (home_runs + away_runs) if (home_runs is not None and away_runs is not None) else None
             }
 
-    # Sort: ensemble first, then by home_prob desc
-    models_list.sort(key=lambda x: (0 if x['name'] == 'ensemble' else 1, -x['home_prob']))
+    # Sort: meta_ensemble first, then ensemble, then by home_prob desc
+    models_list.sort(key=lambda x: (0 if x['name'] == 'meta_ensemble' else 1 if x['name'] == 'ensemble' else 2, -x['home_prob']))
 
     # DK lines
     c.execute('''

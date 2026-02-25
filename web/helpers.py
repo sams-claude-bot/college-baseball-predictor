@@ -1086,7 +1086,7 @@ def get_games_for_date_with_predictions(date_str):
     c2.execute('''
         SELECT game_id, model_name, predicted_home_prob
         FROM model_predictions
-        WHERE model_name IN ('ensemble', 'neural')
+        WHERE model_name IN ('meta_ensemble', 'ensemble', 'neural')
           AND game_id IN (SELECT id FROM games WHERE date = ?)
     ''', (date_str,))
     stored_preds = {}
@@ -1103,8 +1103,8 @@ def get_games_for_date_with_predictions(date_str):
         game['is_upset'] = False
         game_id = game['id']
 
-        # Use stored pre-game prediction
-        stored_ens = stored_preds.get((game_id, 'ensemble'))
+        # Prefer meta_ensemble as primary; fall back to ensemble
+        stored_ens = stored_preds.get((game_id, 'meta_ensemble')) or stored_preds.get((game_id, 'ensemble'))
 
         if stored_ens is not None:
             game['pred_home_prob'] = stored_ens

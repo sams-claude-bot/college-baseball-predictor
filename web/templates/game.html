@@ -61,7 +61,7 @@
 <!-- Prediction -->
 <div class="card">
     <div class="card-header">
-        <i class="bi bi-star-fill"></i> Ensemble Prediction
+        <i class="bi bi-star-fill"></i> Meta-Ensemble Prediction
     </div>
     <div class="card-body">
         <div class="row text-center">
@@ -94,8 +94,8 @@
                 </thead>
                 <tbody>
                 {% for m in models %}
-                <tr {% if m.name == 'ensemble' %}class="table-active fw-bold"{% endif %}>
-                    <td>{% if m.name == 'ensemble' %}★ {% endif %}{{ m.name }}</td>
+                <tr {% if m.name == 'meta_ensemble' %}class="table-active fw-bold"{% elif m.name == 'ensemble' %}class="table-active"{% endif %}>
+                    <td>{% if m.name == 'meta_ensemble' %}★ {% endif %}{{ m.name }}</td>
                     <td class="text-center">{{ (m.away_prob * 100)|round(1) }}%</td>
                     <td class="text-center">{{ (m.home_prob * 100)|round(1) }}%</td>
                     <td class="text-center">{% if m.away_runs is not none and m.home_runs is not none %}{{ m.away_runs|round(1) }}-{{ m.home_runs|round(1) }}{% else %}—{% endif %}</td>
