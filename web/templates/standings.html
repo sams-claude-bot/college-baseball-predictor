@@ -5,10 +5,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0"><i class="bi bi-trophy"></i> Conference Standings</h1>
-    <div>
-        {% for conf in conferences %}
-        <a href="/standings?conference={{ conf }}" class="btn btn-sm {% if selected_conf == conf %}btn-maroon{% else %}btn-outline-secondary{% endif %}">{{ conf }}</a>
-        {% endfor %}
+    <div class="filter-bar">
+        <select class="form-select" onchange="if(this.value) window.location='/standings?conference='+this.value; else window.location='/standings';">
+            <option value="">All Conferences</option>
+            {% for conf in conferences %}
+            <option value="{{ conf }}" {% if selected_conf == conf %}selected{% endif %}>{{ conf }}</option>
+            {% endfor %}
+        </select>
     </div>
 </div>
 

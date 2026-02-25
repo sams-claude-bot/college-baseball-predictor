@@ -5,17 +5,15 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0"><i class="bi bi-list-ol"></i> Rankings</h1>
-    <div class="d-flex gap-2">
-        <select class="form-select form-select-sm" style="width: auto;"
-                onchange="updateRankingsFilters()">
+    <div class="filter-bar">
+        <select class="form-select" onchange="updateRankingsFilters()" id="confFilter">
             <option value="">All Conferences</option>
             {% for conf in conferences %}
             <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
             {% endfor %}
         </select>
         {% if history_dates %}
-        <select class="form-select form-select-sm" id="weekSelector" style="width: auto;"
-                onchange="updateRankingsFilters()">
+        <select class="form-select" id="weekSelector" onchange="updateRankingsFilters()">
             <option value="">Current Rankings</option>
             {% for date in history_dates %}
             <option value="{{ date }}" {% if selected_date == date %}selected{% endif %}>{{ date }}</option>

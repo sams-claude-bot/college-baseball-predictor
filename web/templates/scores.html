@@ -7,13 +7,12 @@
     <h1 class="h3 mb-0">
         <i class="bi bi-clipboard-check"></i> Scores & Schedule
     </h1>
-    <div class="d-flex gap-2 align-items-center flex-wrap">
-        <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-secondary active" onclick="filterGames('all')" id="filter-all">All</button>
-            <button type="button" class="btn btn-outline-warning" onclick="filterGames('ranked')" id="filter-ranked">⭐ Top 25</button>
+    <div class="filter-bar">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-secondary active" onclick="filterGames('all')" id="filter-all">All Games</button>
+            <button type="button" class="btn btn-outline-secondary" onclick="filterGames('ranked')" id="filter-ranked">⭐ Top 25</button>
         </div>
-        <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;"
-                onchange="updateFilters()">
+        <select class="form-select" id="conferenceFilter" onchange="updateFilters()">
             <option value="">All Conferences</option>
             {% for conf in conferences %}
             <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>

@@ -7,8 +7,8 @@
     <h1 class="h3 mb-0">
         <i class="bi bi-people"></i> All Teams
     </h1>
-    <div class="d-flex gap-2">
-        <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;">
+    <div class="filter-bar">
+        <select class="form-select" id="conferenceFilter">
             <option value="">All Conferences</option>
             {% for conf in conferences %}
             <option value="{{ conf }}">{{ conf }}</option>
@@ -17,17 +17,16 @@
     </div>
 </div>
 
-<!-- Sort Buttons -->
-<div class="mb-3">
+<div class="filter-bar mb-3">
     <span class="text-muted me-2">Sort by:</span>
     <div class="btn-group" role="group">
-        <a href="/teams?sort=name" class="btn btn-sm {% if sort_by == 'name' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Name</a>
-        <a href="/teams?sort=elo" class="btn btn-sm {% if sort_by == 'elo' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Elo</a>
-        <a href="/teams?sort=rank" class="btn btn-sm {% if sort_by == 'rank' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Rank</a>
-        <a href="/teams?sort=win_pct" class="btn btn-sm {% if sort_by == 'win_pct' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Win %</a>
-        <a href="/teams?sort=rpi" class="btn btn-sm {% if sort_by == 'rpi' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">RPI</a>
-        <a href="/teams?sort=sos" class="btn btn-sm {% if sort_by == 'sos' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">SOS</a>
-        <a href="/teams?sort=conference" class="btn btn-sm {% if sort_by == 'conference' %}btn-maroon{% else %}btn-outline-secondary{% endif %}">Conference</a>
+        <a href="/teams?sort=name" class="btn btn-outline-secondary {% if sort_by == 'name' %}active{% endif %}">Name</a>
+        <a href="/teams?sort=elo" class="btn btn-outline-secondary {% if sort_by == 'elo' %}active{% endif %}">Elo</a>
+        <a href="/teams?sort=rank" class="btn btn-outline-secondary {% if sort_by == 'rank' %}active{% endif %}">Rank</a>
+        <a href="/teams?sort=win_pct" class="btn btn-outline-secondary {% if sort_by == 'win_pct' %}active{% endif %}">Win %</a>
+        <a href="/teams?sort=rpi" class="btn btn-outline-secondary {% if sort_by == 'rpi' %}active{% endif %}">RPI</a>
+        <a href="/teams?sort=sos" class="btn btn-outline-secondary {% if sort_by == 'sos' %}active{% endif %}">SOS</a>
+        <a href="/teams?sort=conference" class="btn btn-outline-secondary {% if sort_by == 'conference' %}active{% endif %}">Conference</a>
     </div>
 </div>
 
