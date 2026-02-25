@@ -80,8 +80,11 @@
     <!-- Elo Top 25 -->
     <div class="col-lg-6">
         <div class="card">
-            <div class="card-header" style="background-color: #2563eb; color: white;">
-                <i class="bi bi-graph-up-arrow"></i> Elo Top 25
+            <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2563eb; color: white;">
+                <span><i class="bi bi-graph-up-arrow"></i> Elo Top 25</span>
+                <button class="btn btn-sm btn-light" onclick="downloadEloCard()" title="Download as image">
+                    <i class="bi bi-download"></i> Share
+                </button>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -260,8 +263,88 @@
 </div>
 {% endblock %}
 
+<!-- Hidden Elo Top 25 Share Card -->
+<div id="elo-share-card" style="position: absolute; left: -9999px; top: 0;">
+    <div style="width: 600px; padding: 32px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: white; border-radius: 16px;">
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 3px; color: #94a3b8; margin-bottom: 4px;">College Baseball Predictor</div>
+            <div style="font-size: 28px; font-weight: 800; background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">⚾ Elo Top 25</div>
+            <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Updated {{ selected_date or '' }}</div>
+        </div>
+        <!-- Rankings -->
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+            {% for team in elo_top_25 %}
+            <div style="display: flex; align-items: center; padding: 6px 12px; background: {% if loop.index <= 5 %}rgba(96,165,250,0.12){% elif loop.index <= 10 %}rgba(167,139,250,0.08){% else %}rgba(255,255,255,0.03){% endif %}; border-radius: 8px; {% if loop.index == 1 %}border: 1px solid rgba(96,165,250,0.3);{% endif %}">
+                <div style="width: 32px; font-size: {% if loop.index <= 5 %}16{% else %}14{% endif %}px; font-weight: 700; color: {% if loop.index <= 5 %}#60a5fa{% elif loop.index <= 10 %}#a78bfa{% else %}#64748b{% endif %};">{{ team.elo_rank }}</div>
+                <img src="/static/logos/{{ team.team_id }}.png" height="22" width="22" style="margin-right: 10px; object-fit: contain;" onerror="this.style.display='none'">
+                <div style="flex: 1;">
+                    <span style="font-weight: 600; font-size: 14px;">{{ team.name }}</span>
+                    <span style="color: #64748b; font-size: 12px; margin-left: 6px;">{{ team.conference or '' }}</span>
+                </div>
+                <div style="text-align: right; margin-left: 8px;">
+                    <span style="font-size: 13px; color: #94a3b8;">{{ team.wins }}-{{ team.losses }}</span>
+                    <span style="font-size: 14px; font-weight: 700; color: {% if team.rating >= 1600 %}#60a5fa{% elif team.rating >= 1550 %}#a78bfa{% else %}#e2e8f0{% endif %}; margin-left: 10px;">{{ team.rating|round(0)|int }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <span style="font-size: 12px; color: #475569;">baseball.mcdevitt.page</span>
+        </div>
+    </div>
+</div>
+
 {% block extra_js %}
 <script>
+function downloadEloCard() {
+    const card = document.getElementById('elo-share-card');
+    const inner = card.firstElementChild;
+    
+    // Temporarily make visible for capture
+    card.style.position = 'fixed';
+    card.style.left = '0';
+    card.style.top = '0';
+    card.style.zIndex = '9999';
+    
+    // Use html2canvas
+    if (typeof html2canvas === 'undefined') {
+        // Load html2canvas dynamically
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = () => captureCard(inner, card);
+        document.head.appendChild(script);
+    } else {
+        captureCard(inner, card);
+    }
+}
+
+function captureCard(inner, card) {
+    html2canvas(inner, {
+        backgroundColor: null,
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+    }).then(canvas => {
+        // Hide again
+        card.style.position = 'absolute';
+        card.style.left = '-9999px';
+        
+        // Download
+        const link = document.createElement('a');
+        link.download = 'elo-top-25.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }).catch(err => {
+        card.style.position = 'absolute';
+        card.style.left = '-9999px';
+        console.error('Capture failed:', err);
+        alert('Download failed — try again');
+    });
+}
+
 function updateRankingsFilters() {
     const selects = document.querySelectorAll('select');
     let conference = '', week = '';
