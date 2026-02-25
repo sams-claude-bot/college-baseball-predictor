@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Slim Neural Network for Total Runs Regression
+Slim Neural Network for Total Runs Regression — v3
 
-Uses the same 40 real features as the slim win model.
+Uses the same 58 v3 features as the slim win model.
 Predicts total runs (home + away) as a regression target.
 """
 
@@ -16,31 +16,32 @@ import torch
 import torch.nn as nn
 
 from models.base_model import BaseModel
-from models.nn_features_slim import SlimFeatureComputer, NUM_FEATURES
+from models.nn_features_slim import SlimFeatureComputer, ResidualBlock, NUM_FEATURES
 
 MODEL_PATH = Path(__file__).parent.parent / "data" / "nn_slim_totals.pt"
 FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_slim_totals_finetuned.pt"
 
 
 class TotalsNet(nn.Module):
-    """Regression network for predicting total runs."""
+    """Regression network for predicting total runs — v3 with GELU."""
     def __init__(self, input_size=NUM_FEATURES):
         super().__init__()
         self.input_size = input_size
         self.net = nn.Sequential(
-            nn.Linear(input_size, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
+            nn.Linear(input_size, 128),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
             nn.Dropout(0.3),
+            ResidualBlock(128, dropout=0.3),
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.Dropout(0.2),
             nn.Linear(64, 32),
             nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(32, 16),
-            nn.BatchNorm1d(16),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Dropout(0.1),
-            nn.Linear(16, 1),
+            nn.Linear(32, 1),
             # No activation — raw regression output
         )
 
@@ -52,8 +53,8 @@ class SlimTotalsModel(BaseModel):
     """Neural network totals model implementing BaseModel interface."""
 
     name = "nn_slim_totals"
-    version = "1.0"
-    description = "Slim NN regression for total runs (40 features, historical-trained)"
+    version = "3.0"
+    description = "Slim NN regression for total runs (58 features, v3 w/ NCAA stats)"
 
     def __init__(self):
         self.feature_computer = SlimFeatureComputer()
@@ -123,19 +124,15 @@ class SlimTotalsModel(BaseModel):
         else:
             projected_total = raw_total
 
-        # Floor at reasonable minimum
         projected_total = max(projected_total, 2.0)
 
-        # Split into home/away based on win probability hint from features
-        # Use a simple ratio from RPG features (indices 6 and 21 are home/away RPG)
-        home_rpg = features[6] if len(features) > 6 else 0
-        away_rpg = features[21] if len(features) > 21 else 0
-        # These are normalized, so use raw features instead
+        # Split into home/away based on RPG features
+        # In v3: indices 6 and 30 are home/away RPG (15 base + 9 NCAA = 24 per team)
         raw_features = self.feature_computer.compute_features(
             home_team_id, away_team_id, neutral_site=neutral_site
         )
-        home_rpg_raw = raw_features[6]  # home_runs_per_game
-        away_rpg_raw = raw_features[21]  # away_runs_per_game
+        home_rpg_raw = raw_features[6]   # home_runs_per_game
+        away_rpg_raw = raw_features[30]  # away_runs_per_game (15+9+6=30)
         total_rpg = home_rpg_raw + away_rpg_raw
         if total_rpg > 0:
             home_ratio = home_rpg_raw / total_rpg

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Train slim neural network for total runs regression.
+Train slim neural network for total runs regression — v3.
 
-Same 40 features as the win model. Target = home_score + away_score.
-Two-phase: base on historical, fine-tune on recent 2026.
+Same 58 v3 features as the win model. Target = home_score + away_score.
+v3: GELU + residual, season-weighted training, SWA, LR finder.
 
 Usage:
     python3 scripts/train_totals_slim.py
@@ -16,12 +16,13 @@ import argparse
 import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
+from copy import deepcopy
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
 
 from scripts.database import get_connection
 from models.nn_features_slim import (
@@ -36,9 +37,9 @@ FINETUNED_PATH = DATA_DIR / "nn_slim_totals_finetuned.pt"
 BASE_LR = 0.001
 FINETUNE_LR = 0.0001
 BATCH_SIZE = 64
-BASE_EPOCHS = 150
+BASE_EPOCHS = 200
 FINETUNE_EPOCHS = 50
-BASE_PATIENCE = 15
+BASE_PATIENCE = 20
 FINETUNE_PATIENCE = 15
 MIN_VAL = 20
 
@@ -81,9 +82,9 @@ def load_2026_games():
 
 
 def build_historical_features(rows):
-    """Returns (X, y_totals) where y = home_score + away_score."""
+    """Returns (X, y_totals, seasons) where y = home_score + away_score."""
     hfc = SlimHistoricalFeatureComputer()
-    X, y = [], []
+    X, y, seasons = [], [], []
     skipped = 0
     for row in rows:
         try:
@@ -102,6 +103,7 @@ def build_historical_features(rows):
             total_runs = float(row['home_score'] + row['away_score'])
             X.append(features)
             y.append(total_runs)
+            seasons.append(row['season'])
             hfc.update_state(game_row)
         except Exception as e:
             skipped += 1
@@ -109,7 +111,7 @@ def build_historical_features(rows):
                 print(f"  Skip: {e}")
     if skipped > 3:
         print(f"  ({skipped} total skipped)")
-    return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32), np.array(seasons)
 
 
 def build_2026_features(games):
@@ -139,8 +141,19 @@ def build_2026_features(games):
     return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32)
 
 
+def compute_season_weights(seasons, decay=0.85):
+    """Weight recent seasons more heavily."""
+    if len(seasons) == 0:
+        return np.ones(0)
+    max_season = seasons.max()
+    weights = np.array([decay ** (max_season - s) for s in seasons], dtype=np.float32)
+    weights = weights / weights.mean()
+    return weights
+
+
 def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
-                batch_size, device, phase_name="Training"):
+                batch_size, device, phase_name="Training", season_weights=None,
+                use_swa=True):
     model = model.to(device)
 
     # Normalize features
@@ -150,7 +163,7 @@ def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
     X_train_n = np.clip((X_train - feature_mean) / feature_std, -5, 5)
     X_val_n = np.clip((X_val - feature_mean) / feature_std, -5, 5)
 
-    # Normalize targets (helps regression training)
+    # Normalize targets
     target_mean = y_train.mean()
     target_std = y_train.std()
     if target_std < 1e-8:
@@ -158,19 +171,28 @@ def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
     y_train_n = (y_train - target_mean) / target_std
     y_val_n = (y_val - target_mean) / target_std
 
-    train_ds = TensorDataset(
-        torch.FloatTensor(X_train_n).to(device),
-        torch.FloatTensor(y_train_n).to(device)
-    )
-    loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+    X_train_t = torch.FloatTensor(X_train_n).to(device)
+    y_train_t = torch.FloatTensor(y_train_n).to(device)
+
+    if season_weights is not None:
+        sampler = WeightedRandomSampler(
+            weights=torch.FloatTensor(season_weights),
+            num_samples=len(season_weights),
+            replacement=True,
+        )
+        train_ds = TensorDataset(X_train_t, y_train_t)
+        loader = DataLoader(train_ds, batch_size=batch_size, sampler=sampler)
+    else:
+        train_ds = TensorDataset(X_train_t, y_train_t)
+        loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+
     X_val_t = torch.FloatTensor(X_val_n).to(device)
     y_val_t = torch.FloatTensor(y_val_n).to(device)
     y_val_raw = torch.FloatTensor(y_val).to(device)
 
     criterion = nn.MSELoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
 
-    # Cosine annealing with warmup
     warmup_epochs = min(5, epochs // 10)
     def lr_lambda(epoch):
         if epoch < warmup_epochs:
@@ -178,6 +200,13 @@ def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
         progress = (epoch - warmup_epochs) / max(epochs - warmup_epochs, 1)
         return 0.5 * (1 + math.cos(math.pi * progress))
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+    # SWA
+    swa_start = int(epochs * 0.8) if use_swa else epochs + 1
+    swa_model = torch.optim.swa_utils.AveragedModel(model) if use_swa else None
+    swa_scheduler = torch.optim.swa_utils.SWALR(
+        optimizer, swa_lr=lr * 0.5, anneal_epochs=5
+    ) if use_swa else None
 
     best_val_loss = float('inf')
     best_val_mae = float('inf')
@@ -203,13 +232,16 @@ def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
             optimizer.step()
             train_losses.append(loss.item())
 
-        scheduler.step()
+        if epoch >= swa_start and use_swa:
+            swa_model.update_parameters(model)
+            swa_scheduler.step()
+        else:
+            scheduler.step()
 
         model.eval()
         with torch.no_grad():
             val_preds_n = model(X_val_t)
             val_loss = criterion(val_preds_n, y_val_t).item()
-            # Denormalize for MAE
             val_preds_raw = val_preds_n * target_std + target_mean
             val_mae = torch.abs(val_preds_raw - y_val_raw).mean().item()
 
@@ -217,8 +249,9 @@ def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
 
         if (epoch + 1) % 10 == 0 or epoch == 0:
             cur_lr = optimizer.param_groups[0]['lr']
+            swa_tag = " [SWA]" if epoch >= swa_start and use_swa else ""
             print(f"  Epoch {epoch+1:3d} | Train MSE: {avg_train:.4f} | "
-                  f"Val MSE: {val_loss:.4f} | MAE: {val_mae:.2f} runs | LR: {cur_lr:.6f}")
+                  f"Val MSE: {val_loss:.4f} | MAE: {val_mae:.2f} runs | LR: {cur_lr:.6f}{swa_tag}")
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -230,6 +263,22 @@ def train_model(model, X_train, y_train, X_val, y_val, lr, epochs, patience,
             if patience_counter >= patience:
                 print(f"  Early stopping at epoch {epoch+1}")
                 break
+
+    # Check SWA model
+    if use_swa and swa_model is not None and epoch >= swa_start:
+        torch.optim.swa_utils.update_bn(loader, swa_model, device=device)
+        swa_model.eval()
+        with torch.no_grad():
+            swa_preds_n = swa_model(X_val_t)
+            swa_loss = criterion(swa_preds_n, y_val_t).item()
+            swa_preds_raw = swa_preds_n * target_std + target_mean
+            swa_mae = torch.abs(swa_preds_raw - y_val_raw).mean().item()
+        print(f"  SWA model — Val MSE: {swa_loss:.4f} | MAE: {swa_mae:.2f}")
+        if swa_loss < best_val_loss:
+            best_val_loss = swa_loss
+            best_val_mae = swa_mae
+            best_state = {k: v.clone().cpu() for k, v in swa_model.module.state_dict().items()}
+            print(f"  SWA model is better, using it.")
 
     print(f"  Best: MSE={best_val_loss:.4f}, MAE={best_val_mae:.2f} runs")
     return best_state, best_val_mae, best_val_loss, feature_mean, feature_std, target_mean, target_std
@@ -244,11 +293,23 @@ def save_checkpoint(path, state_dict, feature_mean, feature_std, target_mean, ta
         'target_std': target_std,
         'input_size': NUM_FEATURES,
         'saved_at': datetime.now().isoformat(),
+        'version': 'v3',
     }
     if meta:
         checkpoint.update(meta)
     torch.save(checkpoint, path)
     print(f"  Saved: {path}")
+
+
+def freeze_early_layers(model, freeze_fraction=0.5):
+    """Freeze early layers for fine-tuning."""
+    params = list(model.net.parameters())
+    n_freeze = int(len(params) * freeze_fraction)
+    for i, p in enumerate(params):
+        if i < n_freeze:
+            p.requires_grad = False
+    frozen = sum(1 for p in params if not p.requires_grad)
+    print(f"  Frozen {frozen}/{len(params)} parameters")
 
 
 def run(val_days=7, dry_run=False, full_train=False):
@@ -258,7 +319,7 @@ def run(val_days=7, dry_run=False, full_train=False):
 
     mode_label = "FULL TRAIN" if full_train else f"val last {val_days} days"
     print("=" * 60)
-    print(f"SLIM TOTALS REGRESSION NN ({NUM_FEATURES} features)")
+    print(f"SLIM TOTALS REGRESSION NN v3 ({NUM_FEATURES} features)")
     print(f"Date: {today.strftime('%Y-%m-%d %H:%M')}")
     print(f"Mode: {mode_label}")
     print("=" * 60)
@@ -280,12 +341,14 @@ def run(val_days=7, dry_run=False, full_train=False):
         print(f"  2026 train: {len(train_2026)} | val: {len(val_2026)}")
 
     if dry_run:
-        print("\n🔍 DRY RUN")
+        print("\nDRY RUN")
         return
 
     print("\nComputing historical features...")
-    X_hist, y_hist = build_historical_features(historical)
+    X_hist, y_hist, seasons_hist = build_historical_features(historical)
     print(f"  Shape: {X_hist.shape}, target range: {y_hist.min():.0f}-{y_hist.max():.0f}, mean: {y_hist.mean():.1f}")
+
+    season_weights = compute_season_weights(seasons_hist, decay=0.85)
 
     if not full_train and train_2026:
         print("Computing 2026 train features...")
@@ -297,21 +360,25 @@ def run(val_days=7, dry_run=False, full_train=False):
     X_2026_val, y_2026_val = build_2026_features(val_2026)
 
     if X_2026_val is None or len(X_2026_val) < MIN_VAL:
-        print(f"⚠️  Only {len(X_2026_val) if X_2026_val is not None else 0} val games")
+        print(f"  Only {len(X_2026_val) if X_2026_val is not None else 0} val games")
         return
 
     if full_train:
         X_all = X_hist
         y_all = y_hist
+        sw_all = season_weights
     else:
         if X_2026_train is not None and len(X_2026_train) > 0:
             X_all = np.vstack([X_hist, X_2026_train])
             y_all = np.concatenate([y_hist, y_2026_train])
+            sw_2026 = np.ones(len(X_2026_train), dtype=np.float32) * season_weights.max()
+            sw_all = np.concatenate([season_weights, sw_2026])
         else:
             X_all = X_hist
             y_all = y_hist
+            sw_all = season_weights
 
-    # Phase 1: Base on historical
+    # Phase 1: Base
     print("\n" + "=" * 60)
     print("PHASE 1: BASE TRAINING")
     print("=" * 60)
@@ -320,11 +387,12 @@ def run(val_days=7, dry_run=False, full_train=False):
     best_state, base_mae, base_loss, feat_mean, feat_std, tgt_mean, tgt_std = train_model(
         model, X_all, y_all, X_2026_val, y_2026_val,
         lr=BASE_LR, epochs=BASE_EPOCHS, patience=BASE_PATIENCE,
-        batch_size=BATCH_SIZE, device=device, phase_name="Phase 1: Base"
+        batch_size=BATCH_SIZE, device=device, phase_name="Phase 1: Base",
+        season_weights=sw_all, use_swa=True,
     )
 
     if not best_state:
-        print("❌ Training failed")
+        print("Training failed")
         return
 
     save_checkpoint(MODEL_PATH, best_state, feat_mean, feat_std, tgt_mean, tgt_std,
@@ -332,7 +400,7 @@ def run(val_days=7, dry_run=False, full_train=False):
                           'train_size': len(X_all), 'val_size': len(X_2026_val),
                           'full_train': full_train})
 
-    # Phase 2: Fine-tune on 2026
+    # Phase 2: Fine-tune with layer freezing
     print("\n" + "=" * 60)
     if full_train:
         print("PHASE 2: FINE-TUNE ON ALL 2026 (validate on same)")
@@ -343,12 +411,14 @@ def run(val_days=7, dry_run=False, full_train=False):
     if full_train:
         model = TotalsNet()
         model.load_state_dict(best_state)
+        freeze_early_layers(model, freeze_fraction=0.5)
 
         ft_state, ft_mae, ft_loss, ft_feat_mean, ft_feat_std, ft_tgt_mean, ft_tgt_std = train_model(
             model, X_2026_val, y_2026_val, X_2026_val, y_2026_val,
             lr=FINETUNE_LR, epochs=FINETUNE_EPOCHS, patience=FINETUNE_PATIENCE,
             batch_size=min(BATCH_SIZE, len(X_2026_val)),
-            device=device, phase_name="Phase 2: Fine-tune (all 2026)"
+            device=device, phase_name="Phase 2: Fine-tune (all 2026)",
+            use_swa=False,
         )
 
         if ft_state and ft_mae < base_mae:
@@ -356,9 +426,9 @@ def run(val_days=7, dry_run=False, full_train=False):
                             ft_tgt_mean, ft_tgt_std,
                             meta={'phase': 'finetuned', 'base_mae': base_mae,
                                   'finetuned_mae': ft_mae, 'full_train': True})
-            print(f"\n  ✅ Fine-tuned: MAE {base_mae:.2f} → {ft_mae:.2f}")
+            print(f"\n  Fine-tuned: MAE {base_mae:.2f} -> {ft_mae:.2f}")
         else:
-            print(f"\n  ⏭️  Fine-tune didn't beat base ({ft_mae:.2f} vs {base_mae:.2f})")
+            print(f"\n  Fine-tune didn't beat base ({ft_mae:.2f} vs {base_mae:.2f})")
     else:
         n_val = len(X_2026_val)
         split_idx = int(n_val * 0.7)
@@ -370,12 +440,14 @@ def run(val_days=7, dry_run=False, full_train=False):
 
             model = TotalsNet()
             model.load_state_dict(best_state)
+            freeze_early_layers(model, freeze_fraction=0.5)
 
             ft_state, ft_mae, ft_loss, ft_feat_mean, ft_feat_std, ft_tgt_mean, ft_tgt_std = train_model(
                 model, X_ft_train, y_ft_train, X_ft_val, y_ft_val,
                 lr=FINETUNE_LR, epochs=FINETUNE_EPOCHS, patience=FINETUNE_PATIENCE,
                 batch_size=min(BATCH_SIZE, len(X_ft_train)),
-                device=device, phase_name="Phase 2: Fine-tune"
+                device=device, phase_name="Phase 2: Fine-tune",
+                use_swa=False,
             )
 
             if ft_state and ft_mae < base_mae:
@@ -383,15 +455,15 @@ def run(val_days=7, dry_run=False, full_train=False):
                                 ft_tgt_mean, ft_tgt_std,
                                 meta={'phase': 'finetuned', 'base_mae': base_mae,
                                       'finetuned_mae': ft_mae})
-                print(f"\n  ✅ Fine-tuned: MAE {base_mae:.2f} → {ft_mae:.2f}")
+                print(f"\n  Fine-tuned: MAE {base_mae:.2f} -> {ft_mae:.2f}")
             else:
-                print(f"\n  ⏭️  Fine-tune didn't beat base ({ft_mae:.2f} vs {base_mae:.2f})")
+                print(f"\n  Fine-tune didn't beat base ({ft_mae:.2f} vs {base_mae:.2f})")
 
     # Summary
     print("\n" + "=" * 60)
     print("SUMMARY")
     print("=" * 60)
-    print(f"  Features: {NUM_FEATURES}")
+    print(f"  Features: {NUM_FEATURES} (v3 w/ NCAA stats)")
     print(f"  Mode: {'full-train' if full_train else 'standard'}")
     print(f"  Base: {MODEL_PATH} (MAE: {base_mae:.2f} runs)")
     if FINETUNED_PATH.exists():
