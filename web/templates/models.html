@@ -71,8 +71,9 @@
                         <thead>
                             <tr>
                                 <th>Model</th>
-                                <th class="text-center">Recent</th>
+                                <th class="text-center">7-Day</th>
                                 <th class="text-center">All-Time</th>
+                                <th class="text-center">Weekly &Delta;</th>
                                 <th class="text-center">Games</th>
                             </tr>
                         </thead>
@@ -93,6 +94,20 @@
                                 <td class="text-center">
                                     {% if model.accuracy.all_time_accuracy %}
                                     {{ (model.accuracy.all_time_accuracy * 100)|round(1) }}%
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if model.accuracy.recent_accuracy and model.accuracy.all_time_accuracy %}
+                                        {% set delta = (model.accuracy.recent_accuracy - model.accuracy.all_time_accuracy) * 100 %}
+                                        {% if delta > 0 %}
+                                        <span class="badge bg-success"><i class="bi bi-arrow-up"></i> +{{ delta|round(1) }}</span>
+                                        {% elif delta < 0 %}
+                                        <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> {{ delta|round(1) }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">0.0</span>
+                                        {% endif %}
                                     {% else %}
                                     <span class="text-muted">—</span>
                                     {% endif %}
@@ -705,10 +720,37 @@
             <div class="card-header"><i class="bi bi-rulers"></i> MAE by Totals Model</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Model</th><th>Games</th><th>MAE</th><th>Avg Pred</th><th>Avg Actual</th></tr></thead>
+                    <thead><tr><th>Model</th><th>Games</th><th>MAE</th><th>7-Day MAE</th><th>Weekly &Delta;</th><th>Avg Pred</th><th>Avg Actual</th></tr></thead>
                     <tbody>
                     {% for row in totals_mae_by_model %}
-                    <tr><td>{{ row.model_name }}</td><td>{{ row.n }}</td><td><strong>{{ row.mae }}</strong></td><td>{{ row.avg_predicted }}</td><td>{{ row.avg_actual }}</td></tr>
+                    <tr>
+                        <td>{{ row.model_name }}</td>
+                        <td>{{ row.n }}</td>
+                        <td><strong>{{ row.mae }}</strong></td>
+                        <td class="text-center">
+                            {% if row.model_name in totals_mae_weekly %}
+                            {{ totals_mae_weekly[row.model_name].mae }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if row.model_name in totals_mae_weekly %}
+                                {% set delta = row.mae - totals_mae_weekly[row.model_name].mae %}
+                                {% if delta > 0 %}
+                                <span class="badge bg-success"><i class="bi bi-arrow-up"></i> {{ delta|round(2) }}</span>
+                                {% elif delta < 0 %}
+                                <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> {{ delta|round(2) }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">0.0</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.avg_predicted }}</td>
+                        <td>{{ row.avg_actual }}</td>
+                    </tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -720,7 +762,7 @@
             <div class="card-header"><i class="bi bi-arrow-up-down"></i> O/U Split by Model</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Model</th><th>Direction</th><th>Correct</th><th>Total</th><th>Hit%</th></tr></thead>
+                    <thead><tr><th>Model</th><th>Direction</th><th>Correct</th><th>Total</th><th>Hit%</th><th>7-Day Hit%</th><th>Weekly &Delta;</th></tr></thead>
                     <tbody>
                     {% for row in totals_ou_split %}
                     <tr>
@@ -729,6 +771,27 @@
                         <td>{{ row.correct }}</td>
                         <td>{{ row.total }}</td>
                         <td class="{% if row.hit_rate > 55 %}text-success{% elif row.hit_rate < 45 %}text-danger{% endif %}"><strong>{{ row.hit_rate }}%</strong></td>
+                        <td class="text-center">
+                            {% if row.model_name in totals_weekly_ou %}
+                            {{ totals_weekly_ou[row.model_name].hit_rate }}%
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if row.model_name in totals_weekly_ou %}
+                                {% set delta = totals_weekly_ou[row.model_name].hit_rate - row.hit_rate %}
+                                {% if delta > 0 %}
+                                <span class="badge bg-success"><i class="bi bi-arrow-up"></i> +{{ delta|round(1) }}</span>
+                                {% elif delta < 0 %}
+                                <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> {{ delta|round(1) }}</span>
+                                {% else %}
+                                <span class="badge bg-secondary">0.0</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                     </tbody>
