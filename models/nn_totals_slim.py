@@ -94,9 +94,11 @@ class SlimTotalsModel(BaseModel):
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                     saved_size = checkpoint.get('input_size', self.input_size)
                     config_name = checkpoint.get('config')
+                    version = checkpoint.get('version', '')
                     
                     # Detect v2 vs v3 checkpoint
-                    is_legacy = config_name is None  # v2 checkpoints have no config
+                    # v3 checkpoints have version='v3' or config set
+                    is_legacy = config_name is None and version != 'v3'
                     self.input_size = saved_size
                     self.model = TotalsNet(saved_size, legacy=is_legacy)
                     self.model.eval()
