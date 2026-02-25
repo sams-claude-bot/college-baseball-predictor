@@ -28,6 +28,21 @@ import torch.nn as nn
 from models.base_model import BaseModel
 from models.nn_features_slim import SlimFeatureComputer, SlimBaseballNet, NUM_FEATURES as SLIM_NUM_FEATURES
 
+def _build_model_from_config(config_name, input_size):
+    """Rebuild model architecture matching the training config.
+    
+    This is needed because v3 configs use ResidualBlocks and GELU,
+    which differ from the default SlimBaseballNet.__init__ architecture.
+    """
+    try:
+        from scripts.train_neural_slim import CONFIGS, build_model
+        if config_name in CONFIGS:
+            return build_model(CONFIGS[config_name])
+    except Exception:
+        pass
+    # Fallback to default constructor
+    return SlimBaseballNet(input_size)
+
 # Paths — now uses slim model trained on real historical features only
 MODEL_PATH = Path(__file__).parent.parent / "data" / "nn_slim_model.pt"
 FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_slim_model_finetuned.pt"
@@ -92,12 +107,19 @@ class NeuralModel(BaseModel):
                 checkpoint = torch.load(_load_path, map_location='cpu',
                                         weights_only=False)
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-                    # Rebuild model with saved input_size if different
+                    # Rebuild model with saved input_size and config
                     saved_size = checkpoint.get('input_size', self.input_size)
-                    if saved_size != self.input_size:
+                    config_name = checkpoint.get('config')
+                    
+                    if config_name:
+                        # v3+: rebuild with matching architecture (residual, GELU, etc.)
+                        self.model = _build_model_from_config(config_name, saved_size)
+                        self.input_size = saved_size
+                    elif saved_size != self.input_size:
                         self.input_size = saved_size
                         self.model = SlimBaseballNet(saved_size)
-                        self.model.eval()
+                    
+                    self.model.eval()
                     self.model.load_state_dict(checkpoint['model_state_dict'])
                     self._feature_mean = checkpoint.get('feature_mean')
                     self._feature_std = checkpoint.get('feature_std')

@@ -23,27 +23,49 @@ FINETUNED_PATH = Path(__file__).parent.parent / "data" / "nn_slim_totals_finetun
 
 
 class TotalsNet(nn.Module):
-    """Regression network for predicting total runs — v3 with GELU."""
-    def __init__(self, input_size=NUM_FEATURES):
+    """Regression network for predicting total runs — v3 with GELU.
+    
+    When legacy=True, uses the old v2 architecture (64→32→16, ReLU)
+    for backward-compatible checkpoint loading.
+    """
+    def __init__(self, input_size=NUM_FEATURES, legacy=False):
         super().__init__()
         self.input_size = input_size
-        self.net = nn.Sequential(
-            nn.Linear(input_size, 128),
-            nn.BatchNorm1d(128),
-            nn.GELU(),
-            nn.Dropout(0.3),
-            ResidualBlock(128, dropout=0.3),
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.GELU(),
-            nn.Dropout(0.2),
-            nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
-            nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(32, 1),
-            # No activation — raw regression output
-        )
+        if legacy:
+            # v2 architecture for loading old checkpoints
+            self.net = nn.Sequential(
+                nn.Linear(input_size, 64),
+                nn.BatchNorm1d(64),
+                nn.ReLU(),
+                nn.Dropout(0.3),
+                nn.Linear(64, 32),
+                nn.BatchNorm1d(32),
+                nn.ReLU(),
+                nn.Dropout(0.2),
+                nn.Linear(32, 16),
+                nn.BatchNorm1d(16),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(16, 1),
+            )
+        else:
+            # v3 architecture with residual + GELU
+            self.net = nn.Sequential(
+                nn.Linear(input_size, 128),
+                nn.BatchNorm1d(128),
+                nn.GELU(),
+                nn.Dropout(0.3),
+                ResidualBlock(128, dropout=0.3),
+                nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
+                nn.GELU(),
+                nn.Dropout(0.2),
+                nn.Linear(64, 32),
+                nn.BatchNorm1d(32),
+                nn.GELU(),
+                nn.Dropout(0.1),
+                nn.Linear(32, 1),
+            )
 
     def forward(self, x):
         return self.net(x).squeeze(-1)
@@ -71,16 +93,21 @@ class SlimTotalsModel(BaseModel):
                 checkpoint = torch.load(load_path, map_location='cpu', weights_only=False)
                 if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
                     saved_size = checkpoint.get('input_size', self.input_size)
-                    if saved_size != self.input_size:
-                        self.input_size = saved_size
-                        self.model = TotalsNet(saved_size)
-                        self.model.eval()
+                    config_name = checkpoint.get('config')
+                    
+                    # Detect v2 vs v3 checkpoint
+                    is_legacy = config_name is None  # v2 checkpoints have no config
+                    self.input_size = saved_size
+                    self.model = TotalsNet(saved_size, legacy=is_legacy)
+                    self.model.eval()
                     self.model.load_state_dict(checkpoint['model_state_dict'])
                     self._feature_mean = checkpoint.get('feature_mean')
                     self._feature_std = checkpoint.get('feature_std')
                     self._target_mean = checkpoint.get('target_mean', 0.0)
                     self._target_std = checkpoint.get('target_std', 1.0)
                 else:
+                    self.model = TotalsNet(self.input_size, legacy=True)
+                    self.model.eval()
                     self.model.load_state_dict(checkpoint)
                 self._loaded = True
             except Exception as e:
