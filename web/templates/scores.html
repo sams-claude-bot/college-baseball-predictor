@@ -7,7 +7,11 @@
     <h1 class="h3 mb-0">
         <i class="bi bi-clipboard-check"></i> Scores & Schedule
     </h1>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-secondary active" onclick="filterGames('all')" id="filter-all">All</button>
+            <button type="button" class="btn btn-outline-warning" onclick="filterGames('ranked')" id="filter-ranked">⭐ Top 25</button>
+        </div>
         <select class="form-select form-select-sm" id="conferenceFilter" style="width: auto;"
                 onchange="updateFilters()">
             <option value="">All Conferences</option>
@@ -129,7 +133,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in in_progress_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border border-success rounded p-3 h-100" 
                      style="cursor:pointer; background: rgba(25,135,84,0.05);"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -202,7 +206,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in scheduled_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border rounded p-3 h-100" 
                      style="cursor:pointer;"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -316,7 +320,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in completed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border rounded p-3 h-100 {% if game.is_upset %}border-warning{% endif %}" 
                      style="cursor:pointer; {% if game.is_upset %}background: rgba(255,193,7,0.1);{% endif %}"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -434,7 +438,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in postponed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}">
                 <div class="border rounded p-3 h-100 opacity-50">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted">{{ game.time or 'TBD' }}</small>
@@ -489,5 +493,55 @@ function updateFilters() {
     const date = '{{ selected_date }}';
     goToDate(date);
 }
+
+function filterGames(mode) {
+    // Update button states
+    document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('filter-' + mode).classList.add('active');
+
+    const cards = document.querySelectorAll('.game-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+        if (mode === 'ranked') {
+            const isRanked = card.dataset.ranked === 'true';
+            card.style.display = isRanked ? '' : 'none';
+            if (isRanked) visibleCount++;
+        } else {
+            card.style.display = '';
+            visibleCount++;
+        }
+    });
+
+    // Sort ranked games to top within each section
+    document.querySelectorAll('.row.g-0').forEach(row => {
+        const gameCards = Array.from(row.querySelectorAll('.game-card'));
+        if (gameCards.length === 0) return;
+        
+        gameCards.sort((a, b) => {
+            const aRanked = a.dataset.ranked === 'true';
+            const bRanked = b.dataset.ranked === 'true';
+            if (aRanked && !bRanked) return -1;
+            if (!aRanked && bRanked) return 1;
+            // Both ranked: sort by best rank (lowest number first)
+            const aRank = Math.min(parseInt(a.dataset.homeRank) || 999, parseInt(a.dataset.awayRank) || 999);
+            const bRank = Math.min(parseInt(b.dataset.homeRank) || 999, parseInt(b.dataset.awayRank) || 999);
+            return aRank - bRank;
+        });
+
+        gameCards.forEach(card => row.appendChild(card));
+    });
+
+    // Hide empty sections
+    document.querySelectorAll('.card.mb-4').forEach(section => {
+        const visCards = section.querySelectorAll('.game-card:not([style*="display: none"])');
+        if (section.querySelector('.game-card')) {
+            section.style.display = visCards.length > 0 ? '' : 'none';
+        }
+    });
+}
+
+// Sort ranked games to top on initial load
+document.addEventListener('DOMContentLoaded', () => filterGames('all'));
 </script>
 {% endblock %}
