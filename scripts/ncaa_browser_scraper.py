@@ -46,12 +46,14 @@ STAT_CODES = {
 
 # Season → academic_year mapping (2025 season = 2025 academic year)
 # Final stats ranking_period codes (found by inspecting the dropdown)
+# "Final Statistics" ranking_period codes per season
+# These change yearly — verify via the rp dropdown on stats.ncaa.org
 SEASON_RANKING_PERIODS = {
-    2025: 104,
-    2024: 100,
-    2023: 96,
-    2022: 92,
-    2021: 88,
+    2025: 104,  # 06/22/2025-Final Statistics
+    2024: 100,  # 06/24/2024-Final Statistics
+    2023: 94,   # 06/26/2023-Final Statistics
+    2022: 90,   # 06/26/2022-Final Statistics
+    2021: 96,   # 06/30/2021-Final Statistics
 }
 
 # JS to extract all table rows after showing all entries
@@ -88,17 +90,28 @@ EXTRACT_TABLE_JS = """
 
 # JS to change "show entries" dropdown to show all
 SHOW_ALL_JS = """
-(maxEntries) => {
+() => {
     const select = document.querySelector('select[name="rankings_table_length"]') || document.querySelector('select[name="stat_grid_length"]');
     if (!select) return false;
-    // Find the option with the highest value (shows all)
-    const options = Array.from(select.options);
-    const maxOpt = options.reduce((a, b) => 
-        parseInt(a.value) > parseInt(b.value) ? a : b
-    );
-    select.value = maxOpt.value;
-    select.dispatchEvent(new Event('change'));
-    return parseInt(maxOpt.value);
+    // DataTables uses -1 for "show all"
+    const allOpt = Array.from(select.options).find(o => o.value === '-1');
+    if (allOpt) {
+        select.value = '-1';
+    } else {
+        // Fallback: pick the largest numeric option
+        const options = Array.from(select.options);
+        const maxOpt = options.reduce((a, b) => 
+            parseInt(a.value) > parseInt(b.value) ? a : b
+        );
+        select.value = maxOpt.value;
+    }
+    // Use jQuery if available (DataTables listens on jQuery events)
+    if (typeof jQuery !== 'undefined') {
+        jQuery(select).trigger('change');
+    } else {
+        select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    return select.value;
 }
 """
 
@@ -191,7 +204,7 @@ def scrape_stat_playwright(season, stat_name, stat_code, page, runner):
     # Show all entries
     try:
         page.evaluate(SHOW_ALL_JS)
-        time.sleep(2)
+        time.sleep(4)  # Give DataTables time to render all 300+ rows
     except Exception as e:
         runner.warn(f"  Could not show all entries: {e}")
     
@@ -250,11 +263,25 @@ def main():
             cdp_port = 18800
             try:
                 import subprocess as _sp
-                status = _sp.run(['openclaw', 'browser', 'status', '--profile', 'openclaw'],
+                # Probe the default openclaw port first
+                probe = _sp.run(['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
+                                f'http://127.0.0.1:18800/json/version'],
                                capture_output=True, text=True, timeout=5)
-                for line in status.stdout.split('\n'):
-                    if 'cdpPort' in line:
-                        cdp_port = int(line.split(':')[1].strip())
+                if probe.stdout.strip() == '200':
+                    cdp_port = 18800
+                else:
+                    # Fallback: try openclaw status
+                    status = _sp.run(['openclaw', 'browser', 'status', '--profile', 'openclaw'],
+                                   capture_output=True, text=True, timeout=5)
+                    for line in status.stdout.split('\n'):
+                        if 'cdpPort' in line:
+                            port_candidate = int(line.split(':')[1].strip())
+                            # Verify it's actually responding
+                            probe2 = _sp.run(['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
+                                            f'http://127.0.0.1:{port_candidate}/json/version'],
+                                           capture_output=True, text=True, timeout=5)
+                            if probe2.stdout.strip() == '200':
+                                cdp_port = port_candidate
             except:
                 pass
             browser = pw.chromium.connect_over_cdp(f'http://127.0.0.1:{cdp_port}')
