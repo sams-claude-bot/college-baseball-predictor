@@ -195,6 +195,7 @@ def init_database():
             game_id TEXT NOT NULL,
             model_name TEXT NOT NULL,
             predicted_home_prob REAL,
+            raw_home_prob REAL,
             predicted_home_runs REAL,
             predicted_away_runs REAL,
             predicted_at TEXT DEFAULT CURRENT_TIMESTAMP,
