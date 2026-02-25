@@ -320,6 +320,39 @@ def models():
             ORDER BY model_name, prediction
         ''')
         totals_ou_split = [dict(row) for row in c.fetchall()]
+
+        # Weekly (7-day) MAE per totals model
+        c.execute('''
+            SELECT
+                tp.model_name,
+                COUNT(*) as n,
+                ROUND(AVG(ABS(tp.projected_total - (g.home_score + g.away_score))), 2) as mae
+            FROM totals_predictions tp
+            JOIN games g ON tp.game_id = g.id
+            WHERE g.status = 'final'
+              AND g.home_score IS NOT NULL AND g.away_score IS NOT NULL
+              AND g.date >= date('now', '-7 days')
+            GROUP BY tp.model_name
+            ORDER BY mae ASC
+        ''')
+        totals_mae_weekly = {row['model_name']: {'n': row['n'], 'mae': row['mae']} for row in c.fetchall()}
+
+        # Weekly O/U split per model
+        c.execute('''
+            SELECT
+                model_name,
+                COUNT(*) as total,
+                SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as correct,
+                ROUND(100.0 * SUM(was_correct) / COUNT(*), 1) as hit_rate
+            FROM totals_predictions tp
+            JOIN games g ON tp.game_id = g.id
+            WHERE tp.was_correct IS NOT NULL
+              AND tp.prediction IN ('OVER', 'UNDER')
+              AND g.date >= date('now', '-7 days')
+            GROUP BY model_name
+            ORDER BY model_name
+        ''')
+        totals_weekly_ou = {row['model_name']: {'total': row['total'], 'correct': row['correct'], 'hit_rate': row['hit_rate']} for row in c.fetchall()}
     except Exception:
         totals_overall = {'total': 0, 'correct': 0, 'incorrect': 0}
         totals_by_type = []
@@ -328,6 +361,8 @@ def models():
         recent_totals = []
         totals_mae_by_model = []
         totals_ou_split = []
+        totals_mae_weekly = {}
+        totals_weekly_ou = {}
 
     # Calibration report (if available)
     try:
@@ -424,6 +459,8 @@ def models():
                           recent_totals=recent_totals,
                           totals_mae_by_model=totals_mae_by_model,
                           totals_ou_split=totals_ou_split,
+                          totals_mae_weekly=totals_mae_weekly,
+                          totals_weekly_ou=totals_weekly_ou,
                           rolling_data=rolling_data,
                           calibration_report=calibration_report,
                           meta_feature_importance=meta_feature_importance,
