@@ -185,9 +185,9 @@ def build_betting_page_context(conference=''):
     # === 4-LEG PARLAY BUILDER ===
     # Mix of ML + Totals picks. Sweet spot: ~80% confidence, -200 range, good edge.
     # Avoid heavy favorites (-300 or worse) — they kill parlay value.
-    PARLAY_ML_CAP = -250  # Max favorite ML for parlay legs
-    PARLAY_MIN_PROB = 0.62  # Min model confidence
-    PARLAY_MAX_PROB = 0.88  # Max — avoid near-locks (low payout)
+    PARLAY_ML_CAP = -200  # Max favorite ML for parlay legs — heavier favorites kill parlay value
+    PARLAY_MIN_PROB = 0.0   # No min — allow all confidence levels
+    PARLAY_MAX_PROB = 1.0   # No max — allow all confidence levels
     PARLAY_MIN_EDGE = 5.0   # Min edge over line
 
     # ML candidates for parlay
