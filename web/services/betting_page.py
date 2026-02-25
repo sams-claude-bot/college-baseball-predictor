@@ -267,12 +267,13 @@ def build_betting_page_context(conference=''):
             parlay_legs.append(c)
             used_game_ids.add(c['game_id'])
 
-    # Fill remaining with totals (different games preferred)
+    # Fill remaining with totals (must be different games — sportsbooks don't allow same-game parlays)
     for c in parlay_totals_candidates:
         if len(parlay_legs) >= 4:
             break
-        # Allow same game for totals + ML combo, or different game
-        parlay_legs.append(c)
+        if c['game_id'] not in used_game_ids:
+            parlay_legs.append(c)
+            used_game_ids.add(c['game_id'])
 
     # If still short, add more ML
     if len(parlay_legs) < 4:
