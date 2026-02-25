@@ -140,17 +140,20 @@
                             {% set their_score = game.away_score if is_home else game.home_score %}
                             {% endif %}
                             
-                            <tr>
+                            <tr class="{% if game.status == 'final' %}{% if won %}table-success{% else %}table-danger{% endif %}{% endif %}" style="{% if game.status == 'final' %}{% if won %}--bs-table-bg: rgba(25,135,84,0.05);{% else %}--bs-table-bg: rgba(220,53,69,0.05);{% endif %}{% endif %}">
                                 <td>
                                     {{ game.date }}
                                     {% if game.time %}<br><small class="text-muted">{{ game.time }}</small>{% endif %}
                                 </td>
                                 <td>
-                                    <span class="text-muted">{{ '@' if not is_home else 'vs' }}</span>
-                                    <a href="/team/{{ opponent_id }}" class="team-link">{{ opponent }}</a>
-                                    {% if game.is_conference_game %}
-                                    <span class="badge bg-secondary ms-1">Conf</span>
-                                    {% endif %}
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ team_logo(opponent_id) }}" height="20" class="me-2" onerror="this.style.display='none'">
+                                        <span class="text-muted me-1">{{ '@' if not is_home else 'vs' }}</span>
+                                        <a href="/team/{{ opponent_id }}" class="team-link">{{ opponent }}</a>
+                                        {% if game.is_conference_game %}
+                                        <span class="badge bg-secondary ms-1">Conf</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                                 <td class="text-center">
                                     {% if game.status == 'final' %}
