@@ -46,7 +46,7 @@
                             {% set rankings = historical if historical else top_25 %}
                             {% for team in rankings %}
                             {% set tid = team.id if team.id else team.team_id %}
-                            <tr class="{% if tid not in elo_ids %}table-warning{% endif %}">
+                            <tr class="{% if tid not in elo_ids %}table-light{% endif %}">
                                 <td class="text-center">
                                     <span class="badge bg-maroon">{{ team.rank if team.rank else team.current_rank }}</span>
                                 </td>
@@ -57,7 +57,7 @@
                                             <a href="/team/{{ tid }}" class="team-link"><strong>{{ team.name }}</strong></a>
                                             <br><small class="text-muted">{{ team.conference or '' }}</small>
                                             {% if tid not in elo_ids %}
-                                            <span class="badge bg-warning text-dark ms-1" title="Not in Elo Top 25">AP only</span>
+                                            <span class="badge bg-secondary ms-1" title="Not in Elo Top 25">D1BB only</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -98,7 +98,7 @@
                         </thead>
                         <tbody>
                             {% for team in elo_top_25 %}
-                            <tr class="{% if team.team_id not in ap_ids %}table-info{% endif %}">
+                            <tr class="{% if team.team_id not in ap_ids %}table-light{% endif %}">
                                 <td class="text-center">
                                     <span class="badge" style="background-color: #2563eb;">{{ team.elo_rank }}</span>
                                 </td>
@@ -109,7 +109,7 @@
                                             <a href="/team/{{ team.team_id }}" class="team-link"><strong>{{ team.name }}</strong></a>
                                             <br><small class="text-muted">{{ team.conference or '' }}</small>
                                             {% if team.team_id not in ap_ids %}
-                                            <span class="badge bg-info text-dark ms-1" title="Not in AP Top 25">Elo only</span>
+                                            <span class="badge bg-secondary ms-1" title="Not in D1BB Top 25">Elo only</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -178,7 +178,7 @@
                 </thead>
                 <tbody>
                     {% for team in power_rankings %}
-                    <tr class="{% if team.team_id == featured_team_id %}table-success{% endif %}">
+                    <tr>
                         <td class="text-center">
                             <span class="badge" style="background-color: #059669;">{{ team.rank }}</span>
                         </td>
@@ -250,8 +250,8 @@
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-3 align-items-center small">
             <strong>Legend:</strong>
-            <span><span class="badge bg-warning text-dark">AP only</span> Ranked by D1Baseball but not in Elo Top 25</span>
-            <span><span class="badge bg-info text-dark">Elo only</span> In Elo Top 25 but not ranked by D1Baseball</span>
+            <span><span class="badge bg-secondary">D1BB only</span> Ranked by D1Baseball but not in Elo Top 25</span>
+            <span><span class="badge bg-secondary">Elo only</span> In Elo Top 25 but not ranked by D1Baseball</span>
             {% if power_rankings %}
             <span><span class="badge" style="background-color: #059669; color: white;">Power</span> Model-simulated round-robin ranking (all teams vs all teams)</span>
             {% endif %}
