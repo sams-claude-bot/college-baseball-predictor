@@ -72,6 +72,15 @@ def create_app():
 def register_filters(app):
     """Register Jinja2 template filters."""
 
+    # Template global for team logos
+    @app.context_processor
+    def inject_team_logo():
+        def team_logo(team_id):
+            if team_id:
+                return f'/static/logos/{team_id}.png'
+            return ''
+        return dict(team_logo=team_logo)
+
     @app.template_filter('format_odds')
     def format_odds(value):
         """Format American odds with + prefix for positive"""

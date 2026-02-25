@@ -53,11 +53,16 @@
                                     <span class="badge bg-maroon">{{ team.rank if team.rank else team.current_rank }}</span>
                                 </td>
                                 <td>
-                                    <a href="/team/{{ tid }}" class="team-link"><strong>{{ team.name }}</strong></a>
-                                    <br><small class="text-muted">{{ team.conference or '' }}</small>
-                                    {% if tid not in elo_ids %}
-                                    <span class="badge bg-warning text-dark ms-1" title="Not in Elo Top 25">AP only</span>
-                                    {% endif %}
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ team_logo(tid) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <div>
+                                            <a href="/team/{{ tid }}" class="team-link"><strong>{{ team.name }}</strong></a>
+                                            <br><small class="text-muted">{{ team.conference or '' }}</small>
+                                            {% if tid not in elo_ids %}
+                                            <span class="badge bg-warning text-dark ms-1" title="Not in Elo Top 25">AP only</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="text-center">
                                     {% if team.wins is defined %}{{ team.wins }}-{{ team.losses }}{% else %}—{% endif %}
@@ -100,11 +105,16 @@
                                     <span class="badge" style="background-color: #2563eb;">{{ team.elo_rank }}</span>
                                 </td>
                                 <td>
-                                    <a href="/team/{{ team.team_id }}" class="team-link"><strong>{{ team.name }}</strong></a>
-                                    <br><small class="text-muted">{{ team.conference or '' }}</small>
-                                    {% if team.team_id not in ap_ids %}
-                                    <span class="badge bg-info text-dark ms-1" title="Not in AP Top 25">Elo only</span>
-                                    {% endif %}
+                                    <div class="d-flex align-items-center">
+                                        <img src="{{ team_logo(team.team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <div>
+                                            <a href="/team/{{ team.team_id }}" class="team-link"><strong>{{ team.name }}</strong></a>
+                                            <br><small class="text-muted">{{ team.conference or '' }}</small>
+                                            {% if team.team_id not in ap_ids %}
+                                            <span class="badge bg-info text-dark ms-1" title="Not in AP Top 25">Elo only</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="text-center">{{ team.wins }}-{{ team.losses }}</td>
                                 <td class="text-end"><strong>{{ team.rating|round(0)|int }}</strong></td>

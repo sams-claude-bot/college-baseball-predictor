@@ -224,7 +224,8 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <h6 class="mb-1 fw-bold">
+                        <h6 class="mb-1 fw-bold d-flex align-items-center">
+                            <img src="{{ team_logo(game.home_team_id if game.model_agreement.pick == 'home' else game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
                         </h6>
                         <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
@@ -279,7 +280,8 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <h6 class="mb-1">
+                        <h6 class="mb-1 d-flex align-items-center">
+                            <img src="{{ team_logo(game.home_team_id if game.best_pick == 'home' else game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             {% if game.best_pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
                         </h6>
                         <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>

@@ -148,6 +148,7 @@
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
+                            <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                 {{ game.away_team_name }}
                             </a>
@@ -161,6 +162,7 @@
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
+                            <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                 {{ game.home_team_name }}
                             </a>
@@ -220,6 +222,7 @@
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
+                            <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                 {{ game.away_team_name }}
                             </a>
@@ -235,6 +238,7 @@
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
+                            <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                 {{ game.home_team_name }}
                             </a>
@@ -343,6 +347,7 @@
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
+                            <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.away_team_id }}" class="team-link {% if game.winner_id == game.away_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
                                 {{ game.away_team_name }}
                             </a>
@@ -358,6 +363,7 @@
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
+                            <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.home_team_id }}" class="team-link {% if game.winner_id == game.home_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
                                 {{ game.home_team_name }}
                             </a>

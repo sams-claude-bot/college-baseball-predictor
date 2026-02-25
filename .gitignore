@@ -43,3 +43,4 @@ web/templates.bak/
 # IDE
 .vscode/
 .idea/
+web/static/logos/

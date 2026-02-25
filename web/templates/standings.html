@@ -40,8 +40,11 @@
                 <tr>
                     <td class="text-center text-muted">{{ loop.index }}</td>
                     <td>
-                        {% if team.rank %}<small class="text-muted">#{{ team.rank }}</small> {% endif %}
-                        <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
+                        <div class="d-flex align-items-center">
+                            <img src="{{ team_logo(team.id) }}" height="20" class="me-2" onerror="this.style.display='none'">
+                            {% if team.rank %}<small class="text-muted me-1">#{{ team.rank }}</small> {% endif %}
+                            <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
+                        </div>
                     </td>
                     <td class="text-center fw-bold">{{ team.wins }}</td>
                     <td class="text-center">{{ team.losses }}</td>

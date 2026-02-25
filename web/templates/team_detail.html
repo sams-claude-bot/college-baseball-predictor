@@ -9,6 +9,7 @@
         <div class="row align-items-center">
             <div class="col-md-8">
                 <div class="d-flex align-items-center gap-3">
+                    <img src="{{ team_logo(team.id) }}" height="64" class="me-2" onerror="this.style.display='none'">
                     {% if team.current_rank %}
                     <span class="badge bg-maroon fs-4 px-3 py-2">#{{ team.current_rank }}</span>
                     {% endif %}

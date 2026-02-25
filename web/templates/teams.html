@@ -57,12 +57,17 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/team/{{ team.id }}" class="team-link">
-                            <strong>{{ team.name }}</strong>
-                        </a>
-                        {% if team.nickname %}
-                        <br><small class="text-muted">{{ team.nickname }}</small>
-                        {% endif %}
+                        <div class="d-flex align-items-center">
+                            <img src="{{ team_logo(team.id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <div>
+                                <a href="/team/{{ team.id }}" class="team-link">
+                                    <strong>{{ team.name }}</strong>
+                                </a>
+                                {% if team.nickname %}
+                                <br><small class="text-muted">{{ team.nickname }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
                     </td>
                     <td>
                         <span class="badge bg-secondary">{{ team.conference or 'N/A' }}</span>

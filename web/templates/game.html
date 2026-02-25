@@ -11,13 +11,19 @@
 <div class="card">
     <div class="card-header bg-maroon text-center">
         <div class="d-flex justify-content-center align-items-center gap-3">
-            <span class="fs-5">
-                {% if away.rank %}<small class="text-white-50">#{{ away.rank }}</small> {% endif %}{{ away.name }}
-            </span>
+            <div class="d-flex align-items-center">
+                <img src="{{ team_logo(away.id) }}" height="48" class="me-2" onerror="this.style.display='none'">
+                <span class="fs-5">
+                    {% if away.rank %}<small class="text-white-50">#{{ away.rank }}</small> {% endif %}{{ away.name }}
+                </span>
+            </div>
             <span class="text-white-50">@</span>
-            <span class="fs-5">
-                {% if home.rank %}<small class="text-white-50">#{{ home.rank }}</small> {% endif %}{{ home.name }}
-            </span>
+            <div class="d-flex align-items-center">
+                <img src="{{ team_logo(home.id) }}" height="48" class="me-2" onerror="this.style.display='none'">
+                <span class="fs-5">
+                    {% if home.rank %}<small class="text-white-50">#{{ home.rank }}</small> {% endif %}{{ home.name }}
+                </span>
+            </div>
         </div>
         <small class="text-white-50">{{ game.date }} {{ game.time or '' }} {% if game.venue %}• {{ game.venue }}{% endif %}</small>
     </div>
