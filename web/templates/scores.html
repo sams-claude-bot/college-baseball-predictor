@@ -6,6 +6,11 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">
         <i class="bi bi-clipboard-check"></i> Scores & Schedule
+        {% if in_progress_games %}
+        <span id="live-indicator" class="badge bg-success ms-2" style="font-size: 0.6rem; vertical-align: middle; animation: pulse 2s infinite;">
+            🔴 LIVE
+        </span>
+        {% endif %}
     </h1>
     <div class="filter-bar">
         <div class="btn-group" role="group">
@@ -132,7 +137,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in in_progress_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border border-success rounded p-3 h-100" 
                      style="cursor:pointer; background: rgba(25,135,84,0.08);"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -156,7 +161,7 @@
                                 {{ game.away_team_name }}
                             </a>
                         </div>
-                        <span class="fs-5 fw-bold">{{ game.away_score }}</span>
+                        <span class="fs-5 fw-bold live-away-score">{{ game.away_score }}</span>
                     </div>
                     
                     <!-- Home team -->
@@ -170,13 +175,13 @@
                                 {{ game.home_team_name }}
                             </a>
                         </div>
-                        <span class="fs-5 fw-bold">{{ game.home_score }}</span>
+                        <span class="fs-5 fw-bold live-home-score">{{ game.home_score }}</span>
                     </div>
                     
                     <!-- Pre-game predictions -->
                     <div class="mt-2 pt-2 border-top">
                         <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-success fw-bold">{{ game.inning_text or 'In Progress' }}</small>
+                            <small class="text-success fw-bold live-inning">{{ game.inning_text or 'In Progress' }}</small>
                             <div class="d-flex gap-2">
                                 {% if game.pred_winner %}
                                 {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
@@ -205,7 +210,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in scheduled_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border rounded p-3 h-100" 
                      style="cursor:pointer;"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -319,7 +324,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in completed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}">
                 <div class="border rounded p-3 h-100 {% if game.is_upset %}border-warning{% endif %}" 
                      style="cursor:pointer; {% if game.is_upset %}background: rgba(255,193,7,0.1);{% endif %}"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -437,7 +442,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in postponed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}">
                 <div class="border rounded p-3 h-100 opacity-50">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted">{{ game.time or 'TBD' }}</small>
@@ -475,6 +480,15 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -542,5 +556,122 @@ function filterGames(mode) {
 
 // Sort ranked games to top on initial load
 document.addEventListener('DOMContentLoaded', () => filterGames('all'));
+
+// ─── Live Score Auto-Refresh ───
+(function() {
+    const POLL_INTERVAL = 60000; // 60 seconds
+    const ACTIVE_DATE = '{{ selected_date }}';
+    let pollTimer = null;
+    let hasLive = {{ 'true' if in_progress_games else 'false' }};
+    let consecutiveErrors = 0;
+
+    function updateLiveScores() {
+        fetch('/api/live-scores?date=' + ACTIVE_DATE)
+            .then(r => r.json())
+            .then(data => {
+                consecutiveErrors = 0;
+                let changed = false;
+
+                document.querySelectorAll('.game-card[data-game-id]').forEach(card => {
+                    const gameId = card.dataset.gameId;
+                    const game = data.games[gameId];
+                    if (!game) return;
+
+                    // Update scores for live games
+                    const awayScore = card.querySelector('.live-away-score');
+                    const homeScore = card.querySelector('.live-home-score');
+                    const inning = card.querySelector('.live-inning');
+
+                    if (awayScore && game.away_score !== null) {
+                        if (awayScore.textContent.trim() !== String(game.away_score)) {
+                            awayScore.textContent = game.away_score;
+                            awayScore.style.transition = 'color 0.3s';
+                            awayScore.style.color = '#198754';
+                            setTimeout(() => awayScore.style.color = '', 2000);
+                            changed = true;
+                        }
+                    }
+                    if (homeScore && game.home_score !== null) {
+                        if (homeScore.textContent.trim() !== String(game.home_score)) {
+                            homeScore.textContent = game.home_score;
+                            homeScore.style.transition = 'color 0.3s';
+                            homeScore.style.color = '#198754';
+                            setTimeout(() => homeScore.style.color = '', 2000);
+                            changed = true;
+                        }
+                    }
+                    if (inning && game.inning_text) {
+                        inning.textContent = game.inning_text;
+                    }
+
+                    // If game just finished, reload to get full final layout
+                    if (game.status === 'final' && card.closest('.card')?.querySelector('.bi-broadcast')) {
+                        changed = true;
+                    }
+                });
+
+                // Update live indicator
+                const liveIndicator = document.getElementById('live-indicator');
+                if (data.has_live) {
+                    if (liveIndicator) liveIndicator.style.display = '';
+                    startPolling();
+                } else {
+                    if (liveIndicator) liveIndicator.style.display = 'none';
+                    // If games just finished, do one full reload to get final scores layout
+                    if (hasLive && !data.has_live) {
+                        setTimeout(() => window.location.reload(), 3000);
+                        return;
+                    }
+                    stopPolling();
+                }
+                hasLive = data.has_live;
+            })
+            .catch(err => {
+                consecutiveErrors++;
+                if (consecutiveErrors > 3) stopPolling();
+            });
+    }
+
+    function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(updateLiveScores, POLL_INTERVAL);
+        console.log('Live score polling started (60s)');
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            console.log('Live score polling stopped');
+        }
+    }
+
+    // Start polling if there are live games
+    if (hasLive) {
+        startPolling();
+        // Also do an immediate update after 5s (page might have stale data)
+        setTimeout(updateLiveScores, 5000);
+    }
+
+    // Start polling during typical game hours even if no live games shown yet
+    // (a scheduled game might go live between page loads)
+    const hour = new Date().getHours();
+    if (hour >= 11 && hour <= 23 && ACTIVE_DATE === new Date().toISOString().slice(0,10)) {
+        if (!pollTimer) {
+            // Poll less frequently when no live games (every 5 min)
+            pollTimer = setInterval(() => {
+                fetch('/api/live-scores?date=' + ACTIVE_DATE)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.has_live) {
+                            // Live games appeared! Reload to get full layout
+                            window.location.reload();
+                        }
+                    })
+                    .catch(() => {});
+            }, 300000); // 5 minutes
+        }
+    }
+})();
 </script>
 {% endblock %}

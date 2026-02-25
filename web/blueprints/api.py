@@ -426,3 +426,35 @@ def api_best_bets():
         'spreads': best_spreads,
         'spreads_disabled_reason': 'Model not calibrated (0/5 historical)'
     })
+
+
+@api_bp.route('/api/live-scores')
+def live_scores():
+    """Lightweight endpoint for live score polling — returns only in-progress and recently-finished games."""
+    from datetime import datetime
+    date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    
+    conn = get_connection()
+    rows = conn.execute('''
+        SELECT g.id, g.status, g.home_score, g.away_score, g.inning_text, g.innings,
+               g.winner_id, g.home_team_id, g.away_team_id
+        FROM games g
+        WHERE g.date = ?
+    ''', (date_str,)).fetchall()
+    conn.close()
+    
+    games = {}
+    has_live = False
+    for r in rows:
+        games[r['id']] = {
+            'status': r['status'],
+            'home_score': r['home_score'],
+            'away_score': r['away_score'],
+            'inning_text': r['inning_text'],
+            'innings': r['innings'],
+            'winner_id': r['winner_id'],
+        }
+        if r['status'] == 'in-progress':
+            has_live = True
+    
+    return jsonify({'games': games, 'has_live': has_live, 'date': date_str})
