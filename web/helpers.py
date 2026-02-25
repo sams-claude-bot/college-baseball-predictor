@@ -777,18 +777,23 @@ def get_betting_games(date_str=None):
 
             # Model prediction — use stored pre-game predictions
             game_id = line.get('game_id')
+            # Prefer meta_ensemble; fall back to ensemble
+            stored_meta = stored_preds.get((game_id, 'meta_ensemble'))
             stored_ens = stored_preds.get((game_id, 'ensemble'))
             stored_nn = stored_preds.get((game_id, 'neural'))
             
-            if stored_ens:
-                line['model_home_prob'] = stored_ens['prob']
-                line['model_away_prob'] = 1 - stored_ens['prob']
-                line['projected_total'] = stored_ens['home_runs'] + stored_ens['away_runs']
-                line['ens_prob'] = stored_ens['prob']
+            primary = stored_meta or stored_ens
+            if primary:
+                line['model_home_prob'] = primary['prob']
+                line['model_away_prob'] = 1 - primary['prob']
+                # Use ensemble for run projections (meta_ensemble doesn't have them)
+                run_source = stored_ens or primary
+                line['projected_total'] = run_source['home_runs'] + run_source['away_runs']
+                line['ens_prob'] = primary['prob']
             if stored_nn:
                 line['nn_prob'] = stored_nn['prob']
             
-            if not stored_ens:
+            if not primary:
                 continue
             
             line['blend_info'] = 'pre-game'

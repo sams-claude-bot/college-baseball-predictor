@@ -201,10 +201,14 @@ def build_betting_page_context(conference=''):
         # Skip heavy favorites and big underdogs
         if ml < PARLAY_ML_CAP:
             continue
-        # Get model probability for the pick side
-        prob = g.get('model_home_prob', 0.5)
-        if g.get('best_pick') == 'away':
-            prob = 1 - prob
+        # Use consensus avg_prob for parlay filtering (more stable than meta_ensemble extremes)
+        agreement = g.get('model_agreement', {})
+        if agreement and agreement.get('avg_prob'):
+            prob = agreement['avg_prob']
+        else:
+            prob = g.get('model_home_prob', 0.5)
+            if g.get('best_pick') == 'away':
+                prob = 1 - prob
         if not (PARLAY_MIN_PROB <= prob <= PARLAY_MAX_PROB):
             continue
         parlay_ml_candidates.append({
