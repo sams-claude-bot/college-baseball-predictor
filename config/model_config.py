@@ -124,7 +124,7 @@ BET_RISK_COVERAGE_PROXY_DEFAULT = 0.50      # TODO: replace with feature/data co
 # Probability calibration (experimental)
 # When True, Kelly sizing uses isotonic-calibrated probabilities
 # Requires: python3 models/calibration.py (to fit calibrator first)
-BET_RISK_USE_CALIBRATION = False            # Set True to enable calibrated Kelly
+BET_RISK_USE_CALIBRATION = True              # Enabled Feb 26 — fixes overconfident Kelly sizing
 
 # Correlation / concentration caps (aggregate stake exposure)
 BET_RISK_CORRELATION_CAP_ENABLED = True
