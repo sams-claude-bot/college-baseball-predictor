@@ -24,6 +24,17 @@ DB_PATH = PROJECT_ROOT / 'data' / 'baseball.db'
 ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/baseball/college-baseball/scoreboard"
 
 
+def _extract_athlete(data):
+    """Extract athlete name from ESPN situation data."""
+    if not data:
+        return None
+    if isinstance(data, dict):
+        athlete = data.get('athlete', {})
+        if isinstance(athlete, dict):
+            return athlete.get('shortName') or athlete.get('displayName')
+    return None
+
+
 ESPN_TEAMS_URL = "https://site.api.espn.com/apis/site/v2/sports/baseball/college-baseball/teams?limit=500"
 
 # Cache file for ESPN ID -> our DB ID mapping
@@ -258,12 +269,45 @@ def update_scores(date_str=None):
         away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
         home_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
         
+        # Get hits and errors
+        away_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
+        home_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
+        away_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
+        home_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
+        
+        # Get linescore (inning-by-inning)
+        linescore = None
+        home_ls = home_espn.get('linescores', [])
+        away_ls = away_espn.get('linescores', [])
+        if home_ls or away_ls:
+            linescore = json.dumps({
+                'home': [int(l.get('value', 0)) for l in home_ls],
+                'away': [int(l.get('value', 0)) for l in away_ls],
+            })
+        
         # Get inning info
         inning_text = status['type'].get('detail', '')
         if not inning_text:
             inning_text = status['type'].get('shortDetail', '')
         
         innings = status.get('period', None)
+        
+        # Get live situation (runners, count, pitcher, batter, last play)
+        situation = None
+        sit = comp.get('situation')
+        if sit and db_status == 'in-progress':
+            situation = json.dumps({
+                'outs': sit.get('outs', 0),
+                'balls': sit.get('balls', 0),
+                'strikes': sit.get('strikes', 0),
+                'onFirst': sit.get('onFirst', False),
+                'onSecond': sit.get('onSecond', False),
+                'onThird': sit.get('onThird', False),
+                'batter': _extract_athlete(sit.get('batter')),
+                'pitcher': _extract_athlete(sit.get('pitcher')),
+                'lastPlay': sit.get('lastPlay', {}).get('text', '') if isinstance(sit.get('lastPlay'), dict) else '',
+                'dueUp': [_extract_athlete(a) for a in sit.get('dueUp', [])] if sit.get('dueUp') else [],
+            })
         
         # Determine winner
         winner_id = None
@@ -273,13 +317,14 @@ def update_scores(date_str=None):
             elif away_score > home_score:
                 winner_id = away_id
         
-        # Check if anything changed
-        if (game['status'] == db_status and 
-            game['home_score'] == home_score and 
-            game['away_score'] == away_score):
+        # Check if anything changed (score, hits, situation all count)
+        score_changed = (game['home_score'] != home_score or game['away_score'] != away_score)
+        status_changed = (game['status'] != db_status)
+        
+        if not score_changed and not status_changed and db_status != 'in-progress':
             continue
         
-        # Update via ScheduleGateway
+        # Update the game with full data
         from schedule_gateway import ScheduleGateway
         gw = ScheduleGateway(conn)
         
@@ -288,7 +333,6 @@ def update_scores(date_str=None):
         elif db_status == 'in-progress' and home_score is not None and away_score is not None:
             gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
         else:
-            # Fallback for edge cases (scheduled with no scores, etc.)
             conn.execute('''
                 UPDATE games 
                 SET status = ?, home_score = ?, away_score = ?, 
@@ -297,8 +341,22 @@ def update_scores(date_str=None):
                 WHERE id = ?
             ''', (db_status, home_score, away_score, winner_id, inning_text, innings, game['id']))
         
+        # Always update extended fields (hits, errors, linescore, situation)
+        conn.execute('''
+            UPDATE games 
+            SET home_hits = ?, away_hits = ?, 
+                home_errors = ?, away_errors = ?,
+                linescore_json = ?,
+                situation_json = ?
+            WHERE id = ?
+        ''', (home_hits, away_hits, home_errors, away_errors,
+              linescore, situation, game['id']))
+        
         updated += 1
-        print(f"Updated: {away_id} {away_score} @ {home_id} {home_score} ({db_status}, {inning_text})")
+        rhe = f"R:{away_score}-{home_score}"
+        if away_hits is not None:
+            rhe += f" H:{away_hits}-{home_hits} E:{away_errors}-{home_errors}"
+        print(f"Updated: {away_id} @ {home_id} ({db_status}, {inning_text}) {rhe}")
     
     conn.commit()
     conn.close()

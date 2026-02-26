@@ -1076,6 +1076,8 @@ def get_games_for_date_with_predictions(date_str):
         SELECT g.id, g.date, g.time, g.status,
                g.home_team_id, g.away_team_id,
                g.home_score, g.away_score, g.winner_id, g.innings, g.inning_text,
+               g.home_hits, g.away_hits, g.home_errors, g.away_errors,
+               g.linescore_json, g.situation_json,
                g.is_conference_game,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,
                at.name as away_team_name, at.current_rank as away_rank, at.conference as away_conf,
@@ -1092,12 +1094,29 @@ def get_games_for_date_with_predictions(date_str):
     games = [dict(row) for row in c.fetchall()]
     conn.close()
 
-    # Fill in missing team names from team IDs
+    # Fill in missing team names from team IDs and parse JSON fields
+    import json as _json
     for game in games:
         if not game.get('home_team_name') and game.get('home_team_id'):
             game['home_team_name'] = game['home_team_id'].replace('-', ' ').title()
         if not game.get('away_team_name') and game.get('away_team_id'):
             game['away_team_name'] = game['away_team_id'].replace('-', ' ').title()
+        # Parse situation JSON for live game display
+        if game.get('situation_json'):
+            try:
+                game['situation'] = _json.loads(game['situation_json'])
+            except:
+                game['situation'] = None
+        else:
+            game['situation'] = None
+        # Parse linescore JSON
+        if game.get('linescore_json'):
+            try:
+                game['linescore'] = _json.loads(game['linescore_json'])
+            except:
+                game['linescore'] = None
+        else:
+            game['linescore'] = None
 
     # Load pre-game predictions from model_predictions table (recorded BEFORE games)
     conn2 = get_connection()

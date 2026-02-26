@@ -154,6 +154,17 @@
                         </div>
                     </div>
                     
+                    <!-- R/H/E header -->
+                    {% if game.away_hits is not none or game.home_hits is not none %}
+                    <div class="d-flex justify-content-end mb-1">
+                        <small class="text-muted" style="font-size:0.65rem; letter-spacing:0.5px;">
+                            <span style="width:28px;display:inline-block;text-align:center;">R</span>
+                            <span style="width:28px;display:inline-block;text-align:center;">H</span>
+                            <span style="width:28px;display:inline-block;text-align:center;">E</span>
+                        </small>
+                    </div>
+                    {% endif %}
+
                     <!-- Away team -->
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="d-flex align-items-center">
@@ -165,7 +176,13 @@
                                 {{ game.away_team_name }}
                             </a>
                         </div>
-                        <span class="fs-5 fw-bold live-away-score">{{ game.away_score }}</span>
+                        <div class="d-flex align-items-center">
+                            <span class="fs-5 fw-bold live-away-score" style="width:28px;text-align:center;">{{ game.away_score }}</span>
+                            {% if game.away_hits is not none %}
+                            <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_hits }}</span>
+                            <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_errors or 0 }}</span>
+                            {% endif %}
+                        </div>
                     </div>
                     
                     <!-- Home team -->
@@ -179,8 +196,51 @@
                                 {{ game.home_team_name }}
                             </a>
                         </div>
-                        <span class="fs-5 fw-bold live-home-score">{{ game.home_score }}</span>
+                        <div class="d-flex align-items-center">
+                            <span class="fs-5 fw-bold live-home-score" style="width:28px;text-align:center;">{{ game.home_score }}</span>
+                            {% if game.home_hits is not none %}
+                            <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_hits }}</span>
+                            <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_errors or 0 }}</span>
+                            {% endif %}
+                        </div>
                     </div>
+                    
+                    <!-- Live situation (runners, count, pitcher) -->
+                    {% if game.situation %}
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- Base diamond -->
+                            <svg width="32" height="32" viewBox="0 0 40 40" style="flex-shrink:0;">
+                                <rect x="13" y="3" width="14" height="14" rx="1" transform="rotate(45 20 10)" 
+                                      fill="{{ '#fbbf24' if game.situation.onSecond else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                                <rect x="23" y="13" width="14" height="14" rx="1" transform="rotate(45 30 20)" 
+                                      fill="{{ '#fbbf24' if game.situation.onFirst else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                                <rect x="3" y="13" width="14" height="14" rx="1" transform="rotate(45 10 20)" 
+                                      fill="{{ '#fbbf24' if game.situation.onThird else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                            </svg>
+                            <!-- Outs -->
+                            <div>
+                                <span style="font-size:0.7rem;" class="text-muted">
+                                    {% for i in range(3) %}
+                                    <span style="color:{{ '#fbbf24' if i < game.situation.outs else '#374151' }};">●</span>
+                                    {% endfor %}
+                                </span>
+                                {% if game.situation.balls is not none %}
+                                <small class="text-muted d-block" style="font-size:0.65rem;">{{ game.situation.balls }}-{{ game.situation.strikes }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <!-- Pitcher/Batter -->
+                        <div class="text-end" style="font-size:0.7rem;">
+                            {% if game.situation.pitcher %}
+                            <div class="text-muted">P: {{ game.situation.pitcher }}</div>
+                            {% endif %}
+                            {% if game.situation.batter %}
+                            <div class="text-muted">AB: {{ game.situation.batter }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                     
                     <!-- Pre-game predictions -->
                     <div class="mt-2 pt-2 border-top">
