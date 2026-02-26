@@ -18,6 +18,33 @@ from web.bet_quality import (
 )
 from web.services.series_probability import compute_series_probs
 
+# Lazy-loaded calibrator
+_page_calibrator = None
+
+def _get_calibrator():
+    global _page_calibrator
+    if _page_calibrator is None:
+        try:
+            from models.calibration import Calibrator
+            cal = Calibrator()
+            if cal._load():
+                _page_calibrator = cal
+            else:
+                _page_calibrator = False
+        except Exception:
+            _page_calibrator = False
+    return _page_calibrator if _page_calibrator is not False else None
+
+
+def _add_calibrated_edge(game, prob, ml):
+    """Add calibrated_prob and calibrated_edge to a game dict."""
+    cal = _get_calibrator()
+    if cal and ml and prob:
+        cal_p = cal.calibrate(prob)
+        implied = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
+        game['calibrated_prob'] = round(cal_p, 4)
+        game['calibrated_edge'] = round((cal_p - implied) * 100, 1)
+
 
 def build_betting_page_context(conference=''):
     """Build template context for the betting analysis page."""
@@ -146,6 +173,7 @@ def build_betting_page_context(conference=''):
         g['rejection_reason'] = reason
         if passes:
             g['quality_score'] = bet_quality_score(bet_check, 'consensus')
+            _add_calibrated_edge(g, prob, ml)
             quality_confident.append(g)
     quality_confident.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
     confident_bets = quality_confident[:QUALITY_MAX_PER_TYPE]
@@ -178,6 +206,7 @@ def build_betting_page_context(conference=''):
         g['rejection_reason'] = reason
         if passes:
             g['quality_score'] = bet_quality_score(bet_check, 'ev')
+            _add_calibrated_edge(g, prob, ml)
             quality_ev.append(g)
     quality_ev.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
     ev_bets = quality_ev[:QUALITY_MAX_PER_TYPE]
