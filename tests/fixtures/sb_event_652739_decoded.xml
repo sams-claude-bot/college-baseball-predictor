@@ -1,0 +1,187 @@
+<BCSResponse><event id="652739" secondaryid="" groupid="lbst" groupbroadcast="" groupname="Long Beach State" 
+			homeid="{$this->event->homeid}" visitorid="{$this->event->visitorid}" homename="Washington State" visitorname="BYU" 
+			disabled="0"  completed="0" archived="0" isArchive="" broadcast="1" security="0" neutral="1" testEvent="0" tid="" hseason="0" vseason="0" altid="" ncaaid="" nlsid="" alwaysshow="0" class="d1" ><title><![CDATA[BYU vs. Washington State]]></title><venue><![CDATA[Bohl Diamond at Blair Field]]></venue><location><![CDATA[Long Beach, CA]]></location><date>February 26, 2026</date><dbdate>2026-02-26</dbdate><serverdate>2026-02-26</serverdate><time>1:00 PM PT</time><comment><![CDATA[]]></comment><xmlfile><![CDATA[lbst/652739.xml]]></xmlfile><sport>bsgame</sport><sportLong>Baseball</sportLong><subtype></subtype><tags><![CDATA[]]></tags><cssfile>longbeach</cssfile><gender>M</gender><siteid></siteid><homeimage><![CDATA[https://s3.amazonaws.com/s3.statbroadcast.com/logos/wsu.png]]></homeimage><visitorimage><![CDATA[https://s3.amazonaws.com/s3.statbroadcast.com/logos/byu.png]]></visitorimage><gameimage><![CDATA[]]></gameimage><groupimage><![CDATA[https://s3.amazonaws.com/s3.statbroadcast.com/logos/lbsu.png]]></groupimage><allowembed>0</allowembed><mobilesite><![CDATA[https://www.statbroadcast.com/events/statbroadcast.php?gid=lbst]]></mobilesite><defaultcampaign><![CDATA[{"campaign_id" : 1, 
+    "_comment": "Default event campaign; broadcast - bottom, top ,pregame, nogame. media - pregame, nogame. mobile - bottom, top, pregame, nogame.",
+    "adType": "insert",
+    "initFunction": "window.statBroadcast.Utils.loadjscssfile('a.pub.network/statbroadcast-com/cls.css', 'css');window.statBroadcast.Utils.freestarInit({'units': ['loading','adhesion','sticky']});window.statBroadcast.Utils.ads.disableInterstitial();",
+    "jsFile": "https://a.pub.network/statbroadcast-com/pubfig.min.js",
+    "campaigns": [
+        {
+            "desc": "Top Banner Ad for Broadcast",
+            "product": "statbroadcast",
+            "location": "#statbroadcast-ad-top-banner",
+            "stage": "ingame",
+            "disabled": false,
+            "smallBanner": false,
+            "ins": "<div align='center' data-freestar-ad='__320x100 __970x90' id='statbroadcast_header_stats_1' style='min-height:100px'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_header_stats', 'slotId': 'statbroadcast_header_stats_1', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Top Banner Ad for Media",
+            "product": "statmonitr",
+            "location": "#statbroadcast-ad-top-banner",
+            "stage": "ingame",
+            "type": "past",
+            "disabled": false,
+            "noBanner": true,
+            "ins": "<div align='center' data-freestar-ad='__320x100 __970x90' id='statbroadcast_header_stats_2'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_header_stats', 'slotId': 'statbroadcast_header_stats_2', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Top Banner Ad for Mobile",
+            "product": "mobile",
+            "location": "#statbroadcast-ad-midtop-banner",
+            "stage": "ingame",
+            "noBanner": false,
+            "disabled": false,
+            "ins": "<div align='center' data-freestar-ad='__320x50' id='mobile_header_stats_3'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_header_stats', 'slotId': 'mobile_header_stats_3', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Sticky Top Banner for Mobile",
+            "product": "mobile",
+            "location": "#statbroadcast-ad-midtop-banner",
+            "stage": "ingame",
+            "noBanner": true,
+            "disabled": true,
+            "ins": "<div align='center' data-freestar-ad='__320x50' id='mobile_header_stats_4' style='overflow:hidden !important; min-height:55px;max-height:75px !important;'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_header_stats', 'slotId': 'mobile_header_stats_4', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "SB Pushdown Top Banner for Mobile",
+            "product": "mobile",
+            "location": "#statbroadcast-ad-midtop-banner",
+            "stage": "ingame",
+            "disabled": true,
+            "smallBanner": true,
+            "noBanner": false,
+            "ins": "<div align='center' data-freestar-ad='__320x50' id='statbroadcast_stickyheader_stats' class='pushdown'></div>",
+            "insertFunction": "$('#statbroadcast-ad-midtop-banner').stickyMobileAd('statbroadcast_header_stats', 'statbroadcast_stickyheader_stats', '#statbroadcast-ad-top-banner',freestar);"
+        },
+        {
+            "desc": "SB Pushdown Top Banner for Broadcast",
+            "product": "statbroadcast",
+            "location": "#statbroadcast-ad-top-banner",
+            "stage": "ingame",
+            "disabled": true,
+            "smallBanner": false,
+            "noBanner": false,
+            "ins": "<div class='w-100 bg-primary pushdown' style='height:100px'><div align='center' data-freestar-ad='__320x100 __970x90' id='statbroadcast_branded_header_stats'></div></div>",
+            "insertFunction1": "window.statBroadcast.Utils.loadjscssfile('a.pub.network/core/pubfig/cls.css', 'css');freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_header_stats', 'slotId': 'statbroadcast_branded_header_stats', 'targeting': window.targetingData}]);$.pushdown('pushdown');});",
+            "insertFunction": "$('#statbroadcast-ad-top-banner').stickyAd('statbroadcast_header_stats', 'statbroadcast_branded_header_stats', freestar,{delayPushup: true});"
+        },
+        {
+            "desc": "bottom banner for Broadcast",
+            "product": "mobile",
+            "location": "#statbroadcast-ad-bottom-banner",
+            "stage": "ingame",
+            "disabled": false,
+            "ins": "<div align='center' style='margin-bottom:5em' data-freestar-ad='__336x280 __300x250 __320x100 __320x50' id='statbroadcast_bottom_stats_5'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_leaderboard_btf_stats', 'slotId': 'statbroadcast_bottom_stats_5', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Large bottom banner for Broadcast",
+            "product": "statbroadcast",
+            "location": "#statbroadcast-ad-bottom-banner",
+            "stage": "ingame",
+            "disabled": false,
+            "ins": "<div align='center' data-freestar-ad='__336x280 __970x250' id='statbroadcast_bottom_stats_6'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_leaderboard_btf_stats', 'slotId': 'statbroadcast_bottom_stats_6', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Tri rec bottom banner for Broadcast",
+            "product": "statbroadcast",
+            "location": "#statbroadcast-ad-bottom-banner",
+            "stage": "ingame",
+            "disabled": true,
+            "ins": "<div class='text-center mx-auto'><div align='center' data-freestar-ad='__300x250' id='statbroadcast_trirec_1' class='d-inline-block mr-2 align-middle'></div><div align='center' class='d-inline-block mr-2 align-middle' data-freestar-ad='__300x250' id='statbroadcast_trirec_2'></div><div align='center' class='d-inline-block align-middle' data-freestar-ad='__300x250' id='statbroadcast_trirec_3'></div></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_btf_medrec_stats_1', 'slotId': 'statbroadcast_trirec_1', 'targeting': window.targetingData}]);freestar.newAdSlots([{ placementName: 'statbroadcast_btf_medrec_stats_2', 'slotId': 'statbroadcast_trirec_2', 'targeting': window.targetingData}]);freestar.newAdSlots([{ placementName: 'statbroadcast_btf_medrec_stats_3', 'slotId': 'statbroadcast_trirec_3', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Sticky Bottom Banner for Broadcast",
+            "product": "statbroadcast mobile",
+            "location": "#statbroadcast-floating-ad",
+            "stage": "ingame",
+            "disabled": false,
+            "ins": "",
+            "insertFunction": "freestar.queue.push(function() {window.setPageTargeting(googletag.pubads());});window.freestar.newStickyFooter('statbroadcast_adhesion_stats');"
+        },
+        {
+            "desc": "Sticky Bottom Banner for media",
+            "product": "statmonitr",
+            "location": "#statbroadcast-floating-ad",
+            "stage": "ingame",
+            "type": "past",
+            "disabled": false,
+            "ins": "",
+            "insertFunction": "freestar.queue.push(function() {window.setPageTargeting(googletag.pubads());});window.freestar.newStickyFooter('statbroadcast_adhesion_stats');"
+        },
+        {
+            "desc": "adjust sticky footer",
+            "product": "statbroadcast mobile",
+            "location": "#statbroadcast-ad-bottom-banner",
+            "stage": "ingame",
+            "ins": "",
+            "insertFunction": "setTimeout(function(){$('.fs-sticky-footer, .fs-sticky-parent').css('bottom','10px');}, 500);"
+        },
+        {
+            "desc": "Tri rec loading screenfor Broadcast",
+            "product": "statbroadcast",
+            "location": "#statbroadcast-modal-floating-ad",
+            "class": "statbroadcast-loading-ad",
+            "stage": "pregame nogame",
+            "disabled": true,
+            "ins": "<div class='text-center mx-auto'><div align='center' data-freestar-ad='__300x250' id='statbroadcast_trirecload_1' class='d-inline-block mr-2 align-middle'></div><div align='center' class='d-inline-block mr-2 align-middle' data-freestar-ad='__300x250' id='statbroadcast_trirecload_2'></div><div align='center' class='d-inline-block align-middle' data-freestar-ad='__300x250' id='statbroadcast_trirecload_3'></div></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_btf_medrec_stats_1', 'slotId': 'statbroadcast_trirecload_1', 'targeting': window.targetingData}]);freestar.newAdSlots([{ placementName: 'statbroadcast_btf_medrec_stats_2', 'slotId': 'statbroadcast_trirecload_2', 'targeting': window.targetingData}]);freestar.newAdSlots([{ placementName: 'statbroadcast_btf_medrec_stats_3', 'slotId': 'statbroadcast_trirecload_3', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Large Loading Screen floating banner ad for Broadcast",
+            "product": "statbroadcast",
+            "stage": "pregame",
+            "class": "statbroadcast-loading-ad",
+            "disabled": false,
+            "location": "#statbroadcast-modal-floating-ad",
+            "ins": "<div align='center' data-freestar-ad='__336x280 __970x250' id='statbroadcast_bottom_load_1'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_leaderboard_btf_stats', 'slotId': 'statbroadcast_bottom_load_1', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "Large Loading Screen floating banner ad for Broadcast",
+            "product": "statbroadcast",
+            "stage": "nogame",
+            "class": "statbroadcast-loading-ad",
+            "disabled": true,
+            "location": "#statbroadcast-modal-floating-ad",
+            "ins": "<div align='center' data-freestar-ad='__336x280 __970x250' id='statbroadcast_bottom_load_2'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots([{ placementName: 'statbroadcast_leaderboard_btf_stats', 'slotId': 'statbroadcast_bottom_load_2', 'targeting': window.targetingData}]);});"
+        },
+        {
+            "desc": "No game floating banner ad for Mobile",
+            "product": "mobile",
+            "stage": "pregame nogame",
+            "disabled": true,
+            "class": "statbroadcast-loading-ad",
+            "location": "#statbroadcast-modal-floating-ad",
+            "ins": "<div align='center' data-freestar-ad='__320x50 __320x100' id='mobile_nogame_stats'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots({ placementName: 'statbroadcast_header_stats', slotId: 'mobile_nogame_stats', 'targeting': window.targetingData});});"
+        },
+        {
+            "desc": "No game floating banner ad for Mobile",
+            "product": "mobile",
+            "stage": "pregame nogame",
+            "disabled": false,
+            "class": "statbroadcast-loading-ad",
+            "location": "#statbroadcast-modal-floating-ad",
+            "ins": "<div align='center' data-freestar-ad='__300x250 __320x100 __320x50'  id='mobile_nogame_stats_8'></div>",
+            "insertFunction": "freestar.queue.push(function() {freestar.newAdSlots({ placementName: 'statbroadcast_leaderboard_btf_stats', slotId: 'mobile_nogame_stats_8', 'targeting': window.targetingData});});"
+        },
+        {
+            "desc": "In-Game interstitial",
+            "product": "statbroadcast mobile",
+            "location": "#hooks",
+            "stage": "always",
+            "disabled": false,
+            "ins": "<div />",
+            "insertFunction": "window.interstitialSlot;window.googletag = window.googletag || { cmd: [] };googletag.cmd.push(() =>{window.interstitialSlot = googletag.defineOutOfPageSlot('/15184186,22755063862/statbroadcast_google_interstitial',googletag.enums.OutOfPageFormat.INTERSTITIAL,);if (window.interstitialSlot) {window.interstitialSlot.addService(googletag.pubads()).setConfig({interstitial: {triggers: {navBar: false,unhideWindow: true,},},});}      googletag.pubads().enableSingleRequest();googletag.enableServices();googletag.display(window.interstitialSlot);});"
+        }
+    ]
+}]]></defaultcampaign></event></BCSResponse>
