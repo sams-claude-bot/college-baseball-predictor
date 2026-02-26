@@ -219,14 +219,17 @@
                     {% if has_situation %}
                     <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center situation-panel" data-game-id="{{ game.id }}">
                         <div class="d-flex align-items-center gap-2">
-                            <!-- Base diamond -->
+                            <!-- Base diamond (prefer SB base runner data over ESPN) -->
+                            {% set on_1b = sit.get('sb_on_first') if sit.get('sb_on_first') is not none else sit.get('onFirst') %}
+                            {% set on_2b = sit.get('sb_on_second') if sit.get('sb_on_second') is not none else sit.get('onSecond') %}
+                            {% set on_3b = sit.get('sb_on_third') if sit.get('sb_on_third') is not none else sit.get('onThird') %}
                             <svg width="32" height="32" viewBox="0 0 40 40" style="flex-shrink:0;">
                                 <rect x="13" y="3" width="14" height="14" rx="1" transform="rotate(45 20 10)" 
-                                      fill="{{ '#fbbf24' if sit.get('onSecond') else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-second"/>
+                                      fill="{{ '#fbbf24' if on_2b else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-second"/>
                                 <rect x="23" y="13" width="14" height="14" rx="1" transform="rotate(45 30 20)" 
-                                      fill="{{ '#fbbf24' if sit.get('onFirst') else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-first"/>
+                                      fill="{{ '#fbbf24' if on_1b else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-first"/>
                                 <rect x="3" y="13" width="14" height="14" rx="1" transform="rotate(45 10 20)" 
-                                      fill="{{ '#fbbf24' if sit.get('onThird') else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-third"/>
+                                      fill="{{ '#fbbf24' if on_3b else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-third"/>
                             </svg>
                             <!-- Outs + Count -->
                             <div>

@@ -100,6 +100,12 @@ def merge_situation(existing_json, sb_situation):
         'sb_visitor_score': sb_situation.get('visitor_score'),
         'sb_home_score': sb_situation.get('home_score'),
         'sb_title': sb_situation.get('title'),
+        'sb_on_first': sb_situation.get('on_first'),
+        'sb_on_second': sb_situation.get('on_second'),
+        'sb_on_third': sb_situation.get('on_third'),
+        'sb_runner_first': sb_situation.get('runner_first'),
+        'sb_runner_second': sb_situation.get('runner_second'),
+        'sb_runner_third': sb_situation.get('runner_third'),
         'sb_updated_at': datetime.utcnow().isoformat(),
     }
 

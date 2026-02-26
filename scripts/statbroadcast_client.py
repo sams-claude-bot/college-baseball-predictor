@@ -181,11 +181,31 @@ def parse_situation(html: str) -> Dict[str, Any]:
         if atbat:
             result['batter_name'] = atbat.strip()
 
-    # Base runners from field alignment
-    # Look for offensive player markers or "AB - PlayerName" indicator
-    # The diamond shows bases occupied by checking for highlighted base indicators
-    # StatBroadcast uses base-indicator divs, but the content varies.
-    # For now, check if bases are mentioned in the "At Bat" card context
+    # Base runners from "Runners On Base" table
+    # Format: <tr><td>1B</td><td>PlayerName</td>...</tr>
+    runners_section = re.search(
+        r'Runners On Base.*?</table>', html, re.DOTALL
+    )
+    if runners_section:
+        runner_rows = re.findall(
+            r'<tr[^>]*>\s*<td[^>]*>\s*(1B|2B|3B)\s*</td>\s*<td[^>]*>\s*([^<]+)',
+            runners_section.group(0)
+        )
+        for base, name in runner_rows:
+            name = name.strip()
+            if base == '1B':
+                result['on_first'] = True
+                result['runner_first'] = name
+            elif base == '2B':
+                result['on_second'] = True
+                result['runner_second'] = name
+            elif base == '3B':
+                result['on_third'] = True
+                result['runner_third'] = name
+    # Default to False if not found
+    result.setdefault('on_first', False)
+    result.setdefault('on_second', False)
+    result.setdefault('on_third', False)
 
     # Line score — R/H/E per team
     # Extract from the line score table if present
