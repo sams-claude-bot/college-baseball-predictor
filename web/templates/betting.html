@@ -236,7 +236,12 @@
                             <span class="fw-bold">
                                 {% if game.model_agreement.pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}
                             </span>
-                            <span class="badge bg-info">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% conf</span>
+                            <span class="badge bg-info" title="Raw model confidence">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% conf</span>
+                            {% if game.calibrated_edge is defined and game.calibrated_edge is not none %}
+                            <span class="badge bg-{{ 'success' if game.calibrated_edge > 5 else 'warning text-dark' if game.calibrated_edge > 0 else 'danger' }}" title="Calibrated edge (adjusted for model overconfidence)">
+                                {{ game.calibrated_edge|round(1) }}% cal
+                            </span>
+                            {% endif %}
                         </div>
                         {% if game.series_probs %}
                         {% set sp = game.series_probs %}
@@ -303,6 +308,11 @@
                             {% if game.ev_per_100 %}
                             <span class="badge {% if game.ev_per_100 > 0 %}bg-success{% else %}bg-secondary{% endif %}">
                                 EV: {{ '+' if game.ev_per_100 > 0 else '' }}${{ game.ev_per_100|round(2) }}/100
+                            </span>
+                            {% endif %}
+                            {% if game.calibrated_edge is defined and game.calibrated_edge is not none %}
+                            <span class="badge bg-{{ 'success' if game.calibrated_edge > 5 else 'warning text-dark' if game.calibrated_edge > 0 else 'danger' }}" title="Calibrated edge (adjusted for model overconfidence)">
+                                {{ game.calibrated_edge|round(1) }}% cal
                             </span>
                             {% endif %}
                         </div>
