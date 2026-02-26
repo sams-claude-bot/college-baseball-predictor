@@ -112,7 +112,10 @@
             <div>
                 <span class="badge bg-light text-dark">+{{ parlay_american }}</span>
                 <span class="badge bg-light text-dark">${{ parlay_payout }} on $10</span>
-                <span class="badge bg-light text-dark">{{ parlay_prob }}% implied</span>
+                <span class="badge bg-light text-dark">{{ parlay_prob }}% raw</span>
+                {% if parlay_calibrated_prob %}
+                <span class="badge bg-warning text-dark" title="Calibrated probability — adjusted for model overconfidence">{{ parlay_calibrated_prob }}% cal</span>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -135,6 +138,9 @@
                         </div>
                         <div class="mt-1">
                             <small class="text-muted">+{{ leg.edge|round(1) }}% edge</small>
+                            {% if leg.calibrated_edge is defined and leg.calibrated_edge is not none %}
+                            <span class="badge bg-{{ 'success' if leg.calibrated_edge > 5 else 'warning text-dark' if leg.calibrated_edge > 0 else 'danger' }}" style="font-size: 0.65rem;" title="Calibrated edge">{{ leg.calibrated_edge|round(1) }}% cal</span>
+                            {% endif %}
                             {% if leg.models_agree and leg.models_agree >= 7 %}
                             <span class="badge bg-secondary ms-1" style="font-size: 0.65rem;">{{ leg.models_agree }}/12</span>
                             {% endif %}
@@ -189,8 +195,8 @@
             </div>
             <div style="border-left:1px solid rgba(255,255,255,0.1);"></div>
             <div>
-                <div style="font-size:24px;font-weight:800;color:#fbbf24;">{{ parlay_prob }}%</div>
-                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;">Model Prob</div>
+                <div style="font-size:24px;font-weight:800;color:#fbbf24;">{{ parlay_calibrated_prob if parlay_calibrated_prob else parlay_prob }}%</div>
+                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;">{% if parlay_calibrated_prob %}Cal Prob{% else %}Model Prob{% endif %}</div>
             </div>
         </div>
         <div style="text-align:center;margin-top:14px;font-size:11px;color:#475569;">baseball.mcdevitt.page</div>

@@ -245,6 +245,12 @@ def build_betting_page_context(conference=''):
                 prob = 1 - prob
         if not (PARLAY_MIN_PROB <= prob <= PARLAY_MAX_PROB):
             continue
+        # Calibrate probability for parlay scoring
+        cal = _get_calibrator()
+        cal_prob = cal.calibrate(prob) if cal else prob
+        implied = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
+        cal_edge = round((cal_prob - implied) * 100, 1)
+
         parlay_ml_candidates.append({
             'game': g,
             'type': 'ML',
@@ -253,6 +259,8 @@ def build_betting_page_context(conference=''):
             'pick_label': g.get('home_team_name') if g.get('best_pick') == 'home' else g.get('away_team_name'),
             'odds': ml,
             'prob': prob,
+            'calibrated_prob': round(cal_prob, 4),
+            'calibrated_edge': cal_edge,
             'edge': g['best_edge'],
             'models_agree': g.get('models_agree', 0),
             'game_id': g['game_id'],
@@ -261,9 +269,10 @@ def build_betting_page_context(conference=''):
     # Sort by a blend of edge and probability (sweet spot scoring)
     # Prefer ~75-80% range with good edge
     for c in parlay_ml_candidates:
-        # Score: penalize extremes, reward ~0.75 prob with high edge
-        prob_score = 1.0 - abs(c['prob'] - 0.77) * 3  # Peak at 77%
-        c['parlay_score'] = prob_score * c['edge']
+        # Score: use calibrated prob, penalize extremes, reward ~0.72 range with good calibrated edge
+        cp = c.get('calibrated_prob', c['prob'])
+        prob_score = 1.0 - abs(cp - 0.72) * 3  # Peak at 72% (calibrated sweet spot)
+        c['parlay_score'] = prob_score * max(c.get('calibrated_edge', c['edge']), 0)
     parlay_ml_candidates.sort(key=lambda x: x['parlay_score'], reverse=True)
 
     # Totals candidates for parlay
@@ -330,9 +339,11 @@ def build_betting_page_context(conference=''):
 
     parlay_decimal = 1.0
     parlay_combined_prob = 1.0
+    parlay_calibrated_prob = 1.0
     for leg in parlay_legs:
         parlay_decimal *= ml_to_decimal(leg['odds'])
         parlay_combined_prob *= leg['prob']
+        parlay_calibrated_prob *= leg.get('calibrated_prob', leg['prob'])
 
     parlay_american = 0
     if parlay_decimal > 2:
@@ -350,6 +361,7 @@ def build_betting_page_context(conference=''):
         'parlay_american': parlay_american,
         'parlay_payout': parlay_payout_per_10,
         'parlay_prob': round(parlay_combined_prob * 100, 1),
+        'parlay_calibrated_prob': round(parlay_calibrated_prob * 100, 1),
         'best_totals': best_totals,
         'conferences': conferences,
         'selected_conference': conference,
