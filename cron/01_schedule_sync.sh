@@ -16,7 +16,6 @@ for i in range(3):
     games = db.execute('SELECT COUNT(*) FROM games WHERE date = ?', (d,)).fetchone()[0]
     print(f'{d}: {games} games')
 " >> "$LOG" 2>&1
-echo "--- Backfill missing games ---" >> "$LOG"
-python3 -u scripts/backfill_missing_games.py --threshold 5 >> "$LOG" 2>&1
+# backfill_missing_games.py removed — d1bb_team_sync now covers this via ScheduleGateway
 
 echo "=== Done $(date) ===" >> "$LOG"
