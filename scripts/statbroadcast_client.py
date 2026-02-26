@@ -117,23 +117,24 @@ def parse_situation(html: str) -> Dict[str, Any]:
             if num:
                 result['inning'] = int(num.group(1))
 
-    # Outs — look for the OUTS indicator
-    # Pattern: <i class="sbicon ...">0</i> near "OUTS"
+    # Outs — StatBroadcast structure:
+    #   OUTS</span>
+    #   <span class="no-access"><i class="sbicon ...noaccess">ZZ</i></span>  (icon font, ignore)
+    #   <span class="d-inline d-sm-none">2</span>  (actual number, mobile fallback)
     outs_match = re.search(
-        r'OUTS.*?(?:<i[^>]*>|<span[^>]*>)(\d)</(?:i|span)>',
-        html, re.DOTALL | re.IGNORECASE
+        r'OUTS</span>.*?<span[^>]*d-inline[^>]*>(\d)</span>',
+        html, re.DOTALL
     )
     if not outs_match:
-        # Alternative: "0" near OUTS in mobile view
+        # Fallback: any single digit in a span near OUTS text
         outs_match = re.search(
-            r'<span[^>]*d-inline[^>]*>(\d)</span>\s*$',
-            html, re.MULTILINE
+            r'OUTS.*?<span[^>]*>(\d)</span>',
+            html, re.DOTALL
         )
-    if not outs_match:
-        # Try simpler approach: text after OUTS
-        outs_match = re.search(r'>(\d)\s*</.*?OUTS', html, re.DOTALL)
     if outs_match:
-        result['outs'] = int(outs_match.group(1))
+        val = int(outs_match.group(1))
+        if 0 <= val <= 2:
+            result['outs'] = val
 
     # Count (ball-strike) — "0-1", "2-2", etc.
     count = _first_match(r'font-size-125[^>]*>(\d-\d)</div>', html)

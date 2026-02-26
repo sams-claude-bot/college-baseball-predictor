@@ -197,14 +197,25 @@ class TestParseSynthetic:
         assert sit.get('home_score') == 3
 
     def test_parse_outs_zero(self):
-        html = '<div>OUTS</div><i class="sbicon">0</i>'
+        html = '''<span class="mr-2">OUTS</span>
+        <span class="no-access"><i class="sbicon noaccess">ZZ</i></span>
+        <span class="d-inline d-sm-none">0</span>'''
         sit = parse_situation(html)
         assert sit.get('outs') == 0
 
     def test_parse_outs_two(self):
-        html = '<div>OUTS</div><i class="sbicon font-size-300">2</i>'
+        html = '''<span class="mr-2">OUTS</span>
+        <span class="no-access"><i class="sbicon noaccess">ZZ</i></span>
+        <span class="d-inline d-sm-none">2</span>'''
         sit = parse_situation(html)
         assert sit.get('outs') == 2
+
+    def test_parse_outs_rejects_invalid(self):
+        """Outs > 2 should not be returned."""
+        html = '''<span class="mr-2">OUTS</span>
+        <span class="d-inline">5</span>'''
+        sit = parse_situation(html)
+        assert sit.get('outs') is None
 
     def test_parse_count_full(self):
         html = '<div class="font-size-125">3-2</div>'
