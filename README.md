@@ -1,28 +1,31 @@
 # College Baseball Predictor
 
-NCAA D1 college baseball prediction system with 12 models, automated data pipelines, betting analytics, and a live web dashboard.
+NCAA D1 college baseball prediction system with 14 win-probability models, 5 totals models, automated data pipelines, betting analytics, and a live web dashboard.
 
 **Live:** [baseball.mcdevitt.page](https://baseball.mcdevitt.page)  
 **Season:** 2026 (Feb 14 – June 22, CWS in Omaha)
 
-## Models (12)
+## Models (14 Win Probability + Meta-Ensemble)
 
-| Model | Type | Description |
-|-------|------|-------------|
-| Advanced | Statistical | Opponent-adjusted stats, recency-weighted |
-| Conference | Statistical | Conference strength adjustments |
-| Prior | Bayesian | Preseason rankings + program history |
-| Log5 | Formula | Bill James head-to-head |
-| Ensemble | Blend | Dynamic weighted combination of all models |
-| LightGBM | ML | Gradient boosting, 81 features |
-| Elo | Rating | Chess-style, updated per game |
-| Poisson | Statistical | Run distribution with weather adjustments |
-| XGBoost | ML | Gradient boosting, 81 features |
-| Pythagorean | Formula | Runs scored/allowed expectation |
-| Neural | ML | PyTorch NN, 81 features, 2-phase training |
-| Pitching | Statistical | Staff quality tables (ace, rotation, bullpen depth) |
+| Model | Type | Accuracy | Description |
+|-------|------|----------|-------------|
+| **PEAR** | Rating | **76.1%** | Power, Experience, Adjusted Rating composite |
+| **Quality** | Statistical | **72.1%** | Pitching + batting quality matchup model |
+| Neural | ML | 67.4% | PyTorch NN, 81 features, 2-phase training |
+| Elo | Rating | 67.3% | Chess-style, updated per game |
+| Prior | Bayesian | 67.2% | Preseason rankings + program history |
+| Ensemble | Blend | 66.7% | Dynamic weighted combination of all base models |
+| LightGBM | ML | 65.8% | Gradient boosting, 81 features |
+| Pythagorean | Formula | 65.8% | Runs scored/allowed expectation |
+| Conference | Statistical | 64.6% | Conference strength adjustments |
+| Poisson | Statistical | 64.3% | Run distribution with weather adjustments |
+| XGBoost | ML | 64.3% | Gradient boosting, 81 features |
+| Pitching | Statistical | 63.8% | Staff quality tables (ace, rotation, bullpen depth) |
+| Advanced | Statistical | 63.6% | Opponent-adjusted stats, recency-weighted |
+| Log5 | Formula | 63.6% | Bill James head-to-head |
+| **Meta-Ensemble** | Stacking | **76.7%** | LogReg over all 14 models (walk-forward validated) |
 
-Plus 3 run projection models (NN totals, NN spread, DOW totals) and a weather adjustment model.
+Plus 5 totals models (runs_ensemble 67.9%, runs_poisson 67.2%, runs_advanced 66.9%, nn_slim_totals 64.7%, runs_pitching 51.1%) and a weather adjustment model.
 
 ## Features
 
@@ -50,11 +53,21 @@ API: `/api/best-bets`, `/api/predict`, `/api/runs`, `/api/teams`
 - OpenClaw cron jobs for automation
 - Cloudflare Tunnel for public access
 
+## Architecture: Schedule Gateway
+
+All schedule writes (creates, scores, finalize, postpone) route through `scripts/schedule_gateway.py` — a single write path with:
+- Deterministic game ID generation
+- Multi-strategy dedup (exact, legacy suffix, swapped H/A, fuzzy)
+- Status hierarchy enforcement (final > in-progress > scheduled)
+- Ghost replacement with FK migration across 16 tables
+- Structured audit logging
+
 ## Structure
 
 ```
 ├── models/          # 23 model files (win prob, runs, features, weather)
 ├── scripts/         # Data collection, training, predictions, betting
+│   └── schedule_gateway.py  # Single write path to games table
 ├── web/             # Flask app + 16 Jinja2 templates
 ├── config/          # Team ID mappings (D1BB slugs, ESPN IDs)
 ├── tasks/           # Lessons learned, task tracking

@@ -1,115 +1,104 @@
 # Model Improvement Plan — 2026-02-22
 
-Based on current evaluated performance in `model_predictions` and `totals_predictions`.
+> **Updated: 2026-02-26** — Corrected totals accuracy (was measurement bug), added pear/quality models, retrained meta-ensemble.
 
-## Current Snapshot
+## Current Snapshot (Feb 26)
 
-### Win model accuracy (evaluated)
+### Win model accuracy (evaluated on graded predictions)
 
-- `prior`: **68.67%**
-- `neural`: **68.12%**
-- `ensemble`: **68.00%**
-- `elo`: **67.71%**
-- `pythagorean`: **66.67%**
-- `poisson`: **66.00%**
-- `lightgbm`: **65.55%**
-- `conference`: **64.67%**
-- `advanced`: **64.22%**
-- `pitching`: **64.00%**
-- `log5`: **63.78%**
-- `xgboost`: **63.31%**
+| Model | Predictions | Correct | Accuracy | Notes |
+|-------|-------------|---------|----------|-------|
+| pear | 1,059 | 806 | **76.1%** | NEW — Power/Experience/Adjusted Rating |
+| quality | 1,124 | 810 | **72.1%** | NEW — Pitching+batting quality matchup |
+| neural | 552 | 372 | 67.4% | |
+| elo | 587 | 395 | 67.3% | |
+| prior | 588 | 395 | 67.2% | |
+| ensemble | 588 | 392 | 66.7% | Dynamic weighted blend |
+| lightgbm | 585 | 385 | 65.8% | |
+| pythagorean | 588 | 387 | 65.8% | |
+| conference | 588 | 380 | 64.6% | |
+| poisson | 588 | 378 | 64.3% | |
+| xgboost | 585 | 376 | 64.3% | |
+| pitching | 588 | 375 | 63.8% | |
+| advanced | 588 | 374 | 63.6% | |
+| log5 | 588 | 374 | 63.6% | |
+| **meta_ensemble** | — | — | **76.7%** | Walk-forward; LogReg over all 14 models |
 
-### Totals model O/U accuracy (evaluated)
+### Totals model O/U accuracy (evaluated — CORRECTED)
 
-- `runs_ensemble`: **35.62%**
-- `runs_poisson`: **35.62%**
-- `runs_advanced`: **34.91%**
-- `runs_pitching`: **26.18%**
-- `nn_slim_totals`: **24.38%**
+> ⚠️ **The original 35% figures were a measurement bug** — the query divided by ALL rows
+> (including ~37,000 ungraded) instead of only graded rows. See `docs/totals_audit_report.md`.
 
-## Priority Plan (in order)
+| Model | Graded | Correct | Accuracy |
+|-------|--------|---------|----------|
+| runs_ensemble | 131 | 89 | **67.9%** |
+| runs_poisson | 131 | 88 | 67.2% |
+| runs_advanced | 130 | 87 | 66.9% |
+| nn_slim_totals | 85 | 55 | 64.7% |
+| runs_pitching | 131 | 67 | 51.1% |
 
-## 1) Win Ensemble Stabilization (High ROI, low risk)
-
-1. Make ensemble recency-aware (e.g., 14/30/60-game weighted windows).
-2. Temporarily downweight persistently weak models (`xgboost`, `log5`, `pitching`) until recovery.
-3. Add calibration checks (Brier score + reliability bins) for top models.
-4. Add champion/challenger gating: no weight increase unless challenger beats baseline on rolling holdout.
-
-**Target:** ensemble outperforms best base model by ~1–2 points over rolling windows.
-
----
-
-## 2) Totals Pipeline Rebuild (Critical)
-
-1. Run data integrity audit first:
-   - line timestamp vs prediction timestamp alignment
-   - push/final grading logic
-   - game ID/join correctness (no swap/duplicate issues)
-2. Reframe totals target as residual vs market total (delta-to-line), not only raw total runs.
-3. Segment totals by regime:
-   - park/venue effects
-   - weather-sensitive spots
-   - conference/game-context buckets
-4. Tighten confidence/selection policy:
-   - no-bet band around zero edge
-   - higher minimum edge for action
-5. Reduce/disable weak components until validation improves (`runs_pitching`, `nn_slim_totals`).
-
-**Target:** first recover to >50% hit rate, then iterate toward 53–55%.
+**Direction breakdown (runs_ensemble):** UNDER 76.0% (73/96), OVER 45.7% (16/35) — strong UNDER bias.
 
 ---
 
-## 3) Feature Quality Upgrades
+## Completed Items ✅
 
-1. Add starter certainty + bullpen fatigue proxies.
-2. Add rest/travel + series-game context features (Fri/Sat/Sun effects).
-3. Add park factor × weather interaction features.
-4. Reduce stale/default-heavy features; keep validated signal features.
+### Meta-Ensemble Retrained (Feb 26)
+- Added pear + quality as features (14 models total)
+- Switched from XGBoost to LogReg primary (better on small-data walk-forward)
+- Walk-forward accuracy: 76.7% on 549 games
+- pear_prob is 2nd most important feature after elo_diff
+- All 7 meta_ensemble tests fixed and passing
 
----
+### Schedule Gateway (Feb 26)
+- Single write path to games table (`scripts/schedule_gateway.py`)
+- 4 scripts rewired (d1bb_team_sync, finalize_games, espn_live_scores, d1bb_schedule)
+- backfill_missing_games removed from cron (redundant)
+- 24 tests including W/L verification against D1Baseball
+- Eliminates ghost games, duplicate IDs, and score conflicts
 
-## 4) Training + Validation Discipline
+### Totals Accuracy Bug Fixed (Feb 24)
+- 35% was a measurement bug, not a model bug
+- Actual accuracy is 67.9% (runs_ensemble)
+- Documented in `docs/totals_audit_report.md`
 
-1. Use strict walk-forward time splits (no random CV leakage for production metrics).
-2. Report performance by segment:
-   - conference
-   - favorite/underdog buckets
-   - odds bands
-3. Promote models only when challenger beats champion on:
-   - accuracy
-   - calibration
-   - value proxy metrics
-
----
-
-## 5) Betting Logic Hardening
-
-1. Treat outputs primarily as ranking signal first, not automatic bet trigger.
-2. Add line-movement sanity checks.
-3. Require agreement + calibration gate before recording bets.
-4. Track CLV-like process metric where closing line unavailable.
+### Previous (Feb 24 Overhaul)
+- Betting v3 quality gates (no underdogs, margin requirements, Vegas disagreement cap)
+- Runs Ensemble v2 (NegBin, OVER gate, context adjustment)
+- MAE + O/U accuracy metrics
+- Real NegBin CDF for parlays
+- Models page overhaul + trend chart markers
 
 ---
 
-## 6) Execution Plan (2 weeks)
+## Remaining Priority Plan
 
-### Week 1
+### P1 — This Week
 
-- Totals integrity audit + fixes
-- Ensemble recency weighting + challenger gate
-- Calibration reporting additions
+1. **Probability calibration** (Platt/isotonic) for top models — betting is losing money on overconfident probs
+2. **Weekly meta-ensemble retraining cron** — retrain as more games accumulate
+3. **Totals OVER accuracy** — currently 45.7%; consider asymmetric threshold or higher edge requirement for OVER calls
+4. **runs_pitching at 51%** — effectively random; consider disabling or zero-weighting in ensemble
 
-### Week 2
+### P2 — Next 1-2 Weeks
 
-- Totals v2 (delta-to-line approach)
-- Downweight/disable weakest totals components
-- Segment-level validation and controlled rollout
+5. **CLV tracking** — compare model prob vs closing line to measure edge quality
+6. **Kelly sizing with calibrated probabilities** — current Kelly uses uncalibrated probs
+7. **NCAA stats scraper — expand to all 9 stat types** (currently only ERA + OBP)
+8. **Model confidence intervals** — track prediction uncertainty, not just point estimates
+9. **Re-evaluate XGBoost vs LogReg for meta-ensemble** at ~1,500 graded games
+
+### P3 — Ongoing
+
+10. Feature quality upgrades (starter certainty, bullpen fatigue, rest/travel, park×weather)
+11. Segment-level validation (conference, favorite/underdog, odds bands)
+12. nn_slim retraining with historical seasons (2021-2025)
 
 ---
 
 ## Success Criteria
 
-- Ensemble consistently exceeds top base model by ≥1 point on rolling evaluation.
-- Totals models recover above 50% before re-expanding bet volume.
-- Promotion/deployment decisions are benchmark-gated and reproducible.
+- Meta-ensemble consistently exceeds best base model (pear 76.1%) on rolling evaluation ✅ (76.7%)
+- Totals OVER accuracy > 50% (currently 45.7%)
+- Betting P&L turns positive after calibration
+- Promotion/deployment decisions are benchmark-gated and reproducible

@@ -1,7 +1,7 @@
 # College Baseball Predictor — Project Context
 
 > **Read this first.** Single source of truth for understanding the project.
-> Last verified: February 22, 2026
+> Last verified: February 26, 2026
 > 
 > ⚠️ Documentation sync is in progress. For active cleanup/status tracking, see:
 > - `docs/CLEANUP_AUDIT_2026-02-22.md`
@@ -10,7 +10,7 @@
 
 ## What This Is
 
-NCAA D1 college baseball prediction system with a web dashboard. Collects data from D1Baseball and DraftKings, runs 12 prediction models, tracks betting P&L, and serves everything at [baseball.mcdevitt.page](https://baseball.mcdevitt.page).
+NCAA D1 college baseball prediction system with a web dashboard. Collects data from D1Baseball and DraftKings, runs 14 win-probability models + meta-ensemble, tracks betting P&L, and serves everything at [baseball.mcdevitt.page](https://baseball.mcdevitt.page).
 
 - **Season:** Feb 13 – June 22, 2026 (CWS in Omaha)
 - **Focus:** Mississippi State + Auburn (featured), all SEC, all Power 4, Top 25, full D1 scores
@@ -26,22 +26,25 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 - `MANIFEST.md` is the canonical file classification/path inventory.
 - `docs/DASHBOARD.md` is limited to dashboard routes/data dependencies (not full cron/runbook docs).
 
-## Current Status (as of Feb 18)
+## Current Status (as of Feb 26)
 
 | Metric | Value |
 |--------|-------|
-| Total games tracked | 2,146 |
-| Games completed | 396 |
-| Games scheduled | 1,723 |
-| D1 teams | 407 |
-| Elo ratings | 392 |
-| Model predictions made | 1,041 |
-| Player stats rows | 10,706 |
-| Venues with coordinates | 299 |
-| Team aliases | 704 |
-| Games with weather | 520 |
-| Betting lines captured | 88 |
-| Season date range | Feb 13 – Feb 19 (7 days in) |
+| Total games tracked | 8,344 |
+| Games completed | 1,160 |
+| Games scheduled | ~7,150 |
+| D1 teams | 313 |
+| Elo ratings | 317 |
+| Model predictions made | 95,370 |
+| Player stats rows | 12,174 |
+| Team aliases | 857 |
+| Games with weather | 1,529 |
+| Betting lines captured | 374 (329 games) |
+| Season date range | Feb 13 – Feb 26 (14 days in) |
+| Tests passing | 350/350 |
+| Top model (PEAR) | 76.1% accuracy |
+| Meta-ensemble (LogReg) | 76.7% walk-forward |
+| Totals (runs_ensemble) | 67.9% O/U accuracy |
 
 ---
 
@@ -58,7 +61,7 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 - **D1Baseball is the source of truth** for scores, schedules, and stats
 - **DO NOT scrape team athletics sites** — causes duplicates (learned Feb 14)
 - **DO NOT reset/re-backfill Elo** — let it update naturally (Sam's directive)
-- ESPN future games get replaced when D1BB's 7-day window reaches them (dedup in `d1bb_schedule.py`)
+- ESPN future games get replaced when D1BB's 7-day window reaches them (dedup via `schedule_gateway.py`)
 - Team name mismatches handled via `team_aliases` table (704 entries across DK/ESPN/D1BB/manual)
 
 ---
@@ -76,17 +79,17 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 | `team_aliases` | 704 | Cross-source name mapping (DK↔ESPN↔D1BB) |
 | `player_stats` | 10,706 | Per-player batting/pitching stats + advanced metrics (wOBA, FIP, xFIP, wRC+) |
 | `player_stats_snapshots` | varies | Point-in-time stat snapshots for historical tracking |
-| `model_predictions` | 4,235 | Pre-game predictions from all models, graded post-game |
+| `model_predictions` | 95,370 | Pre-game predictions from all 14+1 models, graded post-game |
 | `totals_predictions` | varies | Per-component O/U predictions (runs_poisson, runs_pitching, runs_advanced, runs_ensemble) |
 | `team_pitching_quality` | 292 | Staff quality metrics — ace, rotation, bullpen, depth, HHI |
 | `team_batting_quality` | 292 | Lineup quality — OPS, wOBA, wRC+, bench depth, concentration |
-| `elo_ratings` | 391 | Current Elo rating per team |
+| `elo_ratings` | 317 | Current Elo rating per team |
 | `elo_history` | varies | Elo rating changes per game |
-| `betting_lines` | 78 | DraftKings odds per game (ML, spread, O/U) |
+| `betting_lines` | 374 | DraftKings odds per game (ML, spread, O/U) |
 | `tracked_bets` | 1 | Moneyline bet tracking with P&L |
 | `tracked_bets_spreads` | 0 | Spread/total bet tracking |
 | `tracked_confident_bets` | 2 | High-consensus bet tracking (v2) |
-| `game_weather` | 520 | Weather forecasts for games |
+| `game_weather` | 1,529 | Weather forecasts for games |
 | `venues` | 299 | Stadium coordinates, dome status, capacity |
 | `power_rankings` | 382 | Model-generated weekly power rankings |
 | `rankings_history` | varies | D1Baseball Top 25 poll history |
@@ -320,17 +323,19 @@ Also in system cron (not bash scripts):
 ### Data Collection
 | Script | What It Does |
 |--------|-------------|
-| `d1bb_schedule.py --today` | Live score updates from D1Baseball scoreboard |
-| `d1bb_schedule.py --days 7` | Schedule sync — finds new games, time changes, cancellations |
+| `schedule_gateway.py` | **Single write path to games table** — all schedule scripts route through this |
+| `d1bb_team_sync.py` | Nightly schedule sync for all 311 teams via HTTP (no browser) → ScheduleGateway |
+| `d1bb_schedule.py --today` | Live score updates from D1Baseball scoreboard → ScheduleGateway |
+| `espn_live_scores.py` | ESPN API live scores (every 2 min during game hours) → ScheduleGateway |
+| `finalize_games.py --date YYYY-MM-DD` | Finalize/postpone yesterday's games → ScheduleGateway |
 | `d1bb_box_scores.py --date YYYY-MM-DD` | Box score scraper — creates game records + player box scores |
 | `d1bb_scraper.py --all-d1 --delay 2` | All D1 player stats (basic + advanced) via Playwright (~1hr) |
-| ~~`d1bb_advanced_scraper.py`~~ | Archived Feb 19 — redundant, `d1bb_scraper.py --all-d1` covers basic + advanced in one pass |
 | `weather.py fetch --upcoming` | Open-Meteo weather for next 3 days of P4 home games |
 
 ### Predictions & Evaluation
 | Script | What It Does |
 |--------|-------------|
-| `predict_and_track.py predict` | Generate predictions for upcoming games (all 12 models) |
+| `predict_and_track.py predict` | Generate predictions for upcoming games (all 14 models + meta-ensemble) |
 | `predict_and_track.py evaluate` | Grade predictions against final scores |
 | `predict_and_track.py accuracy` | Display model accuracy breakdown |
 
@@ -369,14 +374,33 @@ Also in system cron (not bash scripts):
 
 ---
 
-## Dedup Logic (ESPN → D1BB Migration)
+## Schedule Gateway & Dedup Logic
 
-ESPN-sourced games coexist with D1BB games. When D1BB's 7-day schedule window reaches an ESPN game:
+**All schedule writes route through `scripts/schedule_gateway.py`** (since Feb 26). This eliminates the prior problem of 7 scripts writing to `games` with 3 different upsert strategies.
 
-1. `d1bb_schedule.py` generates D1BB-format game ID
-2. Checks exact ID match → update if found
-3. If no match, fuzzy-searches by `date + home_team_id + away_team_id` (using `team_aliases` for cross-source name resolution + home/away swap detection)
-4. If ESPN ghost found → migrates FK data (predictions, bets, weather) → replaces game
+### Write Path
+```
+d1bb_team_sync.py ──┐
+d1bb_schedule.py ───┤
+espn_live_scores.py ┼──→ ScheduleGateway.upsert_game() ──→ games table
+finalize_games.py ──┤
+```
+
+### Dedup Strategy (in `find_existing_game()`)
+1. **Exact canonical ID** — `{date}_{away}_{home}` (no suffix for game 1, `_gm2` for game 2)
+2. **Legacy suffix variants** — `_g1`, `_gm1` for game 1 (historical artifacts)
+3. **Swapped home/away** — same date, teams reversed (neutral-site labeling differences)
+4. **Fuzzy match** — same date + same two teams in any order (catches ESPN ghost IDs)
+
+### Ghost Replacement
+When a match is found with a different ID (e.g., ESPN ghost), the gateway:
+1. Migrates FK rows across 16 tables (predictions, betting lines, weather, etc.)
+2. Deletes the old game row
+3. Creates the new game with the canonical ID
+
+### Status Hierarchy
+`final` > `in-progress` > `scheduled` > `postponed` > `cancelled`  
+A lower-status update cannot overwrite a higher-status game.
 
 **To add a new team name mapping:** `INSERT INTO team_aliases (alias, team_id, source) VALUES ('DK Name', 'db-team-id', 'draftkings')` — no code change needed.
 
