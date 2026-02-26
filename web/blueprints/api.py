@@ -3,9 +3,10 @@ API Blueprint - All API endpoints
 """
 
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 
 # Add paths for imports
 base_dir = Path(__file__).parent.parent.parent
@@ -504,6 +505,63 @@ def live_scores():
             has_live = True
     
     return jsonify({'games': games, 'has_live': has_live, 'date': date_str})
+
+
+@api_bp.route('/api/live-stream')
+def live_stream():
+    """Server-Sent Events stream for live score updates."""
+    last_id = request.headers.get('Last-Event-ID', None)
+
+    def generate():
+        nonlocal last_id
+
+        # On fresh connection (no Last-Event-ID), start from latest event
+        # to avoid replaying entire history
+        if last_id is None:
+            conn = get_connection()
+            try:
+                row = conn.execute('SELECT MAX(id) FROM live_events').fetchone()
+                last_id = (row[0] or 0) if row else 0
+            except Exception:
+                last_id = 0
+            finally:
+                conn.close()
+        else:
+            last_id = int(last_id)
+
+        while True:
+            conn = get_connection()
+            try:
+                events = conn.execute(
+                    'SELECT id, event_type, data_json FROM live_events WHERE id > ? ORDER BY id LIMIT 20',
+                    (last_id,)
+                ).fetchall()
+            except Exception:
+                # Table may not exist yet
+                events = []
+            finally:
+                conn.close()
+
+            for event in events:
+                last_id = event['id']
+                yield "id: {eid}\nevent: {etype}\ndata: {data}\n\n".format(
+                    eid=event['id'], etype=event['event_type'],
+                    data=event['data_json'])
+
+            if not events:
+                yield ": keepalive\n\n"
+
+            time.sleep(2)
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        }
+    )
 
 
 @api_bp.route('/api/elo-card')
