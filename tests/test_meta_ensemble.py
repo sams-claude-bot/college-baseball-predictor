@@ -18,8 +18,8 @@ class TestMetaEnsemble:
     def test_feature_names_count(self):
         """Feature extraction produces correct number of columns."""
         meta = MetaEnsemble()
-        # 12 model probs + 3 agreement + 3 context = 18 features
-        expected = 12 + 3 + 3
+        # 14 model probs + 3 agreement + 3 context = 20 features
+        expected = len(MODEL_NAMES) + 3 + 3
         # Simulate building features
         meta.feature_names = []
         for m in MODEL_NAMES:
@@ -36,22 +36,25 @@ class TestMetaEnsemble:
             'prior_prob', 'neural_prob', 'elo_prob', 'ensemble_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
+            'pear_prob', 'quality_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank'
         ]
+        n_models = len(MODEL_NAMES)  # 14
+        n_features = n_models + 3 + 3  # 20
         # Create 5 fake rows
         rows = []
         for i in range(5):
             row = [f'game_{i}', '2026-02-20', 'team-a', 'team-b']
-            row += [0.6] * 12  # 12 model probs
+            row += [0.6] * n_models  # 14 model probs
             row += [1, 1520, 1480, 'SEC', 'SEC', 5, None]
             rows.append(tuple(row))
 
         X, y, dates, feature_names = meta._build_features(rows, columns)
-        assert X.shape == (5, 18)
+        assert X.shape == (5, n_features)
         assert y.shape == (5,)
         assert len(dates) == 5
-        assert len(feature_names) == 18
+        assert len(feature_names) == n_features
 
     def test_predict_returns_valid_probability(self):
         """Prediction returns probability between 0 and 1."""
@@ -75,10 +78,10 @@ class TestMetaEnsemble:
         assert '2026-02-19' in train_dates
 
     def test_model_names_complete(self):
-        """All 12 expected models are listed."""
+        """All 14 expected models are listed."""
         expected = {'prior', 'neural', 'elo', 'ensemble', 'pythagorean', 
                     'lightgbm', 'poisson', 'conference', 'xgboost', 
-                    'advanced', 'log5', 'pitching'}
+                    'advanced', 'log5', 'pitching', 'pear', 'quality'}
         assert set(MODEL_NAMES) == expected
 
     def test_missing_model_probs_default_to_half(self):
@@ -89,20 +92,23 @@ class TestMetaEnsemble:
             'prior_prob', 'neural_prob', 'elo_prob', 'ensemble_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
+            'pear_prob', 'quality_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank'
         ]
         # Row with None for some probs
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
-        row += [0.7, None, 0.6, None, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+        row += [0.7, None, 0.6, None, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
         rows = [tuple(row)]
 
         X, y, dates, names = meta._build_features(rows, columns)
         # neural_prob (index 1) and ensemble_prob (index 3) should be 0.5
-        assert X[0, 1] == 0.5  # neural defaulted
-        assert X[0, 3] == 0.5  # ensemble defaulted
-        assert X[0, 0] == 0.7  # prior kept
+        assert X[0, 1] == 0.5   # neural defaulted
+        assert X[0, 3] == 0.5   # ensemble defaulted
+        assert X[0, 0] == 0.7   # prior kept
+        assert X[0, 12] == 0.8  # pear kept
+        assert X[0, 13] == 0.5  # quality defaulted
 
     def test_get_feature_importance_no_model(self):
         """get_feature_importance returns empty dict when no model trained."""

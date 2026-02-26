@@ -364,7 +364,13 @@ class MetaEnsemble:
         any_ranked = 1 if (home_rank and home_rank > 0) or (away_rank and away_rank > 0) else 0
 
         features = np.array([probs + [home_votes, avg_prob, spread, elo_diff, same_conf, any_ranked]])
-        prob = float(self.xgb_model.predict_proba(features)[:, 1][0])
+
+        # Use LogReg as primary (better on small-data walk-forward validation)
+        # XGBoost tends to overfit with <1000 training samples
+        if self.lr_model is not None:
+            prob = float(self.lr_model.predict_proba(features)[:, 1][0])
+        else:
+            prob = float(self.xgb_model.predict_proba(features)[:, 1][0])
         return min(max(prob, 0.001), 0.999)
 
     def get_feature_importance(self):
