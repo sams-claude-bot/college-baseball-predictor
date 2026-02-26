@@ -1,0 +1,17 @@
+[Unit]
+Description=StatBroadcast Live Poller for College Baseball
+After=network.target
+
+[Service]
+Type=simple
+User=sam
+WorkingDirectory=/home/sam/college-baseball-predictor
+ExecStart=/usr/bin/python3 scripts/statbroadcast_poller.py --interval 20
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sb-poller
+
+[Install]
+WantedBy=multi-user.target

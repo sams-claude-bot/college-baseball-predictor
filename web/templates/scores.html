@@ -150,7 +150,6 @@
                         </small>
                         <div class="d-flex gap-1">
                             <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
-                            <span class="badge bg-success">LIVE</span>
                         </div>
                     </div>
                     
@@ -205,41 +204,55 @@
                         </div>
                     </div>
                     
-                    <!-- Live situation (runners, count, pitcher) -->
+                    <!-- Live situation (runners, count, pitcher/batter) -->
                     {% if game.situation %}
-                    <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center">
+                    {# Prefer StatBroadcast data (sb_*) over ESPN when available #}
+                    {% set sit = game.situation %}
+                    {% set s_outs = sit.get('sb_outs') if sit.get('sb_outs') is not none else sit.get('outs') %}
+                    {% set s_balls = sit.get('sb_balls') if sit.get('sb_balls') is not none else sit.get('balls') %}
+                    {% set s_strikes = sit.get('sb_strikes') if sit.get('sb_strikes') is not none else sit.get('strikes') %}
+                    {% set s_count = sit.get('sb_count') or (s_balls|string ~ '-' ~ s_strikes|string if s_balls is not none else none) %}
+                    {% set s_pitcher = sit.get('sb_pitcher') or sit.get('pitcher') %}
+                    {% set s_batter = sit.get('sb_batter') or sit.get('batter') %}
+                    {% set s_batter_pos = sit.get('sb_batter_position') %}
+                    {% set has_situation = s_outs is not none or s_pitcher or s_batter %}
+                    {% if has_situation %}
+                    <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center situation-panel" data-game-id="{{ game.id }}">
                         <div class="d-flex align-items-center gap-2">
                             <!-- Base diamond -->
                             <svg width="32" height="32" viewBox="0 0 40 40" style="flex-shrink:0;">
                                 <rect x="13" y="3" width="14" height="14" rx="1" transform="rotate(45 20 10)" 
-                                      fill="{{ '#fbbf24' if game.situation.onSecond else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                                      fill="{{ '#fbbf24' if sit.get('onSecond') else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-second"/>
                                 <rect x="23" y="13" width="14" height="14" rx="1" transform="rotate(45 30 20)" 
-                                      fill="{{ '#fbbf24' if game.situation.onFirst else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                                      fill="{{ '#fbbf24' if sit.get('onFirst') else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-first"/>
                                 <rect x="3" y="13" width="14" height="14" rx="1" transform="rotate(45 10 20)" 
-                                      fill="{{ '#fbbf24' if game.situation.onThird else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                                      fill="{{ '#fbbf24' if sit.get('onThird') else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-third"/>
                             </svg>
-                            <!-- Outs -->
+                            <!-- Outs + Count -->
                             <div>
-                                <span style="font-size:0.7rem;" class="text-muted">
+                                {% if s_outs is not none %}
+                                <span style="font-size:0.7rem;" class="text-muted sit-outs">
                                     {% for i in range(3) %}
-                                    <span style="color:{{ '#fbbf24' if i < game.situation.outs else '#374151' }};">●</span>
+                                    <span class="out-dot" style="color:{{ '#fbbf24' if i < s_outs else '#374151' }};">●</span>
                                     {% endfor %}
                                 </span>
-                                {% if game.situation.balls is not none %}
-                                <small class="text-muted d-block" style="font-size:0.65rem;">{{ game.situation.balls }}-{{ game.situation.strikes }}</small>
+                                {% endif %}
+                                {% if s_count %}
+                                <small class="text-muted d-block sit-count" style="font-size:0.65rem;">{{ s_count }}</small>
                                 {% endif %}
                             </div>
                         </div>
                         <!-- Pitcher/Batter -->
                         <div class="text-end" style="font-size:0.7rem;">
-                            {% if game.situation.pitcher %}
-                            <div class="text-muted">P: {{ game.situation.pitcher }}</div>
+                            {% if s_pitcher %}
+                            <div class="text-muted sit-pitcher">P: {{ s_pitcher }}</div>
                             {% endif %}
-                            {% if game.situation.batter %}
-                            <div class="text-muted">AB: {{ game.situation.batter }}</div>
+                            {% if s_batter %}
+                            <div class="text-muted sit-batter">AB: {{ s_batter }}{% if s_batter_pos %} <span class="text-muted" style="opacity:0.6;">[{{ s_batter_pos }}]</span>{% endif %}</div>
                             {% endif %}
                         </div>
                     </div>
+                    {% endif %}
                     {% endif %}
                     
                     <!-- Pre-game predictions -->
@@ -630,76 +643,179 @@ function filterGames(mode) {
 // Sort ranked games to top on initial load
 document.addEventListener('DOMContentLoaded', () => filterGames('all'));
 
-// ─── Live Score Auto-Refresh ───
+// ─── Live Score Updates (SSE + polling fallback) ───
 (function() {
     const POLL_INTERVAL = 60000; // 60 seconds
     const ACTIVE_DATE = '{{ selected_date }}';
     let pollTimer = null;
     let hasLive = {{ 'true' if in_progress_games else 'false' }};
     let consecutiveErrors = 0;
+    let evtSource = null;
 
+    // ── Shared card updater ──
+    function updateGameCard(data) {
+        const card = document.querySelector('.game-card[data-game-id="' + data.game_id + '"]');
+        if (!card) return;
+
+        const awayScore = card.querySelector('.live-away-score');
+        const homeScore = card.querySelector('.live-home-score');
+        const inning = card.querySelector('.live-inning');
+
+        if (awayScore && data.away_score !== null && data.away_score !== undefined) {
+            if (awayScore.textContent.trim() !== String(data.away_score)) {
+                awayScore.textContent = data.away_score;
+                awayScore.style.transition = 'color 0.3s';
+                awayScore.style.color = '#198754';
+                setTimeout(function() { awayScore.style.color = ''; }, 2000);
+            }
+        }
+        if (homeScore && data.home_score !== null && data.home_score !== undefined) {
+            if (homeScore.textContent.trim() !== String(data.home_score)) {
+                homeScore.textContent = data.home_score;
+                homeScore.style.transition = 'color 0.3s';
+                homeScore.style.color = '#198754';
+                setTimeout(function() { homeScore.style.color = ''; }, 2000);
+            }
+        }
+        if (inning && data.inning_text) {
+            inning.textContent = data.inning_text;
+        }
+
+        // Update situation panel if data available
+        if (data.situation) {
+            var sit = data.situation;
+            var panel = card.querySelector('.situation-panel');
+
+            // Prefer sb_ fields over ESPN
+            var outs = sit.sb_outs !== undefined && sit.sb_outs !== null ? sit.sb_outs : sit.outs;
+            var balls = sit.sb_balls !== undefined && sit.sb_balls !== null ? sit.sb_balls : sit.balls;
+            var strikes = sit.sb_strikes !== undefined && sit.sb_strikes !== null ? sit.sb_strikes : sit.strikes;
+            var pitcher = sit.sb_pitcher || sit.pitcher || '';
+            var batter = sit.sb_batter || sit.batter || '';
+            var batter_pos = sit.sb_batter_position || '';
+
+            if (panel) {
+                // Update outs dots
+                var dots = panel.querySelectorAll('.out-dot');
+                if (dots.length === 3 && outs !== null && outs !== undefined) {
+                    for (var i = 0; i < 3; i++) {
+                        dots[i].style.color = i < outs ? '#fbbf24' : '#374151';
+                    }
+                }
+
+                // Update count
+                var countEl = panel.querySelector('.sit-count');
+                if (countEl && balls !== null && balls !== undefined) {
+                    countEl.textContent = balls + '-' + strikes;
+                }
+
+                // Update pitcher
+                var pitcherEl = panel.querySelector('.sit-pitcher');
+                if (pitcher) {
+                    if (pitcherEl) {
+                        pitcherEl.textContent = 'P: ' + pitcher;
+                    }
+                }
+
+                // Update batter
+                var batterEl = panel.querySelector('.sit-batter');
+                if (batter) {
+                    var batterText = 'AB: ' + batter;
+                    if (batter_pos) batterText += ' [' + batter_pos + ']';
+                    if (batterEl) {
+                        batterEl.textContent = batterText;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── EventSource (SSE) ──
+    function startSSE() {
+        if (evtSource) return;
+        if (typeof EventSource === 'undefined') { startPolling(); return; }
+
+        evtSource = new EventSource('/api/live-stream');
+
+        evtSource.addEventListener('score_update', function(e) {
+            var data = JSON.parse(e.data);
+            updateGameCard(data);
+        });
+
+        evtSource.addEventListener('status_change', function(e) {
+            var data = JSON.parse(e.data);
+            if (data.status === 'final') {
+                setTimeout(function() { window.location.reload(); }, 3000);
+            } else {
+                updateGameCard(data);
+            }
+        });
+
+        evtSource.addEventListener('game_final', function(e) {
+            setTimeout(function() { window.location.reload(); }, 3000);
+        });
+
+        evtSource.addEventListener('situation_update', function(e) {
+            var data = JSON.parse(e.data);
+            updateGameCard(data);
+        });
+
+        evtSource.onerror = function() {
+            console.log('SSE connection lost, falling back to polling');
+            stopSSE();
+            startPolling();
+        };
+
+        console.log('SSE live stream connected');
+    }
+
+    function stopSSE() {
+        if (evtSource) {
+            evtSource.close();
+            evtSource = null;
+        }
+    }
+
+    // ── Polling fallback ──
     function updateLiveScores() {
         fetch('/api/live-scores?date=' + ACTIVE_DATE)
-            .then(r => r.json())
-            .then(data => {
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
                 consecutiveErrors = 0;
-                let changed = false;
 
-                document.querySelectorAll('.game-card[data-game-id]').forEach(card => {
-                    const gameId = card.dataset.gameId;
-                    const game = data.games[gameId];
+                document.querySelectorAll('.game-card[data-game-id]').forEach(function(card) {
+                    var gameId = card.dataset.gameId;
+                    var game = data.games[gameId];
                     if (!game) return;
 
-                    // Update scores for live games
-                    const awayScore = card.querySelector('.live-away-score');
-                    const homeScore = card.querySelector('.live-home-score');
-                    const inning = card.querySelector('.live-inning');
+                    updateGameCard({
+                        game_id: gameId,
+                        home_score: game.home_score,
+                        away_score: game.away_score,
+                        inning_text: game.inning_text,
+                        status: game.status,
+                        situation: game.situation
+                    });
 
-                    if (awayScore && game.away_score !== null) {
-                        if (awayScore.textContent.trim() !== String(game.away_score)) {
-                            awayScore.textContent = game.away_score;
-                            awayScore.style.transition = 'color 0.3s';
-                            awayScore.style.color = '#198754';
-                            setTimeout(() => awayScore.style.color = '', 2000);
-                            changed = true;
-                        }
-                    }
-                    if (homeScore && game.home_score !== null) {
-                        if (homeScore.textContent.trim() !== String(game.home_score)) {
-                            homeScore.textContent = game.home_score;
-                            homeScore.style.transition = 'color 0.3s';
-                            homeScore.style.color = '#198754';
-                            setTimeout(() => homeScore.style.color = '', 2000);
-                            changed = true;
-                        }
-                    }
-                    if (inning && game.inning_text) {
-                        inning.textContent = game.inning_text;
-                    }
-
-                    // If game just finished, reload to get full final layout
-                    if (game.status === 'final' && card.closest('.card')?.querySelector('.bi-broadcast')) {
-                        changed = true;
+                    if (game.status === 'final' && card.closest('.card') && card.closest('.card').querySelector('.bi-broadcast')) {
+                        setTimeout(function() { window.location.reload(); }, 3000);
                     }
                 });
 
-                // Update live indicator
-                const liveIndicator = document.getElementById('live-indicator');
+                var liveIndicator = document.getElementById('live-indicator');
                 if (data.has_live) {
                     if (liveIndicator) liveIndicator.style.display = '';
-                    startPolling();
                 } else {
                     if (liveIndicator) liveIndicator.style.display = 'none';
-                    // If games just finished, do one full reload to get final scores layout
                     if (hasLive && !data.has_live) {
-                        setTimeout(() => window.location.reload(), 3000);
+                        setTimeout(function() { window.location.reload(); }, 3000);
                         return;
                     }
                     stopPolling();
                 }
                 hasLive = data.has_live;
             })
-            .catch(err => {
+            .catch(function() {
                 consecutiveErrors++;
                 if (consecutiveErrors > 3) stopPolling();
             });
@@ -719,30 +835,27 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
         }
     }
 
-    // Start polling if there are live games
+    // ── Init ──
     if (hasLive) {
-        startPolling();
-        // Also do an immediate update after 5s (page might have stale data)
+        startSSE();
+        // Immediate poll as fallback for stale page data
         setTimeout(updateLiveScores, 5000);
     }
 
-    // Start polling during typical game hours even if no live games shown yet
-    // (a scheduled game might go live between page loads)
-    const hour = new Date().getHours();
+    // During game hours, check for newly live games
+    var hour = new Date().getHours();
     if (hour >= 11 && hour <= 23 && ACTIVE_DATE === new Date().toISOString().slice(0,10)) {
-        if (!pollTimer) {
-            // Poll less frequently when no live games (every 5 min)
-            pollTimer = setInterval(() => {
+        if (!hasLive) {
+            pollTimer = setInterval(function() {
                 fetch('/api/live-scores?date=' + ACTIVE_DATE)
-                    .then(r => r.json())
-                    .then(data => {
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
                         if (data.has_live) {
-                            // Live games appeared! Reload to get full layout
                             window.location.reload();
                         }
                     })
-                    .catch(() => {});
-            }, 300000); // 5 minutes
+                    .catch(function() {});
+            }, 300000);
         }
     }
 })();

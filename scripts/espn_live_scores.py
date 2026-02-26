@@ -3,7 +3,7 @@
 ESPN Live Scores Updater
 
 Fetches live scores from ESPN's public API and updates the games table.
-Designed to run frequently (every 2-3 minutes) during game hours.
+Designed to run frequently (every 1 minute) during game hours.
 
 Usage:
     python3 scripts/espn_live_scores.py           # Update today's games
@@ -342,6 +342,24 @@ def update_scores(date_str=None):
             ''', (db_status, home_score, away_score, winner_id, inning_text, innings, game['id']))
         
         # Always update extended fields (hits, errors, linescore, situation)
+        # Merge situation_json to preserve StatBroadcast sb_* fields
+        merged_situation = situation
+        if situation:
+            existing_sit = conn.execute(
+                'SELECT situation_json FROM games WHERE id = ?', (game['id'],)
+            ).fetchone()
+            if existing_sit and existing_sit[0]:
+                try:
+                    existing = json.loads(existing_sit[0])
+                    new_sit = json.loads(situation)
+                    # Preserve sb_* fields from StatBroadcast
+                    for k, v in existing.items():
+                        if k.startswith('sb_') and k not in new_sit:
+                            new_sit[k] = v
+                    merged_situation = json.dumps(new_sit)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
         conn.execute('''
             UPDATE games 
             SET home_hits = ?, away_hits = ?, 
@@ -350,7 +368,7 @@ def update_scores(date_str=None):
                 situation_json = ?
             WHERE id = ?
         ''', (home_hits, away_hits, home_errors, away_errors,
-              linescore, situation, game['id']))
+              linescore, merged_situation, game['id']))
         
         updated += 1
         rhe = f"R:{away_score}-{home_score}"
