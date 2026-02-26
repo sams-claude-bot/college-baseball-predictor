@@ -209,11 +209,28 @@ class StatBroadcastPoller:
             logger.debug("Empty situation for SB event %s", sb_id)
             return False
 
-        # Check if game completed
+        # Check if game completed — check title, inning_display, and game status
         title = situation.get('title', '')
-        if 'Final' in title or 'final' in title.lower():
+        inning_disp = situation.get('inning_display', '')
+        is_final = (
+            'final' in title.lower()
+            or 'final' in inning_disp.lower()
+        )
+
+        # Also check if our games table already says final
+        if not is_final:
+            row = self.conn.execute(
+                "SELECT status FROM games WHERE id = ?", (game_id,)
+            ).fetchone()
+            if row:
+                status = row[0] if isinstance(row, tuple) else row['status']
+                if status == 'final':
+                    is_final = True
+
+        if is_final:
             mark_completed(self.conn, sb_id)
             logger.info("Game %s (SB %s) is Final", game_id, sb_id)
+            return False  # Don't push stale situation data for completed games
 
         # Merge into situation_json
         self._update_situation(game_id, situation)
