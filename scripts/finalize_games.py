@@ -25,6 +25,7 @@ sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
 from run_utils import ScriptRunner
 from verify_team_schedule import fetch_d1bb_schedule, load_d1bb_slugs, load_reverse_slug_map
 from d1bb_team_sync import sync_team
+from schedule_gateway import ScheduleGateway
 
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
 
@@ -61,13 +62,11 @@ def mark_postponed(db, date_str, dry_run=False, verbose=False):
         WHERE g.date = ? AND g.status != 'final'
     """, (date_str,)).fetchall()
     
+    gw = ScheduleGateway(db)
     marked = 0
     for r in rows:
         if not dry_run:
-            db.execute("""
-                UPDATE games SET status = 'postponed', notes = 'No result on D1Baseball'
-                WHERE id = ?
-            """, (r['id'],))
+            gw.mark_postponed(r['id'], reason='No result on D1Baseball')
         if verbose:
             print(f"  ⏸️  Postponed: {r['id']} (was {r['status']})")
         marked += 1

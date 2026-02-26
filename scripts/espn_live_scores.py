@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
 DB_PATH = PROJECT_ROOT / 'data' / 'baseball.db'
 
 ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/baseball/college-baseball/scoreboard"
@@ -278,14 +279,23 @@ def update_scores(date_str=None):
             game['away_score'] == away_score):
             continue
         
-        # Update the game
-        conn.execute('''
-            UPDATE games 
-            SET status = ?, home_score = ?, away_score = ?, 
-                winner_id = ?, inning_text = ?, innings = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ''', (db_status, home_score, away_score, winner_id, inning_text, innings, game['id']))
+        # Update via ScheduleGateway
+        from schedule_gateway import ScheduleGateway
+        gw = ScheduleGateway(conn)
+        
+        if db_status == 'final' and home_score is not None and away_score is not None:
+            gw.finalize_game(game['id'], home_score, away_score)
+        elif db_status == 'in-progress' and home_score is not None and away_score is not None:
+            gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
+        else:
+            # Fallback for edge cases (scheduled with no scores, etc.)
+            conn.execute('''
+                UPDATE games 
+                SET status = ?, home_score = ?, away_score = ?, 
+                    winner_id = ?, inning_text = ?, innings = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (db_status, home_score, away_score, winner_id, inning_text, innings, game['id']))
         
         updated += 1
         print(f"Updated: {away_id} {away_score} @ {home_id} {home_score} ({db_status}, {inning_text})")

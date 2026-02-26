@@ -12,10 +12,19 @@ directly.  Provides:
 """
 
 import sqlite3
+import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from scripts.team_resolver import TeamResolver
+# Ensure the scripts directory is importable
+_SCRIPTS_DIR = Path(__file__).parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+if str(_SCRIPTS_DIR.parent) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR.parent))
+
+from team_resolver import TeamResolver
 
 
 # Status hierarchy — higher number wins
@@ -373,15 +382,25 @@ class ScheduleGateway:
         return n > 0
 
     def update_live_score(self, game_id: str, home_score: int,
-                          away_score: int, inning_text: str) -> bool:
+                          away_score: int, inning_text: str,
+                          innings: int = None) -> bool:
         """Update in-progress game scores and inning text."""
-        n = self.db.execute("""
-            UPDATE games
-               SET home_score = ?, away_score = ?, inning_text = ?,
-                   status = 'in-progress', updated_at = ?
-             WHERE id = ?
-        """, (home_score, away_score, inning_text,
-              datetime.utcnow().isoformat(), game_id)).rowcount
+        if innings is not None:
+            n = self.db.execute("""
+                UPDATE games
+                   SET home_score = ?, away_score = ?, inning_text = ?,
+                       innings = ?, status = 'in-progress', updated_at = ?
+                 WHERE id = ?
+            """, (home_score, away_score, inning_text, innings,
+                  datetime.utcnow().isoformat(), game_id)).rowcount
+        else:
+            n = self.db.execute("""
+                UPDATE games
+                   SET home_score = ?, away_score = ?, inning_text = ?,
+                       status = 'in-progress', updated_at = ?
+                 WHERE id = ?
+            """, (home_score, away_score, inning_text,
+                  datetime.utcnow().isoformat(), game_id)).rowcount
         self.db.commit()
         self._log("live-update", game_id, None)
         return n > 0

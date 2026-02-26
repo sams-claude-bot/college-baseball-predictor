@@ -27,6 +27,7 @@ sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
 
 from run_utils import ScriptRunner
 from verify_team_schedule import fetch_d1bb_schedule, load_d1bb_slugs, load_reverse_slug_map
+from schedule_gateway import ScheduleGateway
 
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
 SLUGS_FILE = PROJECT_DIR / 'config' / 'd1bb_slugs.json'
@@ -59,7 +60,7 @@ def get_teams_with_games_on(db, date_str):
 
 
 def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=False):
-    """Sync a single team's schedule from D1Baseball.
+    """Sync a single team's schedule from D1Baseball via ScheduleGateway.
     
     Returns dict with counts: created, updated, scored, skipped, errors
     """
@@ -78,12 +79,11 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
             stats['errors'] = 1
             return stats
     
+    gw = ScheduleGateway(db)
+    
     for g in d1bb_games:
         opp_id = g['opponent_team_id']
         date = g['date']
-        
-        # Skip future games beyond 14 days (we only care about near-term accuracy)
-        # Actually no — Sam wants 100% schedule accuracy, keep all games
         
         if g['is_home']:
             home_id, away_id = team_id, opp_id
@@ -91,112 +91,10 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
             home_id, away_id = opp_id, team_id
         
         game_num = g.get('game_num', 1)
-        dh_suffix = f"_gm{game_num}" if game_num > 1 else ""
-        game_id = f"{date}_{away_id}_{home_id}{dh_suffix}"
         
-        # Check if game exists
-        existing = db.execute(
-            "SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games WHERE id = ?",
-            (game_id,)
-        ).fetchone()
-        
-        # Also check with swapped home/away (ESPN sometimes gets this wrong)
-        if not existing:
-            alt_id = f"{date}_{home_id}_{away_id}{dh_suffix}"
-            existing = db.execute(
-                "SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games WHERE id = ?",
-                (alt_id,)
-            ).fetchone()
-        
-        # Try fuzzy match: same date, same teams in any order
-        # For doubleheaders (game_num > 1), only match games with the same suffix
-        if not existing:
-            if game_num == 1:
-                # For game 1, match unsuffixed + legacy _g1/_gm1 variants
-                existing = db.execute("""
-                    SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games
-                    WHERE date = ? AND (
-                        id NOT LIKE '%_gm%' OR id LIKE '%_g1' OR id LIKE '%_gm1'
-                    ) AND (
-                        (home_team_id = ? AND away_team_id = ?) OR
-                        (home_team_id = ? AND away_team_id = ?)
-                    )
-                """, (date, home_id, away_id, away_id, home_id)).fetchone()
-            else:
-                # For game 2+, match games with _gm2 OR _g2 suffix (both conventions exist)
-                existing = db.execute("""
-                    SELECT id, home_score, away_score, status, home_team_id, away_team_id FROM games
-                    WHERE date = ? AND (id LIKE ? OR id LIKE ?) AND (
-                        (home_team_id = ? AND away_team_id = ?) OR
-                        (home_team_id = ? AND away_team_id = ?)
-                    )
-                """, (date, f'%_gm{game_num}', f'%_g{game_num}',
-                      home_id, away_id, away_id, home_id)).fetchone()
-        
-        if existing:
-            # Game exists — update scores when we have a result.
-            # Do NOT blindly skip finals: tournament feeds can flip home/away labels,
-            # and we need to reconcile score orientation against the existing row.
-            if g.get('result'):
-                r = g['result']
-                # Map scores from this team's perspective
-                if g['is_home']:
-                    home_score = r['team_score']
-                    away_score = r['opp_score']
-                else:
-                    home_score = r['opp_score']
-                    away_score = r['team_score']
-
-                # Account for possible home/away swap in existing record
-                ex_home = existing['home_team_id']
-                ex_away = existing['away_team_id']
-                if ex_home == home_id:
-                    hs, aws = home_score, away_score
-                else:
-                    hs, aws = away_score, home_score
-
-                # D1BB can occasionally have home/away labeling that doesn't match our row
-                # (especially neutral-site events). Use W/L outcome from the current team page
-                # as a consistency check and swap orientation when needed.
-                outcome = r.get('outcome')
-                if outcome in ('W', 'L'):
-                    team_score_in_existing = hs if team_id == ex_home else aws
-                    opp_score_in_existing = aws if team_id == ex_home else hs
-                    should_win = (outcome == 'W')
-                    is_win_now = team_score_in_existing > opp_score_in_existing
-                    if is_win_now != should_win:
-                        hs, aws = aws, hs
-
-                winner = ex_home if hs > aws else ex_away if aws > hs else None
-
-                # If already final with identical score/winner, skip.
-                same_final = (
-                    existing['status'] == 'final' and
-                    existing['home_score'] is not None and
-                    int(existing['home_score']) == int(hs) and
-                    int(existing['away_score']) == int(aws)
-                )
-
-                if same_final:
-                    stats['skipped'] += 1
-                else:
-                    if not dry_run:
-                        db.execute("""
-                            UPDATE games
-                            SET home_score=?, away_score=?, winner_id=?, status='final'
-                            WHERE id=?
-                        """, (hs, aws, winner, existing['id']))
-
-                    if verbose:
-                        print(f"  📝 Scored: {existing['id']} → {hs}-{aws}")
-                    stats['scored'] += 1
-            else:
-                stats['skipped'] += 1
-            continue
-        
-        # New game — insert it
-        home_score = away_score = winner_id = None
-        status = 'scheduled'
+        # Determine scores from D1BB result
+        home_score = away_score = None
+        status = None
         
         if g.get('result'):
             r = g['result']
@@ -206,26 +104,52 @@ def sync_team(db, team_id, d1bb_slug, reverse_slugs, dry_run=False, verbose=Fals
             else:
                 home_score = r['opp_score']
                 away_score = r['team_score']
-            winner_id = home_id if home_score > away_score else away_id
+            
+            # D1BB can occasionally flip home/away labeling (neutral-site events).
+            # Use W/L outcome from the team page as a consistency check.
+            outcome = r.get('outcome')
+            if outcome in ('W', 'L'):
+                team_is_home = (team_id == home_id)
+                team_score = home_score if team_is_home else away_score
+                opp_score = away_score if team_is_home else home_score
+                should_win = (outcome == 'W')
+                is_win_now = team_score > opp_score
+                if is_win_now != should_win:
+                    # Swap scores to match the W/L outcome
+                    home_score, away_score = away_score, home_score
+            
             status = 'final'
         
-        if not dry_run:
-            try:
-                db.execute("""
-                    INSERT INTO games (id, date, home_team_id, away_team_id, home_score, away_score, winner_id, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (game_id, date, home_id, away_id, home_score, away_score, winner_id, status))
-                stats['created'] += 1
-                if verbose:
-                    score_str = f" ({home_score}-{away_score})" if home_score is not None else ""
-                    print(f"  ➕ {game_id}{score_str}")
-            except sqlite3.IntegrityError:
-                # Duplicate — race condition or slight ID mismatch
-                stats['skipped'] += 1
-        else:
+        if dry_run:
+            canon = gw.canonical_game_id(date, away_id, home_id, game_num)
             score_str = f" ({home_score}-{away_score})" if home_score is not None else ""
-            print(f"  [DRY] Would create: {game_id}{score_str}")
+            existing = gw.find_existing_game(date, away_id, home_id, game_num)
+            action = "update" if existing else "create"
+            print(f"  [DRY] Would {action}: {canon}{score_str}")
+            stats['created' if not existing else 'scored'] += 1
+            continue
+        
+        action = gw.upsert_game(
+            date, away_id, home_id, game_num,
+            home_score=home_score, away_score=away_score,
+            status=status, source='d1bb_team_sync'
+        )
+        
+        if action == 'created':
             stats['created'] += 1
+            if verbose:
+                canon = gw.canonical_game_id(date, away_id, home_id, game_num)
+                score_str = f" ({home_score}-{away_score})" if home_score is not None else ""
+                print(f"  ➕ {canon}{score_str}")
+        elif action in ('updated', 'replaced'):
+            stats['scored'] += 1
+            if verbose:
+                canon = gw.canonical_game_id(date, away_id, home_id, game_num)
+                print(f"  📝 {action}: {canon} → {home_score}-{away_score}")
+        elif action == 'unchanged':
+            stats['skipped'] += 1
+        elif action == 'rejected':
+            stats['errors'] += 1
     
     return stats
 

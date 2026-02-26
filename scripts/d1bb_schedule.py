@@ -29,6 +29,7 @@ OPENCLAW_USER_DATA = Path.home() / '.openclaw' / 'browser' / 'openclaw' / 'user-
 
 sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
 from team_resolver import resolve_team as db_resolve_team
+from schedule_gateway import ScheduleGateway
 
 
 def get_db():
@@ -527,14 +528,16 @@ def main():
                     game_time = parse_time(game.get('time_text'), date_str)
                     
                     if not args.dry_run:
-                        result = upsert_game(
-                            db, date_str, home_id, away_id,
+                        gw = ScheduleGateway(db)
+                        result = gw.upsert_game(
+                            date_str, away_id, home_id,
+                            game_num=game_num,
                             time=game_time,
                             home_score=game.get('home_score'),
                             away_score=game.get('away_score'),
                             status=game.get('status'),
                             inning_text=game.get('inning_text'),
-                            game_num=game.get('game_num')
+                            source='d1bb_schedule'
                         )
                         stats[result] += 1
                         
