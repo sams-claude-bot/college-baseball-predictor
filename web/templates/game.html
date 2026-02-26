@@ -33,24 +33,119 @@
         {% endif %}
     </div>
     <div class="card-body">
-        {% if game.status == 'final' %}
+        {% if game.status == 'final' or game.status == 'in-progress' %}
         <div class="row text-center">
             <div class="col-5">
-                <div class="display-4 {% if game.away_score > game.home_score %}fw-bold{% else %}text-muted{% endif %}">{{ game.away_score }}</div>
+                <div class="display-4 {% if game.away_score and game.home_score and game.away_score > game.home_score %}fw-bold{% else %}text-muted{% endif %}">{{ game.away_score or 0 }}</div>
                 <div class="text-muted">{{ away.record }}</div>
             </div>
             <div class="col-2 d-flex align-items-center justify-content-center">
                 <div>
+                    {% if game.status == 'final' %}
                     <span class="badge bg-success">Final</span>
                     {% if game.innings and game.innings != 9 %}<br><small class="text-muted">({{ game.innings }})</small>{% endif %}
+                    {% else %}
+                    <span class="badge bg-warning text-dark">{{ game.inning_text or 'Live' }}</span>
+                    {% endif %}
                 </div>
             </div>
             <div class="col-5">
-                <div class="display-4 {% if game.home_score > game.away_score %}fw-bold{% else %}text-muted{% endif %}">{{ game.home_score }}</div>
+                <div class="display-4 {% if game.home_score and game.away_score and game.home_score > game.away_score %}fw-bold{% else %}text-muted{% endif %}">{{ game.home_score or 0 }}</div>
                 <div class="text-muted">{{ home.record }}</div>
             </div>
         </div>
-        {% else %}
+
+        <!-- Linescore + R/H/E -->
+        {% if game.linescore or game.home_hits is not none %}
+        <div class="mt-3">
+            <div class="table-responsive">
+                <table class="table table-sm table-dark text-center mb-0" style="font-size:0.85rem;">
+                    <thead>
+                        <tr>
+                            <th class="text-start" style="min-width:120px;"></th>
+                            {% if game.linescore %}
+                            {% for i in range(game.linescore.away|length) %}
+                            <th style="width:28px;">{{ i + 1 }}</th>
+                            {% endfor %}
+                            {% endif %}
+                            <th class="border-start" style="width:32px;">R</th>
+                            <th style="width:32px;">H</th>
+                            <th style="width:32px;">E</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="text-start fw-bold">{{ away.name }}</td>
+                            {% if game.linescore %}
+                            {% for r in game.linescore.away %}
+                            <td>{{ r }}</td>
+                            {% endfor %}
+                            {% endif %}
+                            <td class="border-start fw-bold">{{ game.away_score or 0 }}</td>
+                            <td>{{ game.away_hits if game.away_hits is not none else '-' }}</td>
+                            <td>{{ game.away_errors if game.away_errors is not none else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-start fw-bold">{{ home.name }}</td>
+                            {% if game.linescore %}
+                            {% for r in game.linescore.home %}
+                            <td>{{ r }}</td>
+                            {% endfor %}
+                            {% endif %}
+                            <td class="border-start fw-bold">{{ game.home_score or 0 }}</td>
+                            <td>{{ game.home_hits if game.home_hits is not none else '-' }}</td>
+                            <td>{{ game.home_errors if game.home_errors is not none else '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Live situation -->
+        {% if game.situation and game.status == 'in-progress' %}
+        <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-3">
+                    <!-- Base diamond -->
+                    <svg width="48" height="48" viewBox="0 0 40 40" style="flex-shrink:0;">
+                        <rect x="13" y="3" width="14" height="14" rx="1" transform="rotate(45 20 10)" 
+                              fill="{{ '#fbbf24' if game.situation.onSecond else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                        <rect x="23" y="13" width="14" height="14" rx="1" transform="rotate(45 30 20)" 
+                              fill="{{ '#fbbf24' if game.situation.onFirst else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                        <rect x="3" y="13" width="14" height="14" rx="1" transform="rotate(45 10 20)" 
+                              fill="{{ '#fbbf24' if game.situation.onThird else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                    </svg>
+                    <!-- Outs + Count -->
+                    <div>
+                        <div>
+                            {% for i in range(3) %}
+                            <span style="color:{{ '#fbbf24' if i < game.situation.outs else '#374151' }};font-size:1.1rem;">●</span>
+                            {% endfor %}
+                            <span class="text-muted ms-1">{{ game.situation.outs }} out{{ 's' if game.situation.outs != 1 }}</span>
+                        </div>
+                        {% if game.situation.balls is not none %}
+                        <div class="text-muted" style="font-size:0.85rem;">Count: {{ game.situation.balls }}-{{ game.situation.strikes }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <!-- Pitcher / Batter -->
+                <div class="text-end">
+                    {% if game.situation.pitcher %}
+                    <div><small class="text-muted">Pitching:</small> <span class="fw-bold">{{ game.situation.pitcher }}</span></div>
+                    {% endif %}
+                    {% if game.situation.batter %}
+                    <div><small class="text-muted">At Bat:</small> <span class="fw-bold">{{ game.situation.batter }}</span></div>
+                    {% endif %}
+                    {% if game.situation.lastPlay %}
+                    <div class="mt-1"><small class="text-muted fst-italic">{{ game.situation.lastPlay }}</small></div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% elif game.status != 'final' and game.status != 'in-progress' %}
         <div class="row text-center">
             <div class="col-5">
                 <div class="h4">{{ away.record }}</div>

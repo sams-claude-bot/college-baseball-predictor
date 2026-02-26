@@ -266,6 +266,23 @@ def game_detail(game_id):
         return render_template('404.html', message="Game not found"), 404
     game = dict(game)
 
+    # Parse JSON fields for live game state
+    import json as _json
+    if game.get('situation_json'):
+        try:
+            game['situation'] = _json.loads(game['situation_json'])
+        except:
+            game['situation'] = None
+    else:
+        game['situation'] = None
+    if game.get('linescore_json'):
+        try:
+            game['linescore'] = _json.loads(game['linescore_json'])
+        except:
+            game['linescore'] = None
+    else:
+        game['linescore'] = None
+
     home_id = game['home_team_id']
     away_id = game['away_team_id']
     home_record = get_team_record(home_id)
