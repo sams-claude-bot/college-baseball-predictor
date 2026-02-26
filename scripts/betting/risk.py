@@ -4,6 +4,28 @@ from typing import List, Optional, Tuple
 
 from config import model_config as cfg
 
+# Optional calibration (experimental)
+_calibrator = None
+RISK_USE_CALIBRATION = bool(getattr(cfg, 'BET_RISK_USE_CALIBRATION', False))
+
+
+def _get_calibrator():
+    """Lazy-load the calibrator."""
+    global _calibrator
+    if _calibrator is None:
+        try:
+            from models.calibration import Calibrator
+            cal = Calibrator()
+            if cal._load():
+                _calibrator = cal
+            else:
+                print("[risk] No calibration model found — run models/calibration.py to fit")
+                _calibrator = False  # sentinel: tried and failed
+        except Exception as e:
+            print(f"[risk] Calibration unavailable: {e}")
+            _calibrator = False
+    return _calibrator if _calibrator is not False else None
+
 # ============ RISK ENGINE (v1) ============
 BASE_BET = int(getattr(cfg, 'BET_RISK_FIXED_STAKE', 100))  # Legacy fixed unit
 
@@ -173,7 +195,17 @@ def suggest_stake_for_bet(
         if odds is None or model_prob is None:
             stake = fixed_stake
         else:
-            full_kelly = raw_kelly_fraction(float(model_prob), int(odds))
+            prob_for_kelly = float(model_prob)
+
+            # Apply calibration if enabled (experimental)
+            if RISK_USE_CALIBRATION:
+                cal = _get_calibrator()
+                if cal is not None:
+                    prob_for_kelly = cal.calibrate_for_kelly(prob_for_kelly)
+                    bet['calibrated_prob'] = round(prob_for_kelly, 4)
+                    bet['raw_prob'] = float(model_prob)
+
+            full_kelly = raw_kelly_fraction(prob_for_kelly, int(odds))
             kelly_fraction_used = full_kelly * kelly_fraction_cfg * drawdown_mult * risk_score
             stake = bankroll * kelly_fraction_used
 

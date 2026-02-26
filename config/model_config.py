@@ -121,6 +121,11 @@ BET_RISK_EDGE_QUALITY_WEIGHT_COVERAGE = 0.25
 BET_RISK_CALIBRATION_PROXY_DEFAULT = 0.50   # TODO: replace with live calibration confidence
 BET_RISK_COVERAGE_PROXY_DEFAULT = 0.50      # TODO: replace with feature/data completeness metrics
 
+# Probability calibration (experimental)
+# When True, Kelly sizing uses isotonic-calibrated probabilities
+# Requires: python3 models/calibration.py (to fit calibrator first)
+BET_RISK_USE_CALIBRATION = False            # Set True to enable calibrated Kelly
+
 # Correlation / concentration caps (aggregate stake exposure)
 BET_RISK_CORRELATION_CAP_ENABLED = True
 BET_RISK_MAX_EXPOSURE_PER_TEAM = 200.0
