@@ -29,6 +29,8 @@ from models.xgboost_model import XGBMoneylineModel, XGBTotalsModel, XGBSpreadMod
 from models.lightgbm_model import LGBMoneylineModel, LGBTotalsModel, LGBSpreadModel
 from models.momentum_model import get_momentum_score
 from models.meta_ensemble import MetaEnsemble
+from models.pear_model import PearModel
+from models.quality_model import QualityModel
 from scripts.database import get_connection
 
 # All available models
@@ -49,6 +51,8 @@ MODELS = {
     "lightgbm": LGBMoneylineModel(use_model_predictions=False),
     "lgb_totals": LGBTotalsModel(use_model_predictions=False),
     "lgb_spread": LGBSpreadModel(use_model_predictions=False),
+    "pear": PearModel(),
+    "quality": QualityModel(),
     "ensemble": EnsembleModel(),
     "meta_ensemble": MetaEnsemble(),
 }

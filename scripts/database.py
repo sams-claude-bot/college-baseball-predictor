@@ -647,3 +647,57 @@ def init_rankings_table():
     conn.commit()
     conn.close()
     print("✓ Rankings table initialized")
+
+
+def init_pear_ratings_table():
+    """Create pear_ratings table for PEAR external ratings data"""
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS pear_ratings (
+            team_name TEXT NOT NULL,
+            team_id TEXT,
+            season INTEGER NOT NULL,
+            rating REAL,
+            net_score REAL,
+            net_rank INTEGER,
+            rqi REAL,
+            rqi_rank INTEGER,
+            sos_rank INTEGER,
+            sor_rank INTEGER,
+            elo REAL,
+            elo_rank INTEGER,
+            rpi_rank INTEGER,
+            resume_quality REAL,
+            avg_expected_wins REAL,
+            fwar REAL,
+            owar_z REAL,
+            pwar_z REAL,
+            wpoe_pct REAL,
+            pythag REAL,
+            killshots REAL,
+            conceded REAL,
+            kshot_ratio REAL,
+            era REAL,
+            whip REAL,
+            kp9 REAL,
+            rpg REAL,
+            ba REAL,
+            obp REAL,
+            slg REAL,
+            ops REAL,
+            woba REAL,
+            iso REAL,
+            pct REAL,
+            fetched_at TEXT NOT NULL,
+            PRIMARY KEY (team_id, season)
+        )
+    ''')
+
+    c.execute('CREATE INDEX IF NOT EXISTS idx_pear_team ON pear_ratings(team_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_pear_season ON pear_ratings(season)')
+
+    conn.commit()
+    conn.close()
+    print("✓ PEAR ratings table initialized")

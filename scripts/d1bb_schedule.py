@@ -58,7 +58,9 @@ def resolve_team(db, name, slug_map):
         return None
     
     for slug, team_id in slug_map.items():
-        if slug == name_slug or (len(name_slug) >= 3 and name_slug in slug):
+        # Exact slug match only. Substring matching caused collisions
+        # like "kansas" -> "arkansas".
+        if slug == name_slug:
             return team_id
     
     # Try database resolver
@@ -97,22 +99,51 @@ def extract_games_for_date(page, date_str, verbose=False):
                 
                 if (!team1El || !team2El) continue;
                 
-                // Get team links
+                // Get team links (preferred) with fallback to visible team names
                 const link1 = team1El.querySelector('a[href*="/team/"]');
                 const link2 = team2El.querySelector('a[href*="/team/"]');
-                
+
+                const cleanName = (txt) => {
+                    let s = (txt || '').trim();
+                    // Remove rank prefix like "12 Team Name"
+                    s = s.replace(/^\\d+\\s+/, '');
+                    // Remove trailing record parentheses only (e.g., "(5-2)", "(5-2, 1-0)")
+                    // but KEEP location disambiguators like "(OH)" / "(FL)".
+                    s = s.replace(/\\s*\\((?=.*\\d)[^)]*\\)\\s*$/, '');
+                    return s.trim();
+                };
+
+                const toSlug = (name) => cleanName(name)
+                    .toLowerCase()
+                    .replace(/&/g, 'and')
+                    .replace(/[^a-z0-9\\s-]/g, '')
+                    .replace(/\\s+/g, '-')
+                    .replace(/-+/g, '-')
+                    .replace(/^-|-$/g, '');
+
                 if (link1 && link2) {
                     const match1 = link1.getAttribute('href').match(/\\/team\\/([^\\/]+)/);
                     const match2 = link2.getAttribute('href').match(/\\/team\\/([^\\/]+)/);
-                    
-                    if (match1 && match2) {
-                        game.away_slug = match1[1];
-                        // Remove rank prefix from name
-                        game.away_name = link1.textContent.trim().replace(/^\\d+\\s*/, '').split('(')[0].trim();
-                        game.home_slug = match2[1];
-                        game.home_name = link2.textContent.trim().replace(/^\\d+\\s*/, '').split('(')[0].trim();
-                    }
+
+                    game.away_name = cleanName(link1.textContent);
+                    game.home_name = cleanName(link2.textContent);
+
+                    if (match1) game.away_slug = match1[1];
+                    if (match2) game.home_slug = match2[1];
                 }
+
+                // Fallback for tiles without /team/ links (common for some non-D1 opponents)
+                if (!game.away_name) {
+                    const awayNameEl = team1El.querySelector('.team-name, .name') || team1El;
+                    game.away_name = cleanName(awayNameEl.textContent);
+                }
+                if (!game.home_name) {
+                    const homeNameEl = team2El.querySelector('.team-name, .name') || team2El;
+                    game.home_name = cleanName(homeNameEl.textContent);
+                }
+
+                if (!game.away_slug && game.away_name) game.away_slug = toSlug(game.away_name);
+                if (!game.home_slug && game.home_name) game.home_slug = toSlug(game.home_name);
                 
                 // Get scores (D1BB uses .score-runs for the actual run total)
                 const score1 = team1El.querySelector('.score-runs');
@@ -324,6 +355,11 @@ def upsert_game(db, date, home_id, away_id, time=None, home_score=None, away_sco
     """Insert or update a game. Handles ESPN ghost dedup + DH suffix variants."""
 
     game_num = int(game_num) if game_num else 1
+
+    # Hard guard: max 2 games per day between same teams (doubleheader max)
+    if game_num > 2:
+        print(f"  WARNING: Rejecting game_num={game_num} for {away_id} @ {home_id} on {date} — max 2 games/day allowed")
+        return 'rejected'
 
     # Canonical ID format: unsuffixed for game 1, _gmN for game 2+
     canonical_id = f"{date}_{away_id}_{home_id}" + (f"_gm{game_num}" if game_num > 1 else "")

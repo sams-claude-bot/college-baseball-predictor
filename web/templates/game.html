@@ -26,6 +26,11 @@
             </div>
         </div>
         <small class="text-white-50">{{ game.date }} {{ game.time or '' }} {% if game.venue %}• {{ game.venue }}{% endif %}</small>
+        {% if gqi %}
+        <div class="mt-1">
+            <span class="badge" style="background-color:{{ gqi_color }};font-size:.75rem">GQI {{ gqi }} &mdash; {{ gqi_label }}</span>
+        </div>
+        {% endif %}
     </div>
     <div class="card-body">
         {% if game.status == 'final' %}
@@ -86,6 +91,37 @@
         </div>
     </div>
 </div>
+
+{% if series_probs %}
+<!-- Series Outlook -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-collection"></i> 3-Game Series Outlook
+    </div>
+    <div class="card-body">
+        <div class="row text-center mb-2">
+            <div class="col-4"><small class="text-muted"></small></div>
+            <div class="col-4"><small class="fw-bold">{{ away.name }}</small></div>
+            <div class="col-4"><small class="fw-bold">{{ home.name }}</small></div>
+        </div>
+        <div class="row text-center align-items-center mb-2">
+            <div class="col-4 text-start"><small class="text-muted">Win 1+ game</small></div>
+            <div class="col-4"><span class="{% if series_probs.away_win_1plus > series_probs.home_win_1plus %}fw-bold text-success{% else %}text-muted{% endif %}">{{ (series_probs.away_win_1plus * 100)|round(1) }}%</span></div>
+            <div class="col-4"><span class="{% if series_probs.home_win_1plus > series_probs.away_win_1plus %}fw-bold text-success{% else %}text-muted{% endif %}">{{ (series_probs.home_win_1plus * 100)|round(1) }}%</span></div>
+        </div>
+        <div class="row text-center align-items-center mb-2">
+            <div class="col-4 text-start"><small class="text-muted">Win series (2+)</small></div>
+            <div class="col-4"><span class="{% if series_probs.away_win_2plus > series_probs.home_win_2plus %}fw-bold text-success{% else %}text-muted{% endif %}">{{ (series_probs.away_win_2plus * 100)|round(1) }}%</span></div>
+            <div class="col-4"><span class="{% if series_probs.home_win_2plus > series_probs.away_win_2plus %}fw-bold text-success{% else %}text-muted{% endif %}">{{ (series_probs.home_win_2plus * 100)|round(1) }}%</span></div>
+        </div>
+        <div class="row text-center align-items-center">
+            <div class="col-4 text-start"><small class="text-muted">Sweep</small></div>
+            <div class="col-4"><span class="{% if series_probs.away_sweep > series_probs.home_sweep %}fw-bold text-success{% else %}text-muted{% endif %}">{{ (series_probs.away_sweep * 100)|round(1) }}%</span></div>
+            <div class="col-4"><span class="{% if series_probs.home_sweep > series_probs.away_sweep %}fw-bold text-success{% else %}text-muted{% endif %}">{{ (series_probs.home_sweep * 100)|round(1) }}%</span></div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- All Models -->
 <div class="card">
@@ -212,6 +248,158 @@
             </div>
         </div>
         {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if resume_impact %}
+<!-- Resume Impact -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-trophy"></i> Resume Impact
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- Away team -->
+            <div class="col-6">
+                <div class="text-center mb-2">
+                    <strong>{{ away.name }}</strong>
+                    <div class="text-muted" style="font-size:.8rem">Elo Rank: #{{ resume_impact.away.elo_rank }}</div>
+                </div>
+                <div class="text-center mb-3">
+                    <span class="badge fs-6 px-3 py-2" style="background-color:{{ resume_impact.away.quadrant|replace('Q1','#1a7431')|replace('Q2','#2196F3')|replace('Q3','#FF9800')|replace('Q4','#d32f2f') }}">
+                        {{ resume_impact.away.quadrant }} Game
+                    </span>
+                </div>
+                <!-- Win Quality -->
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Win Quality</small>
+                        <small style="color:{{ resume_impact.away.win_color }}">{{ resume_impact.away.win_label }}</small>
+                    </div>
+                    <div class="progress" style="height:8px">
+                        <div class="progress-bar" style="width:{{ [(resume_impact.away.win_quality + 0.5) / 1.5 * 100, 0]|max }}%;background-color:{{ resume_impact.away.win_color }}"></div>
+                    </div>
+                    <div class="text-end"><small class="text-muted">{{ '%+.2f'|format(resume_impact.away.win_quality) }}</small></div>
+                </div>
+                <!-- Loss Damage -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Loss Damage</small>
+                        <small style="color:{{ resume_impact.away.loss_color }}">{{ resume_impact.away.loss_label }}</small>
+                    </div>
+                    <div class="progress" style="height:8px">
+                        <div class="progress-bar" style="width:{{ [(resume_impact.away.loss_damage + 1.0) / 1.5 * 100, 0]|max }}%;background-color:{{ resume_impact.away.loss_color }}"></div>
+                    </div>
+                    <div class="text-end"><small class="text-muted">{{ '%+.2f'|format(resume_impact.away.loss_damage) }}</small></div>
+                </div>
+                <!-- Quadrant Record -->
+                <div>
+                    <small class="text-muted d-block mb-1">Quadrant Record</small>
+                    {% for q in ['Q1','Q2','Q3','Q4'] %}
+                    <div class="d-flex align-items-center mb-1">
+                        <span class="badge me-2" style="background-color:{{'#1a7431' if q=='Q1' else '#2196F3' if q=='Q2' else '#FF9800' if q=='Q3' else '#d32f2f'}};min-width:28px;font-size:.7rem">{{ q }}</span>
+                        <small>{{ resume_impact.away.quad_record[q] }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Home team -->
+            <div class="col-6">
+                <div class="text-center mb-2">
+                    <strong>{{ home.name }}</strong>
+                    <div class="text-muted" style="font-size:.8rem">Elo Rank: #{{ resume_impact.home.elo_rank }}</div>
+                </div>
+                <div class="text-center mb-3">
+                    <span class="badge fs-6 px-3 py-2" style="background-color:{{ resume_impact.home.quadrant|replace('Q1','#1a7431')|replace('Q2','#2196F3')|replace('Q3','#FF9800')|replace('Q4','#d32f2f') }}">
+                        {{ resume_impact.home.quadrant }} Game
+                    </span>
+                </div>
+                <!-- Win Quality -->
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Win Quality</small>
+                        <small style="color:{{ resume_impact.home.win_color }}">{{ resume_impact.home.win_label }}</small>
+                    </div>
+                    <div class="progress" style="height:8px">
+                        <div class="progress-bar" style="width:{{ [(resume_impact.home.win_quality + 0.5) / 1.5 * 100, 0]|max }}%;background-color:{{ resume_impact.home.win_color }}"></div>
+                    </div>
+                    <div class="text-end"><small class="text-muted">{{ '%+.2f'|format(resume_impact.home.win_quality) }}</small></div>
+                </div>
+                <!-- Loss Damage -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Loss Damage</small>
+                        <small style="color:{{ resume_impact.home.loss_color }}">{{ resume_impact.home.loss_label }}</small>
+                    </div>
+                    <div class="progress" style="height:8px">
+                        <div class="progress-bar" style="width:{{ [(resume_impact.home.loss_damage + 1.0) / 1.5 * 100, 0]|max }}%;background-color:{{ resume_impact.home.loss_color }}"></div>
+                    </div>
+                    <div class="text-end"><small class="text-muted">{{ '%+.2f'|format(resume_impact.home.loss_damage) }}</small></div>
+                </div>
+                <!-- Quadrant Record -->
+                <div>
+                    <small class="text-muted d-block mb-1">Quadrant Record</small>
+                    {% for q in ['Q1','Q2','Q3','Q4'] %}
+                    <div class="d-flex align-items-center mb-1">
+                        <span class="badge me-2" style="background-color:{{'#1a7431' if q=='Q1' else '#2196F3' if q=='Q2' else '#FF9800' if q=='Q3' else '#d32f2f'}};min-width:28px;font-size:.7rem">{{ q }}</span>
+                        <small>{{ resume_impact.home.quad_record[q] }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if cross_matchup %}
+<!-- Matchup Breakdown -->
+{% macro stat_value(s) %}{% if s.name in ['K%', 'BB%'] %}{{ '%.1f'|format(s.value) }}%{% elif s.name in ['RPG', 'HR/G', 'ERA', 'WHIP', 'FIP', 'K/9', 'BB/9'] %}{{ '%.2f'|format(s.value) }}{% else %}{{ '%.3f'|format(s.value) }}{% endif %}{% endmacro %}
+{% macro matchup_panel(title, offense_stats, pitching_stats) %}
+<div class="col-lg-6 mb-3 mb-lg-0">
+    <h6 class="text-center mb-2">{{ title }}</h6>
+    <div class="table-responsive">
+        <table class="table table-sm mb-2">
+            <thead><tr><th colspan="3" class="text-muted" style="font-size:.75rem">Offense</th></tr></thead>
+            <tbody>
+            {% for s in offense_stats %}
+            <tr>
+                <td style="width:40%">{{ s.name }}</td>
+                <td class="text-center" style="width:30%">{{ stat_value(s) }}</td>
+                <td class="text-center" style="width:30%">
+                    <span class="badge" style="background-color:{{ s.color }};color:#fff;min-width:32px">{{ s.percentile }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <table class="table table-sm mb-0">
+            <thead><tr><th colspan="3" class="text-muted" style="font-size:.75rem">Pitching</th></tr></thead>
+            <tbody>
+            {% for s in pitching_stats %}
+            <tr>
+                <td style="width:40%">{{ s.name }}</td>
+                <td class="text-center" style="width:30%">{{ stat_value(s) }}</td>
+                <td class="text-center" style="width:30%">
+                    <span class="badge" style="background-color:{{ s.color }};color:#fff;min-width:32px">{{ s.percentile }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endmacro %}
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-arrow-left-right"></i> Matchup Breakdown
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {{ matchup_panel(away.name ~ ' Offense vs ' ~ home.name ~ ' Pitching', cross_matchup.away_offense, cross_matchup.home_pitching) }}
+            {{ matchup_panel(home.name ~ ' Offense vs ' ~ away.name ~ ' Pitching', cross_matchup.home_offense, cross_matchup.away_pitching) }}
+        </div>
     </div>
 </div>
 {% endif %}

@@ -8,83 +8,45 @@
         <h1 class="h3">
             <i class="bi bi-gear"></i> Model Performance
         </h1>
-        <p class="text-muted">Ensemble weights, accuracy tracking, and prediction history</p>
+        <p class="text-muted">Win probability models, totals predictions, and ensemble analysis</p>
     </div>
     <a href="/models/trends" class="btn btn-outline-primary">
         <i class="bi bi-graph-up-arrow"></i> Accuracy Trends
     </a>
 </div>
 
+{# ── Section 1: Model Leaderboard + Meta-Ensemble ── #}
 <div class="row">
-    <!-- Weights Section -->
-    <div class="col-lg-6">
+    <!-- Model Accuracy Leaderboard -->
+    <div class="col-lg-7">
         <div class="card">
             <div class="card-header bg-maroon">
-                <i class="bi bi-pie-chart-fill"></i> Current Ensemble Weights
-            </div>
-            <div class="card-body">
-                <canvas id="weightsChart" height="250"></canvas>
-                
-                <div class="table-responsive mt-4">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Model</th>
-                                <th class="text-center">Weight</th>
-                                <th>Visual</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for model in model_data %}
-                            <tr>
-                                <td>
-                                    <strong>{{ model.name }}</strong>
-                                </td>
-                                <td class="text-center">{{ model.weight_pct|round(1) }}%</td>
-                                <td style="width: 50%;">
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar" role="progressbar" 
-                                             style="width: {{ model.weight_pct }}%; background-color: var(--maroon);"
-                                             aria-valuenow="{{ model.weight_pct }}" aria-valuemin="0" aria-valuemax="100">
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Accuracy Section -->
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-header">
-                <i class="bi bi-bullseye"></i> Model Accuracy
+                <i class="bi bi-trophy"></i> Win Probability — Model Leaderboard
             </div>
             <div class="card-body">
                 {% if model_data and model_data[0].accuracy %}
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover table-sm mb-0">
                         <thead>
                             <tr>
                                 <th>Model</th>
                                 <th class="text-center">7-Day</th>
                                 <th class="text-center">All-Time</th>
-                                <th class="text-center">Weekly &Delta;</th>
+                                <th class="text-center">Trend</th>
                                 <th class="text-center">Games</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for model in model_data %}
-                            {% if model.accuracy %}
-                            <tr>
-                                <td>{{ model.name }}</td>
+                            {# Sort by all-time accuracy descending #}
+                            {% for model in model_data|sort(attribute='accuracy.all_time_accuracy', reverse=true) if model.accuracy and model.accuracy.all_time_accuracy %}
+                            <tr class="{% if model.name == 'meta_ensemble' %}table-active{% endif %}">
+                                <td>
+                                    {% if model.name == 'meta_ensemble' %}<i class="bi bi-stars text-warning"></i> {% endif %}
+                                    <strong>{{ model.name }}</strong>
+                                </td>
                                 <td class="text-center">
                                     {% if model.accuracy.recent_accuracy %}
-                                    <span class="{% if model.accuracy.recent_accuracy > 0.55 %}text-success{% elif model.accuracy.recent_accuracy < 0.45 %}text-danger{% endif %}">
+                                    <span class="{% if model.accuracy.recent_accuracy > 0.70 %}text-success fw-bold{% elif model.accuracy.recent_accuracy > 0.55 %}text-success{% elif model.accuracy.recent_accuracy < 0.45 %}text-danger{% endif %}">
                                         {{ (model.accuracy.recent_accuracy * 100)|round(1) }}%
                                     </span>
                                     {% else %}
@@ -92,21 +54,19 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-center">
-                                    {% if model.accuracy.all_time_accuracy %}
-                                    {{ (model.accuracy.all_time_accuracy * 100)|round(1) }}%
-                                    {% else %}
-                                    <span class="text-muted">—</span>
-                                    {% endif %}
+                                    <span class="{% if model.accuracy.all_time_accuracy > 0.70 %}text-success fw-bold{% elif model.accuracy.all_time_accuracy > 0.65 %}text-success{% endif %}">
+                                        {{ (model.accuracy.all_time_accuracy * 100)|round(1) }}%
+                                    </span>
                                 </td>
                                 <td class="text-center">
                                     {% if model.accuracy.recent_accuracy and model.accuracy.all_time_accuracy %}
                                         {% set delta = (model.accuracy.recent_accuracy - model.accuracy.all_time_accuracy) * 100 %}
-                                        {% if delta > 0 %}
+                                        {% if delta > 1 %}
                                         <span class="badge bg-success"><i class="bi bi-arrow-up"></i> +{{ delta|round(1) }}</span>
-                                        {% elif delta < 0 %}
+                                        {% elif delta < -1 %}
                                         <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> {{ delta|round(1) }}</span>
                                         {% else %}
-                                        <span class="badge bg-secondary">0.0</span>
+                                        <span class="badge bg-secondary">{{ '%+.1f'|format(delta) }}</span>
                                         {% endif %}
                                     {% else %}
                                     <span class="text-muted">—</span>
@@ -116,7 +76,6 @@
                                     <span class="badge bg-secondary">{{ model.accuracy.all_time_predictions }}</span>
                                 </td>
                             </tr>
-                            {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -125,338 +84,160 @@
                 <div class="text-center py-4">
                     <i class="bi bi-graph-up display-4 text-muted"></i>
                     <p class="mt-2 text-muted">No accuracy data yet</p>
-                    <small class="text-muted">Accuracy will be tracked once games are completed</small>
                 </div>
                 {% endif %}
             </div>
         </div>
+    </div>
 
-        <!-- Calibration Report -->
-        <div class="card mb-3">
-            <div class="card-header">
-                <i class="bi bi-sliders"></i> Calibration Report (Platt)
+    <!-- Meta-Ensemble Feature Importance -->
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header" style="background-color: #7c3aed; color: white;">
+                <i class="bi bi-stars"></i> Meta-Ensemble
             </div>
             <div class="card-body">
-                {% if calibration_report %}
-                <div class="small text-muted mb-2">
-                    Per-model Platt calibration fit from recent evaluated predictions.<br>
-                    <strong>How to read:</strong> <code>a</code> controls confidence scaling (1.0 ≈ unchanged, &lt;1.0 softens extremes, &gt;1.0 sharpens),
-                    <code>b</code> is bias correction (positive shifts toward home team, negative toward away), and
-                    <code>Samples</code> is the number of graded predictions used in the fit.
-                </div>
+                {% if meta_feature_importance %}
+                <p class="text-muted small mb-2">
+                    XGBoost + Logistic Regression stacking model. Trained on <strong>{{ meta_training_size }}</strong> games
+                    (walk-forward validation). Evaluated on {{ meta_accuracy.get('meta_ensemble', {}).get('total', '?') }} graded predictions.
+                </p>
+                {% set max_imp = meta_feature_importance.values()|list|first if meta_feature_importance else 1 %}
+                {% set top_features = meta_feature_importance.items()|list %}
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                    <table class="table table-sm mb-0">
                         <thead>
                             <tr>
-                                <th>Model</th>
-                                <th class="text-center">a</th>
-                                <th class="text-center">b</th>
-                                <th class="text-center">Samples</th>
-                                <th class="text-center">Updated</th>
+                                <th>Feature</th>
+                                <th class="text-center" style="width: 60px;">Weight</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for row in calibration_report %}
+                            {# Show top 10 features, collapse the rest #}
+                            {% for name, imp in top_features[:10] %}
                             <tr>
-                                <td><strong>{{ row.model_name }}</strong></td>
-                                <td class="text-center">{{ '%.3f'|format(row.a) }}</td>
-                                <td class="text-center">{{ '%.3f'|format(row.b) }}</td>
-                                <td class="text-center"><span class="badge bg-secondary">{{ row.n_samples }}</span></td>
-                                <td class="text-center"><small>{{ row.updated_at }}</small></td>
+                                <td class="small">{{ name }}</td>
+                                <td class="text-center small">{{ (imp * 100)|round(1) }}%</td>
+                                <td style="width: 40%;">
+                                    <div class="progress" style="height: 14px;">
+                                        <div class="progress-bar" role="progressbar"
+                                             style="width: {{ (imp / max_imp * 100)|round(1) }}%; background-color: #7c3aed;">
+                                        </div>
+                                    </div>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <div class="text-muted small">No calibration data yet. Run <code>scripts/update_model_calibration.py</code>.</div>
+                {% if top_features|length > 10 %}
+                <div class="mt-2">
+                    <a class="text-muted small" data-bs-toggle="collapse" href="#moreFeatures" role="button" aria-expanded="false">
+                        <i class="bi bi-chevron-down"></i> {{ top_features|length - 10 }} more features
+                    </a>
+                    <div class="collapse mt-1" id="moreFeatures">
+                        <table class="table table-sm table-borderless small mb-0">
+                            <tbody>
+                                {% for name, imp in top_features[10:] %}
+                                <tr>
+                                    <td>{{ name }}</td>
+                                    <td class="text-end">{{ (imp * 100)|round(1) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 {% endif %}
+                {% else %}
+                <p class="text-muted">Meta-ensemble not yet trained. Run: <code>python3 scripts/train_meta_ensemble.py</code></p>
+                {% endif %}
+
+                {# Legacy weights collapsed #}
+                <div class="mt-3 pt-2 border-top">
+                    <a class="text-muted small" data-bs-toggle="collapse" href="#legacyWeights" role="button" aria-expanded="false">
+                        <i class="bi bi-chevron-down"></i> Legacy static ensemble weights
+                    </a>
+                    <div class="collapse mt-2" id="legacyWeights">
+                        <table class="table table-sm table-borderless small mb-0">
+                            <tbody>
+                                {% for model in model_data|sort(attribute='weight', reverse=true) if model.weight > 0 %}
+                                <tr>
+                                    <td>{{ model.name }}</td>
+                                    <td class="text-end">{{ model.weight_pct|round(1) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Model Descriptions -->
+        {# Calibration — only show if any model has non-default values #}
+        {% if has_active_calibration and calibration_report %}
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-book"></i> Model Descriptions
+                <i class="bi bi-sliders"></i> Calibration (Platt)
             </div>
-            <div class="card-body p-0">
-                <div class="accordion accordion-flush" id="modelDescriptions">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pythagorean">
-                                Pythagorean
-                            </button>
-                        </h2>
-                        <div id="desc-pythagorean" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Bill James' Pythagorean expectation — estimates true team strength from run production rather than win/loss record.</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>Total runs scored &amp; runs allowed</li>
-                                    <li>Home/away run splits</li>
-                                    <li>Pythagorean exponent (1.83 for college baseball)</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-elo">
-                                Elo
-                            </button>
-                        </h2>
-                        <div id="desc-elo" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Chess-style rating system. Ratings update after each game based on result, margin, and opponent strength. Preseason ratings seeded from D1Baseball rankings + conference tiers.</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>Elo rating per team (updates after every game)</li>
-                                    <li>Rating difference → win probability (logistic curve)</li>
-                                    <li>K-factor: 32 (how fast ratings adjust)</li>
-                                    <li>Home advantage: +50 Elo points</li>
-                                    <li>League average runs/game (for run projections)</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-log5">
-                                Log5
-                            </button>
-                        </h2>
-                        <div id="desc-log5" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Bill James' Log5 formula — calculates head-to-head win probability from each team's winning percentage, adjusting for the fact that both teams' records include games against varying opposition.</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>Overall win percentage</li>
-                                    <li>Home/away win percentage splits</li>
-                                    <li>Strength of schedule adjustment</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-advanced">
-                                Advanced
-                            </button>
-                        </h2>
-                        <div id="desc-advanced" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Game-results-based model with opponent adjustments and recency weighting. More recent games count more (exponential decay over last 15 games).</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>Opponent-adjusted win % (weighted by opponent quality)</li>
-                                    <li>Opponent-adjusted run differential per game</li>
-                                    <li>Strength of schedule (opponent win %)</li>
-                                    <li>Recency-weighted runs scored &amp; allowed</li>
-                                    <li>Recent form (last 5 games)</li>
-                                    <li>Rest days</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pitching">
-                                Pitching
-                            </button>
-                        </h2>
-                        <div id="desc-pitching" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Staff quality model (v2). Uses team pitching quality tables and batting quality tables rather than trying to identify specific starters. Day-of-week blending accounts for rotation patterns.</p>
-                                <strong>Pitching Inputs</strong> (from <code>team_pitching_quality</code>):
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr><th>Model</th><th class="text-center">a</th><th class="text-center">b</th><th class="text-center">Samples</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for row in calibration_report %}
+                            {% if (row.a - 1.0)|abs > 0.001 or row.b|abs > 0.001 %}
+                            <tr>
+                                <td>{{ row.model_name }}</td>
+                                <td class="text-center">{{ '%.3f'|format(row.a) }}</td>
+                                <td class="text-center">{{ '%.3f'|format(row.b) }}</td>
+                                <td class="text-center"><span class="badge bg-secondary">{{ row.n_samples }}</span></td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted"><code>a</code> scales confidence, <code>b</code> is bias correction.</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Section 2: Model Descriptions ── #}
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-book"></i> Model Descriptions
+        <small class="text-muted ms-2">Click to expand</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="accordion accordion-flush" id="modelDescriptions">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-meta">
+                        <span class="badge bg-primary me-2">★</span> Meta-Ensemble <small class="text-muted ms-2">— XGBoost stacking model that learns optimal blending</small>
+                    </button>
+                </h2>
+                <div id="desc-meta" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Trained stacking model that learns the optimal way to combine all 14 models. Uses XGBoost and Logistic Regression to learn <em>when</em> to trust each model based on context.</p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>20 Input Features:</strong>
                                 <ul>
-                                    <li>Rotation ERA, WHIP, K/9 (top 3 starters by IP, IP-weighted)</li>
-                                    <li>Bullpen ERA, WHIP, K/9 (non-starters)</li>
-                                    <li>Ace quality: ERA, WHIP, K/9, FIP</li>
-                                    <li>Staff depth: quality arms count, shutdown arms, innings HHI</li>
-                                    <li>Fragility: rotation-bullpen ERA gap + innings concentration</li>
-                                </ul>
-                                <strong>Batting Inputs</strong> (from <code>team_batting_quality</code>):
-                                <ul>
-                                    <li>Lineup OPS, wOBA, wRC+ (top 9 by AB, AB-weighted)</li>
-                                    <li>Lineup ISO, BABIP, K%, BB%</li>
-                                    <li>Elite/solid/weak bat counts</li>
-                                </ul>
-                                <strong>Game Context:</strong>
-                                <ul class="mb-0">
-                                    <li>Day-of-week rotation blend (ace Fri 85%, bullpen Sun 45%)</li>
-                                    <li>Home advantage: +3.5%</li>
+                                    <li><em>Model Predictions (14):</em> Home win probability from each base model</li>
+                                    <li><em>Agreement (3):</em> Home-vote count, average probability, max-min spread</li>
+                                    <li><em>Context (3):</em> Elo diff, same-conference flag, any-team-ranked flag</li>
                                 </ul>
                             </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-poisson">
-                                Poisson
-                            </button>
-                        </h2>
-                        <div id="desc-poisson" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Models runs as Poisson-distributed random variables. Builds a full probability matrix for every possible score, enabling precise over/under and run line calculations.</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>Home/away runs scored per game</li>
-                                    <li>Home/away runs allowed per game</li>
-                                    <li>League average runs (for regression)</li>
-                                    <li>Batting quality adjustment (lineup wRC+)</li>
-                                    <li>Pitching quality adjustment (staff ERA)</li>
-                                    <li>Home advantage: +0.3 runs</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-conference">
-                                Conference
-                            </button>
-                        </h2>
-                        <div id="desc-conference" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Adjusts predictions based on conference strength tiers and cross-conference matchup patterns.</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>Conference tier ratings (SEC, ACC, Big 12, etc.)</li>
-                                    <li>Conference win % vs non-conference opponents</li>
-                                    <li>Team conference standing</li>
-                                    <li>Cross-conference matchup adjustments</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-prior">
-                                Prior
-                            </button>
-                        </h2>
-                        <div id="desc-prior" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Bayesian prior model — especially useful early in the season before enough games are played. Decays as real data accumulates.</p>
-                                <strong>Inputs:</strong>
-                                <ul class="mb-0">
-                                    <li>D1Baseball preseason Top 25 rankings</li>
-                                    <li>Historical program strength (last 3 seasons)</li>
-                                    <li>Conference tier priors</li>
-                                    <li>Preseason poll vote counts</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-neural">
-                                Neural Network
-                            </button>
-                        </h2>
-                        <div id="desc-neural" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Deep neural network (PyTorch) trained on 6,000+ historical games + 2026 season data. Two-phase training: base training on historical, then fine-tuned on recent games.</p>
-                                <strong>81 Features per game (per team):</strong>
-                                <ul>
-                                    <li><em>Team Strength:</em> Elo, win %, last 10/20, run diff, Pythagorean %</li>
-                                    <li><em>Batting:</em> AVG, OBP, SLG, OPS, HR/game, BB/game, SO/game, R/game</li>
-                                    <li><em>Pitching:</em> ERA, WHIP, K/9, BB/9, HR/9, opp BA</li>
-                                    <li><em>Advanced Batting:</em> wRC+, wOBA, ISO, BABIP, K%, BB%, GB/FB/LD%</li>
-                                    <li><em>Advanced Pitching:</em> FIP, xFIP, SIERA, GB%, FB%</li>
-                                    <li><em>Situational:</em> Days rest, strength of schedule</li>
-                                    <li><em>Weather:</em> Temp, humidity, wind speed/direction, precip prob, dome flag</li>
-                                    <li><em>Game Context:</em> Neutral site, conference game flag</li>
-                                </ul>
-                                <strong>Architecture:</strong> 81→128→64→32→1 (ReLU + dropout)
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-xgboost">
-                                XGBoost
-                            </button>
-                        </h2>
-                        <div id="desc-xgboost" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>GPU-accelerated gradient boosting (tree-based). Same 81 features as the neural network but uses decision tree ensembles instead of a neural architecture.</p>
-                                <strong>Inputs:</strong> Same 81 features as Neural Network
-                                <ul class="mb-0">
-                                    <li>Team strength, batting, pitching, advanced stats, weather</li>
-                                    <li>Trained on 6,184 historical games</li>
-                                    <li>Feature normalization (z-score)</li>
-                                    <li>Handles feature interactions natively via tree splits</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-lightgbm">
-                                LightGBM
-                            </button>
-                        </h2>
-                        <div id="desc-lightgbm" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Microsoft's gradient boosting framework using leaf-wise tree growth (vs XGBoost's level-wise). Often faster training with comparable accuracy.</p>
-                                <strong>Inputs:</strong> Same 81 features as Neural Network
-                                <ul class="mb-0">
-                                    <li>Team strength, batting, pitching, advanced stats, weather</li>
-                                    <li>Trained on 6,184 historical games</li>
-                                    <li>Feature normalization (z-score)</li>
-                                    <li>Also used for totals and spread prediction models</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-ensemble">
-                                Ensemble (Legacy)
-                            </button>
-                        </h2>
-                        <div id="desc-ensemble" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Dynamic weighted combination of all models. Weights auto-adjust based on recency-weighted accuracy — models that predict well recently get more influence.</p>
-                                <strong>How it works:</strong>
-                                <ul class="mb-0">
-                                    <li>Win probability: weighted average of all model probabilities</li>
-                                    <li>Run projections: from Runs Ensemble v2 (Poisson 60%, Advanced 40%) with NegBin O/U and OVER confidence gate</li>
-                                    <li>Weights update automatically with exponential decay (half-life ~30 predictions)</li>
-                                    <li>Preseason models (Prior, Conference) decay as real data grows</li>
-                                    <li>Minimum weight floor: 3% (no model fully drops out)</li>
-                                </ul>
-                                <div class="alert alert-warning py-1 mt-2 mb-0">
-                                    <small><strong>Note:</strong> The Meta-Ensemble (below) has superseded this model for win probability. This legacy ensemble is kept for comparison and as a fallback.</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-meta">
-                                <span class="badge bg-primary me-2">NEW</span> Meta-Ensemble
-                            </button>
-                        </h2>
-                        <div id="desc-meta" class="accordion-collapse collapse">
-                            <div class="accordion-body small">
-                                <p>Trained stacking model that learns the optimal way to combine all 12 models. Instead of static weights, it uses XGBoost and Logistic Regression to learn <em>when</em> to trust each model based on context.</p>
-                                <strong>18 Input Features:</strong>
-                                <ul>
-                                    <li><em>Model Predictions (12):</em> Home win probability from each of the 12 base models</li>
-                                    <li><em>Agreement (3):</em> How many models predict home win, average probability, max-min probability spread</li>
-                                    <li><em>Context (3):</em> Elo rating difference, same-conference flag, any-team-ranked flag</li>
-                                </ul>
-                                <strong>Architecture:</strong>
-                                <ul>
-                                    <li>Primary: XGBoost (depth=3, 100 trees, regularized for small sample)</li>
-                                    <li>Secondary: Logistic Regression (often better with limited data)</li>
-                                    <li>Output: calibrated probability (average of both models)</li>
-                                </ul>
+                            <div class="col-md-6">
                                 <strong>Validation:</strong>
                                 <ul class="mb-0">
-                                    <li>Walk-forward only (train on past dates, test on future dates)</li>
+                                    <li>Walk-forward only (train on past, test on future)</li>
                                     <li>No random cross-validation (prevents data leakage)</li>
                                     <li>Re-trained weekly as more games accumulate</li>
                                 </ul>
@@ -465,150 +246,195 @@
                     </div>
                 </div>
             </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pear">
+                        PEAR <small class="text-muted ms-2">— External composite ratings from PEARatings.com</small>
+                    </button>
+                </h2>
+                <div id="desc-pear" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>PEAR Ratings composite — uses external TSR/ELO/fWAR metrics from PEARatings.com. Independent data source provides diversity to the ensemble.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-quality">
+                        Quality <small class="text-muted ms-2">— Z-scored batting/pitching quality + dominance ratio</small>
+                    </button>
+                </h2>
+                <div id="desc-quality" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Advanced quality metrics — z-scored batting/pitching quality indexes combined with a dominance ratio. Captures overall team quality independent of win/loss record.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-neural">
+                        Neural Network <small class="text-muted ms-2">— PyTorch deep learning on 81 features</small>
+                    </button>
+                </h2>
+                <div id="desc-neural" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Deep neural network (PyTorch) trained on 6,000+ historical games + 2026 season data. Two-phase training: base training on historical, then fine-tuned on recent games.</p>
+                        <strong>81 Features:</strong> Team strength (Elo, win%, form), batting (AVG, OBP, SLG, OPS, wRC+, wOBA, ISO), pitching (ERA, WHIP, K/9, FIP, xFIP, SIERA), weather, and game context.
+                        <br><strong>Architecture:</strong> 81→128→64→32→1 (ReLU + dropout)
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-elo">
+                        Elo <small class="text-muted ms-2">— Chess-style rating system with margin-of-victory</small>
+                    </button>
+                </h2>
+                <div id="desc-elo" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Ratings update after each game based on result, margin, and opponent strength. Preseason ratings seeded from D1Baseball rankings + conference tiers.</p>
+                        <strong>Parameters:</strong> K-factor 32, home advantage +50 Elo, logistic win probability curve.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-prior">
+                        Prior <small class="text-muted ms-2">— Bayesian prior from preseason rankings</small>
+                    </button>
+                </h2>
+                <div id="desc-prior" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Bayesian prior model — especially useful early season. Uses D1Baseball preseason rankings, historical program strength (3 seasons), conference tier priors, and preseason poll vote counts. Decays as real data accumulates.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-xgboost">
+                        XGBoost / LightGBM <small class="text-muted ms-2">— Gradient boosted trees on 81 features</small>
+                    </button>
+                </h2>
+                <div id="desc-xgboost" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Same 81 features as the neural network but using decision tree ensembles. XGBoost uses level-wise growth; LightGBM uses leaf-wise growth. Both trained on ~6,184 historical games with recency weighting.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pitching">
+                        Pitching <small class="text-muted ms-2">— Staff quality model v2</small>
+                    </button>
+                </h2>
+                <div id="desc-pitching" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Uses team pitching/batting quality tables rather than identifying specific starters. Day-of-week blending accounts for rotation patterns (ace Fri 85%, bullpen Sun 45%).</p>
+                        <strong>Pitching:</strong> Rotation ERA/WHIP/K9, bullpen quality, ace metrics, staff depth, fragility.
+                        <br><strong>Batting:</strong> Lineup OPS/wOBA/wRC+, ISO, BABIP, K%/BB%.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-pythagorean">
+                        Pythagorean <small class="text-muted ms-2">— Bill James' run differential formula</small>
+                    </button>
+                </h2>
+                <div id="desc-pythagorean" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        Estimates true team strength from run production (runs scored vs allowed) rather than win/loss record. Exponent 1.83 for college baseball.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-poisson">
+                        Poisson <small class="text-muted ms-2">— Run-scoring probability matrix</small>
+                    </button>
+                </h2>
+                <div id="desc-poisson" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        Models runs as Poisson random variables. Builds a full score probability matrix for O/U and run line calculations. Adjusted for batting/pitching quality and home advantage (+0.3 runs).
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-log5">
+                        Log5 <small class="text-muted ms-2">— Bill James head-to-head formula</small>
+                    </button>
+                </h2>
+                <div id="desc-log5" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        Calculates head-to-head win probability from each team's winning percentage, adjusting for the fact that both teams' records include games against varying opposition. Uses home/away splits and SOS adjustment.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-advanced">
+                        Advanced <small class="text-muted ms-2">— Multi-factor with opponent adjustments</small>
+                    </button>
+                </h2>
+                <div id="desc-advanced" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        Game-results-based model with opponent-adjusted win%, run differential, SOS, recency weighting (exponential decay over last 15 games), and recent form (last 5).
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-conference">
+                        Conference <small class="text-muted ms-2">— Conference strength tiers</small>
+                    </button>
+                </h2>
+                <div id="desc-conference" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        Adjusts predictions based on conference strength tiers (SEC, ACC, Big 12, etc.), cross-conference win rates, and team conference standing.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#desc-ensemble">
+                        Ensemble (Legacy) <small class="text-muted ms-2">— Dynamic weighted combination</small>
+                    </button>
+                </h2>
+                <div id="desc-ensemble" class="accordion-collapse collapse">
+                    <div class="accordion-body small">
+                        <p>Weighted average of all model probabilities with auto-adjusting weights (exponential decay, half-life ~30 predictions). 3% minimum weight floor.</p>
+                        <div class="alert alert-warning py-1 mb-0 small">
+                            <strong>Superseded</strong> by Meta-Ensemble for win probability. Kept for comparison and fallback.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Meta-Ensemble Section -->
-{% if meta_feature_importance or meta_accuracy %}
+{# ── Section 3: Totals Predictions ── #}
 <div class="row mt-4">
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-header" style="background-color: #7c3aed; color: white;">
-                <i class="bi bi-stars"></i> Meta-Ensemble (Trained Stacking Model)
-            </div>
-            <div class="card-body">
-                <p class="text-muted small mb-2">XGBoost + Logistic Regression trained on all 12 model predictions + context features. Learns which models to trust and when.</p>
-                <div class="alert alert-success small py-2 mb-3">
-                    <strong>Walk-forward validated:</strong> Trained on earlier dates, tested on later dates — no data leakage. LogReg: <strong>77.5%</strong>, XGBoost: <strong>74.0%</strong> vs prior ensemble 67.4%.
-                </div>
-
-                {% if meta_accuracy %}
-                <h6 class="mb-2">Live Accuracy Comparison</h6>
-                <div class="table-responsive mb-3">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Model</th>
-                                <th class="text-center">Accuracy</th>
-                                <th class="text-center">Record</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for name in ['meta_ensemble', 'prior', 'neural', 'elo', 'ensemble'] %}
-                            {% if name in meta_accuracy %}
-                            <tr class="{% if name == 'meta_ensemble' %}table-active{% endif %}">
-                                <td>
-                                    {% if name == 'meta_ensemble' %}<strong><i class="bi bi-stars"></i> {{ name }}</strong>
-                                    {% else %}{{ name }}{% endif %}
-                                </td>
-                                <td class="text-center">
-                                    <span class="{% if meta_accuracy[name].accuracy > 70 %}text-success fw-bold{% elif meta_accuracy[name].accuracy > 65 %}text-primary{% endif %}">
-                                        {{ meta_accuracy[name].accuracy }}%
-                                    </span>
-                                </td>
-                                <td class="text-center">
-                                    <small>{{ meta_accuracy[name].correct }}/{{ meta_accuracy[name].total }}</small>
-                                </td>
-                            </tr>
-                            {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% endif %}
-
-                <h6 class="mb-2">18 Input Features</h6>
-                <div class="small text-muted mb-2">12 model probabilities + model agreement metrics + Elo difference + conference/ranking context</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-header" style="background-color: #7c3aed; color: white;">
-                <i class="bi bi-bar-chart-fill"></i> Feature Importance (What Matters Most)
-            </div>
-            <div class="card-body">
-                {% if meta_feature_importance %}
-                {% set max_imp = meta_feature_importance.values()|list|first if meta_feature_importance else 1 %}
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Feature</th>
-                                <th class="text-center">Weight</th>
-                                <th>Importance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for name, imp in meta_feature_importance.items() %}
-                            {% if loop.index <= 12 %}
-                            <tr>
-                                <td>
-                                    <small>
-                                    {% if 'prob' in name %}🎯{% elif 'elo' in name %}📊{% elif 'ranked' in name %}🏆{% elif 'conference' in name and 'prob' not in name %}🏟️{% elif 'models_' in name %}🤝{% elif 'spread' in name %}📏{% else %}📋{% endif %}
-                                    {{ name.replace('_prob', '').replace('_', ' ').title() }}
-                                    </small>
-                                </td>
-                                <td class="text-center"><small>{{ (imp * 100)|round(1) }}%</small></td>
-                                <td style="width: 45%;">
-                                    <div class="progress" style="height: 14px;">
-                                        <div class="progress-bar" role="progressbar" 
-                                             style="width: {{ (imp / max_imp * 100)|round(0) }}%; background-color: #7c3aed;"
-                                             aria-valuenow="{{ (imp * 100)|round(1) }}">
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="mt-2 small text-muted">
-                    <strong>Key insight:</strong> Elo difference (18.1%) is the single strongest predictor — raw rating gap matters more than any individual model's probability.
-                </div>
-                {% else %}
-                <div class="text-muted small">Train the meta-ensemble to see feature importances: <code>python3 scripts/train_meta_ensemble.py</code></div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Runs Ensemble Section -->
-<div class="row mt-4">
-    <div class="col-lg-6">
+    <div class="col-lg-5">
         <div class="card">
             <div class="card-header" style="background-color: #2563eb; color: white;">
-                <i class="bi bi-graph-up"></i> Runs Ensemble v2 (Totals Model)
+                <i class="bi bi-graph-up"></i> Runs Ensemble v2 (Totals)
             </div>
             <div class="card-body">
-                <p class="text-muted small">Combines Poisson (60%) and Advanced (40%) models with Negative Binomial O/U and game-context variance adjustment</p>
-                <div class="alert alert-info small py-2 mb-3">
-                    <strong>v2 Changes:</strong> Removed pitching component · Added NegBin O/U (captures overdispersion) · Game-context variance boost · OVER confidence gate (requires &gt;8% edge)
-                </div>
+                <p class="text-muted small mb-2">Poisson + Advanced blend with Negative Binomial O/U and game-context variance adjustment</p>
                 
                 {% if runs_weights %}
                 <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Model</th>
-                                <th class="text-center">Weight</th>
-                                <th>Visual</th>
-                            </tr>
-                        </thead>
+                    <table class="table table-sm mb-2">
                         <tbody>
                             {% for name, weight in runs_weights.items()|sort(attribute='1', reverse=true) %}
                             <tr>
                                 <td><strong>{{ name }}</strong></td>
-                                <td class="text-center">{{ (weight * 100)|round(0) }}%</td>
+                                <td class="text-center" style="width: 60px;">{{ (weight * 100)|round(0) }}%</td>
                                 <td style="width: 50%;">
-                                    <div class="progress" style="height: 16px;">
-                                        <div class="progress-bar" role="progressbar" 
+                                    <div class="progress" style="height: 14px;">
+                                        <div class="progress-bar" role="progressbar"
                                              style="width: {{ weight * 100 }}%; background-color: #2563eb;">
                                         </div>
                                     </div>
@@ -621,14 +447,34 @@
                 {% else %}
                 <p class="text-muted">Runs ensemble weights not available</p>
                 {% endif %}
+
+                {% if totals_no_line and totals_no_line.total > 0 %}
+                <div class="border-top pt-2 mt-2">
+                    <small class="text-muted fw-bold">No-Line Games ({{ totals_no_line.total }}):</small>
+                    <div class="row text-center mt-1">
+                        <div class="col-4">
+                            <strong>{{ totals_no_line.mae }}</strong>
+                            <br><small class="text-muted">MAE</small>
+                        </div>
+                        <div class="col-4">
+                            <strong>{{ totals_no_line.avg_projected }}</strong>
+                            <br><small class="text-muted">Avg Proj</small>
+                        </div>
+                        <div class="col-4">
+                            <strong>{{ totals_no_line.avg_actual }}</strong>
+                            <br><small class="text-muted">Avg Actual</small>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
     
-    <div class="col-lg-6">
+    <div class="col-lg-7">
         <div class="card">
             <div class="card-header">
-                <i class="bi bi-bullseye"></i> Totals Prediction Accuracy
+                <i class="bi bi-bullseye"></i> Totals O/U Accuracy
             </div>
             <div class="card-body">
                 {% if totals_overall and totals_overall.total > 0 %}
@@ -640,72 +486,56 @@
                         <small class="text-muted">Overall</small>
                     </div>
                     <div class="col-4 text-center">
-                        <h3 class="mb-0">{{ totals_overall.correct }}</h3>
-                        <small class="text-muted text-success">Correct</small>
+                        <h3 class="mb-0 text-success">{{ totals_overall.correct }}</h3>
+                        <small class="text-muted">Correct</small>
                     </div>
                     <div class="col-4 text-center">
-                        <h3 class="mb-0">{{ totals_overall.incorrect }}</h3>
-                        <small class="text-muted text-danger">Wrong</small>
+                        <h3 class="mb-0 text-danger">{{ totals_overall.incorrect }}</h3>
+                        <small class="text-muted">Wrong</small>
                     </div>
                 </div>
                 
-                {% if totals_by_type %}
-                <h6 class="mb-2">By Type:</h6>
-                <div class="row mb-3">
-                    {% for row in totals_by_type %}
-                    <div class="col-6">
-                        <span class="badge {% if row.prediction == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
-                            {{ row.prediction }}
-                        </span>
-                        {{ row.correct }}/{{ row.total }}
-                        ({{ ((row.correct / row.total) * 100)|round(0) if row.total > 0 else 0 }}%)
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                
-                {% if totals_by_edge %}
-                <h6 class="mb-2">By Edge:</h6>
-                <table class="table table-sm">
-                    <tbody>
-                        {% for row in totals_by_edge %}
-                        <tr>
-                            <td>{{ row.edge_bucket }}</td>
-                            <td class="text-center">{{ row.correct }}/{{ row.total }}</td>
-                            <td class="text-end">
-                                <span class="{% if row.total > 0 and row.correct / row.total > 0.55 %}text-success{% elif row.total > 0 and row.correct / row.total < 0.45 %}text-danger{% endif %}">
-                                    {{ ((row.correct / row.total) * 100)|round(0) if row.total > 0 else 0 }}%
-                                </span>
-                            </td>
-                        </tr>
+                <div class="row">
+                    {% if totals_by_type %}
+                    <div class="col-md-6">
+                        <h6 class="mb-2">By Direction:</h6>
+                        {% for row in totals_by_type %}
+                        <div class="mb-1">
+                            <span class="badge {% if row.prediction == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ row.prediction }}
+                            </span>
+                            {{ row.correct }}/{{ row.total }}
+                            ({{ ((row.correct / row.total) * 100)|round(0) if row.total > 0 else 0 }}%)
+                        </div>
                         {% endfor %}
-                    </tbody>
-                </table>
-                {% endif %}
-
-                {% if totals_no_line and totals_no_line.total > 0 %}
-                <h6 class="mb-2 mt-3">No Betting Line ({{ totals_no_line.total }} games):</h6>
-                <div class="row text-center">
-                    <div class="col-4">
-                        <h5 class="mb-0">{{ totals_no_line.mae }}</h5>
-                        <small class="text-muted">MAE (runs)</small>
                     </div>
-                    <div class="col-4">
-                        <h5 class="mb-0">{{ totals_no_line.avg_projected }}</h5>
-                        <small class="text-muted">Avg Projected</small>
+                    {% endif %}
+                    
+                    {% if totals_by_edge %}
+                    <div class="col-md-6">
+                        <h6 class="mb-2">By Edge:</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                {% for row in totals_by_edge %}
+                                <tr>
+                                    <td class="small">{{ row.edge_bucket }}</td>
+                                    <td class="text-center small">{{ row.correct }}/{{ row.total }}</td>
+                                    <td class="text-end">
+                                        <span class="{% if row.total > 0 and row.correct / row.total > 0.55 %}text-success{% elif row.total > 0 and row.correct / row.total < 0.45 %}text-danger{% endif %}">
+                                            {{ ((row.correct / row.total) * 100)|round(0) if row.total > 0 else 0 }}%
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="col-4">
-                        <h5 class="mb-0">{{ totals_no_line.avg_actual }}</h5>
-                        <small class="text-muted">Avg Actual</small>
-                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
-                
                 {% else %}
                 <div class="text-center py-4">
                     <i class="bi bi-graph-up display-4 text-muted"></i>
                     <p class="mt-2 text-muted">No totals predictions tracked yet</p>
-                    <small class="text-muted">Run <code>track_totals.py predict</code> to start tracking</small>
                 </div>
                 {% endif %}
             </div>
@@ -713,43 +543,38 @@
     </div>
 </div>
 
+{# ── Section 4: Totals MAE + O/U Split ── #}
 {% if totals_mae_by_model %}
-<div class="row mt-4">
+<div class="row">
     <div class="col-md-6">
         <div class="card">
             <div class="card-header"><i class="bi bi-rulers"></i> MAE by Totals Model</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Model</th><th>Games</th><th>MAE</th><th>7-Day MAE</th><th>Weekly &Delta;</th><th>Avg Pred</th><th>Avg Actual</th></tr></thead>
+                    <thead><tr><th>Model</th><th class="text-center">Games</th><th class="text-center">MAE</th><th class="text-center">7-Day</th><th class="text-center">Trend</th></tr></thead>
                     <tbody>
                     {% for row in totals_mae_by_model %}
                     <tr>
                         <td>{{ row.model_name }}</td>
-                        <td>{{ row.n }}</td>
-                        <td><strong>{{ row.mae }}</strong></td>
+                        <td class="text-center">{{ row.n }}</td>
+                        <td class="text-center"><strong>{{ row.mae }}</strong></td>
                         <td class="text-center">
                             {% if row.model_name in totals_mae_weekly %}
                             {{ totals_mae_weekly[row.model_name].mae }}
-                            {% else %}
-                            <span class="text-muted">—</span>
-                            {% endif %}
+                            {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                         <td class="text-center">
                             {% if row.model_name in totals_mae_weekly %}
                                 {% set delta = row.mae - totals_mae_weekly[row.model_name].mae %}
-                                {% if delta > 0 %}
-                                <span class="badge bg-success"><i class="bi bi-arrow-up"></i> {{ delta|round(2) }}</span>
-                                {% elif delta < 0 %}
-                                <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> {{ delta|round(2) }}</span>
+                                {% if delta > 0.05 %}
+                                <span class="badge bg-success" title="Weekly better than all-time"><i class="bi bi-arrow-up"></i></span>
+                                {% elif delta < -0.05 %}
+                                <span class="badge bg-danger" title="Weekly worse than all-time"><i class="bi bi-arrow-down"></i></span>
                                 {% else %}
-                                <span class="badge bg-secondary">0.0</span>
+                                <span class="badge bg-secondary">—</span>
                                 {% endif %}
-                            {% else %}
-                            <span class="text-muted">—</span>
-                            {% endif %}
+                            {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
-                        <td>{{ row.avg_predicted }}</td>
-                        <td>{{ row.avg_actual }}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -759,38 +584,23 @@
     </div>
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header"><i class="bi bi-arrow-up-down"></i> O/U Split by Model</div>
+            <div class="card-header"><i class="bi bi-arrow-up-down"></i> O/U Hit Rate by Model</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
-                    <thead><tr><th>Model</th><th>Direction</th><th>Correct</th><th>Total</th><th>Hit%</th><th>7-Day Hit%</th><th>Weekly &Delta;</th></tr></thead>
+                    <thead><tr><th>Model</th><th class="text-center">Direction</th><th class="text-center">Record</th><th class="text-center">Hit%</th><th class="text-center">7-Day</th></tr></thead>
                     <tbody>
                     {% for row in totals_ou_split %}
                     <tr>
                         <td>{{ row.model_name }}</td>
-                        <td>{{ row.prediction }}</td>
-                        <td>{{ row.correct }}</td>
-                        <td>{{ row.total }}</td>
-                        <td class="{% if row.hit_rate > 55 %}text-success{% elif row.hit_rate < 45 %}text-danger{% endif %}"><strong>{{ row.hit_rate }}%</strong></td>
+                        <td class="text-center">
+                            <span class="badge {% if row.prediction == 'OVER' %}bg-success{% else %}bg-danger{% endif %} badge-sm">{{ row.prediction }}</span>
+                        </td>
+                        <td class="text-center">{{ row.correct }}/{{ row.total }}</td>
+                        <td class="text-center {% if row.hit_rate > 55 %}text-success{% elif row.hit_rate < 45 %}text-danger{% endif %}"><strong>{{ row.hit_rate }}%</strong></td>
                         <td class="text-center">
                             {% if row.model_name in totals_weekly_ou %}
                             {{ totals_weekly_ou[row.model_name].hit_rate }}%
-                            {% else %}
-                            <span class="text-muted">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if row.model_name in totals_weekly_ou %}
-                                {% set delta = totals_weekly_ou[row.model_name].hit_rate - row.hit_rate %}
-                                {% if delta > 0 %}
-                                <span class="badge bg-success"><i class="bi bi-arrow-up"></i> +{{ delta|round(1) }}</span>
-                                {% elif delta < 0 %}
-                                <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> {{ delta|round(1) }}</span>
-                                {% else %}
-                                <span class="badge bg-secondary">0.0</span>
-                                {% endif %}
-                            {% else %}
-                            <span class="text-muted">—</span>
-                            {% endif %}
+                            {% else %}<span class="text-muted">—</span>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -802,6 +612,7 @@
 </div>
 {% endif %}
 
+{# ── Section 5: Recent Predictions ── #}
 {% if recent_totals %}
 <div class="card mt-4">
     <div class="card-header">
@@ -850,11 +661,10 @@
 </div>
 {% endif %}
 
-<!-- Prediction Log -->
 {% if prediction_log %}
 <div class="card mt-4">
     <div class="card-header">
-        <i class="bi bi-journal-text"></i> Recent Predictions
+        <i class="bi bi-journal-text"></i> Recent Win Predictions
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -878,9 +688,7 @@
                         <td class="text-center">
                             {% if pred.home_win_prob %}
                             {{ (pred.home_win_prob * 100)|round(1) }}% home
-                            {% else %}
-                            —
-                            {% endif %}
+                            {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
                             {% if pred.status == 'final' %}
@@ -910,43 +718,6 @@
 
 {% block extra_js %}
 <script>
-// Weights pie chart
-const ctx = document.getElementById('weightsChart').getContext('2d');
-
-const colors = [
-    '#5D1725', '#8B2942', '#B93B5E', '#E74C3C', '#F39C12', '#27AE60', '#3498DB'
-];
-
-new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-        labels: [{% for m in model_data %}'{{ m.name }}'{% if not loop.last %}, {% endif %}{% endfor %}],
-        datasets: [{
-            data: [{% for m in model_data %}{{ m.weight_pct|round(1) }}{% if not loop.last %}, {% endif %}{% endfor %}],
-            backgroundColor: colors.slice(0, {{ model_data|length }}),
-            borderWidth: 2,
-            borderColor: '#fff'
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            legend: {
-                position: 'right',
-                labels: {
-                    padding: 15,
-                    usePointStyle: true
-                }
-            },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return context.label + ': ' + context.parsed.toFixed(1) + '%';
-                    }
-                }
-            }
-        }
-    }
-});
+// Page-specific JS placeholder
 </script>
 {% endblock %}

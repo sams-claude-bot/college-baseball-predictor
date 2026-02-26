@@ -57,7 +57,7 @@
                                             <a href="/team/{{ tid }}" class="team-link"><strong>{{ team.name }}</strong></a>
                                             <br><small class="text-muted">{{ team.conference or '' }}</small>
                                             {% if tid not in elo_ids %}
-                                            <span class="badge bg-secondary ms-1" title="Not in Elo Top 25">D1BB only</span>
+                                            <span class="badge bg-secondary ms-1" title="Not in Sam's Top 25">D1BB only</span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -77,11 +77,11 @@
         </div>
     </div>
 
-    <!-- Elo Top 25 -->
+    <!-- Sam's Top 25 -->
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center" style="background-color: #2563eb; color: white;">
-                <span><i class="bi bi-graph-up-arrow"></i> Elo Top 25</span>
+                <span><i class="bi bi-graph-up-arrow"></i> Sam's Top 25</span>
                 <a href="/api/elo-card?download=1" class="btn btn-sm btn-light" title="Download as image">
                     <i class="bi bi-download"></i> Share
                 </a>
@@ -253,8 +253,8 @@
     <div class="card-body py-2">
         <div class="d-flex flex-wrap gap-3 align-items-center small">
             <strong>Legend:</strong>
-            <span><span class="badge bg-secondary">D1BB only</span> Ranked by D1Baseball but not in Elo Top 25</span>
-            <span><span class="badge bg-secondary">Elo only</span> In Elo Top 25 but not ranked by D1Baseball</span>
+            <span><span class="badge bg-secondary">D1BB only</span> Ranked by D1Baseball but not in Sam's Top 25</span>
+            <span><span class="badge bg-secondary">Elo only</span> In Sam's Top 25 but not ranked by D1Baseball</span>
             {% if power_rankings %}
             <span><span class="badge" style="background-color: #059669; color: white;">Power</span> Model-simulated round-robin ranking (all teams vs all teams)</span>
             {% endif %}

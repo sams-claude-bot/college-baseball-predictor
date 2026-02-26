@@ -510,7 +510,7 @@ def elo_card_image():
     
     # Header
     draw.text((W//2, 24), 'COLLEGE BASEBALL PREDICTOR', fill=gray, font=font_small, anchor='mt')
-    draw.text((W//2, 48), 'Elo Top 25', fill=white, font=font_title, anchor='mt')
+    draw.text((W//2, 48), "Sam's Top 25", fill=white, font=font_title, anchor='mt')
     
     from datetime import datetime
     draw.text((W//2, 78), datetime.now().strftime('%B %d, %Y'), fill=gray, font=font_subtitle, anchor='mt')

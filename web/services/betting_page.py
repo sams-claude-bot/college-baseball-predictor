@@ -16,6 +16,7 @@ from web.bet_quality import (
     passes_quality_gate, bet_quality_score, has_vegas_disagreement,
     vegas_implied_prob, MAX_PER_TYPE as QUALITY_MAX_PER_TYPE
 )
+from web.services.series_probability import compute_series_probs
 
 
 def build_betting_page_context(conference=''):
@@ -101,6 +102,10 @@ def build_betting_page_context(conference=''):
             g['is_underdog'] = ml > 0 if ml else False
 
         g['bucket'] = classify_bucket(g)
+
+        # Series probabilities (home-perspective)
+        if g.get('model_home_prob') is not None:
+            g['series_probs'] = compute_series_probs(g['model_home_prob'])
 
     # Sort by adjusted edge
     games_with_edge = [g for g in games if g.get('adjusted_edge')]

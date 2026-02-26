@@ -74,6 +74,69 @@
     </div>
 </div>
 
+<!-- Team Quality Percentiles -->
+{% if percentiles %}
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-bar-chart-steps"></i> Team Quality <small class="text-muted">(percentile rank among D1 teams)</small>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% if percentiles.batting %}
+            <div class="col-md-6 mb-3 mb-md-0">
+                <h6 class="text-muted mb-2">Batting</h6>
+                <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Stat</th>
+                            <th class="text-end">Value</th>
+                            <th class="text-end">Pctl</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in percentiles.batting %}
+                        <tr>
+                            <td class="py-1">{{ s.name }}</td>
+                            <td class="text-end py-1">{{ s.formatted }}</td>
+                            <td class="text-end py-1">
+                                <span class="badge rounded-pill" style="background-color: {{ s.color }}; min-width: 28px;" title="{{ s.percentile }}{{ 'st' if s.percentile % 10 == 1 and s.percentile != 11 else ('nd' if s.percentile % 10 == 2 and s.percentile != 12 else ('rd' if s.percentile % 10 == 3 and s.percentile != 13 else 'th')) }} percentile among all D1 teams">{{ s.percentile }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            {% if percentiles.pitching %}
+            <div class="col-md-6">
+                <h6 class="text-muted mb-2">Pitching</h6>
+                <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Stat</th>
+                            <th class="text-end">Value</th>
+                            <th class="text-end">Pctl</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in percentiles.pitching %}
+                        <tr>
+                            <td class="py-1">{{ s.name }}</td>
+                            <td class="text-end py-1">{{ s.formatted }}</td>
+                            <td class="text-end py-1">
+                                <span class="badge rounded-pill" style="background-color: {{ s.color }}; min-width: 28px;" title="{{ s.percentile }}{{ 'st' if s.percentile % 10 == 1 and s.percentile != 11 else ('nd' if s.percentile % 10 == 2 and s.percentile != 12 else ('rd' if s.percentile % 10 == 3 and s.percentile != 13 else 'th')) }} percentile among all D1 teams">{{ s.percentile }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="row">
     <!-- Left Column -->
     <div class="col-lg-8">

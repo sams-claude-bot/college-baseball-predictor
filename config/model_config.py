@@ -27,18 +27,20 @@ ELO_K_FACTOR = 32                # How much ratings change per game
 ELO_MOV_MULTIPLIER_CAP = 2.0     # Max margin-of-victory K multiplier
 
 # Conference-tiered starting Elo (used when team first appears)
-# P4 kept high; non-P4 pulled down significantly to avoid overrating partially tracked teams.
+# Flattened tiers (50pt spread) — let games do the talking, not priors.
+# Top-25 preseason seeding handles the elite teams; conference tiers are
+# just a mild nudge for the unranked teams.
 ELO_CONFERENCE_TIERS = {
-    # Equal P4 baseline to remove conference-specific starting bias
-    'SEC': 1500, 'ACC': 1500, 'Big 12': 1500, 'Big Ten': 1500,
-    # Mid-majors closer to P4 baseline
-    'AAC': 1485, 'Sun Belt': 1480, 'C-USA': 1475, 'MWC': 1470,
-    'Big East': 1470, 'WCC': 1468, 'A-10': 1460, 'CAA': 1458,
-    'MVC': 1455, 'SoCon': 1452, 'ASUN': 1450, 'Big West': 1450,
-    'MAC': 1448, 'OVC': 1440, 'Southland': 1438, 'Summit': 1435,
-    'WAC': 1435, 'Big South': 1432, 'NEC': 1430, 'Patriot': 1430,
-    'Horizon': 1428, 'America East': 1425, 'Ivy': 1420,
-    'MEAC': 1405, 'SWAC': 1400,
+    # P4 baseline — all equal
+    'SEC': 1475, 'ACC': 1475, 'Big 12': 1475, 'Big Ten': 1475,
+    # Strong mid-majors
+    'AAC': 1465, 'Sun Belt': 1460, 'C-USA': 1460, 'MWC': 1458,
+    'Big East': 1458, 'WCC': 1455, 'A-10': 1453, 'CAA': 1453,
+    'MVC': 1450, 'SoCon': 1450, 'ASUN': 1448, 'Big West': 1448,
+    'MAC': 1445, 'OVC': 1443, 'Southland': 1440, 'Summit': 1440,
+    'WAC': 1440, 'Big South': 1438, 'NEC': 1435, 'Patriot': 1435,
+    'Horizon': 1433, 'America East': 1430, 'Ivy': 1430,
+    'MEAC': 1425, 'SWAC': 1425,
 }
 
 # Team-level starting Elo overrides for known exceptions.

@@ -5,6 +5,7 @@ Teams Blueprint - Team listing and detail pages
 from flask import Blueprint, render_template, request, current_app
 
 from web.helpers import get_all_teams, get_team_detail
+from web.services.team_percentiles import get_team_percentiles
 
 teams_bp = Blueprint('teams', __name__)
 
@@ -72,8 +73,11 @@ def team_detail(team_id):
     completed_games = [g for g in team['schedule'] if g['status'] == 'final']
     recent_form = completed_games[-10:] if completed_games else []
 
+    percentiles = get_team_percentiles(team_id)
+
     return render_template('team_detail.html',
                           team=team,
                           batters=batters,
                           pitchers=pitchers,
-                          recent_form=recent_form)
+                          recent_form=recent_form,
+                          percentiles=percentiles)

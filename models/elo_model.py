@@ -85,9 +85,9 @@ class EloModel(BaseModel):
             # Look up conference for tiered starting Elo
             try:
                 conn = get_connection()
-                row = conn.execute("SELECT conference, current_rank FROM teams WHERE id = ?", (team_id,)).fetchone()
+                row = conn.execute("SELECT conference, preseason_rank FROM teams WHERE id = ?", (team_id,)).fetchone()
                 conf = row['conference'] if row and row['conference'] else ''
-                current_rank = row['current_rank'] if row and row['current_rank'] else None
+                current_rank = row['preseason_rank'] if row and row['preseason_rank'] else None
 
                 gp_row = conn.execute('''
                     SELECT COUNT(*) AS gp

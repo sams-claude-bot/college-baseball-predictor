@@ -17,6 +17,8 @@ from web.helpers import (
     get_all_conferences, get_available_dates,
     get_games_for_date_with_predictions, american_to_implied_prob
 )
+from web.services.game_quality import compute_gqi, gqi_label, gqi_color
+from web.services.win_quality import get_game_resume_impact
 
 scores_bp = Blueprint('scores', __name__)
 
@@ -149,6 +151,14 @@ def scores():
             nn_total += 1
             if game['nn_correct']:
                 nn_correct += 1
+
+    # Compute GQI for each game
+    for game in games:
+        home_elo = game.get('home_elo') or 1500
+        away_elo = game.get('away_elo') or 1500
+        game['gqi'] = compute_gqi(home_elo, away_elo, game.get('home_rank'), game.get('away_rank'))
+        game['gqi_label'] = gqi_label(game['gqi'])
+        game['gqi_color'] = gqi_color(game['gqi'])
 
     # Filter by conference if specified
     if conference:
@@ -370,9 +380,37 @@ def game_detail(game_id):
 
     conn.close()
 
+    # Series probabilities for upcoming games
+    series_probs = None
+    if prediction and game.get('status') != 'final':
+        from web.services.series_probability import compute_series_probs
+        series_probs = compute_series_probs(prediction['home_win_prob'])
+
+    # Cross-matchup: offense vs pitching percentiles
+    cross_matchup = None
+    try:
+        from web.services.cross_matchup import build_cross_matchup
+        cross_matchup = build_cross_matchup(home_id, away_id)
+    except Exception:
+        pass
+
+    # Game Quality Index
+    gqi_val = compute_gqi(home['elo'], away['elo'], home.get('rank'), away.get('rank'))
+
+    # Resume Impact (win quality / loss damage)
+    resume_impact = None
+    try:
+        resume_impact = get_game_resume_impact(home_id, away_id)
+    except Exception:
+        pass
+
     return render_template('game.html',
         game=game, home=home, away=away,
         prediction=prediction, models=models_list,
         betting_line=betting_line,
         h2h_games=h2h_games, h2h_record=h2h_record,
-        totals_models=totals_models)
+        totals_models=totals_models,
+        series_probs=series_probs,
+        cross_matchup=cross_matchup,
+        resume_impact=resume_impact,
+        gqi=gqi_val, gqi_label=gqi_label(gqi_val), gqi_color=gqi_color(gqi_val))

@@ -40,6 +40,8 @@ from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
 from models.xgboost_model import XGBMoneylineModel
 from models.lightgbm_model import LGBMoneylineModel
+from models.pear_model import PearModel
+from models.quality_model import QualityModel
 
 
 class TeamStats:
@@ -118,6 +120,8 @@ class Predictor:
         'poisson': PoissonModelWrapper,
         'xgboost': XGBMoneylineModel,
         'lightgbm': LGBMoneylineModel,
+        'pear': PearModel,
+        'quality': QualityModel,
         'ensemble': EnsembleModel,
         'neural': None  # Lazy-loaded due to PyTorch dependency
     }

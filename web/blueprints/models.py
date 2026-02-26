@@ -380,12 +380,19 @@ def models():
     # Meta-ensemble feature importance + accuracy
     meta_feature_importance = {}
     meta_accuracy = {}
+    meta_training_size = 0
     try:
         from models.meta_ensemble import MetaEnsemble
         _meta = MetaEnsemble()
         meta_feature_importance = _meta.get_feature_importance()
         if meta_feature_importance:
             meta_feature_importance = dict(sorted(meta_feature_importance.items(), key=lambda x: -x[1]))
+        # Get actual training data size
+        try:
+            rows, _ = _meta._extract_training_data()
+            meta_training_size = len(rows)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -400,7 +407,7 @@ def models():
                 ROUND(100.0 * SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) as accuracy
             FROM model_predictions
             WHERE was_correct IS NOT NULL
-            AND model_name IN ('meta_ensemble', 'ensemble', 'prior', 'neural', 'elo')
+            AND model_name IN ('meta_ensemble', 'ensemble', 'prior', 'neural', 'elo', 'pear', 'quality')
             GROUP BY model_name
             ORDER BY accuracy DESC
         ''')
@@ -446,6 +453,12 @@ def models():
         rolling_data[model_name] = points
     conn3.close()
 
+    # Filter calibration: only show if any model has non-default values
+    has_active_calibration = any(
+        abs(r.get('a', 1.0) - 1.0) > 0.001 or abs(r.get('b', 0.0)) > 0.001
+        for r in calibration_report
+    )
+
     return render_template('models.html',
                           model_data=model_data,
                           weights=weights,
@@ -463,5 +476,7 @@ def models():
                           totals_weekly_ou=totals_weekly_ou,
                           rolling_data=rolling_data,
                           calibration_report=calibration_report,
+                          has_active_calibration=has_active_calibration,
                           meta_feature_importance=meta_feature_importance,
-                          meta_accuracy=meta_accuracy)
+                          meta_accuracy=meta_accuracy,
+                          meta_training_size=meta_training_size)

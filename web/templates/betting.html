@@ -238,6 +238,19 @@
                             </span>
                             <span class="badge bg-info">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% conf</span>
                         </div>
+                        {% if game.series_probs %}
+                        {% set sp = game.series_probs %}
+                        {% set pick = game.model_agreement.pick %}
+                        <div class="mt-2 pt-2 border-top">
+                            <small class="text-muted">Series: </small>
+                            <small>{{ ((sp.home_win_1plus if pick == 'home' else sp.away_win_1plus) * 100)|round(0) }}%</small>
+                            <small class="text-muted"> / </small>
+                            <small>{{ ((sp.home_win_2plus if pick == 'home' else sp.away_win_2plus) * 100)|round(0) }}%</small>
+                            <small class="text-muted"> / </small>
+                            <small>{{ ((sp.home_sweep if pick == 'home' else sp.away_sweep) * 100)|round(0) }}%</small>
+                            <small class="text-muted ms-1" title="Win 1+ / Win 2+ / Sweep"><i class="bi bi-info-circle"></i></small>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -293,6 +306,19 @@
                             </span>
                             {% endif %}
                         </div>
+                        {% if game.series_probs %}
+                        {% set sp = game.series_probs %}
+                        {% set pick = game.best_pick %}
+                        <div class="mt-2 pt-2 border-top">
+                            <small class="text-muted">Series: </small>
+                            <small>{{ ((sp.home_win_1plus if pick == 'home' else sp.away_win_1plus) * 100)|round(0) }}%</small>
+                            <small class="text-muted"> / </small>
+                            <small>{{ ((sp.home_win_2plus if pick == 'home' else sp.away_win_2plus) * 100)|round(0) }}%</small>
+                            <small class="text-muted"> / </small>
+                            <small>{{ ((sp.home_sweep if pick == 'home' else sp.away_sweep) * 100)|round(0) }}%</small>
+                            <small class="text-muted ms-1" title="Win 1+ / Win 2+ / Sweep"><i class="bi bi-info-circle"></i></small>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

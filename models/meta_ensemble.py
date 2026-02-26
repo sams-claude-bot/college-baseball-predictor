@@ -20,7 +20,8 @@ MODEL_PATH = BASE_DIR / "data" / "meta_ensemble_xgb.pkl"
 
 MODEL_NAMES = [
     'prior', 'neural', 'elo', 'ensemble', 'pythagorean', 'lightgbm',
-    'poisson', 'conference', 'xgboost', 'advanced', 'log5', 'pitching'
+    'poisson', 'conference', 'xgboost', 'advanced', 'log5', 'pitching',
+    'pear', 'quality'
 ]
 
 
@@ -59,6 +60,8 @@ class MetaEnsemble:
             MAX(CASE WHEN mp.model_name='advanced' THEN mp.predicted_home_prob END) as advanced_prob,
             MAX(CASE WHEN mp.model_name='log5' THEN mp.predicted_home_prob END) as log5_prob,
             MAX(CASE WHEN mp.model_name='pitching' THEN mp.predicted_home_prob END) as pitching_prob,
+            MAX(CASE WHEN mp.model_name='pear' THEN mp.predicted_home_prob END) as pear_prob,
+            MAX(CASE WHEN mp.model_name='quality' THEN mp.predicted_home_prob END) as quality_prob,
             CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END as home_won,
             COALESCE(eh.rating, 1500) as home_elo,
             COALESCE(ea.rating, 1500) as away_elo,
