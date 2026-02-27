@@ -335,32 +335,92 @@ def _upsert_sb_event(conn, record):
 
 
 def get_active_events(conn):
-    """Get all non-completed SB events that have a matched game_id."""
+    """Get non-completed SB events that have a matched game_id and are past start time.
+    
+    Only returns events for:
+    - Games already in-progress or with situation data
+    - Games whose start time has passed (within 10 min grace)
+    - Games with TBD times during the general game window (11 AM - 11 PM CT)
+    - Games on past dates that weren't marked completed (cleanup)
+    """
+    import pytz
+    from datetime import datetime
+    
+    ct = pytz.timezone('America/Chicago')
+    now = datetime.now(ct)
+    today = now.strftime('%Y-%m-%d')
+    now_hour = now.hour
+    now_min = now.minute
+    now_minutes = now_hour * 60 + now_min
+    
     c = conn.cursor()
     rows = c.execute("""
-        SELECT sb_event_id, game_id, home_team, visitor_team,
-               home_team_id, visitor_team_id, game_date, group_id,
-               xml_file, completed
-        FROM statbroadcast_events
-        WHERE completed = 0 AND game_id IS NOT NULL
+        SELECT se.sb_event_id, se.game_id, se.home_team, se.visitor_team,
+               se.home_team_id, se.visitor_team_id, se.game_date, se.group_id,
+               se.xml_file, se.completed,
+               g.time, g.status
+        FROM statbroadcast_events se
+        LEFT JOIN games g ON se.game_id = g.id
+        WHERE se.completed = 0 AND se.game_id IS NOT NULL
     """).fetchall()
+    
     result = []
     for row in rows:
         if isinstance(row, tuple):
-            result.append({
-                'sb_event_id': row[0],
-                'game_id': row[1],
-                'home_team': row[2],
-                'visitor_team': row[3],
-                'home_team_id': row[4],
-                'visitor_team_id': row[5],
-                'game_date': row[6],
-                'group_id': row[7],
-                'xml_file': row[8],
-                'completed': row[9],
-            })
+            ev = {
+                'sb_event_id': row[0], 'game_id': row[1],
+                'home_team': row[2], 'visitor_team': row[3],
+                'home_team_id': row[4], 'visitor_team_id': row[5],
+                'game_date': row[6], 'group_id': row[7],
+                'xml_file': row[8], 'completed': row[9],
+            }
+            game_time = row[10]
+            game_status = row[11]
         else:
-            result.append(dict(row))
+            ev = dict(row)
+            game_time = row['time'] if 'time' in row.keys() else None
+            game_status = row['status'] if 'status' in row.keys() else None
+        
+        # Always poll games already in progress
+        if game_status == 'in-progress':
+            result.append(ev)
+            continue
+        
+        # Skip future dates
+        game_date = ev.get('game_date', '')
+        if game_date > today:
+            continue
+        
+        # Past dates: include for cleanup (mark_completed will handle)
+        if game_date < today:
+            result.append(ev)
+            continue
+        
+        # Today's games: check if past start time
+        if game_time and game_time not in ('TBD', 'TBA', ''):
+            try:
+                parts = game_time.replace('\xa0', ' ').strip().split()
+                time_part = parts[0]
+                ampm = parts[1].upper()
+                h, m = time_part.split(':')
+                h, m = int(h), int(m)
+                if ampm == 'PM' and h != 12:
+                    h += 12
+                elif ampm == 'AM' and h == 12:
+                    h = 0
+                game_minutes = h * 60 + m
+                
+                # Poll if within 10 min of start or past start
+                if now_minutes >= game_minutes - 10:
+                    result.append(ev)
+            except (ValueError, IndexError):
+                # Can't parse time, include it to be safe
+                result.append(ev)
+        else:
+            # TBD time: poll during game window (11 AM - 11 PM CT)
+            if 11 <= now_hour <= 23:
+                result.append(ev)
+    
     return result
 
 
