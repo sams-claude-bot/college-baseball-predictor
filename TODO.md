@@ -32,6 +32,7 @@
 ## Verification & Cleanup
 - [ ] **2. Verify nn_slim_totals is wired into runs/totals projections**
 - [ ] **8. Audit model outputs & clean up display** — separate win prob vs run-scoring models
+- [ ] **23. Clean noisy rosters** — remove players with no stats from team rosters (leftover from previous scrape attempts)
 
 ## Dashboard & UI
 - [ ] **3. Power rankings top 25** — downloadable card

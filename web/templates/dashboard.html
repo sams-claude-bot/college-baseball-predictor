@@ -80,7 +80,7 @@
                     <small class="text-muted">Next Game</small>
                     <div class="fw-bold">
                         {{ featured.next_game.location }} {{ featured.next_game.opponent }}
-                        — {{ featured.next_game.date }} {{ featured.next_game.time or '' }}
+                        — {{ featured.next_game.date }} <span class="local-time" data-time="{{ featured.next_game.time }}" data-date="{{ featured.next_game.date }}">{{ featured.next_game.time or '' }}</span>
                     </div>
                 </div>
                 {% endif %}
@@ -124,7 +124,7 @@
                                     <span class="{% if game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score }}</span>
                                     <br><small class="text-success">Final</small>
                                     {% else %}
-                                    {{ game.time or 'TBD' }}
+                                    <span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span>
                                     {% endif %}
                                 </td>
                                 <td>

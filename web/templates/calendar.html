@@ -102,7 +102,7 @@
                 {% for game in games %}
                 <tr class="{% if game.status == 'final' %}table-light{% endif %}" style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
                     <td class="text-muted">
-                        {{ game.time or '—' }}
+                        <span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or '—' }}</span>
                     </td>
                     <td>
                         {% if game.away_rank %}

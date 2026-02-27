@@ -40,6 +40,7 @@ from database import get_connection
 WIN_PROB_MODELS = [
     "pythagorean", "elo", "log5", "advanced", "pitching",
     "conference", "prior", "poisson", "nn_slim", "xgboost", "lightgbm",
+    "pear", "quality", "meta_ensemble",
 ]
 
 # Ensemble weights for composite power score (mirrors ensemble_model defaults)
@@ -55,6 +56,9 @@ MODEL_WEIGHTS = {
     "lightgbm": 0.08,
     "xgboost": 0.06,
     "nn_slim": 0.00,  # tracked independently, not in ensemble
+    "pear": 0.00,     # tracked independently (top individual model)
+    "quality": 0.00,  # tracked independently
+    "meta_ensemble": 0.00,  # tracked independently (uses sub-models already weighted)
 }
 
 # Short names for display
@@ -63,6 +67,7 @@ ABBREV = {
     'advanced': 'Adv', 'pitching': 'Pitch', 'conference': 'Conf',
     'prior': 'Prior', 'poisson': 'Pois', 'nn_slim': 'NNs',
     'xgboost': 'XGB', 'lightgbm': 'LGB', 'ensemble': 'Ens',
+    'pear': 'Pear', 'quality': 'Qual', 'meta_ensemble': 'Meta',
 }
 
 READ_DB_PATH = None

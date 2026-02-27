@@ -1,0 +1,15 @@
+[Unit]
+Description=ESPN FastCast Live Score Listener
+After=network.target
+
+[Service]
+Type=simple
+User=sam
+WorkingDirectory=/home/sam/college-baseball-predictor
+ExecStart=/usr/bin/python3 -u scripts/espn_fastcast_listener.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

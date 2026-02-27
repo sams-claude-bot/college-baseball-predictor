@@ -206,7 +206,7 @@
                             <tr class="{% if game.status == 'final' %}{% if won %}table-success{% else %}table-danger{% endif %}{% endif %}" style="{% if game.status == 'final' %}{% if won %}--bs-table-bg: rgba(25,135,84,0.05);{% else %}--bs-table-bg: rgba(220,53,69,0.05);{% endif %}{% endif %}">
                                 <td>
                                     {{ game.date }}
-                                    {% if game.time %}<br><small class="text-muted">{{ game.time }}</small>{% endif %}
+                                    {% if game.time %}<br><small class="text-muted"><span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span></small>{% endif %}
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">

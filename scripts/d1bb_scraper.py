@@ -175,7 +175,7 @@ def extract_team_stats(page, team_slug, verbose=False):
         # Only check tables that actually have wOBA or FIP columns
         is_adv_table = 'wOBA' in header_set or 'FIP' in header_set
         has_placeholder = rows and any(
-            r.get('wOBA') == '.123' or r.get('FIP') == '.123' 
+            r.get('wOBA') in ('.123', '1.23', '1.230') or r.get('FIP') in ('.123', '1.23', '1.230')
             for r in rows[:3]
         )
         if is_adv_table and has_placeholder:
