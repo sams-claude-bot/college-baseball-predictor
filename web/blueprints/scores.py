@@ -48,13 +48,20 @@ def scores():
     """Scores & Schedule page - merged scores + calendar with full model predictions"""
     cache = current_app.cache
 
-    # Default to most recent date with scored games, fallback to today
+    # Default to today if there are games, otherwise most recent date with completed games
     conn_def = get_connection()
-    latest = conn_def.execute(
-        "SELECT date FROM games WHERE home_score IS NOT NULL ORDER BY date DESC LIMIT 1"
+    today = datetime.now().strftime('%Y-%m-%d')
+    today_games = conn_def.execute(
+        "SELECT COUNT(*) as cnt FROM games WHERE date = ?", (today,)
     ).fetchone()
+    if today_games and today_games['cnt'] > 0:
+        default_date = today
+    else:
+        latest = conn_def.execute(
+            "SELECT date FROM games WHERE status IN ('final', 'in-progress') ORDER BY date DESC LIMIT 1"
+        ).fetchone()
+        default_date = latest['date'] if latest else today
     conn_def.close()
-    default_date = latest['date'] if latest else datetime.now().strftime('%Y-%m-%d')
     date_str = request.args.get('date', default_date)
     conference = request.args.get('conference', '')
 
