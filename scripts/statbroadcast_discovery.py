@@ -119,8 +119,14 @@ def match_game(sb_event_info, conn, resolver=None):
     if resolver is None:
         resolver = TeamResolver()
 
-    home_name = sb_event_info.get('home', '')
-    visitor_name = sb_event_info.get('visitor', '')
+    # Decode HTML entities (StatBroadcast XML uses &apos; etc.)
+    try:
+        from html import unescape
+        home_name = unescape(sb_event_info.get('home', '') or '')
+        visitor_name = unescape(sb_event_info.get('visitor', '') or '')
+    except ImportError:
+        home_name = sb_event_info.get('home', '')
+        visitor_name = sb_event_info.get('visitor', '')
     game_date = sb_event_info.get('date', '')
 
     if not home_name or not visitor_name or not game_date:
