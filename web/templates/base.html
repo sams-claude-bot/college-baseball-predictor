@@ -431,30 +431,19 @@
             color: var(--text-muted);
         }
         
-        /* Mobile */
-        @media (max-width: 768px) {
-            .stat-card { padding: 1rem 0.5rem; }
-            .stat-card .stat-value { font-size: 1.6rem; }
-            .stat-card .stat-label { font-size: 0.75rem; }
-            .table-responsive { font-size: 0.82rem; }
-            .table-responsive th, .table-responsive td { padding: 0.4rem 0.35rem; white-space: nowrap; }
-            .navbar-brand { font-size: 0.95rem; }
-            .card { margin-bottom: 1rem; border-radius: 10px; }
-            .card-header { padding: 0.75rem 1rem; font-size: 0.9rem; }
-            .card-body { padding: 0.75rem; }
-            .container { padding-left: 0.75rem; padding-right: 0.75rem; }
-            h1.h3, .h3 { font-size: 1.3rem; }
-            .display-4 { font-size: 2rem; }
-            .btn-sm { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
-            .list-group-item { padding: 0.6rem 0.75rem; }
-            /* Stack columns that are too wide */
-            .col-md-4.text-center { margin-bottom: 0.5rem; }
-            /* Hide less important table columns on mobile */
-            .hide-mobile { display: none; }
-            /* Prediction page mobile */
-            .col-lg-4, .col-lg-8 { padding-left: 0; padding-right: 0; }
-            /* Tighter spacing for value picks */
-            .value-indicator { font-size: 0.75rem; padding: 0.15rem 0.5rem; }
+        /* Desktop: accordion always expanded (no collapsing) */
+        @media (min-width: 577px) {
+            #scheduledAccordion .accordion-collapse.collapse:not(.show) {
+                display: block !important;
+                height: auto !important;
+            }
+            #scheduledAccordion .accordion-button::after {
+                display: none;
+            }
+            #scheduledAccordion .accordion-button {
+                cursor: default;
+                pointer-events: none;
+            }
         }
         
         /* Auburn theme */
@@ -542,10 +531,27 @@
         [data-team="auburn"] .team-toggle:hover { background-color: #DD550C; color: white; }
         
         @media (max-width: 576px) {
+            /* Layout compacting — phone only */
+            .stat-card { padding: 1rem 0.5rem; }
             .stat-card .stat-value { font-size: 1.4rem; }
             .stat-card .stat-label { font-size: 0.7rem; }
+            .table-responsive { font-size: 0.82rem; }
+            .table-responsive th, .table-responsive td { padding: 0.4rem 0.35rem; white-space: nowrap; }
+            .navbar-brand { font-size: 0.95rem; }
             .navbar .nav-link { padding: 0.4rem 0.75rem !important; font-size: 0.9rem; }
+            .card { margin-bottom: 1rem; border-radius: 10px; }
+            .card-header { padding: 0.75rem 1rem; font-size: 0.9rem; }
+            .card-body { padding: 0.75rem; }
+            .container { padding-left: 0.75rem; padding-right: 0.75rem; }
+            h1.h3, .h3 { font-size: 1.3rem; }
+            .display-4 { font-size: 2rem; }
             .fs-2 { font-size: 1.5rem !important; }
+            .btn-sm { font-size: 0.8rem; padding: 0.3rem 0.6rem; }
+            .list-group-item { padding: 0.6rem 0.75rem; }
+            .col-md-4.text-center { margin-bottom: 0.5rem; }
+            .hide-mobile { display: none; }
+            .col-lg-4, .col-lg-8 { padding-left: 0; padding-right: 0; }
+            .value-indicator { font-size: 0.75rem; padding: 0.15rem 0.5rem; }
             
             /* Tighter game cards on mobile */
             .game-card .border { padding: 0.6rem !important; }
