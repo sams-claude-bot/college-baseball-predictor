@@ -181,28 +181,70 @@ def parse_situation(html: str) -> Dict[str, Any]:
         if atbat:
             result['batter_name'] = atbat.strip()
 
-    # Base runners from "Runners On Base" table
-    # Format: <tr><td>1B</td><td>PlayerName</td>...</tr>
-    runners_section = re.search(
-        r'Runners On Base.*?</table>', html, re.DOTALL
+    # Base runners — two sources:
+    #
+    # 1. Icon font in base-indicator div: <i class="sbicon ...">N</i>
+    #    The sbicon font maps characters to diamond states:
+    #      0 = empty, 1 = 1st, 2 = 2nd, 3 = 3rd,
+    #      4 = 1st+2nd, 5 = 2nd+3rd, 6 = 1st+3rd, 7 = loaded
+    #
+    # 2. "Runners On Base" table (sometimes empty between plays)
+
+    ICON_BASES = {
+        '0': (False, False, False),  # empty
+        '1': (True, False, False),   # 1st
+        '2': (False, True, False),   # 2nd
+        '3': (False, False, True),   # 3rd
+        '4': (True, True, False),    # 1st + 2nd
+        '5': (False, True, True),    # 2nd + 3rd
+        '6': (True, False, True),    # 1st + 3rd
+        '7': (True, True, True),     # loaded
+    }
+
+    bases_found = False
+
+    # Method 1: Parse base-indicator icon font (most reliable)
+    # There are two indicators (one per team half). Use the one that's
+    # NOT inside a "noaccess" div, or the last one that changed.
+    base_icons = re.findall(
+        r'base-indicator.*?<i[^>]*sbicon[^>]*>([0-7])</i>',
+        html, re.DOTALL
     )
-    if runners_section:
-        runner_rows = re.findall(
-            r'<tr[^>]*>\s*<td[^>]*>\s*(1B|2B|3B)\s*</td>\s*<td[^>]*>\s*([^<]+)',
-            runners_section.group(0)
+    if base_icons:
+        # Use the last (most recent/current half-inning) icon
+        icon = base_icons[-1]
+        if icon in ICON_BASES:
+            first, second, third = ICON_BASES[icon]
+            result['on_first'] = first
+            result['on_second'] = second
+            result['on_third'] = third
+            bases_found = True
+
+    # Method 2: Fallback to "Runners On Base" table
+    if not bases_found:
+        runners_section = re.search(
+            r'Runners On Base.*?</table>', html, re.DOTALL
         )
-        for base, name in runner_rows:
-            name = name.strip()
-            if base == '1B':
-                result['on_first'] = True
-                result['runner_first'] = name
-            elif base == '2B':
-                result['on_second'] = True
-                result['runner_second'] = name
-            elif base == '3B':
-                result['on_third'] = True
-                result['runner_third'] = name
-    # Default to False if not found
+        if runners_section:
+            runner_rows = re.findall(
+                r'<tr[^>]*>\s*<td[^>]*>\s*(1B|2B|3B)\s*</td>\s*<td[^>]*>\s*([^<]+)',
+                runners_section.group(0)
+            )
+            for base, name in runner_rows:
+                name = name.strip()
+                if base == '1B':
+                    result['on_first'] = True
+                    result['runner_first'] = name
+                elif base == '2B':
+                    result['on_second'] = True
+                    result['runner_second'] = name
+                elif base == '3B':
+                    result['on_third'] = True
+                    result['runner_third'] = name
+            if runner_rows:
+                bases_found = True
+
+    # Default to False if nothing found
     result.setdefault('on_first', False)
     result.setdefault('on_second', False)
     result.setdefault('on_third', False)

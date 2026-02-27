@@ -268,6 +268,48 @@ class TestParseSynthetic:
         assert sit['inning'] == 3
         assert sit['inning_half'] == 'bottom'
 
+    def test_parse_bases_icon_empty(self):
+        html = '<div class="base-indicator"><i class="sbicon font-size-300">0</i></div>'
+        sit = parse_situation(html)
+        assert sit['on_first'] is False
+        assert sit['on_second'] is False
+        assert sit['on_third'] is False
+
+    def test_parse_bases_icon_first(self):
+        html = '<div class="base-indicator"><i class="sbicon font-size-300">1</i></div>'
+        sit = parse_situation(html)
+        assert sit['on_first'] is True
+        assert sit['on_second'] is False
+        assert sit['on_third'] is False
+
+    def test_parse_bases_icon_third(self):
+        html = '<div class="base-indicator"><i class="sbicon font-size-300">3</i></div>'
+        sit = parse_situation(html)
+        assert sit['on_first'] is False
+        assert sit['on_second'] is False
+        assert sit['on_third'] is True
+
+    def test_parse_bases_icon_first_third(self):
+        html = '<div class="base-indicator"><i class="sbicon">6</i></div>'
+        sit = parse_situation(html)
+        assert sit['on_first'] is True
+        assert sit['on_second'] is False
+        assert sit['on_third'] is True
+
+    def test_parse_bases_icon_loaded(self):
+        html = '<div class="base-indicator"><i class="sbicon">7</i></div>'
+        sit = parse_situation(html)
+        assert sit['on_first'] is True
+        assert sit['on_second'] is True
+        assert sit['on_third'] is True
+
+    def test_parse_bases_icon_second_third(self):
+        html = '<div class="base-indicator"><i class="sbicon">5</i></div>'
+        sit = parse_situation(html)
+        assert sit['on_first'] is False
+        assert sit['on_second'] is True
+        assert sit['on_third'] is True
+
     def test_parse_empty_html(self):
         """Empty HTML returns empty dict, no crash."""
         sit = parse_situation('')
