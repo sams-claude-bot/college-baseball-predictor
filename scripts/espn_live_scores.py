@@ -239,13 +239,18 @@ def update_scores(date_str=None):
         key = (r['away_team_id'], r['home_team_id'])
         our_games[key] = dict(r)
     
-    # Exclude games covered by StatBroadcast (SB handles scores for matched games)
+    # Exclude games actively covered by StatBroadcast (SB is providing live data).
+    # Only skip when the SB poller has already started updating the game
+    # (situation_json is not null = SB has sent at least one update).
     sb_game_ids = set()
     try:
-        sb_rows = conn.execute(
-            'SELECT game_id FROM statbroadcast_events WHERE game_date = ? AND game_id IS NOT NULL',
-            (date_str,)
-        ).fetchall()
+        sb_rows = conn.execute('''
+            SELECT se.game_id
+            FROM statbroadcast_events se
+            JOIN games g ON se.game_id = g.id
+            WHERE se.game_date = ? AND se.game_id IS NOT NULL
+            AND (g.situation_json IS NOT NULL OR se.completed = 1)
+        ''', (date_str,)).fetchall()
         sb_game_ids = {r['game_id'] for r in sb_rows}
     except Exception:
         pass  # Table might not exist in test environments
@@ -257,7 +262,7 @@ def update_scores(date_str=None):
                 del our_games[key]
                 sb_skipped += 1
         if sb_skipped:
-            print(f"Skipping {sb_skipped} games covered by StatBroadcast")
+            print(f"Skipping {sb_skipped} games with active StatBroadcast data")
     
     updated = 0
     unmatched_espn = []
