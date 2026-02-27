@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1 class="h3 mb-0">
         <i class="bi bi-clipboard-check"></i> Scores & Schedule
-        {% if in_progress_games %}
+        {% if live_with_stats or live_espn_only %}
         <span id="live-indicator" class="badge bg-success ms-2" style="font-size: 0.6rem; vertical-align: middle; animation: pulse 2s infinite;">
             🔴 LIVE
         </span>
@@ -128,16 +128,16 @@
 </div>
 {% endif %}
 
-<!-- In-Progress Games (moved above Final) -->
-{% if in_progress_games %}
+<!-- Live Games with StatBroadcast Stats -->
+{% if live_with_stats %}
 <div class="card mb-4">
     <div class="card-header" style="background-color: #198754; color: white;">
         <i class="bi bi-broadcast"></i> Live
-        <span class="badge bg-light text-dark ms-2">{{ in_progress_games|length }}</span>
+        <span class="badge bg-light text-dark ms-2">{{ live_with_stats|length }}</span>
     </div>
     <div class="card-body p-0">
         <div class="row g-0">
-            {% for game in in_progress_games %}
+            {% for game in live_with_stats %}
             <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                 <div class="border border-success rounded p-3 h-100"
                      style="cursor:pointer; background: rgba(25,135,84,0.08);"
@@ -259,6 +259,98 @@
                     {% endif %}
                     
                     <!-- Pre-game predictions -->
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-success fw-bold live-inning">{{ game.inning_text or 'In Progress' }}</small>
+                            <div class="d-flex gap-2">
+                                {% if game.pred_winner %}
+                                {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
+                                <small class="text-muted" title="Pre-game ensemble">
+                                    Ens: {{ ens_pct }}% {{ game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name }}
+                                </small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Live Games (ESPN only, no StatBroadcast) -->
+{% if live_espn_only %}
+<div class="card mb-4">
+    <div class="card-header" style="background-color: #6c757d; color: white;">
+        <i class="bi bi-broadcast"></i> Live <small class="opacity-75">— ESPN only</small>
+        <span class="badge bg-light text-dark ms-2">{{ live_espn_only|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="row g-0">
+            {% for game in live_espn_only %}
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+                <div class="border rounded p-3 h-100"
+                     style="cursor:pointer; background: rgba(108,117,125,0.08);"
+                     onclick="window.location='/game/{{ game.id }}'">
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">
+                            {% if game.time %}{{ game.time }}{% endif %}
+                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
+                        </small>
+                        <div class="d-flex gap-1">
+                            <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
+                        </div>
+                    </div>
+
+                    {% if game.away_hits is not none or game.home_hits is not none %}
+                    <div class="d-flex justify-content-end mb-1">
+                        <small class="text-muted" style="font-size:0.65rem; letter-spacing:0.5px;">
+                            <span style="width:28px;display:inline-block;text-align:center;">R</span>
+                            <span style="width:28px;display:inline-block;text-align:center;">H</span>
+                            <span style="width:28px;display:inline-block;text-align:center;">E</span>
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Away team -->
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="d-flex align-items-center">
+                            {% if game.away_logo %}<img src="{{ game.away_logo }}" alt="" width="20" height="20" class="me-1">{% endif %}
+                            <span class="{% if game.away_rank %}fw-bold{% endif %}">
+                                {% if game.away_rank %}<small class="text-muted">{{ game.away_rank }}</small> {% endif %}
+                                {{ game.away_team_name }}
+                            </span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <strong class="live-away-score">{{ game.away_score if game.away_score is not none else '-' }}</strong>
+                            {% if game.away_hits is not none %}
+                            <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_hits }}</span>
+                            <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_errors or 0 }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- Home team -->
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            {% if game.home_logo %}<img src="{{ game.home_logo }}" alt="" width="20" height="20" class="me-1">{% endif %}
+                            <span class="{% if game.home_rank %}fw-bold{% endif %}">
+                                {% if game.home_rank %}<small class="text-muted">{{ game.home_rank }}</small> {% endif %}
+                                {{ game.home_team_name }}
+                            </span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <strong class="live-home-score">{{ game.home_score if game.home_score is not none else '-' }}</strong>
+                            {% if game.home_hits is not none %}
+                            <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_hits }}</span>
+                            <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_errors or 0 }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Inning + prediction -->
                     <div class="mt-2 pt-2 border-top">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-success fw-bold live-inning">{{ game.inning_text or 'In Progress' }}</small>
@@ -549,7 +641,7 @@
 {% endif %}
 
 <!-- No Games Found -->
-{% if not completed_games and not in_progress_games and not scheduled_games %}
+{% if not completed_games and not live_with_stats and not live_espn_only and not scheduled_games %}
 <div class="card">
     <div class="card-body text-center py-5">
         <i class="bi bi-calendar-x display-1 text-muted"></i>
@@ -651,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
     const POLL_INTERVAL = 60000; // 60 seconds
     const ACTIVE_DATE = '{{ selected_date }}';
     let pollTimer = null;
-    let hasLive = {{ 'true' if in_progress_games else 'false' }};
+    let hasLive = {{ 'true' if live_with_stats or live_espn_only else 'false' }};
     let consecutiveErrors = 0;
     let evtSource = null;
 

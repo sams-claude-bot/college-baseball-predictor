@@ -171,9 +171,20 @@ def scores():
 
     # Split into completed, in-progress, scheduled, and postponed
     completed_games = [g for g in games if g['status'] == 'final']
-    in_progress_games = [g for g in games if g['status'] == 'in-progress']
+    all_in_progress = [g for g in games if g['status'] == 'in-progress']
     postponed_games = [g for g in games if g['status'] in ('postponed', 'canceled')]
     scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress', 'postponed', 'canceled')]
+
+    # Split live games: those with StatBroadcast coverage vs ESPN-only
+    live_with_stats = []
+    live_espn_only = []
+    for g in all_in_progress:
+        sit = g.get('situation')
+        if sit and sit.get('sb_outs') is not None or sit and sit.get('sb_pitcher'):
+            live_with_stats.append(g)
+        else:
+            live_espn_only.append(g)
+    in_progress_games = all_in_progress  # keep for backward compat
 
     # Calculate prev/next dates
     prev_date = (display_date - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -215,6 +226,8 @@ def scores():
     result = render_template('scores.html',
                           completed_games=completed_games,
                           in_progress_games=in_progress_games,
+                          live_with_stats=live_with_stats,
+                          live_espn_only=live_espn_only,
                           scheduled_games=scheduled_games,
                           postponed_games=postponed_games,
                           selected_date=date_str,
