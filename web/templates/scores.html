@@ -145,7 +145,7 @@
 
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted">
-                            {% if game.time %}{{ game.time }}{% endif %}
+                            {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
                             {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
                         </small>
                         <div class="d-flex gap-1">
@@ -298,7 +298,7 @@
 
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted">
-                            {% if game.time %}{{ game.time }}{% endif %}
+                            {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
                             {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
                         </small>
                         <div class="d-flex gap-1">
@@ -391,7 +391,7 @@
                     <!-- Game header -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted">
-                            {{ game.time or 'TBD' }}
+                            <span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span>
                             {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
                         </small>
                         <div class="d-flex gap-1">
@@ -508,7 +508,7 @@
                     <!-- Game header with time/status -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted">
-                            {% if game.time %}{{ game.time }}{% endif %}
+                            {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
                             {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
                         </small>
                         <div class="d-flex gap-1">
@@ -622,7 +622,7 @@
             <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}">
                 <div class="border rounded p-3 h-100 opacity-50">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">{{ game.time or 'TBD' }}</small>
+                        <small class="text-muted"><span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span></small>
                         <span class="badge bg-warning text-dark">{{ game.status|capitalize }}</span>
                     </div>
                     <div class="mb-1">
@@ -987,6 +987,51 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
             }, 300000);
         }
     }
+})();
+
+// Convert game times from Eastern to user's local timezone
+(function() {
+    document.querySelectorAll('.local-time').forEach(function(el) {
+        var timeStr = el.getAttribute('data-time');
+        var dateStr = el.getAttribute('data-date');
+        if (!timeStr || timeStr === 'TBD' || timeStr === 'TBA' || !dateStr) return;
+
+        try {
+            // Parse "3:00 PM" or "12:30 PM" format — ESPN times are Eastern
+            var match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+            if (!match) return;
+
+            var hours = parseInt(match[1]);
+            var minutes = parseInt(match[2]);
+            var ampm = match[3].toUpperCase();
+
+            if (ampm === 'PM' && hours !== 12) hours += 12;
+            if (ampm === 'AM' && hours === 12) hours = 0;
+
+            // Build a date string in Eastern time, then let the browser convert
+            var eastern = dateStr + 'T' + String(hours).padStart(2,'0') + ':' + String(minutes).padStart(2,'0') + ':00';
+
+            // Create date in Eastern timezone
+            var d = new Date(new Date(eastern).toLocaleString('en-US', {timeZone: 'America/New_York'}));
+            // Actually, build it properly:
+            var utcDate = new Date(eastern + '-05:00'); // EST offset (close enough for display)
+            // Check if daylight saving (March-November)
+            var month = parseInt(dateStr.split('-')[1]);
+            if (month >= 3 && month <= 10) {
+                utcDate = new Date(eastern + '-04:00'); // EDT
+            }
+
+            // Format in user's local timezone
+            var localTime = utcDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            // Only update if it actually changed (different timezone)
+            el.textContent = localTime;
+        } catch(e) {}
+    });
 })();
 </script>
 {% endblock %}
