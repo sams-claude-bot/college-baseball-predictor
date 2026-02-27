@@ -25,13 +25,14 @@ PROJECT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT / "data" / "baseball.db"
 MAPPING = PROJECT / "data" / "d1b_slug_mapping.json"
 PROFILE = "openclaw"
+OPENCLAW_BIN = "/home/sam/.npm-global/bin/openclaw"
 
 CT = pytz.timezone("America/Chicago")
 
 
 def run_browser_cmd(args: list, timeout: int = 30) -> dict:
     """Run an openclaw browser CLI command and return parsed JSON."""
-    cmd = ["openclaw", "browser"] + args + ["--browser-profile", PROFILE, "--json"]
+    cmd = [OPENCLAW_BIN, "browser"] + args + ["--browser-profile", PROFILE, "--json"]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     if result.returncode != 0:
         raise RuntimeError(f"Browser command failed: {result.stderr[:200]}")
