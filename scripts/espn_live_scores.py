@@ -224,7 +224,7 @@ def update_scores(date_str=None):
     if not data:
         return 0
     
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row
     
     espn_mapping = build_espn_id_mapping(conn)
