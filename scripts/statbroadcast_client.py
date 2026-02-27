@@ -423,6 +423,188 @@ class StatBroadcastClient:
             return None, new_ft
         return parse_situation(html), new_ft
 
+    def get_play_by_play(self, event_id, xml_file):
+        """
+        Fetch the play-by-play view for a game.
+
+        Returns parsed play-by-play list (see parse_plays()), or None on error.
+        """
+        params = (
+            "event={event_id}"
+            "&xml={xml_file}"
+            "&xsl=baseball/sb.bsgame.views.pxp.xsl"
+            "&sport=bsgame"
+            "&filetime=1"
+            "&type=statbroadcast"
+            "&start=true"
+        ).format(event_id=event_id, xml_file=xml_file)
+
+        data = sb_encode_params(params)
+        url = "{}/stats?data={}".format(self.BASE_URL, data)
+        req = self._request(url)
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.TIMEOUT) as resp:
+                raw = resp.read().decode()
+                if not raw.strip():
+                    return None
+                html = sb_decode(raw)
+                return parse_plays(html)
+        except Exception:
+            return None
+
+
+def parse_plays(html):
+    """
+    Parse StatBroadcast play-by-play HTML into structured data.
+
+    Returns a list of inning dicts:
+    [
+        {
+            'inning': 1,
+            'half': 'top',       # 'top' or 'bottom'
+            'label': 'Top of the 1st - TEAM Batting',
+            'plays': [
+                {
+                    'text': 'J. Smith singled to left field.',
+                    'batter': 'J. Smith',
+                    'pitcher': 'T. Jones',
+                    'outs_after': 0,
+                    'scoring': '1B 7',
+                    'is_scoring': False,
+                    'bases': '1B',  # runner indicator if present
+                },
+                ...
+            ],
+            'summary': '0 Runs, 1 Hits, 0 Errors, 1 LOB'
+        },
+        ...
+    ]
+    """
+    innings = []
+    current_inning = None
+
+    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
+
+    for row in rows:
+        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
+        if not cells:
+            continue
+
+        # Join all cell text for pattern matching
+        row_text = ' '.join(re.sub(r'<[^>]+>', ' ', c).strip() for c in cells)
+        row_text = re.sub(r'\s+', ' ', row_text).strip()
+
+        # Check for inning header: "Top of the 1st - TEAM Batting" or "Bottom of the 3rd"
+        inning_match = re.search(
+            r'(Top|Bottom)\s+of\s+the\s+(\d+)\w*\s*[-–]\s*(\w[\w\s]*?)\s*Batting',
+            row_text, re.IGNORECASE
+        )
+        if inning_match:
+            half = 'top' if inning_match.group(1).lower() == 'top' else 'bottom'
+            inning_num = int(inning_match.group(2))
+            team = inning_match.group(3).strip()
+            current_inning = {
+                'inning': inning_num,
+                'half': half,
+                'label': '{} of the {} - {} Batting'.format(
+                    inning_match.group(1), inning_match.group(2) + _ordinal(inning_num),
+                    team
+                ),
+                'team': team,
+                'plays': [],
+                'summary': '',
+            }
+            innings.append(current_inning)
+            continue
+
+        # Check for inning summary: "TEAM Inning Summary: 0 Runs, 1 Hits, ..."
+        summary_match = re.search(
+            r'Inning Summary:\s*(.*)', row_text
+        )
+        if summary_match and current_inning:
+            current_inning['summary'] = summary_match.group(1).strip()
+            continue
+
+        # Check for play row — has play text, batter, pitcher, outs columns
+        if not current_inning:
+            continue
+
+        # Play rows have substantial text content and typically 4+ cells
+        # Look for text that describes a baseball play
+        play_patterns = (
+            r'(singled|doubled|tripled|walked|struck out|grounded out|'
+            r'flied out|homered|hit by pitch|reached|popped|lined|'
+            r'fouled out|scored|stole|advanced|sac |sacrifice|'
+            r'fielder|out at|caught stealing|picked off|wild pitch|'
+            r'passed ball|balk|error|pinch hit|to [a-z]+ for)'
+        )
+        if not re.search(play_patterns, row_text, re.IGNORECASE):
+            continue
+
+        # Extract play details from cells
+        # Typical structure: [bases_indicator, play_text, scoring_dec, batter, pitcher, outs]
+        clean_cells = []
+        for c in cells:
+            clean = re.sub(r'<[^>]+>', '', c).strip()
+            clean_cells.append(clean)
+
+        play = {
+            'text': '',
+            'batter': '',
+            'pitcher': '',
+            'outs_after': None,
+            'scoring': '',
+            'is_scoring': False,
+            'bases': '',
+        }
+
+        # Find the longest cell — that's likely the play description
+        play_text = max(clean_cells, key=len) if clean_cells else ''
+        play['text'] = play_text
+
+        # Check for base indicator (1B, 2B, 3B in early cells)
+        for c in clean_cells[:2]:
+            if c in ('1B', '2B', '3B', 'HR'):
+                play['bases'] = c
+                break
+
+        # Extract batter/pitcher from named cells or positional
+        # They're usually the 2nd-to-last and 3rd-to-last cells
+        if len(clean_cells) >= 4:
+            # Outs is typically last
+            try:
+                play['outs_after'] = int(clean_cells[-1])
+            except (ValueError, IndexError):
+                pass
+            # Pitcher is second to last
+            play['pitcher'] = clean_cells[-2] if len(clean_cells) >= 2 else ''
+            # Batter is third to last
+            play['batter'] = clean_cells[-3] if len(clean_cells) >= 3 else ''
+            # Scoring decision is fourth to last (if enough cells)
+            if len(clean_cells) >= 5:
+                play['scoring'] = clean_cells[-4] if clean_cells[-4] != play_text else ''
+
+        # Detect scoring plays
+        play['is_scoring'] = bool(re.search(r'scored|RBI|home run|homered', play_text, re.IGNORECASE))
+
+        # Clean up: remove play text from batter/pitcher if accidentally captured
+        if play['batter'] == play_text:
+            play['batter'] = ''
+        if play['pitcher'] == play_text:
+            play['pitcher'] = ''
+
+        current_inning['plays'].append(play)
+
+    return innings
+
+
+def _ordinal(n):
+    """Return ordinal suffix for a number."""
+    if 11 <= n % 100 <= 13:
+        return 'th'
+    return {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')
+
 
 # ---------------------------------------------------------------------------
 # CLI

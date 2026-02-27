@@ -104,45 +104,86 @@
 
         <!-- Live situation -->
         {% if game.situation and game.status == 'in-progress' %}
+        {% set sit = game.situation %}
+        {% set s_outs = sit.sb_outs if sit.sb_outs is defined and sit.sb_outs is not none else sit.outs %}
+        {% set s_balls = sit.sb_balls if sit.sb_balls is defined and sit.sb_balls is not none else sit.balls %}
+        {% set s_strikes = sit.sb_strikes if sit.sb_strikes is defined and sit.sb_strikes is not none else sit.strikes %}
+        {% set s_pitcher = sit.sb_pitcher or sit.pitcher %}
+        {% set s_batter = sit.sb_batter or sit.batter %}
+        {% set on_1b = sit.sb_on_first if sit.sb_on_first is defined and sit.sb_on_first is not none else sit.onFirst %}
+        {% set on_2b = sit.sb_on_second if sit.sb_on_second is defined and sit.sb_on_second is not none else sit.onSecond %}
+        {% set on_3b = sit.sb_on_third if sit.sb_on_third is defined and sit.sb_on_third is not none else sit.onThird %}
         <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-3">
                     <!-- Base diamond -->
                     <svg width="48" height="48" viewBox="0 0 40 40" style="flex-shrink:0;">
                         <rect x="13" y="3" width="14" height="14" rx="1" transform="rotate(45 20 10)" 
-                              fill="{{ '#fbbf24' if game.situation.onSecond else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                              fill="{{ '#fbbf24' if on_2b else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
                         <rect x="23" y="13" width="14" height="14" rx="1" transform="rotate(45 30 20)" 
-                              fill="{{ '#fbbf24' if game.situation.onFirst else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                              fill="{{ '#fbbf24' if on_1b else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
                         <rect x="3" y="13" width="14" height="14" rx="1" transform="rotate(45 10 20)" 
-                              fill="{{ '#fbbf24' if game.situation.onThird else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
+                              fill="{{ '#fbbf24' if on_3b else '#374151' }}" stroke="#6b7280" stroke-width="1.5"/>
                     </svg>
                     <!-- Outs + Count -->
                     <div>
                         <div>
                             {% for i in range(3) %}
-                            <span style="color:{{ '#fbbf24' if i < game.situation.outs else '#374151' }};font-size:1.1rem;">●</span>
+                            <span style="color:{{ '#fbbf24' if i < s_outs else '#374151' }};font-size:1.1rem;">●</span>
                             {% endfor %}
-                            <span class="text-muted ms-1">{{ game.situation.outs }} out{{ 's' if game.situation.outs != 1 }}</span>
+                            <span class="text-muted ms-1">{{ s_outs }} out{{ 's' if s_outs != 1 }}</span>
                         </div>
-                        {% if game.situation.balls is not none %}
-                        <div class="text-muted" style="font-size:0.85rem;">Count: {{ game.situation.balls }}-{{ game.situation.strikes }}</div>
+                        {% if s_balls is not none %}
+                        <div class="text-muted" style="font-size:0.85rem;">Count: {{ s_balls }}-{{ s_strikes }}</div>
                         {% endif %}
                     </div>
                 </div>
                 <!-- Pitcher / Batter -->
                 <div class="text-end">
-                    {% if game.situation.pitcher %}
-                    <div><small class="text-muted">Pitching:</small> <span class="fw-bold">{{ game.situation.pitcher }}</span></div>
+                    {% if s_pitcher %}
+                    <div><small class="text-muted">Pitching:</small> <span class="fw-bold">{{ s_pitcher }}</span></div>
                     {% endif %}
-                    {% if game.situation.batter %}
-                    <div><small class="text-muted">At Bat:</small> <span class="fw-bold">{{ game.situation.batter }}</span></div>
+                    {% if s_batter %}
+                    <div><small class="text-muted">At Bat:</small> <span class="fw-bold">{{ s_batter }}{% if sit.sb_batter_position %} [{{ sit.sb_batter_position }}]{% endif %}</span></div>
                     {% endif %}
-                    {% if game.situation.lastPlay %}
-                    <div class="mt-1"><small class="text-muted fst-italic">{{ game.situation.lastPlay }}</small></div>
+                    {% if sit.lastPlay %}
+                    <div class="mt-1"><small class="text-muted fst-italic">{{ sit.lastPlay }}</small></div>
                     {% endif %}
                 </div>
             </div>
         </div>
+
+        <!-- Previously this inning -->
+        {% if sit.sb_plays %}
+        {% set current_half = sit.sb_plays[-1] if sit.sb_plays else none %}
+        {% if current_half and current_half.plays %}
+        <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
+            <h6 class="text-muted mb-2" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px;">
+                ⚾ Previously This Inning
+                <span class="ms-2 fw-normal" style="text-transform:none; letter-spacing:0;">{{ current_half.label }}</span>
+            </h6>
+            <div class="ps-2" style="border-left: 2px solid #374151;">
+                {% for play in current_half.plays %}
+                <div class="mb-1 d-flex align-items-start gap-2" style="font-size:0.85rem;">
+                    {% if play.is_scoring %}
+                    <span class="badge bg-success" style="font-size:0.65rem; min-width:18px;">R</span>
+                    {% elif play.bases %}
+                    <span class="badge" style="background:#2563eb; font-size:0.65rem; min-width:18px;">{{ play.bases }}</span>
+                    {% else %}
+                    <span class="text-muted" style="font-size:0.65rem; min-width:18px;">⊘</span>
+                    {% endif %}
+                    <span{% if play.is_scoring %} class="text-success fw-bold"{% endif %}>{{ play.text }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% if current_half.summary %}
+            <div class="mt-2 text-muted" style="font-size:0.75rem; font-style:italic;">
+                {{ current_half.summary }}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
         {% endif %}
 
         {% elif game.status != 'final' and game.status != 'in-progress' %}
