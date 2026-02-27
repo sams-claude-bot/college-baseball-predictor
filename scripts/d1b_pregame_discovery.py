@@ -30,6 +30,8 @@ from pathlib import Path
 import pytz
 
 PROJECT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT / "scripts"))
+
 DB_PATH = PROJECT / "data" / "baseball.db"
 MAPPING = PROJECT / "data" / "d1b_slug_mapping.json"
 OPENCLAW_BIN = "/home/sam/.npm-global/bin/openclaw"
@@ -53,7 +55,7 @@ def run_browser_cmd(args, timeout=30):
     return json.loads(result.stdout)
 
 
-# JS to extract full game data from D1B score tiles
+# JS to extract full game data from D1B score tiles (including SB event IDs)
 EXTRACT_JS = """() => {
     const tiles = document.querySelectorAll('.d1-score-tile');
     const seen = new Set();
@@ -77,13 +79,23 @@ EXTRACT_JS = """() => {
         const awayScore = awayScoreEl ? parseInt(awayScoreEl.textContent.trim()) : null;
         const homeScore = homeScoreEl ? parseInt(homeScoreEl.textContent.trim()) : null;
 
+        // Extract StatBroadcast event ID from "Live Stats" links
+        const sbLinks = t.querySelectorAll('a[href*="statbroadcast"], a[href*="statb.us"]');
+        let sbId = null;
+        sbLinks.forEach(a => {
+            if (sbId) return;
+            const m = a.href.match(/id=(\\d+)/) || a.href.match(/\\/b\\/(\\d+)/);
+            if (m) sbId = parseInt(m[1]);
+        });
+
         if (awaySlug && homeSlug) {
             games.push({
                 a: awaySlug, h: homeSlug,
                 ip: inProgress, over: isOver,
                 as: isNaN(awayScore) ? null : awayScore,
                 hs: isNaN(homeScore) ? null : homeScore,
-                t: ts
+                t: ts,
+                sb: sbId
             });
         }
     });
@@ -158,6 +170,89 @@ def ts_to_central(ts, date_str):
 # ---------------------------------------------------------------------------
 # DB updates
 # ---------------------------------------------------------------------------
+
+def register_sb_events(d1b_games, date_str, slug_map, conn):
+    """Register SB event IDs found on D1B into statbroadcast_events.
+
+    Uses the SB client to fetch event info (xml_file, group_id) for each
+    new event, then upserts into the events table.
+
+    Returns (registered_count, skipped_count).
+    """
+    from statbroadcast_discovery import ensure_table, _upsert_sb_event, match_game
+    from statbroadcast_client import StatBroadcastClient
+    from html import unescape
+
+    ensure_table(conn)
+    client = StatBroadcastClient()
+
+    # Get existing SB events for this date
+    existing = set(
+        r[0] for r in conn.execute(
+            "SELECT sb_event_id FROM statbroadcast_events WHERE game_date = ?",
+            (date_str,),
+        ).fetchall()
+    )
+
+    # Build game lookup for matching
+    game_lookup = {}
+    for r in conn.execute(
+        "SELECT id, away_team_id, home_team_id FROM games WHERE date = ?",
+        (date_str,),
+    ).fetchall():
+        d = dict(r)
+        game_lookup[(d["away_team_id"], d["home_team_id"])] = d["id"]
+
+    registered = 0
+    skipped = 0
+
+    for dg in d1b_games:
+        sb_id = dg.get("sb")
+        if not sb_id or sb_id in existing:
+            continue
+
+        away_id = slug_map.get(dg["a"])
+        home_id = slug_map.get(dg["h"])
+        if not away_id or not home_id:
+            continue
+
+        # Match to our game
+        game_id = game_lookup.get((away_id, home_id)) or game_lookup.get((home_id, away_id))
+
+        # Fetch event info from SB to get xml_file and group_id
+        try:
+            info = client.get_event_info(sb_id)
+        except Exception as e:
+            logger.debug("Could not fetch SB event info for %s: %s", sb_id, e)
+            skipped += 1
+            continue
+
+        if not info or info.get("sport") != "bsgame":
+            skipped += 1
+            continue
+
+        _upsert_sb_event(conn, {
+            "sb_event_id": sb_id,
+            "game_id": game_id,
+            "home_team": unescape(info.get("home", "")),
+            "visitor_team": unescape(info.get("visitor", "")),
+            "home_team_id": home_id,
+            "visitor_team_id": away_id,
+            "game_date": date_str,
+            "group_id": info.get("group_id", ""),
+            "xml_file": info.get("xml_file", ""),
+            "completed": 1 if info.get("completed") else 0,
+        })
+        registered += 1
+        existing.add(sb_id)
+        logger.info("  Registered SB event %s for %s @ %s (game %s)",
+                     sb_id, dg["a"], dg["h"], game_id or "unmatched")
+
+        time.sleep(0.15)  # gentle rate limit
+
+    conn.commit()
+    return registered, skipped
+
 
 def process_games(d1b_games, date_str, slug_map, conn, verbose=False):
     """Match D1B games to DB rows and apply updates.
@@ -271,6 +366,12 @@ def run(date_str, verbose=False):
     conn.row_factory = sqlite3.Row
 
     stats = process_games(d1b_games, date_str, slug_map, conn, verbose)
+
+    # Register new SB events found on D1B
+    sb_registered, sb_skipped = register_sb_events(d1b_games, date_str, slug_map, conn)
+    stats["sb_registered"] = sb_registered
+    stats["sb_skipped"] = sb_skipped
+
     total_games, sb_count = sb_coverage(conn, date_str)
     conn.close()
 
@@ -302,6 +403,7 @@ def main():
     print("Times filled:        {}".format(stats["times_filled"]))
     print("Status updates:      {}".format(stats["status_updated"]))
     print("Score updates:       {}".format(stats["scores_updated"]))
+    print("SB events registered: {} new".format(stats["sb_registered"]))
     print("SB coverage:         {}/{} games have active SB events".format(
         stats["sb_covered"], stats["sb_total"]))
 
