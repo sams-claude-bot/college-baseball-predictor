@@ -492,10 +492,25 @@ class StatBroadcastPoller:
         return True
 
     def _finalize_game(self, game_id, sb_id, situation):
-        """Set game status to 'final', write final scores, and determine winner."""
+        """Set game status to 'final', write final scores, and determine winner.
+
+        Computes actual innings from SB linescore data.  Only stores
+        ``innings`` when the game went to extras (>9); clears it for
+        regulation games so the UI doesn't show a stale mid-game count.
+        """
         home_score = situation.get('home_score')
         visitor_score = situation.get('visitor_score')
-        inning_display = situation.get('inning_display', 'Final')
+
+        # Compute actual innings from linescore (most accurate)
+        innings = None
+        home_innings = situation.get('home_innings', [])
+        visitor_innings = situation.get('visitor_innings', [])
+        if home_innings or visitor_innings:
+            innings = max(len(home_innings), len(visitor_innings))
+
+        # Only store innings for extra-inning games
+        final_innings = innings if innings and innings > 9 else None
+        inning_display = 'Final' if not final_innings else f'Final/{final_innings}'
 
         if home_score is not None and visitor_score is not None:
             # Determine winner (need team IDs from games table)
@@ -518,19 +533,22 @@ class StatBroadcastPoller:
                 UPDATE games
                 SET home_score = ?, away_score = ?,
                     inning_text = ?,
+                    innings = ?,
                     status = 'final',
                     winner_id = COALESCE(?, winner_id),
                     updated_at = ?
                 WHERE id = ?
             """, (home_score, visitor_score, inning_display,
-                  winner_id, datetime.utcnow().isoformat(), game_id))
+                  final_innings, winner_id,
+                  datetime.utcnow().isoformat(), game_id))
             self.conn.commit()
-            logger.info("Finalized game %s: %s-%s, winner=%s",
-                       game_id, visitor_score, home_score, winner_id)
+            logger.info("Finalized game %s: %s-%s, winner=%s, innings=%s",
+                       game_id, visitor_score, home_score, winner_id,
+                       innings or '9 (regulation)')
         else:
-            # No scores but game marked final — just update status
+            # No scores but game marked final — just update status, clear stale innings
             self.conn.execute("""
-                UPDATE games SET status = 'final', updated_at = ?
+                UPDATE games SET status = 'final', innings = NULL, updated_at = ?
                 WHERE id = ?
             """, (datetime.utcnow().isoformat(), game_id))
             self.conn.commit()

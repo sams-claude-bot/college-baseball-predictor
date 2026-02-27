@@ -381,7 +381,7 @@ def update_scores(date_str=None):
         gw = ScheduleGateway(conn)
         
         if db_status == 'final' and home_score is not None and away_score is not None:
-            gw.finalize_game(game['id'], home_score, away_score)
+            gw.finalize_game(game['id'], home_score, away_score, innings=innings)
         elif db_status == 'in-progress' and home_score is not None and away_score is not None:
             gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
         else:

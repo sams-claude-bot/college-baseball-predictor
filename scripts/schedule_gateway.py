@@ -337,9 +337,11 @@ class ScheduleGateway:
     # ------------------------------------------------------------------
 
     def finalize_game(self, game_id: str, home_score: int,
-                      away_score: int) -> bool:
+                      away_score: int, innings: int = None) -> bool:
         """Mark *game_id* as final with scores.  Computes ``winner_id``,
-        clears ``inning_text``."""
+        clears ``inning_text``.  Sets ``innings`` only for extra-inning
+        games; clears it for regulation (9-inning) games so the UI
+        doesn't show a stale mid-game inning count."""
         c = self.db.cursor()
         row = c.execute("SELECT home_team_id, away_team_id FROM games "
                         "WHERE id = ?", (game_id,)).fetchone()
@@ -347,13 +349,16 @@ class ScheduleGateway:
             return False
         winner = self._compute_winner(
             row["home_team_id"], row["away_team_id"], home_score, away_score)
+        # Only store innings if it's extra innings (>9); clear otherwise
+        final_innings = innings if innings and innings > 9 else None
         self.db.execute("""
             UPDATE games
                SET home_score = ?, away_score = ?, winner_id = ?,
                    status = 'final', inning_text = NULL,
+                   innings = ?,
                    updated_at = ?
              WHERE id = ?
-        """, (home_score, away_score, winner,
+        """, (home_score, away_score, winner, final_innings,
               datetime.utcnow().isoformat(), game_id))
         self.db.commit()
         self._log("finalized", game_id, None)
