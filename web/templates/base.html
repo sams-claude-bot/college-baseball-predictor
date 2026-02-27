@@ -546,7 +546,40 @@
             .stat-card .stat-label { font-size: 0.7rem; }
             .navbar .nav-link { padding: 0.4rem 0.75rem !important; font-size: 0.9rem; }
             .fs-2 { font-size: 1.5rem !important; }
+            
+            /* Tighter game cards on mobile */
+            .game-card .border { padding: 0.6rem !important; }
+            .game-card .mb-2 { margin-bottom: 0.25rem !important; }
+            .game-card .mt-2 { margin-top: 0.25rem !important; }
+            .game-card .pt-2 { padding-top: 0.25rem !important; }
+            .game-card img { height: 20px !important; }
+            .game-card .team-link { font-size: 0.88rem; }
+            
+            /* Compact date header */
+            .date-header h3 { font-size: 1.15rem; margin-bottom: 0.15rem; }
+            
+            /* Accordion slots */
+            .accordion-button { padding: 0.5rem 0.75rem !important; font-size: 0.9rem !important; }
+            .accordion-body.p-0 .p-2 { padding: 0.35rem !important; }
         }
+        
+        /* Scheduled games accordion — dark theme */
+        [data-theme="dark"] .accordion-item {
+            background-color: var(--bg-card) !important;
+            border-color: var(--border-color) !important;
+        }
+        [data-theme="dark"] .accordion-button {
+            background-color: var(--bg-card) !important;
+            color: var(--text-primary) !important;
+            box-shadow: none;
+        }
+        [data-theme="dark"] .accordion-button:not(.collapsed) {
+            background-color: var(--light-grey) !important;
+        }
+        [data-theme="dark"] .accordion-button::after {
+            filter: invert(0.8);
+        }
+        .accordion-button:focus { box-shadow: none; }
         
         /* Footer */
         .footer {
@@ -778,6 +811,46 @@
         const dashLink = document.getElementById('dashboardLink');
         if (dashLink) dashLink.href = '/?team=' + savedTeam;
     })();
+    </script>
+    
+    <!-- Global: convert game times from Eastern to user's local timezone (12h format) -->
+    <script>
+    function convertLocalTimes() {
+        document.querySelectorAll('.local-time').forEach(function(el) {
+            if (el.dataset.converted) return;
+            var timeStr = el.getAttribute('data-time');
+            var dateStr = el.getAttribute('data-date');
+            if (!timeStr || timeStr === 'TBD' || timeStr === 'TBA' || timeStr === 'None' || !dateStr) return;
+            try {
+                var hours, minutes;
+                // Try 12-hour format first: "3:00 PM"
+                var match12 = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+                // Try 24-hour format: "14:00"
+                var match24 = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+                if (match12) {
+                    hours = parseInt(match12[1]);
+                    minutes = parseInt(match12[2]);
+                    var ampm = match12[3].toUpperCase();
+                    if (ampm === 'PM' && hours !== 12) hours += 12;
+                    if (ampm === 'AM' && hours === 12) hours = 0;
+                } else if (match24) {
+                    hours = parseInt(match24[1]);
+                    minutes = parseInt(match24[2]);
+                } else {
+                    return;
+                }
+                // Build ISO string in Eastern timezone
+                var iso = dateStr + 'T' + String(hours).padStart(2,'0') + ':' + String(minutes).padStart(2,'0') + ':00';
+                // Determine EDT vs EST based on actual date (approximate: Mar-Nov = EDT)
+                var month = parseInt(dateStr.split('-')[1]);
+                var offset = (month >= 3 && month <= 10) ? '-04:00' : '-05:00';
+                var utcDate = new Date(iso + offset);
+                el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+                el.dataset.converted = '1';
+            } catch(e) {}
+        });
+    }
+    document.addEventListener('DOMContentLoaded', convertLocalTimes);
     </script>
     
     {% block extra_js %}{% endblock %}

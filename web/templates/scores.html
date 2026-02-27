@@ -98,9 +98,9 @@
     {% endfor %}
 </div>
 
-<!-- Summary Stats -->
+<!-- Summary Stats (hidden on small mobile) -->
 {% if total_completed > 0 %}
-<div class="row mb-4">
+<div class="row mb-4 d-none d-sm-flex day-summary-stats">
     <div class="col-6 col-md-3">
         <div class="card stat-card">
             <div class="stat-value">{{ total_completed }}</div>
@@ -373,109 +373,133 @@
 </div>
 {% endif %}
 
-<!-- Scheduled Games -->
+<!-- Scheduled Games (grouped by time slot) -->
 {% if scheduled_games %}
-<div class="card mb-4">
-    <div class="card-header">
-        <i class="bi bi-clock"></i> Scheduled
+{% set ns = namespace(time_slots={}) %}
+{% for game in scheduled_games %}
+    {% set slot = game.time or 'TBD' %}
+    {% if slot not in ns.time_slots %}
+        {% set _ = ns.time_slots.update({slot: []}) %}
+    {% endif %}
+    {% set _ = ns.time_slots[slot].append(game) %}
+{% endfor %}
+{% set sorted_slots = ns.time_slots.keys()|sort %}
+
+<div class="mb-4">
+    <div class="d-flex align-items-center mb-2">
+        <h5 class="mb-0"><i class="bi bi-clock"></i> Scheduled</h5>
         <span class="badge bg-secondary ms-2">{{ scheduled_games|length }}</span>
     </div>
-    <div class="card-body p-0">
-        <div class="row g-0">
-            {% for game in scheduled_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
-                <div class="border rounded p-3 h-100"
-                     style="cursor:pointer;"
-                     onclick="window.location='/game/{{ game.id }}'">
+    <div class="accordion" id="scheduledAccordion">
+        {% for slot in sorted_slots %}
+        {% set slot_games = ns.time_slots[slot] %}
+        {% set slot_id = slot|replace(':', '')|replace(' ', '') %}
+        <div class="accordion-item" style="background:var(--bg-card);border-color:var(--border-color);">
+            <h2 class="accordion-header">
+                <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#slot-{{ slot_id }}"
+                        style="background:var(--bg-card);color:var(--text-primary);padding:0.6rem 1rem;font-size:0.95rem;">
+                    <span class="local-time" data-time="{{ slot if slot != 'TBD' else '' }}" data-date="{{ date_str }}">{{ slot }}</span>
+                    <span class="badge bg-secondary ms-2">{{ slot_games|length }}</span>
+                </button>
+            </h2>
+            <div id="slot-{{ slot_id }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+                 data-bs-parent="#scheduledAccordion">
+                <div class="accordion-body p-0">
+                    <div class="row g-0">
+                        {% for game in slot_games %}
+                        <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+                            <div class="border rounded p-3 h-100"
+                                 style="cursor:pointer;"
+                                 onclick="window.location='/game/{{ game.id }}'">
 
-                    <!-- Game header -->
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">
-                            <span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span>
-                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
-                        </small>
-                        <div class="d-flex gap-1">
-                            <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
-                            <span class="badge bg-primary">Scheduled</span>
+                                <!-- Game header -->
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted">
+                                        {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
+                                    </small>
+                                    <div class="d-flex gap-1">
+                                        <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Away team -->
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="d-flex align-items-center">
+                                        {% if game.away_rank %}
+                                        <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
+                                        {% endif %}
+                                        <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
+                                            {{ game.away_team_name }}
+                                        </a>
+                                    </div>
+                                    {% if game.away_ml %}
+                                    <small class="text-muted">{{ game.away_ml|format_odds }}</small>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Home team -->
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        {% if game.home_rank %}
+                                        <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
+                                        {% endif %}
+                                        <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
+                                            {{ game.home_team_name }}
+                                        </a>
+                                    </div>
+                                    {% if game.home_ml %}
+                                    <small class="text-muted">{{ game.home_ml|format_odds }}</small>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Model predictions footer -->
+                                <div class="mt-2 pt-2 border-top">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                        {% if game.pred_winner and game.home_team_name and game.away_team_name %}
+                                        {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
+                                        {% set ens_pick = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
+                                        <span class="badge bg-secondary" title="Ensemble picks {{ ens_pick }}">
+                                            <strong>Ens:</strong> {{ ens_pick[:10] }} {{ ens_pct }}%
+                                        </span>
+                                        {% endif %}
+                                        
+                                        {% if game.nn_winner and game.home_team_name and game.away_team_name %}
+                                        {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
+                                        {% set nn_pick = game.home_team_name if game.nn_winner == game.home_team_id else game.away_team_name %}
+                                        <span class="badge bg-info" title="Neural picks {{ nn_pick }}">
+                                            <strong>NN:</strong> {{ nn_pick[:10] }} {{ nn_pct }}%
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-between mt-1 flex-wrap gap-1">
+                                        {% if game.over_under %}
+                                        <small class="text-muted">O/U: {{ game.over_under }}</small>
+                                        {% endif %}
+                                        {% if game.nn_projected_total %}
+                                        <small class="{% if game.over_under and game.nn_projected_total > game.over_under %}text-success{% elif game.over_under and game.nn_projected_total < game.over_under %}text-danger{% else %}text-muted{% endif %}"
+                                               title="Projected total">
+                                            Proj: {{ game.nn_projected_total|round(1) }}
+                                        </small>
+                                        {% endif %}
+                                        {% if game.nn_projected_margin is defined and game.nn_projected_margin is not none %}
+                                        <small class="text-muted" title="Projected home margin">
+                                            Margin: {{ '%+.1f'|format(game.nn_projected_margin) }}
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <!-- Away team -->
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <div class="d-flex align-items-center">
-                            {% if game.away_rank %}
-                            <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
-                            {% endif %}
-                            <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
-                            <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
-                                {{ game.away_team_name }}
-                            </a>
-                        </div>
-                        {% if game.away_ml %}
-                        <small class="text-muted">{{ game.away_ml|format_odds }}</small>
-                        {% endif %}
-                    </div>
-                    
-                    <!-- Home team -->
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="d-flex align-items-center">
-                            {% if game.home_rank %}
-                            <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
-                            {% endif %}
-                            <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
-                            <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
-                                {{ game.home_team_name }}
-                            </a>
-                        </div>
-                        {% if game.home_ml %}
-                        <small class="text-muted">{{ game.home_ml|format_odds }}</small>
-                        {% endif %}
-                    </div>
-                    
-                    <!-- Model predictions footer -->
-                    <div class="mt-2 pt-2 border-top">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-                            <!-- Ensemble prediction -->
-                            {% if game.pred_winner and game.home_team_name and game.away_team_name %}
-                            {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
-                            {% set ens_pick = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
-                            <span class="badge bg-secondary" title="Ensemble picks {{ ens_pick }}">
-                                <strong>Ens:</strong> {{ ens_pick[:10] }} {{ ens_pct }}%
-                            </span>
-                            {% endif %}
-                            
-                            <!-- Neural prediction -->
-                            {% if game.nn_winner and game.home_team_name and game.away_team_name %}
-                            {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
-                            {% set nn_pick = game.home_team_name if game.nn_winner == game.home_team_id else game.away_team_name %}
-                            <span class="badge bg-info" title="Neural picks {{ nn_pick }}">
-                                <strong>NN:</strong> {{ nn_pick[:10] }} {{ nn_pct }}%
-                            </span>
-                            {% endif %}
-                        </div>
-                        
-                        <!-- Projected totals/margin -->
-                        <div class="d-flex justify-content-between mt-1 flex-wrap gap-1">
-                            {% if game.over_under %}
-                            <small class="text-muted">O/U: {{ game.over_under }}</small>
-                            {% endif %}
-                            {% if game.nn_projected_total %}
-                            <small class="{% if game.over_under and game.nn_projected_total > game.over_under %}text-success{% elif game.over_under and game.nn_projected_total < game.over_under %}text-danger{% else %}text-muted{% endif %}"
-                                   title="Projected total">
-                                Proj: {{ game.nn_projected_total|round(1) }}
-                            </small>
-                            {% endif %}
-                            {% if game.nn_projected_margin is defined and game.nn_projected_margin is not none %}
-                            <small class="text-muted" title="Projected home margin">
-                                Margin: {{ '%+.1f'|format(game.nn_projected_margin) }}
-                            </small>
-                            {% endif %}
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
-            {% endfor %}
         </div>
+        {% endfor %}
     </div>
 </div>
 {% endif %}
@@ -989,49 +1013,6 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
     }
 })();
 
-// Convert game times from Eastern to user's local timezone
-(function() {
-    document.querySelectorAll('.local-time').forEach(function(el) {
-        var timeStr = el.getAttribute('data-time');
-        var dateStr = el.getAttribute('data-date');
-        if (!timeStr || timeStr === 'TBD' || timeStr === 'TBA' || !dateStr) return;
-
-        try {
-            // Parse "3:00 PM" or "12:30 PM" format — ESPN times are Eastern
-            var match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-            if (!match) return;
-
-            var hours = parseInt(match[1]);
-            var minutes = parseInt(match[2]);
-            var ampm = match[3].toUpperCase();
-
-            if (ampm === 'PM' && hours !== 12) hours += 12;
-            if (ampm === 'AM' && hours === 12) hours = 0;
-
-            // Build a date string in Eastern time, then let the browser convert
-            var eastern = dateStr + 'T' + String(hours).padStart(2,'0') + ':' + String(minutes).padStart(2,'0') + ':00';
-
-            // Create date in Eastern timezone
-            var d = new Date(new Date(eastern).toLocaleString('en-US', {timeZone: 'America/New_York'}));
-            // Actually, build it properly:
-            var utcDate = new Date(eastern + '-05:00'); // EST offset (close enough for display)
-            // Check if daylight saving (March-November)
-            var month = parseInt(dateStr.split('-')[1]);
-            if (month >= 3 && month <= 10) {
-                utcDate = new Date(eastern + '-04:00'); // EDT
-            }
-
-            // Format in user's local timezone
-            var localTime = utcDate.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
-
-            // Only update if it actually changed (different timezone)
-            el.textContent = localTime;
-        } catch(e) {}
-    });
-})();
+// Time conversion handled by base.html global script
 </script>
 {% endblock %}
