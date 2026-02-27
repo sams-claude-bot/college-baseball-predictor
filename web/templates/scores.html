@@ -821,6 +821,17 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
                         batterEl.textContent = batterText;
                     }
                 }
+
+                // Update base diamond SVG
+                var on1 = sit.sb_on_first !== undefined && sit.sb_on_first !== null ? sit.sb_on_first : sit.onFirst;
+                var on2 = sit.sb_on_second !== undefined && sit.sb_on_second !== null ? sit.sb_on_second : sit.onSecond;
+                var on3 = sit.sb_on_third !== undefined && sit.sb_on_third !== null ? sit.sb_on_third : sit.onThird;
+                var base1 = panel.querySelector('.base-first');
+                var base2 = panel.querySelector('.base-second');
+                var base3 = panel.querySelector('.base-third');
+                if (base1) base1.setAttribute('fill', on1 ? '#fbbf24' : '#374151');
+                if (base2) base2.setAttribute('fill', on2 ? '#fbbf24' : '#374151');
+                if (base3) base3.setAttribute('fill', on3 ? '#fbbf24' : '#374151');
             }
         }
     }
@@ -853,6 +864,28 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
         evtSource.addEventListener('situation_update', function(e) {
             var data = JSON.parse(e.data);
             updateGameCard(data);
+        });
+
+        evtSource.addEventListener('sb_situation', function(e) {
+            var raw = JSON.parse(e.data);
+            if (!raw.game_id) return;
+            // Map SB situation fields to the format updateGameCard expects
+            updateGameCard({
+                game_id: raw.game_id,
+                home_score: raw.home_score,
+                away_score: raw.visitor_score,
+                inning_text: (raw.inning_half === 'top' ? 'Top ' : raw.inning_half === 'bottom' ? 'Bot ' : '') + (raw.inning || ''),
+                situation: {
+                    sb_outs: raw.outs,
+                    sb_balls: raw.count ? parseInt(raw.count.split('-')[0]) : null,
+                    sb_strikes: raw.count ? parseInt(raw.count.split('-')[1]) : null,
+                    sb_pitcher: raw.pitcher,
+                    sb_batter: raw.batter,
+                    sb_on_first: raw.on_first,
+                    sb_on_second: raw.on_second,
+                    sb_on_third: raw.on_third
+                }
+            });
         });
 
         evtSource.onerror = function() {

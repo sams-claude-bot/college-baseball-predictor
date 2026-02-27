@@ -278,6 +278,7 @@ class StatBroadcastPoller:
 
         data = {
             'source': 'statbroadcast',
+            'game_id': game_id,
             'outs': situation.get('outs'),
             'count': situation.get('count'),
             'batter': situation.get('batter_name'),
@@ -286,6 +287,9 @@ class StatBroadcastPoller:
             'inning_half': situation.get('inning_half'),
             'visitor_score': situation.get('visitor_score'),
             'home_score': situation.get('home_score'),
+            'on_first': situation.get('on_first', False),
+            'on_second': situation.get('on_second', False),
+            'on_third': situation.get('on_third', False),
         }
 
         self.conn.execute(
