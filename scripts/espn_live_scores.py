@@ -273,8 +273,13 @@ def update_scores(date_str=None):
             continue
         
         key = (away_id, home_id)
+        swapped = False
         if key not in our_games:
-            continue
+            # Try swapped home/away (ESPN sometimes reverses)
+            key = (home_id, away_id)
+            swapped = True
+            if key not in our_games:
+                continue
         
         game = our_games[key]
         db_status = espn_status_to_db(status['type'], game_date=game.get('date'))
@@ -294,15 +299,21 @@ def update_scores(date_str=None):
             except Exception:
                 pass
         
-        # Get scores
-        away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
-        home_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
-        
-        # Get hits and errors
-        away_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
-        home_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
-        away_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
-        home_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
+        # Get scores (swap if ESPN has home/away reversed from our DB)
+        if swapped:
+            away_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
+            home_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
+            away_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
+            home_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
+            away_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
+            home_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
+        else:
+            away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
+            home_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
+            away_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
+            home_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
+            away_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
+            home_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
         
         # Get linescore (inning-by-inning)
         linescore = None
