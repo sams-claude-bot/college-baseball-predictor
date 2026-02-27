@@ -227,12 +227,16 @@ def merge_situation(existing_json, sb_situation):
 class StatBroadcastPoller:
     """Polls StatBroadcast for live game updates."""
 
+    # After this many consecutive 404s, mark event completed (feed not active)
+    MAX_CONSECUTIVE_404 = 10
+
     def __init__(self, conn, client=None, interval=DEFAULT_INTERVAL):
         self.conn = conn
         self.client = client or StatBroadcastClient()
         self.interval = interval
         self._filetimes = {}  # sb_event_id -> last filetime
         self._poll_counts = {}  # sb_event_id -> poll cycle counter
+        self._404_counts = {}  # sb_event_id -> consecutive 404 count
         self._running = True
 
     def stop(self):
@@ -313,9 +317,24 @@ class StatBroadcastPoller:
                 sb_id, xml_file, filetime=filetime
             )
         except Exception as e:
+            is_404 = '404' in str(e)
+            if is_404:
+                cnt = self._404_counts.get(sb_id, 0) + 1
+                self._404_counts[sb_id] = cnt
+                if cnt >= self.MAX_CONSECUTIVE_404:
+                    logger.warning(
+                        "SB event %s (game %s): %d consecutive 404s — marking completed",
+                        sb_id, game_id, cnt,
+                    )
+                    with self._db_lock:
+                        mark_completed(self.conn, sb_id)
+                    self._404_counts.pop(sb_id, None)
+                    return False
             logger.error("HTTP error polling SB event %s: %s", sb_id, e)
             return False
 
+        # Successful fetch — reset 404 counter
+        self._404_counts.pop(sb_id, None)
         self._filetimes[sb_id] = new_ft
 
         if html is None:
@@ -400,8 +419,23 @@ class StatBroadcastPoller:
                 sb_id, xml_file, filetime=filetime
             )
         except Exception as e:
+            is_404 = '404' in str(e)
+            if is_404:
+                cnt = self._404_counts.get(sb_id, 0) + 1
+                self._404_counts[sb_id] = cnt
+                if cnt >= self.MAX_CONSECUTIVE_404:
+                    logger.warning(
+                        "SB event %s (game %s): %d consecutive 404s — marking completed",
+                        sb_id, game_id, cnt,
+                    )
+                    mark_completed(self.conn, sb_id)
+                    self._404_counts.pop(sb_id, None)
+                    return False
             logger.error("HTTP error polling SB event %s: %s", sb_id, e)
             return False
+
+        # Successful fetch — reset 404 counter
+        self._404_counts.pop(sb_id, None)
 
         # Update stored filetime
         self._filetimes[sb_id] = new_ft
