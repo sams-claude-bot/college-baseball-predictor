@@ -62,9 +62,26 @@ def get_db():
     return conn
 
 
-def load_group_ids():
+def load_group_ids(include_extra=True):
+    """
+    Load team_id -> gid mapping.
+    
+    If include_extra is True, also includes _extra_schools entries
+    (keyed by SB name instead of team_id) so we scrape all schools.
+    """
     with open(str(GROUP_IDS_PATH)) as f:
-        return json.load(f)
+        data = json.load(f)
+    
+    # Separate main mapping from extra schools
+    extra = data.pop('_extra_schools', {})
+    
+    if include_extra:
+        # Add extra schools to the mapping (keyed by SB name)
+        for sb_name, gid in extra.items():
+            # Use a prefixed key to avoid collisions
+            data[f"_extra:{sb_name}"] = gid
+    
+    return data
 
 
 def load_scrape_state():
@@ -346,6 +363,22 @@ def scrape_schools(team_ids, group_ids, conn, client, resolver,
     return total_events, total_registered, total_matched
 
 
+def refresh_mapping():
+    """Re-run build_sb_mapping.py to update the group IDs mapping."""
+    import subprocess
+    script_path = PROJECT_ROOT / 'scripts' / 'build_sb_mapping.py'
+    result = subprocess.run(
+        ['python3', str(script_path), '--add-aliases'],
+        capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        logger.info("Mapping refreshed successfully")
+        print(result.stdout)
+    else:
+        logger.error("Mapping refresh failed: %s", result.stderr)
+        raise RuntimeError("Failed to refresh mapping")
+
+
 def main():
     parser = argparse.ArgumentParser(description='StatBroadcast season scrape')
     parser.add_argument('--teams', nargs='+', help='Specific team IDs to scrape')
@@ -353,6 +386,8 @@ def main():
                         help='Only scrape schools not scraped in N days')
     parser.add_argument('--verify-today', action='store_true',
                         help='Verify today\'s events are still valid')
+    parser.add_argument('--refresh-mapping', action='store_true',
+                        help='Re-build the school mapping from SB index before scraping')
     parser.add_argument('--dry-run', action='store_true',
                         help='Don\'t write to DB')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -361,6 +396,10 @@ def main():
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level,
                         format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+
+    # Refresh mapping if requested
+    if args.refresh_mapping:
+        refresh_mapping()
 
     conn = get_db()
     ensure_table(conn)
