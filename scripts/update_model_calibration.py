@@ -78,16 +78,24 @@ def fit_for_model(cur, model_name: str):
     """
     rows = cur.execute(
         """
-        SELECT COALESCE(raw_home_prob, predicted_home_prob) as prob, was_correct
-        FROM model_predictions
-        WHERE model_name = ?
-          AND was_correct IS NOT NULL
-          AND predicted_home_prob IS NOT NULL
-        ORDER BY predicted_at DESC
+        SELECT COALESCE(mp.raw_home_prob, mp.predicted_home_prob) as prob,
+               CASE WHEN g.winner_id = g.home_team_id THEN 1
+                    WHEN g.winner_id = g.away_team_id THEN 0
+                    ELSE NULL END as home_won
+        FROM model_predictions mp
+        JOIN games g ON g.id = mp.game_id
+        WHERE mp.model_name = ?
+          AND g.status = 'final'
+          AND g.winner_id IS NOT NULL
+          AND mp.predicted_home_prob IS NOT NULL
+        ORDER BY mp.predicted_at DESC
         LIMIT ?
         """,
         (model_name, MAX_SAMPLES),
     ).fetchall()
+
+    # Filter out any NULL home_won rows
+    rows = [r for r in rows if r[1] is not None]
 
     if len(rows) < MIN_SAMPLES:
         return None
@@ -116,12 +124,7 @@ def fit_for_model(cur, model_name: str):
     iso_probs = iso.predict(probs)
     iso_brier = _brier_score(iso_probs, y)
 
-    # Also compute raw Brier for comparison (the "home_won" signal is
-    # was_correct which is 1 when pred>0.5 and home won, or pred<0.5 and
-    # away won. But for Brier we need P(home win) vs actual home win.
-    # was_correct conflates pred direction and outcome — we can't recover
-    # actual home_won from was_correct alone without knowing if pred > 0.5.
-    # So we compare Platt vs Isotonic Brier on the training set.)
+    # Raw Brier: P(home_win) vs actual home_won (from games table).
     raw_brier = _brier_score(probs, y)
 
     # Pick the method with lower Brier score on training data.
