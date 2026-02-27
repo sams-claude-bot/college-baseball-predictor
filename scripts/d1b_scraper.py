@@ -6,9 +6,9 @@ Uses Playwright with the openclaw browser profile (which has D1Baseball login co
 to extract ALL stats in one pass: basic (AVG, ERA) + advanced (wOBA, FIP, batted ball).
 
 Usage:
-    python3 scripts/d1bb_scraper.py --team mississippi-state
-    python3 scripts/d1bb_scraper.py --conference SEC
-    python3 scripts/d1bb_scraper.py --all-d1      # All 311 D1 teams
+    python3 scripts/d1b_scraper.py --team mississippi-state
+    python3 scripts/d1b_scraper.py --conference SEC
+    python3 scripts/d1b_scraper.py --all-d1      # All 311 D1 teams
 """
 
 import argparse
@@ -415,7 +415,7 @@ def main():
     if not any([args.team, args.conference, args.all_d1]):
         parser.error("Must specify --team, --conference, or --all-d1")
     
-    runner = ScriptRunner("d1bb_scraper")
+    runner = ScriptRunner("d1b_scraper")
     
     # Load slug mapping
     slug_map = load_slug_map()

@@ -13,10 +13,10 @@ Data captured:
 - Defensive positions
 
 Usage:
-    python3 scripts/d1bb_lineups.py --team mississippi-state
-    python3 scripts/d1bb_lineups.py --conference SEC
-    python3 scripts/d1bb_lineups.py --all
-    python3 scripts/d1bb_lineups.py --show mississippi-state
+    python3 scripts/d1b_lineups.py --team mississippi-state
+    python3 scripts/d1b_lineups.py --conference SEC
+    python3 scripts/d1b_lineups.py --all
+    python3 scripts/d1b_lineups.py --show mississippi-state
 """
 
 import argparse

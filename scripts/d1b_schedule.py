@@ -6,9 +6,9 @@ Scrapes upcoming games from D1Baseball scoreboard and updates the database.
 Handles new games, time changes, and cancellations.
 
 Usage:
-    python3 scripts/d1bb_schedule.py --days 3       # Next 3 days
-    python3 scripts/d1bb_schedule.py --date 2026-02-20
-    python3 scripts/d1bb_schedule.py --today
+    python3 scripts/d1b_schedule.py --days 3       # Next 3 days
+    python3 scripts/d1b_schedule.py --date 2026-02-20
+    python3 scripts/d1b_schedule.py --today
 """
 
 import argparse
@@ -448,7 +448,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
     
-    runner = ScriptRunner("d1bb_schedule")
+    runner = ScriptRunner("d1b_schedule")
     
     # Determine dates to scrape
     dates = []

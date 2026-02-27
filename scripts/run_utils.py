@@ -7,7 +7,7 @@ Provides consistent logging, timing, error handling, and structured summaries.
 Usage:
     from run_utils import ScriptRunner
 
-    runner = ScriptRunner("d1bb_schedule")
+    runner = ScriptRunner("d1b_schedule")
 
     runner.info("Scraping 7 days of schedule")
     runner.add_stat("games_found", 42)

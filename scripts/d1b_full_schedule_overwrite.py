@@ -6,7 +6,7 @@ Scrapes complete season schedules from D1Baseball team schedule pages
 and overwrites existing ESPN-seeded schedule data for all fully tracked teams.
 
 Usage:
-    python3 scripts/d1bb_full_schedule_overwrite.py [--dry-run] [--verbose] [--limit N]
+    python3 scripts/d1b_full_schedule_overwrite.py [--dry-run] [--verbose] [--limit N]
 """
 
 import argparse

@@ -7,11 +7,11 @@ and syncs games + scores to the database. Replaces browser-based d1bb_schedule.p
 for the nightly schedule sync.
 
 Usage:
-    python3 scripts/d1bb_team_sync.py                   # All teams
-    python3 scripts/d1bb_team_sync.py --teams-with-games-on 2026-02-21  # Only teams playing that day
-    python3 scripts/d1bb_team_sync.py --team mississippi-state  # Single team
-    python3 scripts/d1bb_team_sync.py --dry-run          # Preview only
-    python3 scripts/d1bb_team_sync.py --delay 0.5        # Custom delay between requests
+    python3 scripts/d1b_team_sync.py                   # All teams
+    python3 scripts/d1b_team_sync.py --teams-with-games-on 2026-02-21  # Only teams playing that day
+    python3 scripts/d1b_team_sync.py --team mississippi-state  # Single team
+    python3 scripts/d1b_team_sync.py --dry-run          # Preview only
+    python3 scripts/d1b_team_sync.py --delay 0.5        # Custom delay between requests
 """
 
 import argparse
@@ -163,7 +163,7 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true')
     args = parser.parse_args()
 
-    runner = ScriptRunner("d1bb_team_sync")
+    runner = ScriptRunner("d1b_team_sync")
     db = get_db()
     
     all_slugs = load_d1bb_slugs()  # team_id -> d1bb_slug

@@ -10,7 +10,7 @@ echo "=== D1Baseball Lineup Scraper - $(date) ==="
 for conf in SEC ACC "Big 12" "Big Ten"; do
     echo ""
     echo "--- Scraping $conf ---"
-    python3 scripts/d1bb_lineups.py --conference "$conf" 2>&1
+    python3 scripts/d1b_lineups.py --conference "$conf" 2>&1
     sleep 10  # Be nice to D1Baseball servers
 done
 

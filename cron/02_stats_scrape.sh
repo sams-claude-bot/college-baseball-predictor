@@ -5,7 +5,7 @@ cd /home/sam/college-baseball-predictor
 LOG="logs/cron/$(date +%Y-%m-%d)_02_stats_scrape.log"
 
 echo "=== Stats Scrape $(date) ===" >> "$LOG"
-python3 -u scripts/d1bb_scraper.py --all-d1 --delay 2 >> "$LOG" 2>&1
+python3 -u scripts/d1b_scraper.py --all-d1 --delay 2 >> "$LOG" 2>&1
 echo "--- Verification ---" >> "$LOG"
 python3 -c "
 import sqlite3

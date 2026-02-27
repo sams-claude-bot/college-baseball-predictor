@@ -9,7 +9,7 @@ YESTERDAY=$(date -d yesterday +%Y-%m-%d)
 echo "=== Schedule+Finalize $(date) ===" >> "$LOG"
 
 echo "--- Step 1: Schedule Sync (today+next few days) ---" >> "$LOG"
-python3 -u scripts/d1bb_team_sync.py --delay 0.3 >> "$LOG" 2>&1
+python3 -u scripts/d1b_team_sync.py --delay 0.3 >> "$LOG" 2>&1
 # backfill_missing_games.py removed — d1bb_team_sync now covers this via ScheduleGateway
 # (was re-fetching the same D1BB team pages and duplicating work)
 

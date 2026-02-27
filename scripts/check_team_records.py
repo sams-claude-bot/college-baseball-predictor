@@ -25,7 +25,7 @@ DB_PATH = PROJECT_DIR / "data" / "baseball.db"
 SLUGS_PATH = PROJECT_DIR / "config" / "d1bb_slugs.json"
 
 sys.path.insert(0, str(PROJECT_DIR / "scripts"))
-from d1bb_team_sync import sync_team  # noqa: E402
+from d1b_team_sync import sync_team  # noqa: E402
 from verify_team_schedule import load_reverse_slug_map  # noqa: E402
 
 HEADERS = {

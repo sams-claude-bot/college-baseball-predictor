@@ -24,7 +24,7 @@ sys.path.insert(0, str(PROJECT_DIR / 'scripts'))
 
 from run_utils import ScriptRunner
 from verify_team_schedule import fetch_d1bb_schedule, load_d1bb_slugs, load_reverse_slug_map
-from d1bb_team_sync import sync_team
+from d1b_team_sync import sync_team
 from schedule_gateway import ScheduleGateway
 
 DB_PATH = PROJECT_DIR / 'data' / 'baseball.db'
