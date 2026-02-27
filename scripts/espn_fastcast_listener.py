@@ -340,10 +340,9 @@ class GameStateTracker:
             db_status = 'final'
         elif status_name == 'STATUS_IN_PROGRESS':
             # Guard: don't mark future games as in-progress
-            from datetime import datetime
-            game_date = game.get('date', '') if game else ''
+            # Use date_str from ESPN event (already extracted above)
             today = datetime.now().strftime('%Y-%m-%d')
-            if game_date and str(game_date) > today:
+            if date_str and str(date_str) > today:
                 db_status = 'scheduled'
             else:
                 db_status = 'in-progress'
@@ -500,6 +499,18 @@ def write_change_to_db(change):
             else:
                 log.debug('Game %s not found in DB, skipping', game_id)
                 return
+
+        # Final DB-level date guard: don't mark future games as in-progress
+        if db_status == 'in-progress':
+            game_row = conn.execute('SELECT date FROM games WHERE id = ?', (game_id,)).fetchone()
+            if game_row:
+                from datetime import datetime as _dt
+                today_str = _dt.now().strftime('%Y-%m-%d')
+                if str(game_row['date']) > today_str:
+                    log.debug('Skipping in-progress for future game %s (date=%s, today=%s)',
+                              game_id, game_row['date'], today_str)
+                    conn.close()
+                    return
 
         if db_status == 'final' and home_score is not None and away_score is not None:
             gw.finalize_game(game_id, home_score, away_score)
