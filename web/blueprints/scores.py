@@ -304,6 +304,25 @@ def game_detail(game_id):
     else:
         game['linescore'] = None
 
+    # Fall back to StatBroadcast per-inning scoring if no ESPN linescore
+    if not game.get('linescore') and game.get('situation'):
+        sit = game['situation']
+        vis_inn = sit.get('sb_visitor_innings')
+        hom_inn = sit.get('sb_home_innings')
+        if vis_inn or hom_inn:
+            game['linescore'] = {
+                'away': vis_inn or [],
+                'home': hom_inn or [],
+            }
+            if game.get('away_hits') is None and sit.get('sb_visitor_hits') is not None:
+                game['away_hits'] = sit['sb_visitor_hits']
+            if game.get('home_hits') is None and sit.get('sb_home_hits') is not None:
+                game['home_hits'] = sit['sb_home_hits']
+            if game.get('away_errors') is None and sit.get('sb_visitor_errors') is not None:
+                game['away_errors'] = sit['sb_visitor_errors']
+            if game.get('home_errors') is None and sit.get('sb_home_errors') is not None:
+                game['home_errors'] = sit['sb_home_errors']
+
     home_id = game['home_team_id']
     away_id = game['away_team_id']
     home_record = get_team_record(home_id)
