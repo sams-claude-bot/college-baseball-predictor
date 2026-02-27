@@ -239,6 +239,26 @@ def update_scores(date_str=None):
         key = (r['away_team_id'], r['home_team_id'])
         our_games[key] = dict(r)
     
+    # Exclude games covered by StatBroadcast (SB handles scores for matched games)
+    sb_game_ids = set()
+    try:
+        sb_rows = conn.execute(
+            'SELECT game_id FROM statbroadcast_events WHERE game_date = ? AND game_id IS NOT NULL',
+            (date_str,)
+        ).fetchall()
+        sb_game_ids = {r['game_id'] for r in sb_rows}
+    except Exception:
+        pass  # Table might not exist in test environments
+    
+    if sb_game_ids:
+        sb_skipped = 0
+        for key in list(our_games.keys()):
+            if our_games[key]['id'] in sb_game_ids:
+                del our_games[key]
+                sb_skipped += 1
+        if sb_skipped:
+            print(f"Skipping {sb_skipped} games covered by StatBroadcast")
+    
     updated = 0
     unmatched_espn = []
     

@@ -278,6 +278,8 @@ class StatBroadcastPoller:
         # DB writes (serialized)
         with self._db_lock:
             if is_final:
+                # Write final scores and mark game as final
+                self._finalize_game(game_id, sb_id, situation)
                 mark_completed(self.conn, sb_id)
                 logger.info("Game %s (SB %s) is Final", game_id, sb_id)
                 return False
@@ -397,6 +399,51 @@ class StatBroadcastPoller:
             situation.get('outs', '?'),
         )
         return True
+
+    def _finalize_game(self, game_id, sb_id, situation):
+        """Set game status to 'final', write final scores, and determine winner."""
+        home_score = situation.get('home_score')
+        visitor_score = situation.get('visitor_score')
+        inning_display = situation.get('inning_display', 'Final')
+
+        if home_score is not None and visitor_score is not None:
+            # Determine winner (need team IDs from games table)
+            row = self.conn.execute(
+                "SELECT home_team_id, away_team_id FROM games WHERE id = ?",
+                (game_id,)
+            ).fetchone()
+            winner_id = None
+            if row:
+                home_tid = row[0] if isinstance(row, tuple) else row['home_team_id']
+                away_tid = row[0] if isinstance(row, tuple) else row['away_team_id']
+                if isinstance(row, tuple):
+                    away_tid = row[1]
+                if int(home_score) > int(visitor_score):
+                    winner_id = home_tid
+                elif int(visitor_score) > int(home_score):
+                    winner_id = away_tid
+
+            self.conn.execute("""
+                UPDATE games
+                SET home_score = ?, away_score = ?,
+                    inning_text = ?,
+                    status = 'final',
+                    winner_id = COALESCE(?, winner_id),
+                    updated_at = ?
+                WHERE id = ?
+            """, (home_score, visitor_score, inning_display,
+                  winner_id, datetime.utcnow().isoformat(), game_id))
+            self.conn.commit()
+            logger.info("Finalized game %s: %s-%s, winner=%s",
+                       game_id, visitor_score, home_score, winner_id)
+        else:
+            # No scores but game marked final — just update status
+            self.conn.execute("""
+                UPDATE games SET status = 'final', updated_at = ?
+                WHERE id = ?
+            """, (datetime.utcnow().isoformat(), game_id))
+            self.conn.commit()
+            logger.info("Finalized game %s (no scores available)", game_id)
 
     def _update_situation(self, game_id, situation):
         """Merge SB situation into games.situation_json."""
