@@ -435,6 +435,129 @@ def update_scores(date_str=None):
     return updated
 
 
+def should_poll(date_str=None):
+    """
+    Smart polling: skip ESPN API calls when no games need live updates.
+    Returns (should_poll: bool, reason: str).
+    
+    Polls when:
+    - Any game is in-progress
+    - A scheduled game starts within 30 minutes
+    - Less than 2 hours since a game went final (catch late updates)
+    
+    Skips when:
+    - All games are final or cancelled
+    - No games today
+    - Before the first game (>30 min away)
+    """
+    if date_str is None:
+        date_str = datetime.now().strftime('%Y-%m-%d')
+    
+    try:
+        conn = sqlite3.connect(str(DB_PATH), timeout=10)
+        conn.row_factory = sqlite3.Row
+        
+        # Check for in-progress games
+        in_progress = conn.execute(
+            "SELECT COUNT(*) as cnt FROM games WHERE date = ? AND status = 'in-progress'",
+            (date_str,)
+        ).fetchone()['cnt']
+        
+        if in_progress > 0:
+            conn.close()
+            return True, f"{in_progress} games in progress"
+        
+        # Check total games
+        total = conn.execute(
+            "SELECT COUNT(*) as cnt FROM games WHERE date = ?",
+            (date_str,)
+        ).fetchone()['cnt']
+        
+        if total == 0:
+            conn.close()
+            return False, "no games today"
+        
+        # Check if all games are final/cancelled
+        active = conn.execute("""
+            SELECT COUNT(*) as cnt FROM games 
+            WHERE date = ? AND status NOT IN ('final', 'cancelled', 'postponed')
+        """, (date_str,)).fetchone()['cnt']
+        
+        if active == 0:
+            conn.close()
+            return False, "all games final/cancelled"
+        
+        # Check if a scheduled game starts within 30 minutes
+        import pytz
+        ct = pytz.timezone('America/Chicago')
+        now_ct = datetime.now(ct)
+        now_hour = now_ct.hour
+        now_min = now_ct.minute
+        
+        # Parse game times and check proximity
+        scheduled = conn.execute("""
+            SELECT time FROM games 
+            WHERE date = ? AND status = 'scheduled' AND time IS NOT NULL 
+            AND time != '' AND time != 'TBA' AND time != 'TBD'
+        """, (date_str,)).fetchall()
+        
+        for row in scheduled:
+            try:
+                time_str = row['time']
+                # Parse "3:00 PM" format
+                parts = time_str.replace('\xa0', ' ').strip().split()
+                if len(parts) < 2:
+                    continue
+                time_part = parts[0]
+                ampm = parts[1].upper()
+                h, m = time_part.split(':')
+                h = int(h)
+                m = int(m)
+                if ampm == 'PM' and h != 12:
+                    h += 12
+                elif ampm == 'AM' and h == 12:
+                    h = 0
+                
+                # Minutes until game
+                game_mins = h * 60 + m
+                now_mins = now_hour * 60 + now_min
+                diff = game_mins - now_mins
+                
+                if -180 <= diff <= 30:  # Game started up to 3h ago OR starts in 30 min
+                    conn.close()
+                    return True, f"game at {time_str} (in {diff} min)"
+            except (ValueError, IndexError):
+                continue
+        
+        # Games exist but none are close — check if any have no time (TBD)
+        tbd = conn.execute("""
+            SELECT COUNT(*) as cnt FROM games 
+            WHERE date = ? AND status = 'scheduled' 
+            AND (time IS NULL OR time = '' OR time = 'TBA' OR time = 'TBD')
+        """, (date_str,)).fetchone()['cnt']
+        
+        if tbd > 0:
+            # Games with unknown times — poll during broad game window (11 AM - 11 PM CT)
+            if 11 <= now_hour <= 23:
+                conn.close()
+                return True, f"{tbd} TBD-time games, within game window"
+        
+        conn.close()
+        return False, "no games starting soon"
+    
+    except Exception as e:
+        return True, f"check failed ({e}), polling to be safe"
+
+
 if __name__ == '__main__':
     date = sys.argv[1] if len(sys.argv) > 1 else None
+    
+    # Smart polling check (skip for explicit date arguments)
+    if date is None:
+        poll, reason = should_poll()
+        if not poll:
+            print(f"Skip: {reason}")
+            sys.exit(0)
+        print(f"Polling: {reason}")
+    
     update_scores(date)
