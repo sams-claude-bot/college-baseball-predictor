@@ -106,6 +106,12 @@ def merge_situation(existing_json, sb_situation):
         'sb_runner_first': sb_situation.get('runner_first'),
         'sb_runner_second': sb_situation.get('runner_second'),
         'sb_runner_third': sb_situation.get('runner_third'),
+        'sb_visitor_innings': sb_situation.get('visitor_innings'),
+        'sb_home_innings': sb_situation.get('home_innings'),
+        'sb_visitor_hits': sb_situation.get('visitor_hits'),
+        'sb_home_hits': sb_situation.get('home_hits'),
+        'sb_visitor_errors': sb_situation.get('visitor_errors'),
+        'sb_home_errors': sb_situation.get('home_errors'),
         'sb_updated_at': datetime.utcnow().isoformat(),
     }
 

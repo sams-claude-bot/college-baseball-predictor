@@ -257,6 +257,41 @@
                     </div>
                     {% endif %}
                     {% endif %}
+
+                    <!-- Per-inning linescore -->
+                    {% if game.situation and game.situation.get('sb_visitor_innings') %}
+                    {% set vis_inn = game.situation.get('sb_visitor_innings', []) %}
+                    {% set hom_inn = game.situation.get('sb_home_innings', []) %}
+                    {% set max_inn = [vis_inn|length, hom_inn|length]|max %}
+                    {% if max_inn > 0 %}
+                    <div class="mt-2 pt-2 border-top">
+                        <table class="w-100" style="font-size:0.65rem; font-family:monospace;">
+                            <thead>
+                                <tr class="text-muted">
+                                    <th style="width:40px;"></th>
+                                    {% for i in range(max_inn) %}
+                                    <th style="width:18px;text-align:center;padding:0 1px;">{{ i + 1 }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted" style="font-size:0.6rem;">{{ game.away_team_id[:4]|upper }}</td>
+                                    {% for i in range(max_inn) %}
+                                    <td style="text-align:center;padding:0 1px;{% if vis_inn[i] is defined and vis_inn[i] is number and vis_inn[i] > 0 %}color:#fbbf24;font-weight:bold;{% endif %}">{{ vis_inn[i] if vis_inn[i] is defined else '' }}</td>
+                                    {% endfor %}
+                                </tr>
+                                <tr>
+                                    <td class="text-muted" style="font-size:0.6rem;">{{ game.home_team_id[:4]|upper }}</td>
+                                    {% for i in range(max_inn) %}
+                                    <td style="text-align:center;padding:0 1px;{% if hom_inn[i] is defined and hom_inn[i] is number and hom_inn[i] > 0 %}color:#fbbf24;font-weight:bold;{% endif %}">{{ hom_inn[i] if hom_inn[i] is defined else '' }}</td>
+                                    {% endfor %}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                    {% endif %}
                     
                     <!-- Pre-game predictions -->
                     <div class="mt-2 pt-2 border-top">

@@ -249,28 +249,86 @@ def parse_situation(html: str) -> Dict[str, Any]:
     result.setdefault('on_second', False)
     result.setdefault('on_third', False)
 
-    # Line score — R/H/E per team
-    # Extract from the line score table if present
-    linescore_rows = re.findall(
-        r'<tr[^>]*>.*?sb-teamname[VH][^>]*>.*?</tr>',
-        html, re.DOTALL
-    )
-    if linescore_rows:
-        for row in linescore_rows:
-            tds = re.findall(r'<td[^>]*>([^<]*)</td>', row)
-            if 'sb-teamnameV' in row and len(tds) >= 3:
-                # Last few cells: R, H, E
+    # Line score — R/H/E + per-inning scoring
+    # Structure: <td>caret</td><td>VLogo TEAM</td><td>Inn1</td>...<td class="border-right"></td><td>R</td><td>H</td><td>E</td><td>LOB</td>
+    # Visitor row has "VLogo", home has "HLogo"
+    linescore_rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
+    visitor_linescore_found = False
+    home_linescore_found = False
+    for row in linescore_rows:
+        is_visitor = 'VLogo' in row
+        is_home = 'HLogo' in row
+        if not is_visitor and not is_home:
+            continue
+        # Only use the FIRST linescore row per team (skip standings/record tables)
+        if is_visitor and visitor_linescore_found:
+            continue
+        if is_home and home_linescore_found:
+            continue
+
+        # Split on border-right separator to isolate innings from R/H/E/LOB
+        parts = re.split(r'<td[^>]*border-right[^>]*>[^<]*</td>', row)
+        if len(parts) >= 2:
+            innings_part = parts[0]
+            summary_part = parts[1]
+
+            # Extract inning scores
+            # Cells with inner HTML (caret icon, team logo) are NOT matched
+            # by [^<]* so inn_cells is mostly pure inning scores.
+            # Filter out empties (from caret/spacer cells without inner HTML).
+            inn_cells = re.findall(r'<td[^>]*>([^<]*)</td>', innings_part)
+            inning_scores = []
+            for s in inn_cells:
+                if not s.strip():
+                    continue
+                s = s.strip()
+                if s == '' or s == '-' or s == 'X':
+                    inning_scores.append(s)
+                else:
+                    try:
+                        inning_scores.append(int(s))
+                    except ValueError:
+                        inning_scores.append(s)
+
+            # Extract R/H/E/LOB from summary cells
+            sum_cells = re.findall(r'<td[^>]*>([^<]*)</td>', summary_part)
+            # R, H, E, LOB
+            r_val = h_val = e_val = None
+            try:
+                if len(sum_cells) >= 1:
+                    r_val = int(sum_cells[0])
+                if len(sum_cells) >= 2:
+                    h_val = int(sum_cells[1])
+                if len(sum_cells) >= 3:
+                    e_val = int(sum_cells[2])
+            except (ValueError, IndexError):
+                pass
+
+            prefix = 'visitor' if is_visitor else 'home'
+            if inning_scores:
+                result[prefix + '_innings'] = inning_scores
+            if h_val is not None:
+                result[prefix + '_hits'] = h_val
+            if e_val is not None:
+                result[prefix + '_errors'] = e_val
+            if is_visitor:
+                visitor_linescore_found = True
+            else:
+                home_linescore_found = True
+        else:
+            # Fallback: no border-right separator found
+            all_cells = re.findall(r'<td[^>]*>([^<]*)</td>', row)
+            if len(all_cells) >= 5:
+                prefix = 'visitor' if is_visitor else 'home'
                 try:
-                    result['visitor_hits'] = int(tds[-5]) if len(tds) >= 5 else None
-                    result['visitor_errors'] = int(tds[-4]) if len(tds) >= 4 else None
+                    result[prefix + '_hits'] = int(all_cells[-3])
+                    result[prefix + '_errors'] = int(all_cells[-2])
                 except (ValueError, IndexError):
                     pass
-            elif 'sb-teamnameH' in row and len(tds) >= 3:
-                try:
-                    result['home_hits'] = int(tds[-5]) if len(tds) >= 5 else None
-                    result['home_errors'] = int(tds[-4]) if len(tds) >= 4 else None
-                except (ValueError, IndexError):
-                    pass
+            if is_visitor:
+                visitor_linescore_found = True
+            else:
+                home_linescore_found = True
 
     # Game status from title script
     title_match = re.search(r'cscore\s*=\s*"([^"]*)"', html)
