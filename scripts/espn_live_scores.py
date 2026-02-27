@@ -240,6 +240,7 @@ def update_scores(date_str=None):
         our_games[key] = dict(r)
     
     updated = 0
+    times_filled = 0
     unmatched_espn = []
     
     for event in data.get('events', []):
@@ -277,6 +278,21 @@ def update_scores(date_str=None):
         
         game = our_games[key]
         db_status = espn_status_to_db(status['type'], game_date=game.get('date'))
+        
+        # Parse game time from ESPN (UTC) → Central time
+        espn_date_str = comp.get('date', '')
+        game_time_ct = None
+        if espn_date_str and (not game.get('time') or game.get('time') in ('', 'TBA', 'TBD')):
+            try:
+                import pytz
+                utc = pytz.utc
+                central = pytz.timezone('America/Chicago')
+                utc_dt = datetime.strptime(espn_date_str.replace('Z', '')[:19], '%Y-%m-%dT%H:%M')
+                utc_dt = utc.localize(utc_dt)
+                ct_dt = utc_dt.astimezone(central)
+                game_time_ct = ct_dt.strftime('%-I:%M %p')  # e.g., "3:00 PM"
+            except Exception:
+                pass
         
         # Get scores
         away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
@@ -329,6 +345,13 @@ def update_scores(date_str=None):
                 winner_id = home_id
             elif away_score > home_score:
                 winner_id = away_id
+        
+        # Fill in game time if missing (do this BEFORE the change-check skip)
+        if game_time_ct:
+            n = conn.execute('UPDATE games SET time = ? WHERE id = ? AND (time IS NULL OR time = "" OR time = "TBA" OR time = "TBD")',
+                         (game_time_ct, game['id'])).rowcount
+            if n:
+                times_filled += 1
         
         # Check if anything changed (score, hits, situation all count)
         score_changed = (game['home_score'] != home_score or game['away_score'] != away_score)
@@ -397,6 +420,8 @@ def update_scores(date_str=None):
         for u in unmatched_espn[:10]:
             print(f"  {u}", file=sys.stderr)
     
+    if times_filled:
+        print(f"Times filled: {times_filled}")
     print(f"\nTotal updated: {updated}")
     return updated
 
