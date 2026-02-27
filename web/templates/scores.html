@@ -373,11 +373,20 @@
 </div>
 {% endif %}
 
-<!-- Scheduled Games (grouped by time slot) -->
+<!-- Scheduled Games (grouped by hour bucket) -->
 {% if scheduled_games %}
 {% set ns = namespace(time_slots={}) %}
 {% for game in scheduled_games %}
-    {% set slot = game.time or 'TBD' %}
+    {% set raw_time = game.time or 'TBD' %}
+    {% if raw_time in ('TBD', 'TBA', '') %}
+        {% set slot = 'TBD' %}
+    {% elif ':' in raw_time and ('AM' in raw_time or 'PM' in raw_time) %}
+        {% set hour = raw_time.split(':')[0] %}
+        {% set ampm = 'PM' if 'PM' in raw_time else 'AM' %}
+        {% set slot = hour ~ ':00 ' ~ ampm %}
+    {% else %}
+        {% set slot = raw_time %}
+    {% endif %}
     {% if slot not in ns.time_slots %}
         {% set _ = ns.time_slots.update({slot: []}) %}
     {% endif %}
