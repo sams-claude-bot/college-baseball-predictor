@@ -159,6 +159,7 @@ class StatBroadcastPoller:
         self.client = client or StatBroadcastClient()
         self.interval = interval
         self._filetimes = {}  # sb_event_id -> last filetime
+        self._poll_counts = {}  # sb_event_id -> poll cycle counter
         self._running = True
 
     def stop(self):
@@ -176,6 +177,10 @@ class StatBroadcastPoller:
             logger.debug("No active SB events to poll")
             return 0
 
+        # Use threading for parallel HTTP fetches when many games are live
+        if len(events) > 5:
+            return self._poll_parallel(events)
+
         updated = 0
         for ev in events:
             try:
@@ -188,6 +193,110 @@ class StatBroadcastPoller:
                     ev['sb_event_id'], ev['game_id'], e
                 )
         return updated
+
+    def _poll_parallel(self, events):
+        """Poll events in parallel using a thread pool.
+        
+        HTTP fetches happen in parallel, DB writes are serialized via lock.
+        """
+        import threading
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        if not hasattr(self, '_db_lock'):
+            self._db_lock = threading.Lock()
+
+        updated = 0
+        with ThreadPoolExecutor(max_workers=min(10, len(events))) as pool:
+            futures = {
+                pool.submit(self._poll_event_threadsafe, ev): ev
+                for ev in events
+            }
+            for f in as_completed(futures):
+                ev = futures[f]
+                try:
+                    if f.result():
+                        updated += 1
+                except Exception as e:
+                    logger.error(
+                        "Error polling SB event %s (game %s): %s",
+                        ev['sb_event_id'], ev['game_id'], e
+                    )
+        return updated
+
+    def _poll_event_threadsafe(self, event):
+        """Thread-safe wrapper: HTTP fetch without lock, DB write with lock."""
+        sb_id = event['sb_event_id']
+        game_id = event['game_id']
+        xml_file = event.get('xml_file', '')
+
+        if not xml_file:
+            return False
+
+        filetime = self._filetimes.get(sb_id, 0)
+
+        # HTTP fetch (no lock needed)
+        try:
+            html, new_ft = self.client.get_live_stats(
+                sb_id, xml_file, filetime=filetime
+            )
+        except Exception as e:
+            logger.error("HTTP error polling SB event %s: %s", sb_id, e)
+            return False
+
+        self._filetimes[sb_id] = new_ft
+
+        if html is None:
+            return False
+
+        situation = parse_situation(html)
+        if not situation:
+            return False
+
+        # Check completion
+        title = situation.get('title', '')
+        inning_disp = situation.get('inning_display', '')
+        is_final = 'final' in title.lower() or 'final' in inning_disp.lower()
+
+        # PXP + scoring (every 3rd cycle)
+        poll_count = self._poll_counts.get(sb_id, 0)
+        self._poll_counts[sb_id] = poll_count + 1
+
+        if poll_count % 3 == 0:
+            try:
+                plays = self.client.get_play_by_play(sb_id, xml_file)
+                if plays:
+                    situation['current_plays'] = plays
+            except Exception:
+                pass
+            try:
+                scoring = self.client.get_scoring_plays(sb_id, xml_file)
+                if scoring:
+                    situation['scoring_plays'] = scoring
+            except Exception:
+                pass
+
+        # DB writes (serialized)
+        with self._db_lock:
+            if is_final:
+                mark_completed(self.conn, sb_id)
+                logger.info("Game %s (SB %s) is Final", game_id, sb_id)
+                return False
+
+            self._update_situation(game_id, situation)
+            self._insert_live_event(game_id, situation)
+            self._update_scores(game_id, situation)
+
+        logger.info(
+            "Updated game %s from SB %s: %s %s-%s %s (%s, %s outs)",
+            game_id, sb_id,
+            situation.get('visitor', '?'),
+            situation.get('visitor_score', '?'),
+            situation.get('home_score', '?'),
+            situation.get('home', '?'),
+            situation.get('inning_display', '?'),
+            situation.get('outs', '?'),
+        )
+        return True
 
     def _poll_event(self, event):
         """Poll a single SB event and update the DB. Returns True if updated."""
@@ -246,21 +355,27 @@ class StatBroadcastPoller:
             logger.info("Game %s (SB %s) is Final", game_id, sb_id)
             return False  # Don't push stale situation data for completed games
 
-        # Fetch current inning play-by-play
-        try:
-            plays = self.client.get_play_by_play(sb_id, xml_file)
-            if plays:
-                situation['current_plays'] = plays
-        except Exception as e:
-            logger.debug("PXP fetch failed for SB %s: %s", sb_id, e)
+        # Fetch PXP and scoring less frequently (every 3rd cycle ≈ 60s)
+        # to reduce load when many games are live
+        poll_count = self._poll_counts.get(sb_id, 0)
+        self._poll_counts[sb_id] = poll_count + 1
 
-        # Fetch all scoring plays for the game
-        try:
-            scoring = self.client.get_scoring_plays(sb_id, xml_file)
-            if scoring:
-                situation['scoring_plays'] = scoring
-        except Exception as e:
-            logger.debug("Scoring plays fetch failed for SB %s: %s", sb_id, e)
+        if poll_count % 3 == 0:
+            # Fetch current inning play-by-play
+            try:
+                plays = self.client.get_play_by_play(sb_id, xml_file)
+                if plays:
+                    situation['current_plays'] = plays
+            except Exception as e:
+                logger.debug("PXP fetch failed for SB %s: %s", sb_id, e)
+
+            # Fetch all scoring plays for the game
+            try:
+                scoring = self.client.get_scoring_plays(sb_id, xml_file)
+                if scoring:
+                    situation['scoring_plays'] = scoring
+            except Exception as e:
+                logger.debug("Scoring plays fetch failed for SB %s: %s", sb_id, e)
 
         # Merge into situation_json
         self._update_situation(game_id, situation)
@@ -391,7 +506,7 @@ def main():
         format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     )
 
-    conn = sqlite3.connect(args.db, timeout=30)
+    conn = sqlite3.connect(args.db, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     ensure_table(conn)
     ensure_live_events_table(conn)
