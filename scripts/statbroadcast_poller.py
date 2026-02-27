@@ -36,8 +36,81 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from statbroadcast_client import StatBroadcastClient, parse_situation
 from statbroadcast_discovery import ensure_table, get_active_events, mark_completed
+from team_resolver import TeamResolver
 
 logger = logging.getLogger(__name__)
+
+_resolver = None
+
+def _get_resolver():
+    """Lazy-init a shared TeamResolver."""
+    global _resolver
+    if _resolver is None:
+        _resolver = TeamResolver()
+    return _resolver
+
+
+def validate_sb_teams(situation, event, conn):
+    """
+    Cross-validate SB situation team names against our expected matchup.
+
+    Returns True if the teams match (or can't be validated), False if there's
+    a confirmed mismatch (SB is serving stale/wrong game data).
+    """
+    sb_home = situation.get('home', '')
+    sb_visitor = situation.get('visitor', '')
+
+    if not sb_home and not sb_visitor:
+        # No team names in situation — can't validate, allow through
+        return True
+
+    game_id = event.get('game_id', '')
+    if not game_id:
+        return True
+
+    # Get expected teams from our games table
+    row = conn.execute(
+        "SELECT home_team_id, away_team_id FROM games WHERE id = ?",
+        (game_id,)
+    ).fetchone()
+    if not row:
+        return True
+
+    expected_home = row[0] if isinstance(row, tuple) else row['home_team_id']
+    expected_away = row[1] if isinstance(row, tuple) else row['away_team_id']
+
+    resolver = _get_resolver()
+
+    # Resolve SB team names to our IDs
+    from html import unescape
+    sb_home_id = resolver.resolve(unescape(sb_home)) if sb_home else None
+    sb_visitor_id = resolver.resolve(unescape(sb_visitor)) if sb_visitor else None
+
+    # If we can't resolve either SB team, allow through (don't block on resolver gaps)
+    if not sb_home_id and not sb_visitor_id:
+        return True
+
+    # Check if teams match (in either direction — SB sometimes swaps home/away)
+    expected = {expected_home, expected_away}
+    resolved = set()
+    if sb_home_id:
+        resolved.add(sb_home_id)
+    if sb_visitor_id:
+        resolved.add(sb_visitor_id)
+
+    # At least one resolved team must be in the expected set
+    if resolved & expected:
+        return True
+
+    logger.warning(
+        "SB TEAM MISMATCH for game %s (SB event %s): "
+        "SB says %s vs %s (resolved: %s vs %s), "
+        "expected %s vs %s — skipping update (stale SB data?)",
+        game_id, event.get('sb_event_id'),
+        sb_visitor, sb_home, sb_visitor_id, sb_home_id,
+        expected_away, expected_home,
+    )
+    return False
 
 DB_PATH = PROJECT_ROOT / "data" / "baseball.db"
 DEFAULT_INTERVAL = 20  # seconds
@@ -252,6 +325,16 @@ class StatBroadcastPoller:
         if not situation:
             return False
 
+        # Cross-validate: ensure SB is serving data for the RIGHT game
+        # (DB read needs lock)
+        with self._db_lock:
+            if not validate_sb_teams(situation, event, self.conn):
+                logger.warning(
+                    "Skipping SB event %s — team mismatch (stale data from previous game)",
+                    sb_id,
+                )
+                return False
+
         # Check completion
         title = situation.get('title', '')
         inning_disp = situation.get('inning_display', '')
@@ -332,6 +415,14 @@ class StatBroadcastPoller:
         situation = parse_situation(html)
         if not situation:
             logger.debug("Empty situation for SB event %s", sb_id)
+            return False
+
+        # Cross-validate: ensure SB is serving data for the RIGHT game
+        if not validate_sb_teams(situation, event, self.conn):
+            logger.warning(
+                "Skipping SB event %s — team mismatch (stale data from previous game)",
+                sb_id,
+            )
             return False
 
         # Check if game completed — check title, inning_display, and game status
