@@ -35,7 +35,6 @@ import sys
 import time
 import urllib.request
 import urllib.error
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from html import unescape
 from pathlib import Path
@@ -203,61 +202,6 @@ def discover_from_sidearm(conn, games, group_ids, client, resolver):
     return matched
 
 
-def discover_from_scan(conn, games, group_ids, client, resolver, scan_width=200):
-    """
-    Phase 2: For unmatched games, scan nearby event ID ranges.
-    Uses the highest known event ID as an anchor and scans around it.
-    """
-    matched = []
-
-    # Find the highest known event ID as anchor
-    row = conn.execute("SELECT MAX(sb_event_id) FROM statbroadcast_events").fetchone()
-    max_known = row[0] if row and row[0] else 650000
-
-    # Scan a range around the anchor
-    start = max(max_known - scan_width, 600000)
-    end = max_known + scan_width
-    probe_ids = list(range(start, end, 3))  # every 3rd ID
-
-    logger.info("Scanning SB event IDs %d-%d (%d probes)...", start, end, len(probe_ids))
-
-    target_dates = set(g['id'].split('_')[0] for g in games)
-
-    found_count = 0
-    with ThreadPoolExecutor(max_workers=15) as pool:
-        futures = {pool.submit(probe_event, client, eid): eid for eid in probe_ids}
-        for f in as_completed(futures):
-            info = f.result()
-            if not info:
-                continue
-            if info.get('sport') != 'bsgame':
-                continue
-            if info.get('date') not in target_dates:
-                continue
-
-            found_count += 1
-            game_id = match_game(info, conn, resolver)
-            if game_id and any(g['id'] == game_id for g in games):
-                _upsert_sb_event(conn, {
-                    'sb_event_id': info['event_id'],
-                    'game_id': game_id,
-                    'home_team': unescape(info.get('home', '')),
-                    'visitor_team': unescape(info.get('visitor', '')),
-                    'home_team_id': resolver.resolve(unescape(info.get('home', ''))),
-                    'visitor_team_id': resolver.resolve(unescape(info.get('visitor', ''))),
-                    'game_date': info.get('date', ''),
-                    'group_id': info.get('group_id', ''),
-                    'xml_file': info.get('xml_file', ''),
-                    'completed': 0,
-                })
-                logger.info("  ✓ Scan matched event %d -> %s", info['event_id'], game_id)
-                matched.append(game_id)
-
-    logger.info("Scan found %d baseball events for target dates, matched %d",
-                found_count, len(matched))
-    return matched
-
-
 def discover_from_browser(conn, games, group_ids, client, resolver):
     """
     Phase 3: Last resort — use openclaw browser CLI to load SB schedule pages.
@@ -365,7 +309,8 @@ def discover_from_group_scan(conn, games, group_ids, client, resolver):
             center = known_range[1]  # latest known event
             probe_ids = list(range(center - 20, center + 50))
         else:
-            # No known range — skip, will be caught by broad scan
+            # No known range — skip
+            logger.debug("No known event range for %s (gid=%s), skipping", team_id, gid)
             continue
         
         logger.debug("Group scan for %s (gid=%s): probing %d-%d",
@@ -374,6 +319,7 @@ def discover_from_group_scan(conn, games, group_ids, client, resolver):
         for eid in probe_ids:
             info = probe_event(client, eid)
             if not info or info.get('sport') != 'bsgame':
+                time.sleep(0.1)  # gentle rate limit between probes
                 continue
             if info.get('group_id') != gid:
                 continue
@@ -394,6 +340,8 @@ def discover_from_group_scan(conn, games, group_ids, client, resolver):
                 })
                 logger.info("  ✓ Group scan matched %d -> %s", eid, game_id)
                 matched.append(game_id)
+        
+        time.sleep(1)  # 1s pause between groups to avoid 403
     
     return matched
 
@@ -418,28 +366,19 @@ def run_discovery(target_date, verbose=False):
 
     all_matched = set()
 
-    # Phase 1: Broad event ID range scan (parallel, fast, most effective)
-    # Scan a wide range centered on the latest known event ID
-    phase1 = discover_from_scan(conn, games, group_ids, client, resolver,
-                                scan_width=2000)
+    # Phase 1: Group-specific targeted scan
+    # For each home team with a known SB group, probe nearby event IDs
+    phase1 = discover_from_group_scan(conn, games, group_ids, client, resolver)
     all_matched.update(phase1)
-    logger.info("Phase 1 (broad scan): matched %d/%d", len(phase1), len(games))
+    logger.info("Phase 1 (group scan): matched %d/%d", len(phase1), len(games))
 
-    # Phase 2: Group-specific targeted scan for remaining
-    remaining = [g for g in games if g['id'] not in all_matched]
-    if remaining:
-        phase_g = discover_from_group_scan(conn, remaining, group_ids, client, resolver)
-        all_matched.update(phase_g)
-        if phase_g:
-            logger.info("Phase 2 (group scan): matched %d more", len(phase_g))
-
-    # Phase 3: SIDEARM scrape for remaining if under 20 unmatched
+    # Phase 2: SIDEARM scrape for remaining if under 20 unmatched
     remaining = [g for g in games if g['id'] not in all_matched]
     if remaining and len(remaining) <= 20:
-        phase3 = discover_from_sidearm(conn, remaining, group_ids, client, resolver)
-        all_matched.update(phase3)
-        if phase3:
-            logger.info("Phase 3 (SIDEARM): matched %d more", len(phase3))
+        phase2 = discover_from_sidearm(conn, remaining, group_ids, client, resolver)
+        all_matched.update(phase2)
+        if phase2:
+            logger.info("Phase 2 (SIDEARM): matched %d more", len(phase2))
 
     unmatched = [g for g in games if g['id'] not in all_matched]
     logger.info("Discovery complete: %d/%d matched, %d unmatched",
