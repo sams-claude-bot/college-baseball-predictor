@@ -29,6 +29,16 @@ from statbroadcast_discovery import ensure_table as ensure_sb_table
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _mock_client(**overrides):
+    """Create a MagicMock SB client with PBP/scoring stubs to avoid JSON errors."""
+    client = MagicMock()
+    client.get_play_by_play.return_value = None
+    client.get_scoring_plays.return_value = None
+    for k, v in overrides.items():
+        setattr(client, k, v) if not callable(v) else None
+    return client
+
+
 def _make_db():
     """Create an in-memory DB with all required tables."""
     conn = sqlite3.connect(':memory:')
@@ -185,7 +195,7 @@ class TestPoller:
         conn = _make_db()
         _seed_active_game(conn)
 
-        mock_client = MagicMock()
+        mock_client = _mock_client()
         mock_client.get_live_stats.return_value = (SAMPLE_HTML, 12345)
 
         poller = StatBroadcastPoller(conn, client=mock_client)
@@ -243,7 +253,7 @@ class TestPoller:
         conn = _make_db()
         _seed_active_game(conn)
 
-        mock_client = MagicMock()
+        mock_client = _mock_client()
         mock_client.get_live_stats.return_value = (SAMPLE_HTML, 12345)
 
         poller = StatBroadcastPoller(conn, client=mock_client)
@@ -265,7 +275,7 @@ class TestPoller:
         conn = _make_db()
         _seed_active_game(conn)
 
-        mock_client = MagicMock()
+        mock_client = _mock_client()
         mock_client.get_live_stats.return_value = (SAMPLE_HTML, 12345)
 
         poller = StatBroadcastPoller(conn, client=mock_client)
@@ -288,7 +298,7 @@ class TestPoller:
             'cscore = "BYU 1, WSU 4 - T8th"',
             'cscore = "BYU 1, WSU 4 - Final"'
         )
-        mock_client = MagicMock()
+        mock_client = _mock_client()
         mock_client.get_live_stats.return_value = (final_html, 99999)
 
         poller = StatBroadcastPoller(conn, client=mock_client)
@@ -306,7 +316,7 @@ class TestPoller:
         _seed_active_game(conn, game_id='game-a', sb_event_id=100, xml_file='a/100.xml')
         _seed_active_game(conn, game_id='game-b', sb_event_id=101, xml_file='b/101.xml')
 
-        mock_client = MagicMock()
+        mock_client = _mock_client()
 
         def fake_stats(event_id, xml_file, filetime=0):
             if event_id == 100:

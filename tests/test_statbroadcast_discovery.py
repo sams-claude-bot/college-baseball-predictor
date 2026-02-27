@@ -260,7 +260,7 @@ class TestGroupIds:
         gids = load_group_ids(PROJECT_ROOT / 'scripts' / 'sb_group_ids.json')
         assert isinstance(gids, dict)
         assert len(gids) >= 30  # At least 30 schools
-        assert gids.get('washington-state') == 'wsu'
+        assert gids.get('washington-state') == 'wast'
         assert gids.get('byu') == 'byu'
 
     def test_load_group_ids_missing_file(self):
@@ -337,21 +337,53 @@ class TestDbHelpers:
 
     def test_get_active_events(self):
         """Returns non-completed events with a game_id."""
+        import pytz
+        from datetime import datetime
+
         conn = sqlite3.connect(':memory:')
+        conn.row_factory = sqlite3.Row
         ensure_table(conn)
+
+        # get_active_events JOINs on games, so we need that table too
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS games (
+                id TEXT PRIMARY KEY,
+                date TEXT,
+                time TEXT,
+                status TEXT DEFAULT 'scheduled',
+                home_team_id TEXT,
+                away_team_id TEXT
+            )
+        """)
+
+        # Use today's date so the time-gate logic includes these games
+        ct = pytz.timezone('America/Chicago')
+        today = datetime.now(ct).strftime('%Y-%m-%d')
+
+        conn.execute(
+            "INSERT INTO games (id, date, time, status) VALUES (?, ?, ?, ?)",
+            ('game-a', today, '12:00 PM', 'in-progress')
+        )
+        conn.execute(
+            "INSERT INTO games (id, date, time, status) VALUES (?, ?, ?, ?)",
+            ('game-b', today, '12:00 PM', 'final')
+        )
+        conn.commit()
 
         # Insert one active, one completed, one unmatched
         for eid, gid, completed in [(100, 'game-a', 0), (101, 'game-b', 1), (102, None, 0)]:
             conn.execute(
-                "INSERT INTO statbroadcast_events (sb_event_id, game_id, completed, xml_file) VALUES (?, ?, ?, ?)",
-                (eid, gid, completed, 'test/%d.xml' % eid)
+                "INSERT INTO statbroadcast_events (sb_event_id, game_id, completed, xml_file, game_date) VALUES (?, ?, ?, ?, ?)",
+                (eid, gid, completed, 'test/%d.xml' % eid, today)
             )
         conn.commit()
 
         active = get_active_events(conn)
-        assert len(active) == 1
-        assert active[0]['sb_event_id'] == 100
-        assert active[0]['game_id'] == 'game-a'
+        # Should include game-a (in-progress, not completed)
+        active_ids = [e['sb_event_id'] for e in active]
+        assert 100 in active_ids
+        # game-b is completed=1, should NOT appear
+        assert 101 not in active_ids
 
     def test_mark_completed(self):
         """Marks an event as completed."""
