@@ -136,11 +136,9 @@ def merge_situation(existing_json, sb_situation):
         if val is not None:
             existing[key] = val
 
-    # Store play-by-play data if available
-    if sb_situation.get('current_plays'):
-        existing['sb_plays'] = sb_situation['current_plays']
-    elif 'sb_plays' not in existing:
-        existing['sb_plays'] = []
+    # Store all scoring plays for the game (replaced each poll with full list)
+    if sb_situation.get('scoring_plays'):
+        existing['sb_scoring_plays'] = sb_situation['scoring_plays']
 
     return json.dumps(existing)
 
@@ -244,13 +242,13 @@ class StatBroadcastPoller:
             logger.info("Game %s (SB %s) is Final", game_id, sb_id)
             return False  # Don't push stale situation data for completed games
 
-        # Fetch play-by-play for current inning
+        # Fetch scoring plays for the entire game
         try:
-            plays = self.client.get_play_by_play(sb_id, xml_file)
-            if plays:
-                situation['current_plays'] = plays
+            scoring = self.client.get_scoring_plays(sb_id, xml_file)
+            if scoring:
+                situation['scoring_plays'] = scoring
         except Exception as e:
-            logger.debug("PXP fetch failed for SB %s: %s", sb_id, e)
+            logger.debug("Scoring plays fetch failed for SB %s: %s", sb_id, e)
 
         # Merge into situation_json
         self._update_situation(game_id, situation)

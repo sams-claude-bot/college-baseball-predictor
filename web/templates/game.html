@@ -153,36 +153,30 @@
             </div>
         </div>
 
-        <!-- Previously this inning -->
-        {% if sit.sb_plays %}
-        {% set current_half = sit.sb_plays[-1] if sit.sb_plays else none %}
-        {% if current_half and current_half.plays %}
+        <!-- Scoring Plays Log -->
+        {% if sit.sb_scoring_plays is defined and sit.sb_scoring_plays %}
         <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
             <h6 class="text-muted mb-2" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px;">
-                ⚾ Previously This Inning
-                <span class="ms-2 fw-normal" style="text-transform:none; letter-spacing:0;">{{ current_half.label }}</span>
+                ⚾ Scoring Plays
             </h6>
-            <div class="ps-2" style="border-left: 2px solid #374151;">
-                {% for play in current_half.plays %}
-                <div class="mb-1 d-flex align-items-start gap-2" style="font-size:0.85rem;">
-                    {% if play.is_scoring %}
-                    <span class="badge bg-success" style="font-size:0.65rem; min-width:18px;">R</span>
-                    {% elif play.bases %}
-                    <span class="badge" style="background:#2563eb; font-size:0.65rem; min-width:18px;">{{ play.bases }}</span>
-                    {% else %}
-                    <span class="text-muted" style="font-size:0.65rem; min-width:18px;">⊘</span>
-                    {% endif %}
-                    <span{% if play.is_scoring %} class="text-success fw-bold"{% endif %}>{{ play.text }}</span>
+            <div style="max-height: 350px; overflow-y: auto;">
+                {% for play in sit.sb_scoring_plays|reverse %}
+                <div class="mb-2 d-flex align-items-start gap-2" style="font-size:0.85rem;">
+                    <div style="min-width: 52px; flex-shrink:0;">
+                        <span class="badge bg-success" style="font-size:0.65rem;">{{ play.inning }}</span>
+                    </div>
+                    <div>
+                        <span class="fw-bold" style="color:#fbbf24;">{{ play.team }}</span>
+                        <span class="text-muted mx-1">—</span>
+                        <span>{{ play.text }}</span>
+                        {% if play.scoring %}
+                        <span class="text-muted ms-1" style="font-size:0.7rem;">({{ play.scoring }})</span>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endfor %}
             </div>
-            {% if current_half.summary %}
-            <div class="mt-2 text-muted" style="font-size:0.75rem; font-style:italic;">
-                {{ current_half.summary }}
-            </div>
-            {% endif %}
         </div>
-        {% endif %}
         {% endif %}
         {% endif %}
 

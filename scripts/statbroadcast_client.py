@@ -511,6 +511,36 @@ class StatBroadcastClient:
         except Exception:
             return None
 
+    def get_scoring_plays(self, event_id, xml_file):
+        """
+        Fetch ALL scoring plays for the entire game via the scoring view.
+
+        Returns list of scoring play dicts, or None on error.
+        """
+        params = (
+            "event={event_id}"
+            "&xml={xml_file}"
+            "&xsl=baseball/sb.bsgame.views.scoring.xsl"
+            "&sport=bsgame"
+            "&filetime=1"
+            "&type=statbroadcast"
+            "&start=true"
+        ).format(event_id=event_id, xml_file=xml_file)
+
+        data = sb_encode_params(params)
+        url = "{}/stats?data={}".format(self.BASE_URL, data)
+        req = self._request(url)
+
+        try:
+            with urllib.request.urlopen(req, timeout=self.TIMEOUT) as resp:
+                raw = resp.read().decode()
+                if not raw.strip():
+                    return None
+                html = sb_decode(raw)
+                return parse_scoring_plays(html)
+        except Exception:
+            return None
+
 
 def parse_plays(html):
     """
@@ -655,6 +685,62 @@ def parse_plays(html):
         current_inning['plays'].append(play)
 
     return innings
+
+
+def parse_scoring_plays(html):
+    """
+    Parse the scoring view HTML into a list of scoring play dicts.
+
+    Returns:
+    [
+        {
+            'team': 'DBU',
+            'inning': 'Bot 2',
+            'scoring': '1B 6-4 1RBI',
+            'text': 'K. Grady singled to second base, RBI; ...',
+            'batter': 'K. Grady',
+            'pitcher': 'E. Teel',
+        },
+        ...
+    ]
+    """
+    plays = []
+    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL)
+
+    for row in rows:
+        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL)
+        if len(cells) < 4:
+            continue
+
+        clean = [re.sub(r'<[^>]+>', '', c).strip() for c in cells]
+
+        # Skip header rows and empty rows
+        if not clean[0] or clean[0] == 'Team':
+            continue
+
+        # Scoring play row: [Team, Inning, Scoring Dec., Play, Batter, Pitcher]
+        # The play text is the longest cell
+        team = clean[0]
+        inning = clean[1] if len(clean) > 1 else ''
+        scoring = clean[2] if len(clean) > 2 else ''
+        text = clean[3] if len(clean) > 3 else ''
+        batter = clean[4] if len(clean) > 4 else ''
+        pitcher = clean[5] if len(clean) > 5 else ''
+
+        # Skip if no meaningful play text
+        if len(text) < 10:
+            continue
+
+        plays.append({
+            'team': team,
+            'inning': inning,
+            'scoring': scoring,
+            'text': text,
+            'batter': batter,
+            'pitcher': pitcher,
+        })
+
+    return plays
 
 
 def _ordinal(n):
