@@ -819,7 +819,7 @@
     })();
     </script>
     
-    <!-- Global: convert game times from Eastern to user's local timezone (12h format) -->
+    <!-- Global: convert game times from Central to user's local timezone (12h format) -->
     <script>
     function convertLocalTimes() {
         document.querySelectorAll('.local-time').forEach(function(el) {
@@ -845,13 +845,21 @@
                 } else {
                     return;
                 }
-                // Build ISO string in Eastern timezone
+                // Build ISO string in Central timezone (all DB times are stored in CT)
                 var iso = dateStr + 'T' + String(hours).padStart(2,'0') + ':' + String(minutes).padStart(2,'0') + ':00';
-                // Determine EDT vs EST based on actual date (approximate: Mar-Nov = EDT)
+                // Determine CDT vs CST based on actual date (approximate: Mar-Nov = CDT)
                 var month = parseInt(dateStr.split('-')[1]);
-                var offset = (month >= 3 && month <= 10) ? '-04:00' : '-05:00';
+                var offset = (month >= 3 && month <= 10) ? '-05:00' : '-06:00';
                 var utcDate = new Date(iso + offset);
-                el.textContent = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+                // Format in user's local timezone
+                var localStr = utcDate.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit', hour12: true});
+                // Append CT label if user is NOT in Central timezone
+                var userOffset = -utcDate.getTimezoneOffset() / 60;
+                var ctOffset = (month >= 3 && month <= 10) ? -5 : -6;
+                if (Math.abs(userOffset - ctOffset) > 0.1) {
+                    localStr += ' (CT: ' + timeStr + ')';
+                }
+                el.textContent = localStr;
                 el.dataset.converted = '1';
             } catch(e) {}
         });
