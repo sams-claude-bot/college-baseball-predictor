@@ -306,8 +306,9 @@ def discover_from_group_scan(conn, games, group_ids, client, resolver):
         known_range = gid_ranges.get(gid)
         if known_range:
             # Scan around known range for this group
+            # Use +200 to catch events created days after the last known one
             center = known_range[1]  # latest known event
-            probe_ids = list(range(center - 20, center + 50))
+            probe_ids = list(range(center - 20, center + 200))
         else:
             # No known range — skip
             logger.debug("No known event range for %s (gid=%s), skipping", team_id, gid)
@@ -316,30 +317,51 @@ def discover_from_group_scan(conn, games, group_ids, client, resolver):
         logger.debug("Group scan for %s (gid=%s): probing %d-%d",
                      team_id, gid, probe_ids[0], probe_ids[-1])
         
+        # Track which target games for this group still need matching
+        target_game_ids = set(g['id'] for g in games
+                              if g['home_team_id'] == team_id)
+        consecutive_miss = 0
+        
         for eid in probe_ids:
             info = probe_event(client, eid)
             if not info or info.get('sport') != 'bsgame':
+                consecutive_miss += 1
+                # Stop early if 30+ consecutive misses past the known range
+                if consecutive_miss > 30 and eid > center:
+                    logger.debug("  30 consecutive misses past center, stopping scan for %s", team_id)
+                    break
                 time.sleep(0.1)  # gentle rate limit between probes
                 continue
+            
+            consecutive_miss = 0  # reset on any baseball hit
+            
             if info.get('group_id') != gid:
                 continue
             
+            # Register ALL baseball events for this group (builds future coverage)
             game_id = match_game(info, conn, resolver)
-            if game_id and any(g['id'] == game_id for g in games):
-                _upsert_sb_event(conn, {
-                    'sb_event_id': eid,
-                    'game_id': game_id,
-                    'home_team': unescape(info.get('home', '')),
-                    'visitor_team': unescape(info.get('visitor', '')),
-                    'home_team_id': resolver.resolve(unescape(info.get('home', ''))),
-                    'visitor_team_id': resolver.resolve(unescape(info.get('visitor', ''))),
-                    'game_date': info.get('date', ''),
-                    'group_id': info.get('group_id', ''),
-                    'xml_file': info.get('xml_file', ''),
-                    'completed': 0,
-                })
+            _upsert_sb_event(conn, {
+                'sb_event_id': eid,
+                'game_id': game_id,
+                'home_team': unescape(info.get('home', '')),
+                'visitor_team': unescape(info.get('visitor', '')),
+                'home_team_id': resolver.resolve(unescape(info.get('home', ''))),
+                'visitor_team_id': resolver.resolve(unescape(info.get('visitor', ''))),
+                'game_date': info.get('date', ''),
+                'group_id': info.get('group_id', ''),
+                'xml_file': info.get('xml_file', ''),
+                'completed': 1 if info.get('completed') else 0,
+            })
+            
+            if game_id and game_id in target_game_ids:
                 logger.info("  ✓ Group scan matched %d -> %s", eid, game_id)
                 matched.append(game_id)
+                target_game_ids.discard(game_id)
+                
+                # All target games matched for this group? Stop early
+                if not target_game_ids:
+                    logger.debug("  All target games matched for %s", team_id)
+                    break
         
         time.sleep(1)  # 1s pause between groups to avoid 403
     
