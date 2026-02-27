@@ -66,17 +66,16 @@ def scores():
         date_str = display_date.strftime('%Y-%m-%d')
 
     cache_key = f'scores:{date_str}:{conference}'
-    # Check for live games — skip cache if any are in-progress
+    # Check for live games — use short cache (15s) during live games, full cache otherwise
     conn_live = get_connection()
     has_live = conn_live.execute(
         "SELECT 1 FROM games WHERE date = ? AND status = 'in-progress' LIMIT 1",
         (date_str,)
     ).fetchone()
     conn_live.close()
-    if not has_live:
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
 
     # Get games for the date (base predictions from ensemble)
     games, correct_count, total_preds = get_games_for_date_with_predictions(date_str)
@@ -259,7 +258,8 @@ def scores():
                           totals_accuracy_pct=totals_accuracy_pct,
                           totals_correct=totals_correct,
                           totals_total=totals_total)
-    cache.set(cache_key, result, timeout=600)
+    cache_timeout = 15 if has_live else 600  # 15s during live games, 10min otherwise
+    cache.set(cache_key, result, timeout=cache_timeout)
     return result
 
 
