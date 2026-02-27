@@ -76,9 +76,10 @@ def get_db():
 
 
 def load_group_ids():
-    """Load team_id -> sb_group_id mapping."""
+    """Load team_id -> sb_group_id mapping (excludes meta keys like _extra_schools)."""
     with open(str(GROUP_IDS_PATH)) as f:
-        return json.load(f)
+        data = json.load(f)
+    return {k: v for k, v in data.items() if isinstance(v, str)}
 
 
 def get_games_for_date(conn, target_date):
