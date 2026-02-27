@@ -79,8 +79,10 @@ Returns per-inning plays with batter, result, outs, scoring decisions.
 | `scripts/statbroadcast_discovery.py` | Event ID discovery (scan, group, SIDEARM), game matching |
 | `scripts/statbroadcast_poller.py` | 20s daemon: polls broadcast + PXP, merges into DB, emits SSE |
 | `scripts/statbroadcast_pregame.py` | Daily pre-game: broad scan + group scan + SIDEARM for new games |
-| `scripts/statbroadcast_season_scrape.py` | Browser-based: loads SB schedule pages for all 255 schools |
-| `scripts/sb_group_ids.json` | Team ID → SB group ID mapping (255 schools) |
+| `scripts/statbroadcast_season_scrape.py` | Browser-based: loads SB schedule pages for all 330 mapped schools |
+| `scripts/build_sb_mapping.py` | Builds team→gid mapping from SB index via TeamResolver + manual overrides |
+| `scripts/sb_group_ids.json` | Team ID → SB group ID mapping (215 D1 + 115 extra schools) |
+| `data/sb_all_schools.json` | Raw scraped data from SB index page (333 schools, source of truth) |
 | `data/sb_scrape_state.json` | Per-school last-scraped timestamps |
 | `scripts/statbroadcast-poller.service` | Systemd unit (20s interval, auto-restart) |
 
@@ -168,12 +170,16 @@ Some sections are behind a paywall (`noaccess` class on parent div). Affected: b
 ### Three-phase approach:
 
 1. **Season Scrape** (weekly, browser-based)
-   - Loads `statbroadcast.com/events/statbroadcast.php?gid={schoolId}` for all 255 mapped schools
+   - School→gid mapping built from official SB index (`statbroadcast.com/events/all.php`)
+   - `build_sb_mapping.py` matches 333 SB schools to our team IDs via TeamResolver + manual overrides
+   - Mapping stored in `scripts/sb_group_ids.json` (215 D1 teams + 115 extra schools)
+   - Loads `statbroadcast.com/events/statbroadcast.php?gid={gid}` for each school
    - Uses `openclaw browser navigate` + `evaluate` (JS-rendered pages)
    - Extracts all event IDs, probes event API for metadata
    - Matches to games by team name + date
-   - ~10s per school, ~40 min for full run
+   - ~12s per school, ~60 min for full 330-school run
    - Tracks `last_scraped` per school in `sb_scrape_state.json`
+   - Use `--refresh-mapping` flag to re-build the gid mapping before scraping
 
 2. **Daily Pre-game** (9:30 AM CST cron)
    - Verifies today's registered events still valid (dates haven't changed)
@@ -184,8 +190,11 @@ Some sections are behind a paywall (`noaccess` class on parent div). Affected: b
    - For each home team with a mapped group ID, scans SB schedule page
    - Falls back to SIDEARM school site scraping (only ≤20 unmatched)
 
-### School sites only post SB links day-of/weekend — NOT full season
-### SB's own schedule pages show the FULL season
+### Mapping Source of Truth
+The canonical school→gid mapping comes from `statbroadcast.com/events/all.php` (333 schools).
+Raw scraped data stored at `data/sb_all_schools.json`.
+`scripts/build_sb_mapping.py` resolves SB names → our team IDs using TeamResolver + MANUAL_OVERRIDES dict.
+Re-run `python3 scripts/build_sb_mapping.py --add-aliases` to refresh.
 
 ## Cron Jobs
 
@@ -200,7 +209,8 @@ Some sections are behind a paywall (`noaccess` class on parent div). Affected: b
 |---------|-------------|
 | `statbroadcast-poller` | 20s polling daemon, auto-restart on failure |
 | `espn-fastcast` | WebSocket listener for ESPN score updates |
-| `college-baseball-dashboard` | Gunicorn (workers=2, threads=4) on :5000 |
+| `nginx` | Reverse proxy on :5000, serves static files, proxies to Gunicorn |
+| `college-baseball-dashboard` | Gunicorn (gevent, 4 workers × 100 connections) on :5001 |
 
 ## Dashboard Integration
 
@@ -232,9 +242,10 @@ Some sections are behind a paywall (`noaccess` class on parent div). Affected: b
 
 ## Data Coverage
 
-- **255 D1 schools** mapped in `sb_group_ids.json`
-- SB covers most SIDEARM-powered athletic programs
-- Small/NAIA/D2/D3 teams covered when playing a mapped larger team
+- **333 schools** on StatBroadcast index (D1 + D2 + NAIA)
+- **215 D1 teams** matched to our DB in `sb_group_ids.json`
+- **115 extra schools** also scraped (may host D1 opponents)
+- Small/NAIA/D2/D3 teams covered when playing a mapped D1 team
 - Not all games have SB coverage (neutral-site tournaments, ESPN-exclusive)
 
 ## ESPN Guard

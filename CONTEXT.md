@@ -14,9 +14,9 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 
 - **Season:** Feb 13 – June 22, 2026 (CWS in Omaha)
 - **Focus:** Mississippi State + Auburn (featured), all SEC, all Power 4, Top 25, full D1 scores
-- **Stack:** Python 3, SQLite (WAL), Flask, Playwright, PyTorch, XGBoost, LightGBM
-- **Dashboard:** systemd `college-baseball-dashboard.service` → Flask on port 5000
-- **Public URL:** baseball.mcdevitt.page (Cloudflare Tunnel + Access)
+- **Stack:** Python 3, SQLite (WAL), Flask, Gunicorn (gevent), nginx, Playwright, PyTorch, XGBoost, LightGBM
+- **Dashboard:** nginx (:5000) → Gunicorn gevent (:5001) → Flask app. systemd services: `nginx`, `college-baseball-dashboard`
+- **Public URL:** baseball.mcdevitt.page (Cloudflare Tunnel → nginx :5000)
 - **Repo:** github.com/sams-claude-bot/college-baseball-predictor
 
 ## Documentation Ownership (Canonical)
@@ -52,9 +52,10 @@ NCAA D1 college baseball prediction system with a web dashboard. Collects data f
 
 | Source | What | Method | Notes |
 |--------|------|--------|-------|
-| **D1Baseball** | Scores, schedules, box scores, player stats (basic + advanced), rankings | Playwright browser scrape | **PRIMARY for everything**. Requires D1BB subscription (login persists in openclaw browser profile) |
+| **D1Baseball** | Scores, schedules, box scores, player stats (basic + advanced), rankings | Playwright browser scrape | **PRIMARY for schedules/stats**. Requires D1BB subscription (login persists in openclaw browser profile) |
+| **ESPN** | Live scores (every 2 min), R/H/E, linescore, game situation | REST API (`espn_live_scores.py`, `espn_fastcast_listener.py`) | Primary live score source. Also legacy schedule backbone for future games |
+| **StatBroadcast** | Live game detail: outs, count, pitcher/batter, base runners, play-by-play, per-inning linescore | HTTP polling (ROT13 + base64 decode) | Richest live data. 20s polling via systemd `statbroadcast-poller`. 333 schools mapped from SB index |
 | **DraftKings** | Betting lines (ML, spreads, totals) | Playwright browser scrape | Fragile — NCAA baseball page layout changes frequently |
-| **ESPN** | Legacy schedule backbone (future games beyond D1BB's 7-day window) | REST API | Being gradually replaced as D1BB's sliding window advances. Dedup logic handles migration |
 | **Open-Meteo** | Game weather forecasts (temp, wind, humidity, precip) | REST API | Free, no API key. Fetches for P4 home games using venue coordinates |
 
 ### ⚠️ Critical Data Rules
@@ -129,9 +130,23 @@ Doubleheaders: `_g1`, `_g2` suffixes.
 `scheduled`, `final`, `postponed`, `cancelled`, `in-progress`
 
 ### Live Games
-- Games with `in-progress` status have scores updated live (every 15 min during game hours)
-- `inning_text` column stores current inning ("Top 5", "Bottom 7", etc.)
-- `inning_text` is cleared when game goes `final`
+Three data sources feed live game state:
+
+1. **ESPN live scores** (`espn_live_scores.py`) — every 2 min via system cron. Updates score, status, inning. R/H/E + full linescore in `linescore_json`.
+2. **ESPN FastCast** (`espn_fastcast_listener.py`) — WebSocket listener, systemd service. Near-instant score updates.
+3. **StatBroadcast poller** (`statbroadcast_poller.py`) — every 20s, systemd service. Outs, count, pitcher/batter, base runners, play-by-play. Data stored in `games.situation_json` with `sb_*` prefix.
+
+Dashboard updates via **SSE** (`/api/live-stream`):
+- Browser opens persistent SSE connection on scores page
+- SB poller emits `sb_situation` events → JS updates game cards in real-time (diamond, outs, count, pitcher/batter)
+- ESPN events update scores
+- Page auto-reloads when all live games finish
+
+Key columns:
+- `inning_text` — current inning ("Top 5", "Bottom 7")
+- `situation_json` — full live state (ESPN + SB merged, `sb_*` prefixed)
+- `linescore_json` — per-inning R/H/E from ESPN
+- `home_hits`, `away_hits`, `home_errors`, `away_errors` — R/H/E columns
 
 ---
 
@@ -247,20 +262,55 @@ Flask app refactored into blueprints: `web/app.py` (110 lines) + `web/blueprints
 | `/api/debug/flag` | POST | Toggle debug flags |
 | `/api/bug-report` | POST/PATCH | Submit/update bug reports |
 
-### Service Configuration
+### Service Architecture
 
-> Canonical repo service unit source: `web/college-baseball-dashboard.service`.
-> `config/baseball-dashboard.service` is retained as a legacy/copy reference during cleanup (no behavior change in this pass).
-> Consolidation/move decisions remain tracked in `docs/CLEANUP_CHECKLIST.md`.
+```
+Internet → Cloudflare Tunnel → nginx (:5000) → Gunicorn gevent (:5001) → Flask app
+                                    ↓
+                              Static files served
+                              directly by nginx
+                              (/static/, favicon)
+```
 
+**nginx** (`/etc/nginx/sites-available/college-baseball`):
+- Listens on `0.0.0.0:5000` — public-facing
+- Serves `/static/` and `/favicon.ico` directly (0.5ms, no Gunicorn hit)
+- Proxies `/api/live-stream` (SSE) with `proxy_buffering off` and 24h read timeout
+- Proxies all other requests to Gunicorn
+- Gzip compression enabled
+
+**Gunicorn** (`/etc/systemd/system/college-baseball-dashboard.service`):
+- Binds to `127.0.0.1:5001` (local only)
+- `--worker-class gevent` — async green threads, handles hundreds of concurrent SSE connections
+- `--workers 4 --worker-connections 100` — 400 concurrent connections capacity
+- `--timeout 120`
+
+**Caching:**
+- Scores page: 15-second cache during live games, 10-minute cache otherwise
+- SSE live stream bypasses cache entirely — real-time updates via StatBroadcast poller
+- Rankings, teams: 10-minute cache
+- Static assets: 1-hour nginx cache with `Cache-Control: public, immutable`
+
+**Performance (benchmarked Feb 26):**
+- 3,800 req/sec at 50 concurrent users (with caching)
+- 239 req/sec at 10 concurrent (cold cache)
+- Static files: 0.5ms via nginx
+
+**systemd services:**
 ```ini
-# /home/sam/college-baseball-predictor/web/college-baseball-dashboard.service
+# /etc/systemd/system/college-baseball-dashboard.service
 [Service]
 User=sam
 WorkingDirectory=/home/sam/college-baseball-predictor
-ExecStart=venv/bin/python -m flask run --host=0.0.0.0 --port=5000
-ReadWritePaths=/home/sam/college-baseball-predictor/data
-# Security: NoNewPrivileges, ProtectSystem=strict, ProtectHome=read-only
+ExecStart=/home/sam/.local/bin/gunicorn --worker-class gevent --workers 4 --worker-connections 100 --bind 127.0.0.1:5001 --timeout 120 --access-logfile - web.app:app
+Restart=always
+```
+
+**Restart procedure:**
+```bash
+sudo systemctl restart college-baseball-dashboard  # Gunicorn
+sudo systemctl reload nginx                        # nginx (graceful)
+# If port conflict: sudo fuser -k 5000/tcp && sudo fuser -k 5001/tcp
 ```
 
 ---
