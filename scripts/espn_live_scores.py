@@ -188,12 +188,25 @@ def fetch_espn_scores(date_str):
         return None
 
 
-def espn_status_to_db(status_type):
-    """Convert ESPN status to our DB status."""
+def espn_status_to_db(status_type, game_date=None):
+    """Convert ESPN status to our DB status.
+    
+    If game_date is in the future, reject 'in-progress' (ESPN sometimes
+    prematurely marks upcoming games as live).
+    """
+    from datetime import datetime
     name = status_type.get('name', '')
     if name == 'STATUS_FINAL':
         return 'final'
     elif name == 'STATUS_IN_PROGRESS':
+        # Guard: don't mark future games as in-progress
+        if game_date:
+            try:
+                today = datetime.now().strftime('%Y-%m-%d')
+                if str(game_date) > today:
+                    return 'scheduled'
+            except (ValueError, TypeError):
+                pass
         return 'in-progress'
     elif name == 'STATUS_SCHEDULED':
         return 'scheduled'
@@ -263,7 +276,7 @@ def update_scores(date_str=None):
             continue
         
         game = our_games[key]
-        db_status = espn_status_to_db(status['type'])
+        db_status = espn_status_to_db(status['type'], game_date=game.get('date'))
         
         # Get scores
         away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None

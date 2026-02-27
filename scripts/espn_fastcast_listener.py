@@ -339,7 +339,14 @@ class GameStateTracker:
         if status_name == 'STATUS_FINAL':
             db_status = 'final'
         elif status_name == 'STATUS_IN_PROGRESS':
-            db_status = 'in-progress'
+            # Guard: don't mark future games as in-progress
+            from datetime import datetime
+            game_date = game.get('date', '') if game else ''
+            today = datetime.now().strftime('%Y-%m-%d')
+            if game_date and str(game_date) > today:
+                db_status = 'scheduled'
+            else:
+                db_status = 'in-progress'
         elif status_name in ('STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_DELAYED'):
             db_status = 'postponed'
         else:
