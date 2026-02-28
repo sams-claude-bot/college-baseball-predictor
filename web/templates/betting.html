@@ -183,7 +183,7 @@
         <div style="text-align:center;margin-bottom:20px;">
             <div style="font-size:14px;text-transform:uppercase;letter-spacing:2px;color:#a855f7;margin-bottom:4px;">⚾ College Baseball Predictor</div>
             <div style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">4-Leg Parlay of the Day</div>
-            <div style="font-size:13px;color:#94a3b8;margin-top:4px;">{{ parlay_legs[0].game.date if parlay_legs else '' }}</div>
+            <div style="font-size:13px;color:#94a3b8;margin-top:4px;">{{ parlay_legs[0].game_id[:10] if parlay_legs else '' }}</div>
         </div>
         {% for leg in parlay_legs %}
         <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:14px 18px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid {% if leg.type == 'ML' %}#7c3aed{% else %}#06b6d4{% endif %};">

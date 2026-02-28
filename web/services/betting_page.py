@@ -48,6 +48,11 @@ def _add_calibrated_edge(game, prob, ml):
 
 def build_betting_page_context(conference=''):
     """Build template context for the betting analysis page."""
+    from datetime import datetime
+    import pytz
+    ct = pytz.timezone('America/Chicago')
+    today_str = datetime.now(ct).strftime('%Y-%m-%d')
+
     conferences = get_all_conferences()
     games = get_betting_games()
 
@@ -302,59 +307,101 @@ def build_betting_page_context(conference=''):
         })
     parlay_totals_candidates.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
 
-    # Build 4-leg parlay: aim for 2-3 ML + 1-2 totals
-    parlay_legs = []
-    used_game_ids = set()
+    # Load parlay from tracked_parlays (set once by morning pipeline).
+    # Only fall back to dynamic generation if no stored parlay exists.
+    import json as _json
+    from scripts.database import get_connection as _get_db
+    _parlay_conn = _get_db()
 
-    # Take best ML picks first (up to 3)
-    for c in parlay_ml_candidates:
-        if len(parlay_legs) >= 3:
-            break
-        if c['game_id'] not in used_game_ids:
-            parlay_legs.append(c)
-            used_game_ids.add(c['game_id'])
+    def ml_to_decimal(ml):
+        if ml > 0:
+            return 1 + ml / 100
+        return 1 + 100 / abs(ml)
 
-    # Fill remaining with totals (must be different games — sportsbooks don't allow same-game parlays)
-    for c in parlay_totals_candidates:
-        if len(parlay_legs) >= 4:
-            break
-        if c['game_id'] not in used_game_ids:
-            parlay_legs.append(c)
-            used_game_ids.add(c['game_id'])
+    stored_parlay = _parlay_conn.execute(
+        "SELECT legs_json, american_odds, decimal_odds, model_prob, payout "
+        "FROM tracked_parlays WHERE date = ? LIMIT 1",
+        (today_str,)
+    ).fetchone()
 
-    # If still short, add more ML
-    if len(parlay_legs) < 4:
+    if stored_parlay:
+        # Use the locked-in parlay from the morning pipeline
+        stored_legs = _json.loads(stored_parlay[0] if isinstance(stored_parlay, tuple)
+                                  else stored_parlay['legs_json'])
+        parlay_legs = []
+        for sl in stored_legs:
+            leg = {
+                'type': sl.get('type', 'CONSENSUS'),
+                'game_id': sl.get('game_id', ''),
+                'pick': sl.get('pick', ''),
+                'pick_label': sl.get('pick', sl.get('pick_label', '')),
+                'pick_team': sl.get('pick', sl.get('pick_team', '')),
+                'matchup': sl.get('matchup', ''),
+                'odds': sl.get('odds', 0),
+                'prob': sl.get('prob', 0.5),
+                'edge': sl.get('edge', 0),
+                'models_agree': sl.get('models_agree'),
+                'calibrated_prob': sl.get('calibrated_prob'),
+                'calibrated_edge': sl.get('calibrated_edge'),
+            }
+            parlay_legs.append(leg)
+
+        sp = stored_parlay
+        parlay_american = sp[1] if isinstance(sp, tuple) else sp['american_odds']
+        parlay_decimal = sp[2] if isinstance(sp, tuple) else sp['decimal_odds']
+        parlay_combined_prob = sp[3] if isinstance(sp, tuple) else sp['model_prob']
+        parlay_payout_per_10 = round(10 * parlay_decimal, 2) if parlay_decimal else 0
+        # Calibrated prob from stored legs
+        parlay_calibrated_prob = 1.0
+        for leg in parlay_legs:
+            cp = leg.get('calibrated_prob')
+            parlay_calibrated_prob *= cp if cp is not None else leg['prob']
+    else:
+        # Fallback: dynamically build parlay if none stored
+        parlay_legs = []
+        used_game_ids = set()
+
         for c in parlay_ml_candidates:
+            if len(parlay_legs) >= 3:
+                break
+            if c['game_id'] not in used_game_ids:
+                parlay_legs.append(c)
+                used_game_ids.add(c['game_id'])
+
+        for c in parlay_totals_candidates:
             if len(parlay_legs) >= 4:
                 break
             if c['game_id'] not in used_game_ids:
                 parlay_legs.append(c)
                 used_game_ids.add(c['game_id'])
 
-    # Calculate combined parlay odds
-    def ml_to_decimal(ml):
-        if ml > 0:
-            return 1 + ml / 100
-        return 1 + 100 / abs(ml)
+        if len(parlay_legs) < 4:
+            for c in parlay_ml_candidates:
+                if len(parlay_legs) >= 4:
+                    break
+                if c['game_id'] not in used_game_ids:
+                    parlay_legs.append(c)
+                    used_game_ids.add(c['game_id'])
 
-    parlay_decimal = 1.0
-    parlay_combined_prob = 1.0
-    parlay_calibrated_prob = 1.0
-    for leg in parlay_legs:
-        parlay_decimal *= ml_to_decimal(leg['odds'])
-        parlay_combined_prob *= leg['prob']
-        parlay_calibrated_prob *= leg.get('calibrated_prob', leg['prob'])
+        parlay_decimal = 1.0
+        parlay_combined_prob = 1.0
+        parlay_calibrated_prob = 1.0
+        for leg in parlay_legs:
+            parlay_decimal *= ml_to_decimal(leg['odds'])
+            parlay_combined_prob *= leg['prob']
+            parlay_calibrated_prob *= leg.get('calibrated_prob', leg['prob'])
 
-    parlay_american = 0
-    if parlay_decimal > 2:
-        parlay_american = round((parlay_decimal - 1) * 100)
-    elif parlay_decimal > 1:
-        parlay_american = round(-100 / (parlay_decimal - 1))
+        parlay_american = 0
+        if parlay_decimal > 2:
+            parlay_american = round((parlay_decimal - 1) * 100)
+        elif parlay_decimal > 1:
+            parlay_american = round(-100 / (parlay_decimal - 1))
 
-    parlay_payout_per_10 = round(10 * parlay_decimal, 2) if parlay_legs else 0
+        parlay_payout_per_10 = round(10 * parlay_decimal, 2) if parlay_legs else 0
+
+    _parlay_conn.close()
 
     # Enrich parlay legs with live scores
-    from scripts.database import get_connection as _get_db
     _score_conn = _get_db()
     _score_cur = _score_conn.cursor()
     parlay_legs_won = 0
