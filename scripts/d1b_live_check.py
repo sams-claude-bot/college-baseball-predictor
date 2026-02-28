@@ -80,13 +80,23 @@ def scrape_d1b_status(date_str: str) -> list:
             const awayScore = awayScoreEl ? parseInt(awayScoreEl.textContent.trim()) : null;
             const homeScore = homeScoreEl ? parseInt(homeScoreEl.textContent.trim()) : null;
             
+            // Extract StatBroadcast event ID from "Live Stats" links
+            const sbLinks = t.querySelectorAll('a[href*="statbroadcast"], a[href*="statb.us"]');
+            let sbId = null;
+            sbLinks.forEach(a => {
+                if (sbId) return;
+                const m = a.href.match(/id=(\\d+)/) || a.href.match(/\\/b\\/(\\d+)/);
+                if (m) sbId = parseInt(m[1]);
+            });
+
             if (awaySlug && homeSlug) {
                 games.push({
                     a: awaySlug, h: homeSlug,
                     ip: inProgress, over: isOver,
                     as: isNaN(awayScore) ? null : awayScore,
                     hs: isNaN(homeScore) ? null : homeScore,
-                    t: ts
+                    t: ts,
+                    sb: sbId
                 });
             }
         });
@@ -130,7 +140,7 @@ def main():
     conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.row_factory = sqlite3.Row
     
-    # Get our TBD/scheduled games for this date
+    # Get our scheduled games for this date (for status detection)
     tbd_games = conn.execute("""
         SELECT id, away_team_id, home_team_id, status, time
         FROM games 
@@ -138,9 +148,7 @@ def main():
     """, (date_str,)).fetchall()
     
     if not tbd_games:
-        print(f"No scheduled games for {date_str}")
-        conn.close()
-        return
+        print(f"No scheduled games for {date_str} (will still check SB links)")
     
     # Build lookup: (away_id, home_id) -> game row
     game_lookup = {}
@@ -207,10 +215,103 @@ def main():
                 print(f"  Now {new_status}: {game_id}" + 
                       (f" ({dg['as']}-{dg['hs']})" if dg['as'] is not None else ""))
     
+    # --- SB Link Discovery: register missing SB events for in-progress games ---
+    sb_registered = 0
+    try:
+        from statbroadcast_client import StatBroadcastClient
+        from statbroadcast_discovery import ensure_table, _upsert_sb_event
+
+        ensure_table(conn)
+        client = StatBroadcastClient()
+
+        # Get existing active SB events for today
+        existing_sb = set()
+        for row in conn.execute(
+            "SELECT sb_event_id FROM statbroadcast_events WHERE game_date = ?", (date_str,)
+        ).fetchall():
+            existing_sb.add(str(row['sb_event_id']))
+
+        # Get in-progress games without active SB events
+        games_without_sb = set()
+        for row in conn.execute("""
+            SELECT g.id FROM games g
+            WHERE g.date = ? AND g.status = 'in-progress'
+            AND g.id NOT IN (
+                SELECT game_id FROM statbroadcast_events
+                WHERE completed = 0 AND game_id IS NOT NULL AND game_date = ?
+            )
+        """, (date_str, date_str)).fetchall():
+            games_without_sb.add(row['id'])
+
+        # Build game lookup for matching
+        all_games = conn.execute(
+            "SELECT id, away_team_id, home_team_id FROM games WHERE date = ?",
+            (date_str,)
+        ).fetchall()
+        game_lookup_sb = {}
+        for g in all_games:
+            game_lookup_sb[(g['away_team_id'], g['home_team_id'])] = g['id']
+            game_lookup_sb[(g['home_team_id'], g['away_team_id'])] = g['id']
+
+        for dg in d1b_games:
+            sb_id = dg.get('sb')
+            if not sb_id or str(sb_id) in existing_sb:
+                continue
+            if not dg.get('ip'):
+                continue
+
+            # Resolve teams
+            away_id = slug_map.get(dg['a'])
+            home_id = slug_map.get(dg['h'])
+
+            # Match to game (exact or fallback)
+            game_id = None
+            if away_id and home_id:
+                game_id = game_lookup_sb.get((away_id, home_id)) or game_lookup_sb.get((home_id, away_id))
+            if not game_id:
+                known_id = away_id or home_id
+                if known_id:
+                    candidates = [gid for (a, h), gid in game_lookup_sb.items()
+                                  if a == known_id or h == known_id]
+                    if len(candidates) == 1:
+                        game_id = candidates[0]
+
+            if not game_id or game_id not in games_without_sb:
+                continue
+
+            # Get correct xml_file from SB API
+            try:
+                info = client.get_event_info(str(sb_id))
+                if info and info.get('xml_file'):
+                    _upsert_sb_event(conn, {
+                        'sb_event_id': str(sb_id),
+                        'game_id': game_id,
+                        'home_team': info.get('home', ''),
+                        'visitor_team': info.get('visitor', ''),
+                        'home_team_id': home_id or '',
+                        'visitor_team_id': away_id or '',
+                        'game_date': date_str,
+                        'group_id': info.get('group_id', ''),
+                        'xml_file': info['xml_file'],
+                        'completed': 0,
+                    })
+                    sb_registered += 1
+                    print(f"  SB discovered: {game_id} -> event {sb_id} ({info['xml_file']})")
+                    games_without_sb.discard(game_id)
+            except Exception as e:
+                print(f"  SB error for {sb_id}: {e}")
+
+            import time
+            time.sleep(0.15)
+    except ImportError:
+        pass  # SB modules not available
+    except Exception as e:
+        print(f"  SB discovery error: {e}")
+
     conn.commit()
     conn.close()
-    
-    print(f"\nDone: {updated_times} times filled, {detected_live} games detected as started")
+
+    print(f"\nDone: {updated_times} times filled, {detected_live} games detected as started, {sb_registered} SB events discovered")
 
 
 if __name__ == "__main__":
