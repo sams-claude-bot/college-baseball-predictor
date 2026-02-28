@@ -353,6 +353,61 @@ def build_betting_page_context(conference=''):
 
     parlay_payout_per_10 = round(10 * parlay_decimal, 2) if parlay_legs else 0
 
+    # Enrich parlay legs with live scores
+    from scripts.database import get_connection as _get_db
+    _score_conn = _get_db()
+    _score_cur = _score_conn.cursor()
+    parlay_legs_won = 0
+    parlay_legs_lost = 0
+    for leg in parlay_legs:
+        gid = leg.get('game_id')
+        if gid:
+            game_row = _score_cur.execute(
+                "SELECT status, home_score, away_score, inning_text, "
+                "home_team_id, away_team_id FROM games WHERE id = ?", (gid,)
+            ).fetchone()
+            if game_row:
+                gr = dict(game_row) if hasattr(game_row, 'keys') else {
+                    'status': game_row[0], 'home_score': game_row[1],
+                    'away_score': game_row[2], 'inning_text': game_row[3],
+                    'home_team_id': game_row[4], 'away_team_id': game_row[5],
+                }
+                leg['game_status'] = gr['status']
+                leg['home_score'] = gr['home_score'] or 0
+                leg['away_score'] = gr['away_score'] or 0
+                leg['inning_text'] = gr['inning_text'] or ''
+
+                # Determine if this leg is winning/losing/pending
+                if gr['status'] in ('final',):
+                    pick_team = leg.get('pick_team', leg.get('pick', ''))
+                    if leg['type'] in ('ML', 'CONSENSUS'):
+                        # Check if picked team won
+                        home_won = (gr['home_score'] or 0) > (gr['away_score'] or 0)
+                        # Is our pick the home team?
+                        pick_is_home = pick_team.lower() in (gr.get('home_team_id') or '').lower().replace('-', ' ')
+                        if not pick_is_home:
+                            # Try matching by name
+                            pick_is_home = False  # fallback
+                        leg['leg_result'] = 'won' if (home_won == pick_is_home) else 'lost'
+                    elif leg['type'] == 'Total':
+                        total_runs = (gr['home_score'] or 0) + (gr['away_score'] or 0)
+                        ou_line = leg.get('pick_label', '')
+                        if 'OVER' in ou_line.upper():
+                            leg['leg_result'] = 'won' if total_runs > float(ou_line.split()[-1]) else 'lost'
+                        elif 'UNDER' in ou_line.upper():
+                            leg['leg_result'] = 'won' if total_runs < float(ou_line.split()[-1]) else 'lost'
+                        else:
+                            leg['leg_result'] = 'pending'
+                    if leg.get('leg_result') == 'won':
+                        parlay_legs_won += 1
+                    elif leg.get('leg_result') == 'lost':
+                        parlay_legs_lost += 1
+                elif gr['status'] == 'in-progress':
+                    leg['leg_result'] = 'live'
+                else:
+                    leg['leg_result'] = 'pending'
+    _score_conn.close()
+
     return {
         'games': games_with_edge,
         'confident_bets': confident_bets,
