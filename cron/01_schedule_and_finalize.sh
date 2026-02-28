@@ -1,5 +1,5 @@
 #!/bin/bash
-# 1/6 Schedule + Finalize + Late Catchup — 5:00 AM CT
+# 1/6 Schedule + Finalize + Late Catchup — 7:00 AM CT
 # Merged from: 01_schedule_sync + 00_finalize_games + 01b_late_scores
 set -euo pipefail
 cd /home/sam/college-baseball-predictor
