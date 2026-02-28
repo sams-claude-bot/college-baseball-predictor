@@ -240,8 +240,9 @@ def update_scores(date_str=None):
         our_games[key] = dict(r)
     
     # Exclude games actively covered by StatBroadcast (SB is providing live data).
-    # Only skip when the SB poller has already started updating the game
-    # (situation_json is not null = SB has sent at least one update).
+    # Only skip when there is an ACTIVE (non-completed) SB event AND the game
+    # has been updated by SB within the last 10 minutes (situation_json is fresh).
+    # This prevents dead/completed SB events from blocking ESPN updates.
     sb_game_ids = set()
     try:
         sb_rows = conn.execute('''
@@ -249,7 +250,9 @@ def update_scores(date_str=None):
             FROM statbroadcast_events se
             JOIN games g ON se.game_id = g.id
             WHERE se.game_date = ? AND se.game_id IS NOT NULL
-            AND (g.situation_json IS NOT NULL OR se.completed = 1)
+            AND se.completed = 0
+            AND g.situation_json IS NOT NULL
+            AND g.updated_at > datetime('now', '-10 minutes')
         ''', (date_str,)).fetchall()
         sb_game_ids = {r['game_id'] for r in sb_rows}
     except Exception:
