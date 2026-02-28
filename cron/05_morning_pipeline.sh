@@ -22,6 +22,9 @@ PYTHONPATH=. python3 scripts/predict_and_track.py predict --refresh-existing >> 
 echo "--- Bet selection ---" >> "$LOG"
 python3 scripts/bet_selection_v2.py record >> "$LOG" 2>&1
 
+echo "--- Parlay upgrade check ---" >> "$LOG"
+python3 -m scripts.betting.upgrade_parlay >> "$LOG" 2>&1 || true
+
 echo "--- Restart dashboard ---" >> "$LOG"
 sudo systemctl restart college-baseball-dashboard.service >> "$LOG" 2>&1
 
