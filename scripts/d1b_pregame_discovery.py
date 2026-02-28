@@ -213,11 +213,24 @@ def register_sb_events(d1b_games, date_str, slug_map, conn):
 
         away_id = slug_map.get(dg["a"])
         home_id = slug_map.get(dg["h"])
-        if not away_id or not home_id:
-            continue
 
-        # Match to our game
-        game_id = game_lookup.get((away_id, home_id)) or game_lookup.get((home_id, away_id))
+        # Match to our game — try exact match first
+        game_id = None
+        if away_id and home_id:
+            game_id = game_lookup.get((away_id, home_id)) or game_lookup.get((home_id, away_id))
+
+        # Fallback: if only one team resolved, find their game on this date
+        if not game_id:
+            known_id = away_id or home_id
+            if known_id:
+                candidates = [gid for (a, h), gid in game_lookup.items()
+                              if a == known_id or h == known_id]
+                if len(candidates) == 1:
+                    game_id = candidates[0]
+                    logger.info("  Fallback match: %s -> %s (other team unresolved)", known_id, game_id)
+
+        if not away_id and not home_id:
+            continue
 
         # Fetch event info from SB to get xml_file and group_id
         try:

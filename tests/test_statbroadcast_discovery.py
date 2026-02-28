@@ -211,8 +211,26 @@ class TestMatchGame:
         }
         assert match_game(sb_info, conn, resolver) is None
 
-    def test_match_unknown_team(self):
-        """Returns None when a team can't be resolved."""
+    def test_match_unknown_team_fallback(self):
+        """Falls back to single-team match when one team can't be resolved."""
+        conn = _make_db()
+        _seed_games(conn)
+        _seed_aliases(conn)
+        resolver = _make_resolver(conn)
+
+        # BYU resolves but "Unknown University" doesn't — fallback finds
+        # BYU's only game on 2026-02-26
+        sb_info = {
+            'event_id': 652742,
+            'home': 'Unknown University',
+            'visitor': 'BYU',
+            'date': '2026-02-26',
+            'sport': 'bsgame',
+        }
+        assert match_game(sb_info, conn, resolver) == '2026-02-26_byu_washington-state'
+
+    def test_match_neither_team_resolves(self):
+        """Returns None when neither team can be resolved."""
         conn = _make_db()
         _seed_games(conn)
         _seed_aliases(conn)
@@ -221,7 +239,7 @@ class TestMatchGame:
         sb_info = {
             'event_id': 652742,
             'home': 'Unknown University',
-            'visitor': 'BYU',
+            'visitor': 'Mystery College',
             'date': '2026-02-26',
             'sport': 'bsgame',
         }

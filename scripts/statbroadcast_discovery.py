@@ -136,28 +136,55 @@ def match_game(sb_event_info, conn, resolver=None):
     home_id = resolver.resolve(home_name)
     visitor_id = resolver.resolve(visitor_name)
 
-    if not home_id or not visitor_id:
+    # If both teams resolve, try exact match first
+    if home_id and visitor_id:
+        c = conn.cursor()
+        row = c.execute("""
+            SELECT id FROM games
+            WHERE date = ?
+              AND (
+                (home_team_id = ? AND away_team_id = ?) OR
+                (home_team_id = ? AND away_team_id = ?)
+              )
+            LIMIT 1
+        """, (game_date, home_id, visitor_id, visitor_id, home_id)).fetchone()
+
+        if row:
+            game_id = row[0] if isinstance(row, tuple) else row['id']
+            return game_id
+
+    # Fallback: if only ONE team resolves, find that team's game on this date.
+    # This handles cases where the other team's name can't be resolved
+    # (e.g., "Queens (N.C.)" not in our resolver).
+    known_id = home_id or visitor_id
+    if known_id:
+        c = conn.cursor()
+        rows = c.execute("""
+            SELECT id FROM games
+            WHERE date = ?
+              AND (home_team_id = ? OR away_team_id = ?)
+        """, (game_date, known_id, known_id)).fetchall()
+
+        if len(rows) == 1:
+            # Unambiguous: team only has one game on this date
+            game_id = rows[0][0] if isinstance(rows[0], tuple) else rows[0]['id']
+            unresolved = visitor_name if home_id else home_name
+            logger.info(
+                "Fallback match: resolved %s, unresolved %r -> game %s",
+                known_id, unresolved, game_id
+            )
+            return game_id
+        elif len(rows) > 1:
+            # Doubleheader — can't disambiguate with just one team
+            logger.debug(
+                "Fallback match: %s has %d games on %s, can't disambiguate",
+                known_id, len(rows), game_date
+            )
+    else:
         logger.debug(
-            "Could not resolve teams: home=%r -> %s, visitor=%r -> %s",
-            home_name, home_id, visitor_name, visitor_id
+            "Could not resolve either team: home=%r, visitor=%r",
+            home_name, visitor_name
         )
-        return None
-
-    # Search for matching game in DB by date + teams (either order)
-    c = conn.cursor()
-    row = c.execute("""
-        SELECT id FROM games
-        WHERE date = ?
-          AND (
-            (home_team_id = ? AND away_team_id = ?) OR
-            (home_team_id = ? AND away_team_id = ?)
-          )
-        LIMIT 1
-    """, (game_date, home_id, visitor_id, visitor_id, home_id)).fetchone()
-
-    if row:
-        game_id = row[0] if isinstance(row, tuple) else row['id']
-        return game_id
 
     return None
 
