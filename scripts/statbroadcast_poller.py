@@ -322,6 +322,29 @@ class StatBroadcastPoller:
                 cnt = self._404_counts.get(sb_id, 0) + 1
                 self._404_counts[sb_id] = cnt
                 if cnt >= self.MAX_CONSECUTIVE_404:
+                    # Before marking completed, check if xml_file is wrong
+                    # (tournament games often have wrong group prefix)
+                    try:
+                        info = self.client.get_event_info(sb_id)
+                        if info and info.get('xml_file') and info['xml_file'] != xml_file:
+                            real_xml = info['xml_file']
+                            real_group = info.get('group_id', '')
+                            logger.warning(
+                                "SB event %s: xml_file mismatch! DB=%s API=%s — fixing",
+                                sb_id, xml_file, real_xml,
+                            )
+                            with self._db_lock:
+                                self.conn.execute(
+                                    "UPDATE statbroadcast_events SET xml_file = ?, group_id = ? "
+                                    "WHERE sb_event_id = ?",
+                                    (real_xml, real_group, sb_id),
+                                )
+                                self.conn.commit()
+                            self._404_counts[sb_id] = 0  # reset, retry with correct xml
+                            return False
+                    except Exception as fix_err:
+                        logger.debug("Could not re-check event info for %s: %s", sb_id, fix_err)
+
                     logger.warning(
                         "SB event %s (game %s): %d consecutive 404s — marking completed",
                         sb_id, game_id, cnt,
@@ -424,6 +447,27 @@ class StatBroadcastPoller:
                 cnt = self._404_counts.get(sb_id, 0) + 1
                 self._404_counts[sb_id] = cnt
                 if cnt >= self.MAX_CONSECUTIVE_404:
+                    # Before marking completed, check if xml_file is wrong
+                    try:
+                        info = self.client.get_event_info(sb_id)
+                        if info and info.get('xml_file') and info['xml_file'] != xml_file:
+                            real_xml = info['xml_file']
+                            real_group = info.get('group_id', '')
+                            logger.warning(
+                                "SB event %s: xml_file mismatch! DB=%s API=%s — fixing",
+                                sb_id, xml_file, real_xml,
+                            )
+                            self.conn.execute(
+                                "UPDATE statbroadcast_events SET xml_file = ?, group_id = ? "
+                                "WHERE sb_event_id = ?",
+                                (real_xml, real_group, sb_id),
+                            )
+                            self.conn.commit()
+                            self._404_counts[sb_id] = 0
+                            return False
+                    except Exception:
+                        pass
+
                     logger.warning(
                         "SB event %s (game %s): %d consecutive 404s — marking completed",
                         sb_id, game_id, cnt,
