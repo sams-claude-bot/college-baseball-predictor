@@ -360,6 +360,8 @@ class ScheduleGateway:
              WHERE id = ?
         """, (home_score, away_score, winner, final_innings,
               datetime.utcnow().isoformat(), game_id))
+        # Mark any active SB events as completed so the poller stops
+        self._complete_sb_events(game_id)
         self.db.commit()
         self._log("finalized", game_id, None)
         return True
@@ -371,6 +373,7 @@ class ScheduleGateway:
                              updated_at = ?
             WHERE id = ?
         """, (reason, datetime.utcnow().isoformat(), game_id)).rowcount
+        self._complete_sb_events(game_id)
         self.db.commit()
         self._log("postponed", game_id, None)
         return n > 0
@@ -382,6 +385,7 @@ class ScheduleGateway:
                              updated_at = ?
             WHERE id = ?
         """, (reason, datetime.utcnow().isoformat(), game_id)).rowcount
+        self._complete_sb_events(game_id)
         self.db.commit()
         self._log("cancelled", game_id, None)
         return n > 0
@@ -413,6 +417,17 @@ class ScheduleGateway:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _complete_sb_events(self, game_id: str):
+        """Mark all active StatBroadcast events for a game as completed.
+        Prevents the SB poller from overwriting finalized/postponed games."""
+        try:
+            self.db.execute(
+                "UPDATE statbroadcast_events SET completed = 1 "
+                "WHERE game_id = ? AND completed = 0",
+                (game_id,))
+        except Exception:
+            pass  # Table might not exist
 
     @staticmethod
     def _compute_winner(home_id, away_id, home_score, away_score):
