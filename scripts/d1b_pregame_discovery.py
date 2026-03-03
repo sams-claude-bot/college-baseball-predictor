@@ -91,6 +91,13 @@ EXTRACT_JS = """() => {
             if (m) sbId = parseInt(m[1]);
         });
 
+        // Extract SIDEARM live stats link (separate provider)
+        const saLinks = t.querySelectorAll('a[href*="sidearmstats"]');
+        let saUrl = null;
+        saLinks.forEach(a => {
+            if (!saUrl) saUrl = a.href;
+        });
+
         if (awaySlug && homeSlug) {
             games.push({
                 a: awaySlug, h: homeSlug,
@@ -98,7 +105,8 @@ EXTRACT_JS = """() => {
                 as: isNaN(awayScore) ? null : awayScore,
                 hs: isNaN(homeScore) ? null : homeScore,
                 t: ts,
-                sb: sbId
+                sb: sbId,
+                sa: saUrl
             });
         }
     });
@@ -324,6 +332,79 @@ def register_sb_events(d1b_games, date_str, slug_map, conn):
 
     conn.commit()
     return registered, skipped
+
+
+def _register_sidearm_links(d1b_games, date_str, slug_map, conn):
+    """Register SIDEARM live stats links from D1B score tiles.
+
+    These games stay in the ESPN-only category but get SIDEARM as a
+    supplemental data source for live scores.
+
+    Returns count of newly registered links.
+    """
+    registered = 0
+    c = conn.cursor()
+
+    # Ensure table exists
+    c.execute("""CREATE TABLE IF NOT EXISTS sidearm_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        game_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        url TEXT NOT NULL,
+        game_date TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(game_id, domain)
+    )""")
+
+    for dg in d1b_games:
+        sa_url = dg.get("sa")
+        if not sa_url:
+            continue
+
+        away_id = slug_map.get(dg["a"])
+        home_id = slug_map.get(dg["h"])
+        if not away_id or not home_id:
+            continue
+
+        game_id = "{}_{}".format(date_str, "_".join(sorted([away_id, home_id])))
+        # Try both orderings
+        c.execute("SELECT id FROM games WHERE id = ? OR id = ?",
+                  (game_id, "{}_{}_{}".format(date_str, away_id, home_id)))
+        row = c.fetchone()
+        if not row:
+            c.execute("SELECT id FROM games WHERE id = ?",
+                      ("{}_{}_{}".format(date_str, home_id, away_id),))
+            row = c.fetchone()
+        if not row:
+            # Try the away_home format from our DB
+            c.execute("""SELECT id FROM games WHERE date = ?
+                         AND ((home_team_id = ? AND away_team_id = ?)
+                           OR (home_team_id = ? AND away_team_id = ?))""",
+                      (date_str, home_id, away_id, away_id, home_id))
+            row = c.fetchone()
+        if not row:
+            continue
+
+        actual_game_id = row[0] if isinstance(row, tuple) else row['id']
+
+        # Extract domain from URL
+        import re as _re
+        m = _re.match(r'https?://([^/]+)', sa_url)
+        domain = m.group(1) if m else sa_url
+
+        try:
+            c.execute("""INSERT OR IGNORE INTO sidearm_links
+                         (game_id, domain, url, game_date)
+                         VALUES (?, ?, ?, ?)""",
+                      (actual_game_id, domain, sa_url, date_str))
+            if c.rowcount > 0:
+                registered += 1
+                logger.info("  SIDEARM link: %s -> %s", actual_game_id, domain)
+        except Exception as e:
+            logger.debug("Error registering SIDEARM link: %s", e)
+
+    conn.commit()
+    return registered
 
 
 def process_games(d1b_games, date_str, slug_map, conn, verbose=False):
@@ -621,6 +702,10 @@ def run(date_str, verbose=False):
     stats["sb_registered"] = sb_registered
     stats["sb_skipped"] = sb_skipped
 
+    # Register SIDEARM links (ESPN-only games with SIDEARM live stats)
+    sa_registered = _register_sidearm_links(d1b_games, date_str, slug_map, conn)
+    stats["sidearm_registered"] = sa_registered
+
     # Phase 5: Probe team SB pages for uncovered games
     sb_found, sb_probed = probe_sb_team_pages(date_str, conn, slug_map)
     stats["sb_team_probes"] = sb_probed
@@ -660,6 +745,7 @@ def main():
     print("SB from D1B links:   {} new".format(stats["sb_registered"]))
     print("SB from team pages:  {} found ({} pages probed)".format(
         stats.get("sb_team_found", 0), stats.get("sb_team_probes", 0)))
+    print("SIDEARM links:       {} registered".format(stats.get("sidearm_registered", 0)))
     print("SB coverage:         {}/{} games have active SB events".format(
         stats["sb_covered"], stats["sb_total"]))
 
