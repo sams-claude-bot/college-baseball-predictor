@@ -83,15 +83,15 @@ class TestPoissonHomeAdvantageReduced:
 class TestSlimFeaturesIncludeStrengthDiff:
 
     def test_feature_count_increased(self):
-        """Feature count should be 61 (was 58, +3 new features)."""
-        assert NUM_FEATURES == 61, f"Expected 61 features, got {NUM_FEATURES}"
+        """Feature count should be 83 (v4: 32 per team x2 + game/weather/strength-diff/context)."""
+        assert NUM_FEATURES == 83, f"Expected 83 features, got {NUM_FEATURES}"
 
     def test_new_feature_names_present(self):
         assert 'strength_diff_magnitude' in FEATURE_NAMES
         assert 'is_home_int' in FEATURE_NAMES
         assert 'is_early_season' in FEATURE_NAMES
 
-    def test_historical_computer_produces_61_features(self):
+    def test_historical_computer_produces_83_features(self):
         hfc = SlimHistoricalFeatureComputer()
         game_row = {
             'home_team': 'Team A', 'away_team': 'Team B',
@@ -99,8 +99,8 @@ class TestSlimFeaturesIncludeStrengthDiff:
             'date': '2025-03-20', 'neutral_site': 0, 'season': 2025,
         }
         features, _ = hfc.compute_game_features(game_row)
-        assert features.shape[0] == 61, (
-            f"Historical features: {features.shape[0]}, expected 61"
+        assert features.shape[0] == 83, (
+            f"Historical features: {features.shape[0]}, expected 83"
         )
 
 

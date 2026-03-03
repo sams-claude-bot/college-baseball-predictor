@@ -42,9 +42,9 @@ from models.nn_totals_slim import TotalsNet
 
 class TestFeatureDefinitions:
 
-    def test_num_features_is_61(self):
-        """v3+bias-fix should have exactly 61 features (24 per team x2 + 3 game + 7 weather + 3 strength-diff)."""
-        assert NUM_FEATURES == 61, f"Expected 61 features, got {NUM_FEATURES}"
+    def test_num_features_is_83(self):
+        """v4 should have exactly 83 features (32 per team x2 + 3 game + 7 weather + 3 strength-diff + 6 v4-context)."""
+        assert NUM_FEATURES == 83, f"Expected 83 features, got {NUM_FEATURES}"
 
     def test_feature_names_count_matches(self):
         assert len(FEATURE_NAMES) == NUM_FEATURES
@@ -64,11 +64,11 @@ class TestFeatureDefinitions:
         assert len(NCAA_STAT_NAMES) == 9
 
     def test_per_team_feature_count(self):
-        """Each team should have 24 features (15 base + 9 NCAA)."""
+        """Each team should have 32 features (15 base + 9 NCAA + 8 v4)."""
         home_feats = [f for f in FEATURE_NAMES if f.startswith('home_')]
         away_feats = [f for f in FEATURE_NAMES if f.startswith('away_')]
-        assert len(home_feats) == 24, f"Home features: {len(home_feats)}, expected 24"
-        assert len(away_feats) == 24, f"Away features: {len(away_feats)}, expected 24"
+        assert len(home_feats) == 32, f"Home features: {len(home_feats)}, expected 32"
+        assert len(away_feats) == 32, f"Away features: {len(away_feats)}, expected 32"
 
 
 # ============================================================

@@ -22,8 +22,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.nn_features import FeatureComputer, HistoricalFeatureComputer
 
 
-# Expected feature count per CONTEXT.md
-EXPECTED_FEATURE_COUNT = 81
+# Expected feature count — updated for 103-feature pipeline (v4 with starter pitcher,
+# betting lines, SOS/RPI features added Mar 2026)
+EXPECTED_FEATURE_COUNT = 103
 
 
 class TestFeatureComputer:

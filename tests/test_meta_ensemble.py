@@ -18,17 +18,19 @@ class TestMetaEnsemble:
     def test_feature_names_count(self):
         """Feature extraction produces correct number of columns."""
         meta = MetaEnsemble()
-        # 14 model probs + 3 agreement + 3 context = 20 features
-        expected = len(MODEL_NAMES) + 3 + 3
+        # 14 model probs + 3 agreement + 7 context = 24 features
+        expected = len(MODEL_NAMES) + 3 + 7
         # Simulate building features
         meta.feature_names = []
         for m in MODEL_NAMES:
             meta.feature_names.append(f'{m}_prob')
         meta.feature_names.extend(['models_predicting_home', 'avg_home_prob', 'prob_spread'])
-        meta.feature_names.extend(['elo_diff', 'same_conference', 'any_ranked'])
+        meta.feature_names.extend(['elo_diff', 'same_conference', 'any_ranked',
+                                   'pear_diff', 'rpi_diff', 'wp_diff', 'both_ranked'])
         assert len(meta.feature_names) == expected
 
-    def test_build_features_shape(self):
+    @patch.object(MetaEnsemble, '_compute_win_pct_cache', return_value={})
+    def test_build_features_shape(self, mock_wp):
         """_build_features returns correct shape."""
         meta = MetaEnsemble()
         columns = [
@@ -38,16 +40,18 @@ class TestMetaEnsemble:
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
             'pear_prob', 'quality_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
-            'home_rank', 'away_rank'
+            'home_rank', 'away_rank',
+            'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
         n_models = len(MODEL_NAMES)  # 14
-        n_features = n_models + 3 + 3  # 20
+        n_features = n_models + 3 + 7  # 24
         # Create 5 fake rows
         rows = []
         for i in range(5):
             row = [f'game_{i}', '2026-02-20', 'team-a', 'team-b']
             row += [0.6] * n_models  # 14 model probs
             row += [1, 1520, 1480, 'SEC', 'SEC', 5, None]
+            row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
             rows.append(tuple(row))
 
         X, y, dates, feature_names = meta._build_features(rows, columns)
@@ -84,7 +88,8 @@ class TestMetaEnsemble:
                     'advanced', 'log5', 'pitching', 'pear', 'quality'}
         assert set(MODEL_NAMES) == expected
 
-    def test_missing_model_probs_default_to_half(self):
+    @patch.object(MetaEnsemble, '_compute_win_pct_cache', return_value={})
+    def test_missing_model_probs_default_to_half(self, mock_wp):
         """Missing model probs default to 0.5."""
         meta = MetaEnsemble()
         columns = [
@@ -94,12 +99,14 @@ class TestMetaEnsemble:
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
             'pear_prob', 'quality_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
-            'home_rank', 'away_rank'
+            'home_rank', 'away_rank',
+            'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
         # Row with None for some probs
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
         row += [0.7, None, 0.6, None, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
+        row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
         rows = [tuple(row)]
 
         X, y, dates, names = meta._build_features(rows, columns)
