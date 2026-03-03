@@ -563,6 +563,9 @@ class StatBroadcastPoller:
         # Update scores in games table if we have them
         self._update_scores(game_id, situation)
 
+        # Check for notification triggers (half-inning change, upsets, finals)
+        self._check_notifications(game_id, situation)
+
         logger.info(
             "Updated game %s from SB %s: %s %s-%s %s (%s, %s outs)",
             game_id, sb_id,
@@ -652,6 +655,8 @@ class StatBroadcastPoller:
             logger.info("Finalized game %s: %s-%s, winner=%s, innings=%s",
                        game_id, visitor_score, home_score, winner_id,
                        innings or '9 (regulation)')
+            # Send final score notifications
+            self._check_final_notifications(game_id)
         else:
             # No scores but game marked final — just update status, clear stale innings
             self.conn.execute("""
@@ -755,6 +760,187 @@ class StatBroadcastPoller:
                 time.sleep(0.1)
 
         logger.info("StatBroadcast poller stopped")
+
+    # ------------------------------------------------------------------
+    # Push Notification Hooks
+    # ------------------------------------------------------------------
+
+    def _check_notifications(self, game_id, situation):
+        """Check if this game state change should trigger push notifications.
+
+        Triggers:
+        1. Half-inning change for subscribed teams → game_update
+        2. SEC team WP drops below 25% → upset_watch
+        3. Game goes final → final_score
+        """
+        try:
+            inning = situation.get('inning')
+            half = situation.get('inning_half')
+            home_score = situation.get('home_score')
+            visitor_score = situation.get('visitor_score')
+
+            if inning is None or home_score is None:
+                return
+
+            # Build state key for half-inning change detection
+            state_key = f"{game_id}:{inning}:{half}"
+            if not hasattr(self, '_notif_last_state'):
+                self._notif_last_state = {}
+
+            prev_state = self._notif_last_state.get(game_id)
+
+            # Only fire on half-inning transitions (state_key changed)
+            if state_key == prev_state:
+                return
+
+            self._notif_last_state[game_id] = state_key
+
+            # Skip the very first state we see (don't alert on poller startup)
+            if prev_state is None:
+                return
+
+            # Get team IDs and conferences
+            row = self.conn.execute("""
+                SELECT g.home_team_id, g.away_team_id,
+                       h.name as home_name, a.name as away_name,
+                       h.conference as home_conf, a.conference as away_conf
+                FROM games g
+                JOIN teams h ON g.home_team_id = h.id
+                JOIN teams a ON g.away_team_id = a.id
+                WHERE g.id = ?
+            """, (game_id,)).fetchone()
+
+            if not row:
+                return
+
+            home_tid = row[0] if isinstance(row, tuple) else row['home_team_id']
+            away_tid = row[1] if isinstance(row, tuple) else row['away_team_id']
+            home_name = row[2] if isinstance(row, tuple) else row['home_name']
+            away_name = row[3] if isinstance(row, tuple) else row['away_name']
+            home_conf = row[4] if isinstance(row, tuple) else row['home_conf']
+            away_conf = row[5] if isinstance(row, tuple) else row['away_conf']
+
+            inning_label = situation.get('inning_display', f"{'Top' if half == 'top' else 'Bot'} {inning}")
+
+            # --- 1. Half-inning summary for subscribed teams ---
+            from scripts.notifications import send_team_notification, ensure_tables
+            ensure_tables(self.conn)
+
+            score_line = f"{away_name} {visitor_score}, {home_name} {home_score}"
+            body = f"{inning_label} | {score_line}"
+
+            dedup = f"game_update:{game_id}:{inning}:{half}"
+
+            for team_id in (home_tid, away_tid):
+                send_team_notification(
+                    team_id, 'game_update',
+                    {
+                        'title': f"⚾ {score_line}",
+                        'body': inning_label,
+                        'url': f"/game/{game_id}",
+                        'tag': f"game-{game_id}",
+                        'game_id': game_id,
+                    },
+                    dedup_key=dedup,
+                    conn=self.conn,
+                )
+
+            # --- 2. SEC Upset Watch ---
+            # Check if either team is SEC and compute WP
+            sec_team = None
+            if home_conf == 'SEC' and away_conf != 'SEC':
+                sec_team = 'home'
+            elif away_conf == 'SEC' and home_conf != 'SEC':
+                sec_team = 'away'
+
+            if sec_team:
+                try:
+                    from models.win_probability import WinProbabilityModel
+                    wp_model = WinProbabilityModel()
+                    home_wp = wp_model.calculate(
+                        home_score=int(home_score),
+                        away_score=int(visitor_score),
+                        inning=int(inning),
+                        inning_half=half,
+                        outs=int(situation.get('outs', 0)),
+                        on_first=situation.get('on_first', False),
+                        on_second=situation.get('on_second', False),
+                        on_third=situation.get('on_third', False),
+                        game_id=game_id,
+                    )
+
+                    # SEC team losing probability > 75%?
+                    sec_losing = (sec_team == 'home' and home_wp < 0.25) or \
+                                 (sec_team == 'away' and home_wp > 0.75)
+
+                    if sec_losing:
+                        sec_name = home_name if sec_team == 'home' else away_name
+                        opp_name = away_name if sec_team == 'home' else home_name
+                        sec_wp = home_wp if sec_team == 'home' else (1 - home_wp)
+                        lose_pct = (1 - sec_wp) * 100
+
+                        from scripts.notifications import send_conference_notification
+                        send_conference_notification(
+                            'SEC', 'upset_watch',
+                            {
+                                'title': f"⚠️ SEC Upset Watch: {sec_name}",
+                                'body': f"{sec_name} has {lose_pct:.0f}% chance to lose vs {opp_name} | {score_line} ({inning_label})",
+                                'url': f"/game/{game_id}",
+                                'tag': f"upset-{game_id}",
+                                'game_id': game_id,
+                            },
+                            dedup_key=f"upset:{game_id}:{inning}",
+                            conn=self.conn,
+                        )
+                except Exception as e:
+                    logger.debug("WP calculation failed for upset check: %s", e)
+
+        except Exception as e:
+            logger.debug("Notification check error for %s: %s", game_id, e)
+
+    def _check_final_notifications(self, game_id):
+        """Send final score notifications when a game completes."""
+        try:
+            from scripts.notifications import send_team_notification, ensure_tables
+            ensure_tables(self.conn)
+
+            row = self.conn.execute("""
+                SELECT g.home_team_id, g.away_team_id,
+                       h.name as home_name, a.name as away_name,
+                       g.home_score, g.away_score, g.innings
+                FROM games g
+                JOIN teams h ON g.home_team_id = h.id
+                JOIN teams a ON g.away_team_id = a.id
+                WHERE g.id = ?
+            """, (game_id,)).fetchone()
+
+            if not row:
+                return
+
+            home_tid, away_tid = row[0], row[1]
+            home_name, away_name = row[2], row[3]
+            h_score, a_score = row[4], row[5]
+            innings = row[6]
+
+            extra = f" ({innings})" if innings and innings > 9 else ""
+            winner = home_name if h_score > a_score else away_name
+            score_line = f"{away_name} {a_score}, {home_name} {h_score}"
+
+            for team_id in (home_tid, away_tid):
+                send_team_notification(
+                    team_id, 'final_score',
+                    {
+                        'title': f"🏁 Final{extra}: {score_line}",
+                        'body': f"{winner} wins!",
+                        'url': f"/game/{game_id}",
+                        'tag': f"final-{game_id}",
+                        'game_id': game_id,
+                    },
+                    dedup_key=f"final:{game_id}",
+                    conn=self.conn,
+                )
+        except Exception as e:
+            logger.debug("Final notification error for %s: %s", game_id, e)
 
 
 # ---------------------------------------------------------------------------

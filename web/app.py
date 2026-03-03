@@ -28,6 +28,7 @@ from web.blueprints import (
     api_bp,
     debug_bp
 )
+from web.blueprints.alerts import alerts_bp
 
 
 def create_app():
@@ -59,6 +60,15 @@ def create_app():
     app.register_blueprint(models_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(debug_bp)
+    app.register_blueprint(alerts_bp)
+
+    # Serve service worker from root (required for push scope)
+    @app.route('/sw.js')
+    def service_worker():
+        return app.send_static_file('sw.js'), 200, {
+            'Content-Type': 'application/javascript',
+            'Service-Worker-Allowed': '/'
+        }
 
     # Register template filters
     register_filters(app)

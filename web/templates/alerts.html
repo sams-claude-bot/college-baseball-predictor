@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+
+{% block title %}Game Alerts — College Baseball Predictor{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h3 class="mb-3"><i class="bi bi-bell"></i> Game Alerts</h3>
+    <p class="text-muted mb-4">Get push notifications for your teams — half-inning updates, final scores, and upset alerts. Works on iPhone, Android, and desktop.</p>
+
+    <!-- Status Banner -->
+    <div id="alert-status" class="alert d-none mb-4" role="alert"></div>
+
+    <!-- Step 1: Enable Notifications -->
+    <div class="card mb-4" id="step-enable">
+        <div class="card-header"><span class="badge bg-primary me-2">1</span> Enable Notifications</div>
+        <div class="card-body text-center py-4">
+            <div id="notif-unsupported" class="d-none">
+                <p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Push notifications aren't supported on this browser.</p>
+                <p class="text-muted small">On iPhone: use Safari and add this site to your Home Screen first, then come back here.</p>
+            </div>
+            <div id="notif-ready">
+                <button class="btn btn-primary btn-lg" id="btn-enable" onclick="enableNotifications()">
+                    <i class="bi bi-bell"></i> Enable Push Notifications
+                </button>
+                <p class="text-muted small mt-2">You'll be asked to allow notifications</p>
+            </div>
+            <div id="notif-granted" class="d-none">
+                <span class="text-success fs-4"><i class="bi bi-check-circle"></i> Notifications enabled</span>
+                <button class="btn btn-outline-secondary btn-sm ms-3" onclick="testNotification()">Send Test</button>
+            </div>
+            <div id="notif-denied" class="d-none">
+                <p class="text-danger"><i class="bi bi-x-circle"></i> Notifications blocked. Enable them in your browser/device settings.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Choose Teams -->
+    <div class="card mb-4" id="step-teams">
+        <div class="card-header"><span class="badge bg-primary me-2">2</span> Choose Your Teams</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <input type="text" class="form-control" id="team-search" placeholder="Search teams..." oninput="filterTeams(this.value)">
+            </div>
+
+            <div id="selected-teams" class="mb-3 d-flex flex-wrap gap-2"></div>
+
+            <div class="accordion" id="confAccordion">
+                {% for conf_name, teams in conferences %}
+                <div class="accordion-item conference-group" data-conf="{{ conf_name }}">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#conf-{{ loop.index }}" style="font-size:0.9rem;">
+                            {{ conf_name }} <span class="badge bg-secondary ms-2">{{ teams|length }}</span>
+                        </button>
+                    </h2>
+                    <div id="conf-{{ loop.index }}" class="accordion-collapse collapse">
+                        <div class="accordion-body p-2">
+                            <div class="row g-2">
+                                {% for team in teams %}
+                                <div class="col-6 col-md-4 col-lg-3 team-item" data-name="{{ team.name|lower }}" data-id="{{ team.id }}">
+                                    <div class="form-check p-2 rounded" style="border-left: 3px solid {{ team.color }};">
+                                        <input class="form-check-input team-checkbox" type="checkbox" value="{{ team.id }}" id="team-{{ team.id }}" onchange="updateSelectedTeams()">
+                                        <label class="form-check-label small" for="team-{{ team.id }}">{{ team.name }}</label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Alert Types -->
+    <div class="card mb-4" id="step-types">
+        <div class="card-header"><span class="badge bg-primary me-2">3</span> Alert Types</div>
+        <div class="card-body">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="alert-game-update" checked>
+                <label class="form-check-label" for="alert-game-update">
+                    <strong>🏟️ Half-Inning Updates</strong>
+                    <div class="text-muted small">Score changes and inning summaries for your teams</div>
+                </label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="alert-final-score" checked>
+                <label class="form-check-label" for="alert-final-score">
+                    <strong>🏁 Final Scores</strong>
+                    <div class="text-muted small">Get notified when your team's game ends</div>
+                </label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="alert-upset-watch">
+                <label class="form-check-label" for="alert-upset-watch">
+                    <strong>⚠️ Upset Watch</strong>
+                    <div class="text-muted small">Alert when an SEC team has &gt;75% chance of losing (based on live win probability model)</div>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save -->
+    <div class="text-center mb-5">
+        <button class="btn btn-success btn-lg px-5" onclick="savePreferences()" id="btn-save">
+            <i class="bi bi-check-lg"></i> Save Alert Preferences
+        </button>
+        {% if subscriber_count > 0 %}
+        <p class="text-muted small mt-2">{{ subscriber_count }} subscriber{{ 's' if subscriber_count != 1 }} receiving alerts</p>
+        {% endif %}
+    </div>
+
+    <!-- PWA Install Prompt -->
+    <div class="card border-info mb-4" id="pwa-install-card">
+        <div class="card-body text-center">
+            <h5><i class="bi bi-phone"></i> Install the App</h5>
+            <p class="text-muted">For the best experience and reliable notifications:</p>
+            <div class="row justify-content-center">
+                <div class="col-md-4 mb-2">
+                    <strong>iPhone (Safari)</strong>
+                    <div class="small text-muted">Tap <i class="bi bi-box-arrow-up"></i> Share → "Add to Home Screen"</div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <strong>Android (Chrome)</strong>
+                    <div class="small text-muted">Tap ⋮ Menu → "Add to Home Screen"</div>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <strong>Desktop</strong>
+                    <div class="small text-muted">Click the install icon in the URL bar</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const VAPID_PUBLIC_KEY = '{{ vapid_public_key }}';
+let currentSubscription = null;
+let swRegistration = null;
+
+// --- Service Worker + Push Setup ---
+async function initPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        document.getElementById('notif-unsupported').classList.remove('d-none');
+        document.getElementById('notif-ready').classList.add('d-none');
+        return;
+    }
+
+    try {
+        swRegistration = await navigator.serviceWorker.register('/sw.js');
+        const subscription = await swRegistration.pushManager.getSubscription();
+        if (subscription) {
+            currentSubscription = subscription;
+            showGranted();
+        } else if (Notification.permission === 'denied') {
+            showDenied();
+        }
+    } catch (err) {
+        console.error('SW registration failed:', err);
+    }
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function enableNotifications() {
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            showDenied();
+            return;
+        }
+
+        if (!swRegistration) {
+            swRegistration = await navigator.serviceWorker.ready;
+        }
+
+        const subscription = await swRegistration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        currentSubscription = subscription;
+        showGranted();
+        showStatus('Notifications enabled! Choose your teams below.', 'success');
+    } catch (err) {
+        console.error('Subscription failed:', err);
+        showStatus('Failed to enable notifications: ' + err.message, 'danger');
+    }
+}
+
+async function testNotification() {
+    if (!currentSubscription) return;
+    const sub = currentSubscription.toJSON();
+    try {
+        const resp = await fetch('/api/push/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ subscription: sub })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            showStatus('Test notification sent!', 'success');
+        } else {
+            showStatus('Test failed: ' + (data.error || 'unknown'), 'warning');
+        }
+    } catch (err) {
+        showStatus('Error: ' + err.message, 'danger');
+    }
+}
+
+// --- Preferences ---
+function getSelectedTeams() {
+    return Array.from(document.querySelectorAll('.team-checkbox:checked'))
+        .map(cb => cb.value);
+}
+
+function updateSelectedTeams() {
+    const container = document.getElementById('selected-teams');
+    const teams = getSelectedTeams();
+    container.innerHTML = teams.map(tid => {
+        const label = document.querySelector('label[for="team-' + tid + '"]');
+        const name = label ? label.textContent : tid;
+        return '<span class="badge bg-primary">' + name +
+            ' <i class="bi bi-x" style="cursor:pointer" onclick="document.getElementById(\'team-' + tid + '\').checked=false;updateSelectedTeams()"></i></span>';
+    }).join('');
+}
+
+function filterTeams(query) {
+    query = query.toLowerCase();
+    document.querySelectorAll('.team-item').forEach(el => {
+        el.style.display = el.dataset.name.includes(query) ? '' : 'none';
+    });
+    // Auto-expand matching conferences
+    if (query.length >= 2) {
+        document.querySelectorAll('.conference-group').forEach(g => {
+            const hasVisible = g.querySelector('.team-item:not([style*="display: none"])');
+            const collapse = g.querySelector('.accordion-collapse');
+            if (hasVisible && collapse) {
+                collapse.classList.add('show');
+            }
+        });
+    }
+}
+
+async function savePreferences() {
+    if (!currentSubscription) {
+        showStatus('Please enable notifications first!', 'warning');
+        return;
+    }
+
+    const teams = getSelectedTeams();
+    if (teams.length === 0) {
+        showStatus('Select at least one team!', 'warning');
+        return;
+    }
+
+    const alertTypes = [];
+    const gameUpdate = document.getElementById('alert-game-update').checked;
+    const finalScore = document.getElementById('alert-final-score').checked;
+    const upsetWatch = document.getElementById('alert-upset-watch').checked;
+
+    // Build preference list
+    const preferences = [];
+    for (const tid of teams) {
+        if (gameUpdate) preferences.push({ alert_type: 'game_update', team_id: tid });
+        if (finalScore) preferences.push({ alert_type: 'final_score', team_id: tid });
+    }
+    if (upsetWatch) {
+        preferences.push({ alert_type: 'upset_watch', conference: 'SEC' });
+    }
+
+    const sub = currentSubscription.toJSON();
+    try {
+        const resp = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ subscription: sub, preferences: preferences })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            showStatus('Preferences saved! You\'ll get alerts for ' + teams.length + ' team(s).', 'success');
+            document.getElementById('btn-save').textContent = '✅ Saved!';
+            setTimeout(() => {
+                document.getElementById('btn-save').innerHTML = '<i class="bi bi-check-lg"></i> Save Alert Preferences';
+            }, 3000);
+        } else {
+            showStatus('Error: ' + (data.error || 'unknown'), 'danger');
+        }
+    } catch (err) {
+        showStatus('Error: ' + err.message, 'danger');
+    }
+}
+
+// --- UI Helpers ---
+function showGranted() {
+    document.getElementById('notif-ready').classList.add('d-none');
+    document.getElementById('notif-granted').classList.remove('d-none');
+    document.getElementById('notif-denied').classList.add('d-none');
+}
+
+function showDenied() {
+    document.getElementById('notif-ready').classList.add('d-none');
+    document.getElementById('notif-denied').classList.remove('d-none');
+}
+
+function showStatus(msg, type) {
+    const el = document.getElementById('alert-status');
+    el.className = 'alert alert-' + type + ' mb-4';
+    el.textContent = msg;
+    el.classList.remove('d-none');
+    setTimeout(() => el.classList.add('d-none'), 5000);
+}
+
+// Init on load
+initPush();
+</script>
+{% endblock %}
