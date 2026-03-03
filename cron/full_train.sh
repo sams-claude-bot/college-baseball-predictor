@@ -13,8 +13,11 @@ python3 -u scripts/train_all_models.py --full-train --no-gpu >> "$LOG" 2>&1
 echo "--- Retrain meta-ensemble ---" >> "$LOG"
 PYTHONPATH=. python3 scripts/train_meta_ensemble.py >> "$LOG" 2>&1
 
-echo "--- Update calibration ---" >> "$LOG"
+echo "--- Update calibration (DB) ---" >> "$LOG"
 PYTHONPATH=. python3 scripts/update_model_calibration.py >> "$LOG" 2>&1
+
+echo "--- Update calibration (pkl) ---" >> "$LOG"
+PYTHONPATH=. python3 models/calibration.py >> "$LOG" 2>&1
 
 echo "--- Verification ---" >> "$LOG"
 python3 -c "

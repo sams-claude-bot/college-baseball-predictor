@@ -54,15 +54,15 @@ def get_meta_ensemble_prob(game_id, pick_team_id):
         conn = sqlite3.connect(str(DB_PATH), timeout=10)
         conn.row_factory = sqlite3.Row
         row = conn.execute('''
-            SELECT home_win_prob FROM model_predictions
+            SELECT predicted_home_prob FROM model_predictions
             WHERE game_id=? AND model_name='meta_ensemble'
-            ORDER BY created_at DESC LIMIT 1
+            ORDER BY predicted_at DESC LIMIT 1
         ''', (game_id,)).fetchone()
         conn.close()
         if row:
             # We need to know if pick is home or away to return correct prob
             # For now return the raw home_win_prob - caller must handle direction
-            return row['home_win_prob']
+            return row['predicted_home_prob']
     except Exception:
         pass
     return None

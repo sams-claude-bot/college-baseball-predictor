@@ -75,6 +75,8 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
 
         models_agree = game['models_agree']
         avg_prob = game['avg_prob']
+        # Prefer meta-ensemble probability (best single model, 77.7% walk-forward)
+        best_prob = game.get('meta_prob') or avg_prob
         rejection_reasons = []
 
         if models_agree < ML_CONSENSUS_MIN:
@@ -84,8 +86,8 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
         if ml < max_fav:
             rejection_reasons.append(f"ML {ml} too heavy (max {max_fav} for {models_agree}/10 consensus)")
 
-        if avg_prob > ML_MAX_MODEL_PROB:
-            rejection_reasons.append(f"avg prob {avg_prob*100:.0f}% overconfident")
+        if best_prob > ML_MAX_MODEL_PROB:
+            rejection_reasons.append(f"model prob {best_prob*100:.0f}% overconfident (max {ML_MAX_MODEL_PROB*100:.0f}%)")
 
         if rejection_reasons:
             results['rejections'].append({
@@ -96,7 +98,7 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'reasons': rejection_reasons,
             })
         else:
-            kelly_mult = kelly_fraction(avg_prob, ml)
+            kelly_mult = kelly_fraction(best_prob, ml)
             base_bet = {
                 'type': 'CONSENSUS',
                 'game_id': game['game_id'],
@@ -106,10 +108,10 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'opponent_name': game['opponent_name'],
                 'is_home': game['is_home'],
                 'moneyline': ml,
-                'model_prob': avg_prob,
+                'model_prob': best_prob,
                 'models_agree': models_agree,
                 'models_total': 10,
-                'edge': (avg_prob - american_to_prob(ml)) * 100,
+                'edge': (best_prob - american_to_prob(ml)) * 100,
                 'kelly_mult': kelly_mult,
             }
             sizing = suggest_stake_for_bet(base_bet)
@@ -122,8 +124,10 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
         if game['game_id'] in [b['game_id'] for b in results['bets'] if b['type'] == 'CONSENSUS']:
             continue
         ml = game['moneyline']
-        edge = game['edge']
-        model_prob = game['model_prob']
+        # Prefer meta-ensemble probability when available
+        meta_prob = game.get('meta_prob')
+        model_prob = meta_prob or game['model_prob']
+        edge = (model_prob - american_to_prob(ml)) * 100 if meta_prob else game['edge']
         is_underdog = ml > 0
 
         consensus = consensus_lookup.get(game['game_id'], {})
