@@ -437,6 +437,12 @@ class StatBroadcastPoller:
 
         filetime = self._filetimes.get(sb_id, 0)
 
+        # Every 6th poll (~2 min), do a fresh fetch ignoring filetime cache
+        # to catch games that went Final without updating the XML timestamp
+        poll_count = self._poll_counts.get(sb_id, 0)
+        if poll_count > 0 and poll_count % 6 == 0:
+            filetime = 0
+
         try:
             html, new_ft = self.client.get_live_stats(
                 sb_id, xml_file, filetime=filetime

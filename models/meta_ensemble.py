@@ -68,13 +68,21 @@ class MetaEnsemble:
             th.conference as home_conf,
             ta.conference as away_conf,
             th.current_rank as home_rank,
-            ta.current_rank as away_rank
+            ta.current_rank as away_rank,
+            ph.rating as home_pear,
+            pa.rating as away_pear,
+            rh.sams_rpi as home_rpi,
+            ra.sams_rpi as away_rpi
         FROM model_predictions mp
         JOIN games g ON mp.game_id = g.id
         LEFT JOIN elo_ratings eh ON g.home_team_id = eh.team_id
         LEFT JOIN elo_ratings ea ON g.away_team_id = ea.team_id
         LEFT JOIN teams th ON g.home_team_id = th.id
         LEFT JOIN teams ta ON g.away_team_id = ta.id
+        LEFT JOIN pear_ratings ph ON g.home_team_id = ph.team_id
+        LEFT JOIN pear_ratings pa ON g.away_team_id = pa.team_id
+        LEFT JOIN team_rpi rh ON g.home_team_id = rh.team_id
+        LEFT JOIN team_rpi ra ON g.away_team_id = ra.team_id
         WHERE mp.was_correct IS NOT NULL
         GROUP BY mp.game_id
         HAVING COUNT(DISTINCT mp.model_name) >= 10
@@ -87,6 +95,34 @@ class MetaEnsemble:
 
         return rows, columns
 
+    def _compute_win_pct_cache(self):
+        """Pre-compute rolling win pct for all teams up to each game date."""
+        conn = self._get_connection()
+        c = conn.cursor()
+        c.execute("""
+            SELECT date, home_team_id, away_team_id, home_score, away_score
+            FROM games WHERE status = 'final' ORDER BY date
+        """)
+        team_records = {}
+        cache = {}
+        for date, home, away, hs, as_ in c.fetchall():
+            for t in [home, away]:
+                if t not in team_records:
+                    team_records[t] = {'w': 0, 'l': 0}
+            hr, ar = team_records[home], team_records[away]
+            hwp = hr['w'] / (hr['w'] + hr['l']) if (hr['w'] + hr['l']) > 0 else 0.5
+            awp = ar['w'] / (ar['w'] + ar['l']) if (ar['w'] + ar['l']) > 0 else 0.5
+            cache[f"{date}_{home}_{away}"] = (hwp, awp)
+            if hs is not None and as_ is not None:
+                if hs > as_:
+                    team_records[home]['w'] += 1
+                    team_records[away]['l'] += 1
+                else:
+                    team_records[away]['w'] += 1
+                    team_records[home]['l'] += 1
+        conn.close()
+        return cache
+
     def _build_features(self, rows, columns):
         """Build feature matrix from raw query results.
         
@@ -95,13 +131,19 @@ class MetaEnsemble:
         col_idx = {name: i for i, name in enumerate(columns)}
 
         feature_names = []
-        # 12 model probs
+        # 14 model probs
         for m in MODEL_NAMES:
             feature_names.append(f'{m}_prob')
         # Agreement features
         feature_names.extend(['models_predicting_home', 'avg_home_prob', 'prob_spread'])
         # Context features
-        feature_names.extend(['elo_diff', 'same_conference', 'any_ranked'])
+        feature_names.extend([
+            'elo_diff', 'same_conference', 'any_ranked',
+            'pear_diff', 'rpi_diff', 'wp_diff', 'both_ranked'
+        ])
+
+        # Pre-compute win pct
+        wp_cache = self._compute_win_pct_cache()
 
         X = []
         y = []
@@ -118,7 +160,7 @@ class MetaEnsemble:
             avg_prob = np.mean(probs)
             spread = max(probs) - min(probs)
 
-            # Context
+            # Context — original
             elo_diff = row[col_idx['home_elo']] - row[col_idx['away_elo']]
             home_conf = row[col_idx['home_conf']] or ''
             away_conf = row[col_idx['away_conf']] or ''
@@ -127,10 +169,31 @@ class MetaEnsemble:
             away_rank = row[col_idx['away_rank']]
             any_ranked = 1 if (home_rank and home_rank > 0) or (away_rank and away_rank > 0) else 0
 
-            features = probs + [home_votes, avg_prob, spread, elo_diff, same_conf, any_ranked]
+            # Context — new
+            home_pear = row[col_idx['home_pear']]
+            away_pear = row[col_idx['away_pear']]
+            pear_diff = (home_pear or 0) - (away_pear or 0)
+
+            home_rpi = row[col_idx['home_rpi']]
+            away_rpi = row[col_idx['away_rpi']]
+            rpi_diff = (home_rpi or 0.5) - (away_rpi or 0.5)
+
+            date = row[col_idx['date']]
+            home_tid = row[col_idx['home_team_id']]
+            away_tid = row[col_idx['away_team_id']]
+            hwp, awp = wp_cache.get(f"{date}_{home_tid}_{away_tid}", (0.5, 0.5))
+            wp_diff = hwp - awp
+
+            both_ranked = 1 if (home_rank and home_rank > 0) and (away_rank and away_rank > 0) else 0
+
+            features = probs + [
+                home_votes, avg_prob, spread,
+                elo_diff, same_conf, any_ranked,
+                pear_diff, rpi_diff, wp_diff, both_ranked
+            ]
             X.append(features)
             y.append(row[col_idx['home_won']])
-            dates.append(row[col_idx['date']])
+            dates.append(date)
 
         self.feature_names = feature_names
         return np.array(X), np.array(y), dates, feature_names
@@ -176,10 +239,10 @@ class MetaEnsemble:
             X_train, y_train = X[train_idx], y[train_idx]
             X_test, y_test = X[test_idx], y[test_idx]
 
-            # XGBoost
+            # XGBoost — tuned params (sweep 2026-03-02: +2.6% acc, -0.07 ll)
             model_xgb = xgb.XGBClassifier(
-                max_depth=3, n_estimators=100, learning_rate=0.1,
-                min_child_weight=5, subsample=0.8, colsample_bytree=0.8,
+                max_depth=3, n_estimators=100, learning_rate=0.05,
+                min_child_weight=5, subsample=0.7, colsample_bytree=0.8,
                 random_state=42, use_label_encoder=False, eval_metric='logloss',
                 verbosity=0
             )
@@ -212,10 +275,10 @@ class MetaEnsemble:
             m_correct = (m_probs > 0.5) == wf_y
             model_accs[m] = np.mean(m_correct) * 100
 
-        # Now train final models on ALL data
+        # Now train final models on ALL data — tuned params
         self.xgb_model = xgb.XGBClassifier(
-            max_depth=3, n_estimators=100, learning_rate=0.1,
-            min_child_weight=5, subsample=0.8, colsample_bytree=0.8,
+            max_depth=3, n_estimators=100, learning_rate=0.05,
+            min_child_weight=5, subsample=0.7, colsample_bytree=0.8,
             random_state=42, use_label_encoder=False, eval_metric='logloss',
             verbosity=0
         )
@@ -297,16 +360,23 @@ class MetaEnsemble:
             # Get existing model predictions for this game
             c.execute("""
                 SELECT mp.model_name, mp.predicted_home_prob,
+                       g.date, g.home_team_id, g.away_team_id,
                        COALESCE(eh.rating, 1500) as home_elo,
                        COALESCE(ea.rating, 1500) as away_elo,
                        th.conference as home_conf, ta.conference as away_conf,
-                       th.current_rank as home_rank, ta.current_rank as away_rank
+                       th.current_rank as home_rank, ta.current_rank as away_rank,
+                       ph.rating as home_pear, pa.rating as away_pear,
+                       rh.sams_rpi as home_rpi, ra.sams_rpi as away_rpi
                 FROM model_predictions mp
                 JOIN games g ON mp.game_id = g.id
                 LEFT JOIN elo_ratings eh ON g.home_team_id = eh.team_id
                 LEFT JOIN elo_ratings ea ON g.away_team_id = ea.team_id
                 LEFT JOIN teams th ON g.home_team_id = th.id
                 LEFT JOIN teams ta ON g.away_team_id = ta.id
+                LEFT JOIN pear_ratings ph ON g.home_team_id = ph.team_id
+                LEFT JOIN pear_ratings pa ON g.away_team_id = pa.team_id
+                LEFT JOIN team_rpi rh ON g.home_team_id = rh.team_id
+                LEFT JOIN team_rpi ra ON g.away_team_id = ra.team_id
                 WHERE mp.game_id = ? AND mp.model_name != 'meta_ensemble'
             """, (game_id,))
             rows = c.fetchall()
@@ -314,20 +384,27 @@ class MetaEnsemble:
             # Get latest predictions for this matchup
             c.execute("""
                 SELECT mp.model_name, mp.predicted_home_prob,
+                       g.date, g.home_team_id, g.away_team_id,
                        COALESCE(eh.rating, 1500) as home_elo,
                        COALESCE(ea.rating, 1500) as away_elo,
                        th.conference as home_conf, ta.conference as away_conf,
-                       th.current_rank as home_rank, ta.current_rank as away_rank
+                       th.current_rank as home_rank, ta.current_rank as away_rank,
+                       ph.rating as home_pear, pa.rating as away_pear,
+                       rh.sams_rpi as home_rpi, ra.sams_rpi as away_rpi
                 FROM model_predictions mp
                 JOIN games g ON mp.game_id = g.id
                 LEFT JOIN elo_ratings eh ON g.home_team_id = eh.team_id
                 LEFT JOIN elo_ratings ea ON g.away_team_id = ea.team_id
                 LEFT JOIN teams th ON g.home_team_id = th.id
                 LEFT JOIN teams ta ON g.away_team_id = ta.id
+                LEFT JOIN pear_ratings ph ON g.home_team_id = ph.team_id
+                LEFT JOIN pear_ratings pa ON g.away_team_id = pa.team_id
+                LEFT JOIN team_rpi rh ON g.home_team_id = rh.team_id
+                LEFT JOIN team_rpi ra ON g.away_team_id = ra.team_id
                 WHERE g.home_team_id = ? AND g.away_team_id = ?
                   AND mp.model_name != 'meta_ensemble'
                 ORDER BY mp.predicted_at DESC
-                LIMIT 12
+                LIMIT 14
             """, (home_team_id, away_team_id))
             rows = c.fetchall()
         else:
@@ -343,6 +420,9 @@ class MetaEnsemble:
         home_elo = away_elo = 1500
         home_conf = away_conf = ''
         home_rank = away_rank = None
+        home_pear = away_pear = None
+        home_rpi = away_rpi = None
+        game_date = home_tid = away_tid = None
 
         for row in rows:
             model_probs[row['model_name']] = row['predicted_home_prob']
@@ -352,6 +432,40 @@ class MetaEnsemble:
             away_conf = row['away_conf'] or ''
             home_rank = row['home_rank']
             away_rank = row['away_rank']
+            home_pear = row['home_pear']
+            away_pear = row['away_pear']
+            home_rpi = row['home_rpi']
+            away_rpi = row['away_rpi']
+            game_date = row['date']
+            home_tid = row['home_team_id']
+            away_tid = row['away_team_id']
+
+        # Compute win pct diff
+        wp_diff = 0.0
+        if game_date and home_tid and away_tid:
+            try:
+                c2 = conn.cursor()
+                c2.execute("""
+                    SELECT
+                        SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) as hw,
+                        SUM(CASE WHEN (home_team_id = ? OR away_team_id = ?) AND winner_id != ? THEN 1 ELSE 0 END) as hl,
+                        SUM(CASE WHEN winner_id = ? THEN 1 ELSE 0 END) as aw,
+                        SUM(CASE WHEN (home_team_id = ? OR away_team_id = ?) AND winner_id != ? THEN 1 ELSE 0 END) as al
+                    FROM games
+                    WHERE status = 'final' AND date < ?
+                      AND (home_team_id IN (?, ?) OR away_team_id IN (?, ?))
+                """, (home_tid, home_tid, home_tid, home_tid,
+                      away_tid, away_tid, away_tid, away_tid,
+                      game_date, home_tid, away_tid, home_tid, away_tid))
+                r = c2.fetchone()
+                if r:
+                    hw, hl = r['hw'] or 0, r['hl'] or 0
+                    aw, al = r['aw'] or 0, r['al'] or 0
+                    hwp = hw / (hw + hl) if (hw + hl) > 0 else 0.5
+                    awp = aw / (aw + al) if (aw + al) > 0 else 0.5
+                    wp_diff = hwp - awp
+            except Exception:
+                wp_diff = 0.0
 
         conn.close()
 
@@ -362,8 +476,15 @@ class MetaEnsemble:
         elo_diff = home_elo - away_elo
         same_conf = 1 if home_conf and home_conf == away_conf else 0
         any_ranked = 1 if (home_rank and home_rank > 0) or (away_rank and away_rank > 0) else 0
+        pear_diff = (home_pear or 0) - (away_pear or 0)
+        rpi_diff = (home_rpi or 0.5) - (away_rpi or 0.5)
+        both_ranked = 1 if (home_rank and home_rank > 0) and (away_rank and away_rank > 0) else 0
 
-        features = np.array([probs + [home_votes, avg_prob, spread, elo_diff, same_conf, any_ranked]])
+        features = np.array([probs + [
+            home_votes, avg_prob, spread,
+            elo_diff, same_conf, any_ranked,
+            pear_diff, rpi_diff, wp_diff, both_ranked
+        ]])
 
         # Use LogReg as primary (better on small-data walk-forward validation)
         # XGBoost tends to overfit with <1000 training samples

@@ -1,26 +1,43 @@
 #!/usr/bin/env python3
 """
-Slim Neural Network Feature Pipeline — v3
+Slim Neural Network Feature Pipeline — v4
 
-v3 changes:
-  - 9 NCAA team stats per team (×2 = 18 new features)
-  - Residual block architecture with GELU activation
-  - 3 strength-differential features for home bias reduction
-  - Total: 61 features
+v4 changes (from v3):
+  - 8 new per-team features: offensive/defensive consistency, clutch,
+    ERA trend, recent SOS, season trajectory
+  - 6 new game-level features: rest advantage, day/month cyclical,
+    games-into-season proxy
+  - Total: 83 features (was 61)
 
-Per team (×2 = 48):
+Per team (×2 = 64):
+  # Core strength (6)
   - elo, win_pct_all, win_pct_last10, win_pct_last20
   - run_diff_per_game, pythag_win_pct
+  # Scoring (2)
   - runs_per_game, era_estimate (from runs allowed)
+  # Situational (1)
   - days_rest
+  # Derived features (6)
   - win_streak, home_win_pct, away_win_pct
   - scoring_trend, opp_adj_win_pct, mov_trend
+  # v4: Consistency (3)
+  - run_scoring_std, run_allowed_std, margin_std
+  # v4: Clutch/situation (2)
+  - close_game_wpct, blowout_rate
+  # v4: Trend/momentum (3)
+  - era_trend, recent_sos, season_trajectory
+  # NCAA stats (9)
   - ncaa_batting_avg, ncaa_era, ncaa_fielding_pct, ncaa_scoring
   - ncaa_slugging, ncaa_k_per_9, ncaa_whip, ncaa_k_bb_ratio, ncaa_obp
-Game-level (3):
+
+Game-level (9):
   - elo_diff, is_neutral_site, is_conference_game
+  - rest_advantage, day_of_week_sin, day_of_week_cos
+  - month_sin, month_cos, games_into_season
+
 Weather (7):
   - temp, humidity, wind_speed, wind_dir_sin, wind_dir_cos, precip, is_dome
+
 Strength-differential (3):
   - strength_diff_magnitude, is_home_int, is_early_season
 """
@@ -77,25 +94,42 @@ for prefix in ['home_', 'away_']:
         f'{prefix}scoring_trend',
         f'{prefix}opp_adj_win_pct',
         f'{prefix}mov_trend',
+        # v4: Consistency (3)
+        f'{prefix}run_scoring_std',
+        f'{prefix}run_allowed_std',
+        f'{prefix}margin_std',
+        # v4: Clutch/situation (2)
+        f'{prefix}close_game_wpct',
+        f'{prefix}blowout_rate',
+        # v4: Trend/momentum (3)
+        f'{prefix}era_trend',
+        f'{prefix}recent_sos',
+        f'{prefix}season_trajectory',
         # NCAA stats (9)  — z-score normalized within season
         *[f'{prefix}ncaa_{s}' for s in NCAA_STAT_NAMES],
     ])
-# Game-level (3)
-FEATURE_NAMES.extend(['elo_diff', 'is_neutral_site', 'is_conference_game'])
+# Game-level (9)
+FEATURE_NAMES.extend([
+    'elo_diff', 'is_neutral_site', 'is_conference_game',
+    'rest_advantage',
+    'day_of_week_sin', 'day_of_week_cos',
+    'month_sin', 'month_cos',
+    'games_into_season',
+])
 # Weather (7)
 FEATURE_NAMES.extend([
     'weather_temp_norm', 'weather_humidity_norm', 'weather_wind_speed_norm',
     'weather_wind_dir_sin', 'weather_wind_dir_cos',
     'weather_precip_prob_norm', 'weather_is_dome',
 ])
-# Strength-differential features (3) — appended last for backward compat with old checkpoints
+# Strength-differential features (3)
 FEATURE_NAMES.extend(['strength_diff_magnitude', 'is_home_int', 'is_early_season'])
 
-NUM_FEATURES = len(FEATURE_NAMES)  # 61
+NUM_FEATURES = len(FEATURE_NAMES)  # 83
 
 
 # ===========================================================
-# Residual Block for v3 architecture
+# Residual Block for v3+ architecture
 # ===========================================================
 
 class ResidualBlock(nn.Module):
@@ -118,21 +152,21 @@ class ResidualBlock(nn.Module):
 
 
 class SlimBaseballNet(nn.Module):
-    """Network for slim feature set — v3 with residual connections and GELU.
+    """Network for slim feature set — v4 with residual connections and GELU.
 
     The .net attribute may be overwritten by build_model() during training
     with a custom architecture. The saved checkpoint's state_dict is
     authoritative — just ensure input_size matches.
 
-    When input_size < NUM_FEATURES, uses a backward-compatible v2 architecture
-    (64→32→16) so old checkpoints can still be loaded.
+    When input_size < NUM_FEATURES, uses a backward-compatible architecture
+    so old checkpoints can still be loaded.
     """
     def __init__(self, input_size=NUM_FEATURES):
         super().__init__()
         self.input_size = input_size
 
         if input_size < NUM_FEATURES:
-            # Backward-compatible v2 architecture for loading old checkpoints
+            # Backward-compatible architecture for loading old checkpoints
             self.net = nn.Sequential(
                 nn.Linear(input_size, 64),
                 nn.BatchNorm1d(64),
@@ -150,7 +184,7 @@ class SlimBaseballNet(nn.Module):
                 nn.Sigmoid(),
             )
         else:
-            # v3 default architecture (overwritten by build_model during training)
+            # v4 default architecture (overwritten by build_model during training)
             self.net = nn.Sequential(
                 nn.Linear(input_size, 128),
                 nn.BatchNorm1d(128),
@@ -187,6 +221,27 @@ def _weather_features(weather_data=None):
     return [temp_norm, humidity_norm, wind_norm,
             math.sin(wind_rad), math.cos(wind_rad),
             precip_norm, 1.0 if w['is_dome'] else 0.0]
+
+
+def _game_date_features(date_str):
+    """Compute 5 game-level date features: dow sin/cos, month sin/cos, season progress."""
+    try:
+        dt = datetime.strptime(date_str, '%Y-%m-%d')
+        dow = dt.weekday()  # 0=Monday, 6=Sunday
+        dow_sin = math.sin(2 * math.pi * dow / 7)
+        dow_cos = math.cos(2 * math.pi * dow / 7)
+        month = dt.month
+        month_sin = math.sin(2 * math.pi * (month - 1) / 12)
+        month_cos = math.cos(2 * math.pi * (month - 1) / 12)
+        # Games-into-season proxy: days since Feb 15, normalized over ~4 month season
+        season_start = datetime(dt.year, 2, 15)
+        days_in = (dt - season_start).days
+        games_into_season = min(max(days_in / 120.0, 0.0), 1.0)
+    except (ValueError, TypeError):
+        dow_sin, dow_cos = 0.0, 0.0
+        month_sin, month_cos = 0.0, 0.0
+        games_into_season = 0.5
+    return [dow_sin, dow_cos, month_sin, month_cos, games_into_season]
 
 
 # ===========================================================
@@ -300,7 +355,6 @@ def _build_name_to_id_mapping(conn=None):
                 continue
 
         # 2) Try slug: take the first word (school name), lowercase, hyphenate
-        # 'Arizona Wildcats' → 'arizona', 'Mississippi State Bulldogs' → 'mississippi-state'
         slug = _name_to_slug(name)
         if slug in valid_ids:
             mapping[name] = slug
@@ -373,8 +427,9 @@ class SlimFeatureComputer:
         conn = get_connection()
         features = []
 
-        home_feats = self._team_features(conn, home_team_id, game_date)
-        away_feats = self._team_features(conn, away_team_id, game_date)
+        home_feats, home_gp = self._team_features(conn, home_team_id, game_date)
+        away_feats, away_gp = self._team_features(conn, away_team_id, game_date)
+
         features.extend(home_feats)
         # NCAA stats for home team
         features.extend(_get_ncaa_features(home_team_id, season, self._ncaa_stats, self._ncaa_norm))
@@ -390,6 +445,12 @@ class SlimFeatureComputer:
         features.append(1.0 if neutral_site else 0.0)
         features.append(1.0 if is_conference else 0.0)
 
+        # v4: rest advantage (home rest - away rest; days_rest is index 8)
+        features.append(home_feats[8] - away_feats[8])
+
+        # v4: date features (dow sin/cos, month sin/cos, games_into_season)
+        features.extend(_game_date_features(game_date))
+
         # Weather
         w_data = weather_data
         if w_data is None and game_id:
@@ -403,7 +464,7 @@ class SlimFeatureComputer:
                           if row[k] is not None}
         features.extend(_weather_features(w_data))
 
-        # Strength-differential features (appended last for backward compat)
+        # Strength-differential features
         features.append(abs(home_elo - away_elo) / 400.0)  # strength_diff_magnitude
         features.append(1.0)  # is_home_int (home perspective)
         try:
@@ -417,7 +478,10 @@ class SlimFeatureComputer:
         return np.array(features, dtype=np.float32)
 
     def _team_features(self, conn, team_id, game_date):
-        """15 base features per team from current season games."""
+        """23 base features per team from current season games.
+
+        Returns: (feature_list, games_played)
+        """
         c = conn.cursor()
 
         # Elo
@@ -497,13 +561,14 @@ class SlimFeatureComputer:
         home_wp = sum(1 for g in home_games if g['won']) / len(home_games) if home_games else 0.5
         away_wp = sum(1 for g in away_games if g['won']) / len(away_games) if away_games else 0.5
 
-        # Scoring trend
+        # Scoring trend (last 5 vs season avg)
         last5 = games[-5:]
         last5_rpg = sum(g['rs'] for g in last5) / len(last5) if last5 else rpg
         scoring_trend = last5_rpg - rpg
 
-        # Opponent-adjusted win%
+        # Opponent-adjusted win% (also collect opp Elos for recent_sos)
         opp_adj_wp = 0.5
+        opp_elos = []
         if games:
             weighted_wins = 0.0
             total_opp_elo = 0.0
@@ -511,6 +576,7 @@ class SlimFeatureComputer:
                 c.execute("SELECT rating FROM elo_ratings WHERE team_id = ?", (g['opp_id'],))
                 opp_row = c.fetchone()
                 opp_elo = opp_row['rating'] if opp_row else DEFAULT_ELO
+                opp_elos.append(opp_elo)
                 total_opp_elo += opp_elo
                 if g['won']:
                     weighted_wins += opp_elo
@@ -523,10 +589,51 @@ class SlimFeatureComputer:
         last5_mov = sum(last5_margins) / len(last5_margins) if last5_margins else 0.0
         mov_trend = last5_mov - season_mov
 
-        return [elo, win_pct_all, win_pct_10, win_pct_20,
-                run_diff, pythag, rpg, era_est, float(days_rest),
-                float(streak), home_wp, away_wp, scoring_trend,
-                opp_adj_wp, mov_trend]
+        # ---- v4: New per-team features ----
+
+        # Run scoring std (last 10)
+        last10_rs = [g['rs'] for g in games[-10:]]
+        rs_std = float(np.std(last10_rs)) if len(last10_rs) >= 3 else 3.0
+
+        # Run allowed std (last 10)
+        last10_ra = [g['ra'] for g in games[-10:]]
+        ra_std = float(np.std(last10_ra)) if len(last10_ra) >= 3 else 3.0
+
+        # Margin std (last 10)
+        last10_margins = margins[-10:]
+        margin_std = float(np.std(last10_margins)) if len(last10_margins) >= 3 else 4.0
+
+        # Close game win% (decided by 1-2 runs)
+        close_games = [g for g in games if abs(g['rs'] - g['ra']) <= 2]
+        close_wpct = sum(1 for g in close_games if g['won']) / len(close_games) if close_games else 0.5
+
+        # Blowout rate (games decided by 5+ runs)
+        blowout_count = sum(1 for g in games if abs(g['rs'] - g['ra']) >= 5)
+        blowout_rate = blowout_count / gp if gp > 0 else 0.2
+
+        # ERA trend (last 5 runs allowed avg vs season avg)
+        last5_ra = [g['ra'] for g in games[-5:]]
+        last5_ra_avg = sum(last5_ra) / len(last5_ra) if last5_ra else era_est
+        era_trend = last5_ra_avg - era_est  # positive = getting worse
+
+        # Recent SOS (avg Elo of last 5 opponents)
+        recent_opp_elos = opp_elos[-5:] if opp_elos else []
+        recent_sos = sum(recent_opp_elos) / len(recent_opp_elos) if recent_opp_elos else DEFAULT_ELO
+
+        # Season trajectory (last 20 win% - first 20 win%)
+        first20 = games[:20]
+        first20_wp = sum(1 for g in first20 if g['won']) / len(first20) if len(first20) >= 10 else 0.5
+        trajectory = win_pct_20 - first20_wp
+
+        return ([elo, win_pct_all, win_pct_10, win_pct_20,
+                 run_diff, pythag, rpg, era_est, float(days_rest),
+                 float(streak), home_wp, away_wp, scoring_trend,
+                 opp_adj_wp, mov_trend,
+                 # v4 features
+                 rs_std, ra_std, margin_std,
+                 close_wpct, blowout_rate,
+                 era_trend, recent_sos, trajectory],
+                gp)
 
 
 # ===========================================================
@@ -536,8 +643,8 @@ class SlimFeatureComputer:
 class SlimHistoricalFeatureComputer:
     """Compute slim features from historical_games, maintaining rolling state.
 
-    v3: Also loads NCAA team stats at init and appends 9 z-score-normalized
-    features per team from ncaa_team_stats.
+    v4: Adds consistency, clutch, trend, and game-context features
+    on top of v3's NCAA stats.
     """
 
     def __init__(self):
@@ -554,11 +661,17 @@ class SlimHistoricalFeatureComputer:
             'wins': 0, 'losses': 0, 'rs': 0, 'ra': 0, 'games': 0,
             'recent': [],       # last 50 W/L results (bool)
             'recent_rs': [],    # last 50 runs scored
+            'recent_ra': [],    # last 50 runs allowed (v4)
             'recent_margins': [],  # last 50 margins
             'home_w': 0, 'home_g': 0,
             'away_w': 0, 'away_g': 0,
             'opp_elo_sum': 0.0, 'weighted_wins': 0.0,
             'last_date': None,
+            # v4: clutch/blowout counters
+            'close_wins': 0, 'close_games': 0,
+            'blowout_count': 0,
+            # v4: recent opponent Elos for recent SOS
+            'recent_opp_elos': [],  # last 10
         })
 
     def compute_game_features(self, game_row, weather_row=None):
@@ -575,8 +688,9 @@ class SlimHistoricalFeatureComputer:
                 season = 2025
 
         features = []
-        home_feats = self._team_features(home, date_str)
-        away_feats = self._team_features(away, date_str)
+        home_feats, home_gp = self._team_features(home, date_str)
+        away_feats, away_gp = self._team_features(away, date_str)
+
         features.extend(home_feats)
         # NCAA stats for home team
         home_tid = self._name_to_id.get(home)
@@ -592,9 +706,15 @@ class SlimHistoricalFeatureComputer:
         features.append(1.0 if neutral else 0.0)
         features.append(0.0)  # conference unknown in historical
 
+        # v4: rest advantage (days_rest is index 8)
+        features.append(home_feats[8] - away_feats[8])
+
+        # v4: date features
+        features.extend(_game_date_features(date_str))
+
         features.extend(_weather_features(weather_row))
 
-        # Strength-differential features (appended last for backward compat)
+        # Strength-differential features
         features.append(abs(home_feats[0] - away_feats[0]) / 400.0)  # strength_diff_magnitude
         features.append(1.0)  # is_home_int (home perspective)
         try:
@@ -608,7 +728,10 @@ class SlimHistoricalFeatureComputer:
         return np.array(features, dtype=np.float32), label
 
     def _team_features(self, team, date_str):
-        """15 base features per team from rolling state."""
+        """23 base features per team from rolling state.
+
+        Returns: (feature_list, games_played)
+        """
         s = self.stats[team]
         gp = s['games']
 
@@ -670,10 +793,50 @@ class SlimHistoricalFeatureComputer:
         last5_mov = sum(last5_m) / len(last5_m) if last5_m else 0.0
         mov_trend = last5_mov - season_mov
 
-        return [elo, win_pct_all, win_pct_10, win_pct_20,
-                run_diff, pythag, rpg, era_est, float(days_rest),
-                float(streak), home_wp, away_wp, scoring_trend,
-                opp_adj_wp, mov_trend]
+        # ---- v4: New per-team features ----
+
+        # Run scoring std (last 10)
+        last10_rs = recent_rs[-10:]
+        rs_std = float(np.std(last10_rs)) if len(last10_rs) >= 3 else 3.0
+
+        # Run allowed std (last 10)
+        recent_ra = s['recent_ra']
+        last10_ra = recent_ra[-10:]
+        ra_std = float(np.std(last10_ra)) if len(last10_ra) >= 3 else 3.0
+
+        # Margin std (last 10)
+        last10_margins = margins[-10:]
+        margin_std = float(np.std(last10_margins)) if len(last10_margins) >= 3 else 4.0
+
+        # Close game win% (1-2 run games)
+        close_wpct = s['close_wins'] / s['close_games'] if s['close_games'] > 0 else 0.5
+
+        # Blowout rate (5+ run margin)
+        blowout_rate = s['blowout_count'] / gp if gp > 0 else 0.2
+
+        # ERA trend (last 5 runs allowed vs season avg)
+        last5_ra = recent_ra[-5:]
+        last5_ra_avg = sum(last5_ra) / len(last5_ra) if last5_ra else era_est
+        era_trend = last5_ra_avg - era_est
+
+        # Recent SOS (avg Elo of last 5 opponents)
+        recent_opp = s['recent_opp_elos'][-5:]
+        recent_sos = sum(recent_opp) / len(recent_opp) if recent_opp else DEFAULT_ELO
+
+        # Season trajectory (last 20 win% - first 20 win%)
+        first20 = recent[:20]
+        first20_wp = sum(first20) / len(first20) if len(first20) >= 10 else 0.5
+        trajectory = win_pct_20 - first20_wp
+
+        return ([elo, win_pct_all, win_pct_10, win_pct_20,
+                 run_diff, pythag, rpg, era_est, float(days_rest),
+                 float(streak), home_wp, away_wp, scoring_trend,
+                 opp_adj_wp, mov_trend,
+                 # v4 features
+                 rs_std, ra_std, margin_std,
+                 close_wpct, blowout_rate,
+                 era_trend, recent_sos, trajectory],
+                gp)
 
     def update_state(self, game_row):
         """Update rolling state AFTER computing features."""
@@ -707,6 +870,9 @@ class SlimHistoricalFeatureComputer:
             s['recent_rs'].append(rs)
             if len(s['recent_rs']) > 50:
                 s['recent_rs'] = s['recent_rs'][-50:]
+            s['recent_ra'].append(ra)
+            if len(s['recent_ra']) > 50:
+                s['recent_ra'] = s['recent_ra'][-50:]
             s['recent_margins'].append(rs - ra)
             if len(s['recent_margins']) > 50:
                 s['recent_margins'] = s['recent_margins'][-50:]
@@ -726,6 +892,20 @@ class SlimHistoricalFeatureComputer:
             s['opp_elo_sum'] += opp_elo
             if won:
                 s['weighted_wins'] += opp_elo
+
+            # v4: Close game / blowout tracking
+            margin = abs(rs - ra)
+            if margin <= 2:
+                s['close_games'] += 1
+                if won:
+                    s['close_wins'] += 1
+            if margin >= 5:
+                s['blowout_count'] += 1
+
+            # v4: Recent opponent Elos
+            s['recent_opp_elos'].append(opp_elo)
+            if len(s['recent_opp_elos']) > 10:
+                s['recent_opp_elos'] = s['recent_opp_elos'][-10:]
 
         # Update Elo
         home_elo = self.elo[home]

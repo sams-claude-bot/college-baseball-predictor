@@ -137,11 +137,32 @@ class FeatureComputer:
                 f'{prefix}adv_gb_pct_pitch',
                 f'{prefix}adv_fb_pct_pitch',
             ])
-            # Staff quality features are in the dedicated pitching model
+            # Starting pitcher
+            names.extend([
+                f'{prefix}starter_era',
+                f'{prefix}starter_whip',
+                f'{prefix}starter_k_per_9',
+                f'{prefix}starter_bb_per_9',
+                f'{prefix}starter_ip_per_start',
+                f'{prefix}starter_known',
+            ])
+            # SOS/RPI
+            names.extend([
+                f'{prefix}rpi',
+                f'{prefix}rpi_rank',
+                f'{prefix}owp',
+            ])
         # Situational (game-level)
         names.extend([
             'is_neutral_site',
             'is_conference_game',
+        ])
+        # Betting line features
+        names.extend([
+            'market_implied_home_prob',
+            'market_has_line',
+            'market_spread',
+            'market_total',
         ])
         # Weather features
         names.extend([
@@ -167,6 +188,10 @@ class FeatureComputer:
     def get_num_features(self):
         """Return the number of features in the vector."""
         return len(self.get_feature_names())
+
+    def compute(self, *args, **kwargs):
+        """Alias for compute_features."""
+        return self.compute_features(*args, **kwargs)
 
     def compute_features(self, home_team_id, away_team_id, game_date=None,
                          neutral_site=False, is_conference=False, game_id=None,
@@ -194,18 +219,25 @@ class FeatureComputer:
         conn = get_connection()
         features = []
 
-        for team_id, opp_id in [(home_team_id, away_team_id),
-                                 (away_team_id, home_team_id)]:
+        for i, (team_id, opp_id) in enumerate([(home_team_id, away_team_id),
+                                                 (away_team_id, home_team_id)]):
+            is_home = (i == 0)
             features.extend(self._team_strength_features(conn, team_id, game_date))
             features.extend(self._batting_features(conn, team_id, game_date))
             features.extend(self._pitching_features(conn, team_id, game_date))
             features.extend(self._situational_team_features(conn, team_id, game_date))
             features.extend(self._advanced_batting_features(conn, team_id))
             features.extend(self._advanced_pitching_features(conn, team_id))
+            features.extend(self._starting_pitcher_features(conn, team_id, game_id, is_home))
+            features.extend(self._sos_rpi_features(conn, team_id))
 
         # Game-level situational
         features.append(1.0 if neutral_site else 0.0)
         features.append(1.0 if is_conference else 0.0)
+
+        # Betting line features
+        features.extend(self._betting_line_features(
+            conn, game_id, home_team_id, away_team_id, game_date))
 
         # Weather features
         features.extend(self._weather_features(conn, game_id, weather_data))
@@ -374,18 +406,10 @@ class FeatureComputer:
         else:
             days_rest = 3.0
 
-        # Strength of schedule: average Elo of opponents faced
-        games = self._get_team_games(conn, team_id, game_date)
-        if games:
-            opp_elos = []
-            for g in games:
-                c.execute("SELECT rating FROM elo_ratings WHERE team_id = ?",
-                          (g['opponent_id'],))
-                r = c.fetchone()
-                opp_elos.append(r['rating'] if r else DEFAULT_ELO)
-            sos = sum(opp_elos) / len(opp_elos)
-        else:
-            sos = DEFAULT_ELO
+        # Strength of schedule from team_sos table
+        c.execute("SELECT past_sos FROM team_sos WHERE team_id = ?", (team_id,))
+        sos_row = c.fetchone()
+        sos = sos_row['past_sos'] if sos_row and sos_row['past_sos'] is not None else DEFAULT_ELO
 
         return [float(days_rest), sos]
 
@@ -510,6 +534,156 @@ class FeatureComputer:
             row['innings_hhi'] or 0.15,
             quality_arms / max(staff_size, 1),  # quality arms as pct of staff
         ]
+
+    # ---- Starting Pitcher ----
+
+    _STARTER_DEFAULTS = [4.50, 1.35, 7.5, 3.5, 5.5, 0.0]
+
+    def _starting_pitcher_features(self, conn, team_id, game_id, is_home):
+        """Starting pitcher stats (6 features)."""
+        c = conn.cursor()
+
+        # Get team average pitching stats as defaults
+        c.execute("""
+            SELECT AVG(era) as avg_era, AVG(whip) as avg_whip,
+                   AVG(k_per_9) as avg_k9, AVG(bb_per_9) as avg_bb9,
+                   AVG(CASE WHEN games_started > 0
+                       THEN innings_pitched * 1.0 / games_started END) as avg_ip_gs
+            FROM player_stats
+            WHERE team_id = ? AND innings_pitched > 0 AND games_started > 0
+        """, (team_id,))
+        team_row = c.fetchone()
+
+        def_era = team_row['avg_era'] if team_row and team_row['avg_era'] else 4.50
+        def_whip = team_row['avg_whip'] if team_row and team_row['avg_whip'] else 1.35
+        def_k9 = team_row['avg_k9'] if team_row and team_row['avg_k9'] else 7.5
+        def_bb9 = team_row['avg_bb9'] if team_row and team_row['avg_bb9'] else 3.5
+        def_ip_gs = team_row['avg_ip_gs'] if team_row and team_row['avg_ip_gs'] else 5.5
+        defaults = [def_era, def_whip, def_k9, def_bb9, def_ip_gs]
+
+        if not game_id:
+            return defaults + [0.0]
+
+        # Look up starter from pitching_matchups
+        col = 'home_starter_id' if is_home else 'away_starter_id'
+        c.execute(
+            f"SELECT {col} FROM pitching_matchups WHERE game_id = ?",
+            (game_id,))
+        row = c.fetchone()
+
+        if not row or not row[col]:
+            return defaults + [0.0]
+
+        starter_id = row[col]
+
+        # Get starter's season stats
+        c.execute("""
+            SELECT era, whip, k_per_9, bb_per_9, innings_pitched, games_started
+            FROM player_stats WHERE id = ? AND team_id = ?
+        """, (starter_id, team_id))
+        ps = c.fetchone()
+
+        if not ps or not ps['innings_pitched'] or ps['innings_pitched'] <= 0:
+            return defaults + [1.0]  # known starter but no stats yet
+
+        era = ps['era'] or def_era
+        whip = ps['whip'] or def_whip
+        k9 = ps['k_per_9'] or def_k9
+        bb9 = ps['bb_per_9'] or def_bb9
+        gs = ps['games_started'] if ps['games_started'] and ps['games_started'] > 0 else 1
+        ip_per_start = ps['innings_pitched'] / gs
+
+        return [era, whip, k9, bb9, ip_per_start, 1.0]
+
+    # ---- SOS / RPI ----
+
+    def _sos_rpi_features(self, conn, team_id):
+        """RPI and strength-of-schedule features (3 features)."""
+        c = conn.cursor()
+
+        c.execute(
+            "SELECT sams_rpi, sams_rank, owp FROM team_rpi WHERE team_id = ?",
+            (team_id,))
+        row = c.fetchone()
+
+        if row:
+            rpi = row['sams_rpi'] if row['sams_rpi'] is not None else 0.5
+
+            if row['sams_rank'] is not None:
+                c.execute(
+                    "SELECT COUNT(*) as cnt FROM team_rpi WHERE sams_rank IS NOT NULL")
+                total = c.fetchone()['cnt'] or 300
+                rpi_rank = row['sams_rank'] / total
+            else:
+                rpi_rank = 0.5
+
+            owp = row['owp'] if row['owp'] is not None else 0.5
+        else:
+            rpi = 0.5
+            rpi_rank = 0.5
+            owp = 0.5
+
+        return [rpi, rpi_rank, owp]
+
+    # ---- Betting Lines ----
+
+    def _betting_line_features(self, conn, game_id, home_team_id, away_team_id,
+                               game_date):
+        """Betting line features (4 features)."""
+        c = conn.cursor()
+
+        lines = []
+        if game_id:
+            c.execute("""
+                SELECT home_ml, away_ml, home_spread, over_under
+                FROM betting_lines WHERE game_id = ?
+            """, (game_id,))
+            lines = c.fetchall()
+
+        if not lines and game_date:
+            c.execute("""
+                SELECT home_ml, away_ml, home_spread, over_under
+                FROM betting_lines
+                WHERE date = ? AND home_team_id = ? AND away_team_id = ?
+            """, (game_date, home_team_id, away_team_id))
+            lines = c.fetchall()
+
+        if not lines:
+            return [0.5, 0.0, 0.0, 12.0]  # no line: no info
+
+        # Average across books
+        home_probs = []
+        spreads = []
+        totals = []
+
+        for line in lines:
+            hml = line['home_ml']
+            aml = line['away_ml']
+            if hml is not None and aml is not None:
+                # Convert American odds to implied probability
+                if hml < 0:
+                    hp = abs(hml) / (abs(hml) + 100.0)
+                else:
+                    hp = 100.0 / (hml + 100.0)
+                if aml < 0:
+                    ap = abs(aml) / (abs(aml) + 100.0)
+                else:
+                    ap = 100.0 / (aml + 100.0)
+                # Remove vig by normalizing
+                total_p = hp + ap
+                if total_p > 0:
+                    home_probs.append(hp / total_p)
+
+            if line['home_spread'] is not None:
+                spreads.append(line['home_spread'])
+            if line['over_under'] is not None:
+                totals.append(line['over_under'])
+
+        implied_prob = sum(home_probs) / len(home_probs) if home_probs else 0.5
+        spread = sum(spreads) / len(spreads) if spreads else 0.0
+        total = sum(totals) / len(totals) if totals else 12.0
+
+        return [implied_prob, 1.0, spread, total]
 
     # ---- Meta (model stacking) ----
 
@@ -715,10 +889,17 @@ class HistoricalFeatureComputer:
             features.extend([100.0, 0.320, 0.140, 0.300, 20.0, 8.5, 43.0, 36.0, 21.0])
             # Advanced pitching defaults
             features.extend([4.00, 4.00, 4.00, 43.0, 36.0])
+            # Starting pitcher defaults (unknown in historical)
+            features.extend([4.50, 1.35, 7.5, 3.5, 5.5, 0.0])
+            # SOS/RPI defaults
+            features.extend([0.5, 0.5, 0.5])
 
         # Game-level
         features.append(1.0 if neutral else 0.0)
         features.append(0.0)  # conference flag unknown in historical data
+
+        # Betting line defaults (no betting data in historical)
+        features.extend([0.5, 0.0, 0.0, 12.0])
 
         # Weather features (7 features)
         features.extend(self._compute_weather_features(weather_row))

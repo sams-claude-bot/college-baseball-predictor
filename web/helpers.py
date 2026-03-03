@@ -760,6 +760,14 @@ def get_betting_games(date_str=None):
     ''').fetchall()
     stored_totals = {row['game_id']: row['projected_total'] for row in tp_rows}
     stored_totals_probs = {row['game_id']: {'over_prob': row['over_prob'], 'under_prob': row['under_prob']} for row in tp_rows}
+
+    # NN slim totals (separate model for display)
+    nn_rows = conn_sp.execute('''
+        SELECT game_id, projected_total, over_prob, under_prob FROM totals_predictions
+        WHERE model_name = 'nn_slim_totals'
+    ''').fetchall()
+    nn_totals = {row['game_id']: row['projected_total'] for row in nn_rows}
+    nn_totals_probs = {row['game_id']: {'over_prob': row['over_prob'], 'under_prob': row['under_prob']} for row in nn_rows}
     conn_sp.close()
 
     # Add model analysis to each
@@ -858,6 +866,15 @@ def get_betting_games(date_str=None):
                 else:
                     line['total_edge'] = min(abs(line['total_diff']) * 8, 50)
                     line['total_prob'] = min(0.5 + abs(line['total_diff']) * 0.04, 0.85)
+
+            # NN slim totals
+            nn_t = nn_totals.get(game_id)
+            if nn_t:
+                line['nn_total'] = nn_t
+                nn_probs = nn_totals_probs.get(game_id)
+                if nn_probs:
+                    line['nn_over_prob'] = nn_probs.get('over_prob')
+                    line['nn_under_prob'] = nn_probs.get('under_prob')
 
             # EV calculation (per $100)
             if line['best_pick'] == 'home':

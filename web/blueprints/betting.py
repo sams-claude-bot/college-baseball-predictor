@@ -168,14 +168,38 @@ def tracker():
                           'type': b['type'], 'pick': b['pick'], 'profit': b['profit']})
 
     # Per-type running P&L for individual charts
+    # Fill in missing dates so the chart doesn't skip days
+    all_dates = sorted(set(b['date'] for b in all_completed)) if all_completed else []
+
     def build_running_pl(bet_list):
         result = []
         cum = 0
         sorted_bets = sorted(bet_list, key=lambda x: x['date'])
-        for b in sorted_bets:
-            cum += b['profit']
-            result.append({'date': b['date'], 'pl': round(cum, 2),
-                          'pick': b['pick'], 'profit': b['profit']})
+        bet_dates = set(b['date'] for b in sorted_bets)
+        # Find the first date this bet type starts
+        if not sorted_bets:
+            return result
+        first_date = sorted_bets[0]['date']
+        started = False
+        bet_idx = 0
+        for d in all_dates:
+            if d < first_date:
+                continue
+            started = True
+            # Process all bets for this date
+            day_bets = []
+            while bet_idx < len(sorted_bets) and sorted_bets[bet_idx]['date'] == d:
+                cum += sorted_bets[bet_idx]['profit']
+                day_bets.append(sorted_bets[bet_idx])
+                bet_idx += 1
+            if day_bets:
+                # Use last bet of the day for the data point
+                result.append({'date': d, 'pl': round(cum, 2),
+                              'pick': day_bets[-1]['pick'], 'profit': sum(b['profit'] for b in day_bets)})
+            else:
+                # No bets this day — carry forward cumulative (flat line)
+                result.append({'date': d, 'pl': round(cum, 2),
+                              'pick': '—', 'profit': 0})
         return result
 
     consensus_running_pl = build_running_pl(consensus_bets)

@@ -635,7 +635,13 @@ function buildPLChart(canvasId, rawData, color, label) {
                         title: function(items) { return items[0].label; },
                         label: function(ctx) { 
                             const v = ctx.parsed.y;
-                            return (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+                            const idx = ctx.dataIndex;
+                            const prev = idx > 0 ? chartValues[idx - 1] : 0;
+                            const dayChange = v - prev;
+                            const cumStr = 'Cumulative: ' + (v >= 0 ? '+$' : '-$') + Math.abs(v).toFixed(2);
+                            if (idx === 0) return cumStr;
+                            const dayStr = 'Day: ' + (dayChange >= 0 ? '+$' : '-$') + Math.abs(dayChange).toFixed(2);
+                            return [dayStr, cumStr];
                         },
                         afterBody: function(items) {
                             const date = items[0].label;

@@ -1,5 +1,6 @@
 """Game analysis and bet filtering/selection logic."""
 
+import math
 from typing import Optional
 
 import requests
@@ -19,11 +20,11 @@ API_URL = 'http://localhost:5000/api/best-bets'
 ML_EDGE_THRESHOLD = 8.0
 ML_EDGE_UNDERDOG = 15.0
 ML_CONSENSUS_MIN = 7
-ML_MAX_FAVORITE = -200
-ML_MAX_FAVORITE_CONSENSUS = -300
-ML_MIN_UNDERDOG = 250
+ML_MAX_FAVORITE = -350
+ML_MAX_FAVORITE_CONSENSUS = -500
+ML_MIN_UNDERDOG = 350
 
-ML_MAX_MODEL_PROB = 0.88
+ML_MAX_MODEL_PROB = 0.92
 ML_MIN_MODEL_PROB = 0.55
 
 TOTALS_EDGE_THRESHOLD = 3.0
@@ -197,6 +198,23 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'reasons': rejection_reasons,
             })
         else:
+            # Use over/under probability for Kelly sizing
+            if game['pick'] == 'OVER':
+                total_prob = game.get('over_prob')
+            else:
+                total_prob = game.get('under_prob')
+
+            # Fallback: compute probability from projected total vs line
+            # using normal CDF with typical college baseball variance (~3.5 runs std)
+            if total_prob is None and game.get('model_projection') and game.get('line'):
+                proj = game['model_projection']
+                line = game['line']
+                std_dev = 3.5  # typical college baseball total runs std
+                z = (line - proj) / std_dev
+                # Normal CDF approximation
+                under_p = 0.5 * (1.0 + math.erf(z / math.sqrt(2)))
+                total_prob = (1.0 - under_p) if game['pick'] == 'OVER' else under_p
+
             base_bet = {
                 'type': 'TOTAL',
                 'game_id': game['game_id'],
@@ -204,6 +222,7 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'pick': game['pick'],
                 'line': game['line'],
                 'odds': game['odds'],
+                'model_prob': total_prob,  # enables Kelly sizing
                 'model_projection': game['model_projection'],
                 'edge': edge,
             }

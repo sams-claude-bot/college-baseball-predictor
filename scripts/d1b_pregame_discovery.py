@@ -9,7 +9,9 @@ Phases:
   1. Scrape D1B scores page → full game list with times, status, scores
   2. Fill missing game times in DB
   3. Detect status changes (scheduled → in-progress/final)
-  4. Report DB + SB coverage stats
+  4. Register SB event IDs from D1B Live Stats links
+  5. For uncovered games: probe home/away team SB schedule pages
+  6. Report DB + SB coverage stats
 
 Usage:
     python3 scripts/d1b_pregame_discovery.py              # Today
@@ -34,6 +36,7 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 
 DB_PATH = PROJECT / "data" / "baseball.db"
 MAPPING = PROJECT / "data" / "d1b_slug_mapping.json"
+SB_GROUP_IDS = PROJECT / "scripts" / "sb_group_ids.json"
 OPENCLAW_BIN = "/home/sam/.npm-global/bin/openclaw"
 PROFILE = "openclaw"
 
@@ -106,19 +109,75 @@ EXTRACT_JS = """() => {
 def scrape_d1b_games(date_str):
     """Scrape D1B scores page for all games on a date.
 
+    Uses headless Playwright (no gateway dependency). Falls back to
+    openclaw browser if Playwright is unavailable.
+
     Returns list of dicts with keys: a(way slug), h(ome slug),
-    ip (in-progress), over, as (away score), hs (home score), t (timestamp).
+    ip (in-progress), over, as (away score), hs (home score), t (timestamp),
+    sb (StatBroadcast event ID from Live Stats link, or None).
     """
     d1b_date = date_str.replace("-", "")
     url = "https://d1baseball.com/scores/?date={}".format(d1b_date)
 
-    logger.info("Navigating to %s", url)
-    run_browser_cmd(["navigate", url], timeout=20)
+    # Try headless Playwright first (no gateway needed)
+    try:
+        return _scrape_d1b_playwright(url)
+    except ImportError:
+        logger.warning("Playwright not available, falling back to openclaw browser")
+    except Exception as e:
+        logger.warning("Playwright scrape failed: %s — falling back to openclaw browser", e)
 
-    # Wait for JS rendering
+    # Fallback: openclaw browser CLI
+    return _scrape_d1b_browser(url)
+
+
+def _scrape_d1b_playwright(url):
+    """Scrape D1B using headless Playwright — no gateway dependency."""
+    from playwright.sync_api import sync_playwright
+
+    logger.info("Scraping D1B via headless Playwright: %s", url)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(user_agent=(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        ))
+        page.goto(url, timeout=60000, wait_until="domcontentloaded")
+
+        # Wait for score tiles to render
+        try:
+            page.wait_for_selector('.d1-score-tile', timeout=15000)
+        except Exception:
+            logger.warning("Tiles didn't load in 15s, waiting longer...")
+            time.sleep(5)
+
+        tile_count = page.evaluate('() => document.querySelectorAll(".d1-score-tile").length')
+        if tile_count == 0:
+            logger.warning("No tiles on first try, waiting 5s and retrying")
+            time.sleep(5)
+            tile_count = page.evaluate('() => document.querySelectorAll(".d1-score-tile").length')
+
+        if tile_count == 0:
+            browser.close()
+            logger.error("No score tiles found after retry")
+            return []
+
+        logger.info("Found %d score tiles", tile_count)
+
+        games = page.evaluate(EXTRACT_JS)
+        browser.close()
+
+    return games or []
+
+
+def _scrape_d1b_browser(url):
+    """Scrape D1B using openclaw browser CLI (legacy fallback)."""
+    logger.info("Navigating to %s (openclaw browser)", url)
+    run_browser_cmd(["navigate", url], timeout=45)
+
     time.sleep(5)
 
-    # Verify tiles loaded
     count_js = '() => document.querySelectorAll(".d1-score-tile").length'
     tile_count = run_browser_cmd(["evaluate", "--fn", count_js]).get("result", 0)
 
@@ -341,6 +400,179 @@ def process_games(d1b_games, date_str, slug_map, conn, verbose=False):
     return stats
 
 
+def _fetch_sb_event_ids_http(gid, session=None):
+    """Fetch event IDs from a team's SB schedule page using pure HTTP.
+
+    Two requests: first gets the anti-bot cookie from JS, second fetches
+    the actual page. ~0.3s total vs ~10s with browser.
+
+    Returns list of integer event IDs, or empty list on failure.
+    """
+    import re
+    import requests
+
+    url = "https://www.statbroadcast.com/events/statbroadcast.php?gid={}".format(gid)
+    s = session or requests.Session()
+
+    for attempt in range(3):
+        try:
+            r1 = s.get(url, timeout=10)
+            if r1.status_code == 403:
+                logger.debug("SB 403 for gid=%s (attempt %d), backing off", gid, attempt + 1)
+                time.sleep(3 * (attempt + 1))
+                continue
+            m = re.search(r'sb_cv=([^;"]+)', r1.text)
+            if not m:
+                return []
+            s.cookies.set("sb_cv", m.group(1), domain="www.statbroadcast.com")
+            r2 = s.get(url, timeout=10)
+            if r2.status_code == 403:
+                logger.debug("SB 403 on second request for gid=%s, backing off", gid)
+                time.sleep(3 * (attempt + 1))
+                continue
+            ids = list(set(int(x) for x in re.findall(r'broadcast/\?id=(\d+)', r2.text)))
+            return sorted(ids)
+        except Exception as e:
+            logger.debug("HTTP error fetching SB page for gid=%s: %s", gid, e)
+            return []
+    logger.warning("SB rate-limited for gid=%s after 3 attempts", gid)
+    return []
+
+
+def probe_sb_team_pages(date_str, conn, slug_map):
+    """Phase 5: For games without SB coverage, check home/away team SB pages.
+
+    Uses pure HTTP (no browser) to fetch team schedule pages and extract
+    event IDs, then probes the SB API for metadata. Caches results per
+    team to avoid redundant requests on big days.
+
+    Returns (found_count, probed_count).
+    """
+    import requests
+    from statbroadcast_discovery import ensure_table, _upsert_sb_event
+    from statbroadcast_client import StatBroadcastClient
+    from html import unescape
+
+    if not SB_GROUP_IDS.exists():
+        logger.warning("No SB group IDs file, skipping team page probes")
+        return 0, 0
+
+    with open(str(SB_GROUP_IDS)) as f:
+        gid_data = json.load(f)
+    gid_data.pop("_extra_schools", None)
+
+    ensure_table(conn)
+    client = StatBroadcastClient()
+    http_session = requests.Session()
+
+    # Find games without SB coverage
+    uncovered = conn.execute("""
+        SELECT g.id, g.away_team_id, g.home_team_id
+        FROM games g
+        LEFT JOIN statbroadcast_events se
+            ON g.id = se.game_id AND se.completed = 0
+        WHERE g.date = ? AND g.status != 'cancelled'
+          AND se.sb_event_id IS NULL
+    """, (date_str,)).fetchall()
+
+    if not uncovered:
+        logger.info("All games have SB coverage — no team page probes needed")
+        return 0, 0
+
+    logger.info("%d games without SB coverage — probing team pages (HTTP)", len(uncovered))
+
+    # Cache: gid -> {event_id: event_info} (only today's baseball events)
+    team_cache = {}   # gid -> list of event IDs already fetched
+    event_cache = {}  # event_id -> event_info dict or None
+    probed_gids = set()
+
+    found = 0
+    probed = 0
+
+    for game in uncovered:
+        game_id = game["id"]
+        home_id = game["home_team_id"]
+        away_id = game["away_team_id"]
+        game_covered = False
+
+        # Try home team first, then away
+        for team_id, role in [(home_id, "home"), (away_id, "away")]:
+            if game_covered:
+                break
+
+            gid = gid_data.get(team_id)
+            if not gid:
+                logger.debug("No SB gid for %s (%s), skipping", team_id, role)
+                continue
+
+            # Fetch event IDs (cached per gid)
+            if gid not in team_cache:
+                logger.info("  Fetching %s SB page: %s (gid=%s)",
+                            role, team_id, gid)
+                probed += 1
+                probed_gids.add(gid)
+                event_ids = _fetch_sb_event_ids_http(gid, http_session)
+                team_cache[gid] = event_ids
+                time.sleep(0.5)  # rate limit between pages (SB 403s at ~0.2s)
+            else:
+                event_ids = team_cache[gid]
+                logger.debug("  Using cached %s page: %s (%d events)",
+                             role, gid, len(event_ids))
+
+            if not event_ids:
+                continue
+
+            # Probe each event ID we haven't seen yet
+            for eid in event_ids:
+                if eid in event_cache:
+                    info = event_cache[eid]
+                else:
+                    try:
+                        info = client.get_event_info(eid)
+                        if info and info.get("sport") == "bsgame":
+                            event_cache[eid] = info
+                        else:
+                            event_cache[eid] = None
+                            info = None
+                    except Exception:
+                        event_cache[eid] = None
+                        info = None
+                    time.sleep(0.1)  # rate limit API probes
+
+                if not info or info.get("date") != date_str:
+                    continue
+
+                # Already registered?
+                existing = conn.execute(
+                    "SELECT 1 FROM statbroadcast_events WHERE sb_event_id = ?",
+                    (eid,)
+                ).fetchone()
+                if existing:
+                    continue
+
+                _upsert_sb_event(conn, {
+                    "sb_event_id": eid,
+                    "game_id": game_id,
+                    "home_team": unescape(info.get("home", "")),
+                    "visitor_team": unescape(info.get("visitor", "")),
+                    "home_team_id": home_id,
+                    "visitor_team_id": away_id,
+                    "game_date": date_str,
+                    "group_id": info.get("group_id", ""),
+                    "xml_file": info.get("xml_file", ""),
+                    "completed": 1 if info.get("completed") else 0,
+                })
+                found += 1
+                game_covered = True
+                logger.info("  Found SB event %s for %s via %s page (%s)",
+                            eid, game_id, role, gid)
+                break
+
+    conn.commit()
+    logger.info("Team page probes: %d pages fetched, %d events found", probed, found)
+    return found, probed
+
+
 def sb_coverage(conn, date_str):
     """Return (total_games, games_with_active_sb_event) for the date."""
     row = conn.execute("""
@@ -368,11 +600,15 @@ def run(date_str, verbose=False):
     with open(str(MAPPING)) as f:
         slug_map = json.load(f)
 
-    # Scrape D1B
-    d1b_games = scrape_d1b_games(date_str)
+    # Scrape D1B (non-fatal: if browser is unavailable, skip to team probes)
+    try:
+        d1b_games = scrape_d1b_games(date_str)
+    except Exception as e:
+        logger.warning("D1B scrape failed (non-fatal): %s", e)
+        d1b_games = []
+
     if not d1b_games:
-        print("No games found on D1B for {}".format(date_str))
-        return None
+        logger.info("No games from D1B for %s — falling through to team probes", date_str)
 
     # Process
     conn = sqlite3.connect(str(DB_PATH), timeout=30)
@@ -384,6 +620,11 @@ def run(date_str, verbose=False):
     sb_registered, sb_skipped = register_sb_events(d1b_games, date_str, slug_map, conn)
     stats["sb_registered"] = sb_registered
     stats["sb_skipped"] = sb_skipped
+
+    # Phase 5: Probe team SB pages for uncovered games
+    sb_found, sb_probed = probe_sb_team_pages(date_str, conn, slug_map)
+    stats["sb_team_probes"] = sb_probed
+    stats["sb_team_found"] = sb_found
 
     total_games, sb_count = sb_coverage(conn, date_str)
     conn.close()
@@ -416,7 +657,9 @@ def main():
     print("Times filled:        {}".format(stats["times_filled"]))
     print("Status updates:      {}".format(stats["status_updated"]))
     print("Score updates:       {}".format(stats["scores_updated"]))
-    print("SB events registered: {} new".format(stats["sb_registered"]))
+    print("SB from D1B links:   {} new".format(stats["sb_registered"]))
+    print("SB from team pages:  {} found ({} pages probed)".format(
+        stats.get("sb_team_found", 0), stats.get("sb_team_probes", 0)))
     print("SB coverage:         {}/{} games have active SB events".format(
         stats["sb_covered"], stats["sb_total"]))
 
