@@ -254,6 +254,193 @@
     </div>
 </div>
 
+<!-- Win Probability Chart -->
+{% if game.status in ('final', 'in-progress') %}
+<div class="card" id="wp-card" style="display:none;">
+    <div class="card-header">
+        <i class="bi bi-graph-up"></i> Win Probability
+    </div>
+    <div class="card-body">
+        <div style="position:relative; height:280px;">
+            <canvas id="wpChart"></canvas>
+        </div>
+        <div class="d-flex justify-content-between mt-2">
+            <small class="text-muted" id="wp-away-label"></small>
+            <small class="text-muted" id="wp-home-label"></small>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var gameId = {{ game.id|tojson }};
+    fetch('/api/win-probability/' + encodeURIComponent(gameId))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.timeline || data.timeline.length < 3) return;
+            document.getElementById('wp-card').style.display = '';
+
+            var homeName = data.home_team || 'Home';
+            var awayName = data.away_team || 'Away';
+            document.getElementById('wp-home-label').textContent = homeName;
+            document.getElementById('wp-away-label').textContent = awayName;
+
+            // Build labels and data points
+            var labels = [];
+            var homeWp = [];
+            var awayWp = [];
+            var scoreAnnotations = [];
+            var prevHome = 0, prevAway = 0;
+
+            data.timeline.forEach(function(pt, i) {
+                var lbl;
+                if (pt.inning === 0) {
+                    lbl = 'Pre';
+                } else if (pt.half === 'final') {
+                    lbl = 'F';
+                } else {
+                    lbl = (pt.half === 'top' ? '▲' : '▼') + pt.inning;
+                }
+                labels.push(lbl);
+                homeWp.push((pt.home_wp * 100).toFixed(1));
+                awayWp.push(((1 - pt.home_wp) * 100).toFixed(1));
+
+                // Detect score changes for annotations
+                if (pt.home_score !== prevHome && i > 0) {
+                    scoreAnnotations.push({
+                        type: 'point',
+                        xValue: i,
+                        yValue: pt.home_wp * 100,
+                        radius: 4,
+                        backgroundColor: '#60a5fa',
+                        borderColor: '#1e40af',
+                        borderWidth: 1
+                    });
+                }
+                if (pt.away_score !== prevAway && i > 0) {
+                    scoreAnnotations.push({
+                        type: 'point',
+                        xValue: i,
+                        yValue: pt.home_wp * 100,
+                        radius: 4,
+                        backgroundColor: '#f87171',
+                        borderColor: '#991b1b',
+                        borderWidth: 1
+                    });
+                }
+                prevHome = pt.home_score;
+                prevAway = pt.away_score;
+            });
+
+            // Downsample if too many points (keep first, last, and every Nth)
+            if (labels.length > 120) {
+                var step = Math.ceil(labels.length / 80);
+                var nl = [], nh = [], na = [];
+                for (var i = 0; i < labels.length; i++) {
+                    if (i === 0 || i === labels.length - 1 || i % step === 0) {
+                        nl.push(labels[i]);
+                        nh.push(homeWp[i]);
+                        na.push(awayWp[i]);
+                    }
+                }
+                labels = nl; homeWp = nh; awayWp = na;
+                scoreAnnotations = []; // too complex to remap
+            }
+
+            var ctx = document.getElementById('wpChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: homeName + ' Win %',
+                        data: homeWp,
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'rgba(96,165,250,0.15)',
+                        fill: { target: {value: 50}, above: 'rgba(96,165,250,0.15)', below: 'transparent' },
+                        tension: 0.3,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }, {
+                        label: awayName + ' Win %',
+                        data: awayWp,
+                        borderColor: '#f87171',
+                        backgroundColor: 'rgba(248,113,113,0.15)',
+                        fill: { target: {value: 50}, above: 'rgba(248,113,113,0.15)', below: 'transparent' },
+                        tension: 0.3,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        y: {
+                            min: 0, max: 100,
+                            grid: { color: 'rgba(255,255,255,0.06)' },
+                            ticks: {
+                                callback: function(v) { return v + '%'; },
+                                color: '#94a3b8',
+                                stepSize: 25
+                            }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.06)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 18
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: Object.assign({
+                                line50: {
+                                    type: 'line',
+                                    yMin: 50, yMax: 50,
+                                    borderColor: 'rgba(255,255,255,0.2)',
+                                    borderWidth: 1,
+                                    borderDash: [4, 4]
+                                }
+                            }, scoreAnnotations.reduce(function(acc, a, i) {
+                                acc['score' + i] = a;
+                                return acc;
+                            }, {}))
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    return ctx.dataset.label + ': ' + ctx.parsed.y + '%';
+                                },
+                                afterBody: function(items) {
+                                    var idx = items[0].dataIndex;
+                                    // Find original timeline point for score
+                                    if (data.timeline[idx]) {
+                                        var pt = data.timeline[idx];
+                                        return 'Score: ' + awayName + ' ' + pt.away_score + ' - ' + homeName + ' ' + pt.home_score;
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(function(err) {
+            console.log('WP chart unavailable:', err);
+        });
+})();
+</script>
+{% endif %}
+
 {% if series_probs %}
 <!-- Series Outlook -->
 <div class="card">

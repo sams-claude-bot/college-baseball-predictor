@@ -691,3 +691,12 @@ def elo_card_image():
     
     return send_file(buf, mimetype='image/png', download_name='elo-top-25.png',
                      as_attachment=request.args.get('download', '0') == '1')
+
+
+@api_bp.route('/api/win-probability/<game_id>')
+def win_probability(game_id):
+    """Return win probability timeline for a game with live event data."""
+    from models.win_probability import WinProbabilityModel
+    wp = WinProbabilityModel()
+    result = wp.game_wp_timeline(game_id)
+    return jsonify(result)
