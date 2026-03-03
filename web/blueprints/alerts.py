@@ -11,17 +11,11 @@ from scripts.notifications import (
 alerts_bp = Blueprint('alerts', __name__)
 
 
-@alerts_bp.before_app_first_request
-def _init_tables():
-    conn = get_connection()
-    ensure_tables(conn)
-    conn.close()
-
-
 @alerts_bp.route('/alerts')
 def alerts_page():
     """Alert subscription page."""
     conn = get_connection()
+    ensure_tables(conn)
 
     # Get all teams grouped by conference for the picker
     teams = conn.execute("""
