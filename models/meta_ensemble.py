@@ -18,8 +18,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 BASE_DIR = Path(__file__).parent.parent
 MODEL_PATH = BASE_DIR / "data" / "meta_ensemble_xgb.pkl"
 
+# Note: 'neural' (full NN, 81 features) removed — deprecated Mar 3 2026.
+# nn_slim v4 contributes through the ensemble model.
 MODEL_NAMES = [
-    'prior', 'neural', 'elo', 'ensemble', 'pythagorean', 'lightgbm',
+    'prior', 'elo', 'ensemble', 'pythagorean', 'lightgbm',
     'poisson', 'conference', 'xgboost', 'advanced', 'log5', 'pitching',
     'pear', 'quality'
 ]
@@ -49,7 +51,6 @@ class MetaEnsemble:
             g.date,
             g.home_team_id, g.away_team_id,
             MAX(CASE WHEN mp.model_name='prior' THEN mp.predicted_home_prob END) as prior_prob,
-            MAX(CASE WHEN mp.model_name='neural' THEN mp.predicted_home_prob END) as neural_prob,
             MAX(CASE WHEN mp.model_name='elo' THEN mp.predicted_home_prob END) as elo_prob,
             MAX(CASE WHEN mp.model_name='ensemble' THEN mp.predicted_home_prob END) as ensemble_prob,
             MAX(CASE WHEN mp.model_name='pythagorean' THEN mp.predicted_home_prob END) as pythagorean_prob,

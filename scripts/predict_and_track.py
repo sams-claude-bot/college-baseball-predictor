@@ -25,7 +25,9 @@ from models.nn_totals_slim import SlimTotalsModel
 from scripts.database import get_connection
 from scripts.run_utils import ScriptRunner
 
-MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm', 'pear', 'quality', 'ensemble', 'meta_ensemble']
+# Note: 'neural' (full NN, 81 features) removed — deprecated, stale since Feb 18.
+# nn_slim v4 runs through the ensemble model; meta_ensemble covers its signal.
+MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'xgboost', 'lightgbm', 'pear', 'quality', 'ensemble', 'meta_ensemble']
 
 
 def _load_calibration_params(cur):

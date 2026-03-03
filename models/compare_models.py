@@ -20,7 +20,8 @@ from models.pitching_model import PitchingModel
 from models.conference_model import ConferenceModel
 from models.prior_model import PriorModel
 from models.ensemble_model import EnsembleModel, PoissonModelWrapper
-from models.neural_model import NeuralModel
+# Deprecated: full neural model (81 features, stale since Feb 18) — replaced by nn_slim v4
+# from models.neural_model import NeuralModel
 # Deprecated: nn_totals, nn_spread, nn_dow_totals — trained on historical data we no longer have
 # from models.nn_totals_model import NNTotalsModel
 # from models.nn_spread_model import NNSpreadModel
@@ -43,7 +44,7 @@ MODELS = {
     "conference": ConferenceModel(),
     "prior": PriorModel(),
     "poisson": PoissonModelWrapper(),
-    "neural": NeuralModel(use_model_predictions=False),
+    # Deprecated: full neural (81 features) replaced by nn_slim v4 (83 features)
     # Deprecated: nn_totals, nn_spread, nn_dow_totals removed (no historical data to retrain)
     "xgboost": XGBMoneylineModel(use_model_predictions=False),
     "xgb_totals": XGBTotalsModel(use_model_predictions=False),

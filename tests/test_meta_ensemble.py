@@ -18,7 +18,7 @@ class TestMetaEnsemble:
     def test_feature_names_count(self):
         """Feature extraction produces correct number of columns."""
         meta = MetaEnsemble()
-        # 14 model probs + 3 agreement + 7 context = 24 features
+        # 13 model probs + 3 agreement + 7 context = 23 features
         expected = len(MODEL_NAMES) + 3 + 7
         # Simulate building features
         meta.feature_names = []
@@ -35,7 +35,7 @@ class TestMetaEnsemble:
         meta = MetaEnsemble()
         columns = [
             'game_id', 'date', 'home_team_id', 'away_team_id',
-            'prior_prob', 'neural_prob', 'elo_prob', 'ensemble_prob',
+            'prior_prob', 'elo_prob', 'ensemble_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
             'pear_prob', 'quality_prob',
@@ -43,13 +43,13 @@ class TestMetaEnsemble:
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        n_models = len(MODEL_NAMES)  # 14
-        n_features = n_models + 3 + 7  # 24
+        n_models = len(MODEL_NAMES)  # 13
+        n_features = n_models + 3 + 7  # 23
         # Create 5 fake rows
         rows = []
         for i in range(5):
             row = [f'game_{i}', '2026-02-20', 'team-a', 'team-b']
-            row += [0.6] * n_models  # 14 model probs
+            row += [0.6] * n_models  # 13 model probs
             row += [1, 1520, 1480, 'SEC', 'SEC', 5, None]
             row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
             rows.append(tuple(row))
@@ -82,8 +82,8 @@ class TestMetaEnsemble:
         assert '2026-02-19' in train_dates
 
     def test_model_names_complete(self):
-        """All 14 expected models are listed."""
-        expected = {'prior', 'neural', 'elo', 'ensemble', 'pythagorean', 
+        """All 13 expected models are listed (neural deprecated)."""
+        expected = {'prior', 'elo', 'ensemble', 'pythagorean', 
                     'lightgbm', 'poisson', 'conference', 'xgboost', 
                     'advanced', 'log5', 'pitching', 'pear', 'quality'}
         assert set(MODEL_NAMES) == expected
@@ -94,7 +94,7 @@ class TestMetaEnsemble:
         meta = MetaEnsemble()
         columns = [
             'game_id', 'date', 'home_team_id', 'away_team_id',
-            'prior_prob', 'neural_prob', 'elo_prob', 'ensemble_prob',
+            'prior_prob', 'elo_prob', 'ensemble_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
             'pear_prob', 'quality_prob',
@@ -102,20 +102,19 @@ class TestMetaEnsemble:
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        # Row with None for some probs
+        # Row with None for some probs (prior=0.7, elo=None, ensemble=0.6, ...)
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
-        row += [0.7, None, 0.6, None, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None]
+        row += [0.7, None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
         row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
         rows = [tuple(row)]
 
         X, y, dates, names = meta._build_features(rows, columns)
-        # neural_prob (index 1) and ensemble_prob (index 3) should be 0.5
-        assert X[0, 1] == 0.5   # neural defaulted
-        assert X[0, 3] == 0.5   # ensemble defaulted
+        # elo_prob (index 1) should be 0.5 (defaulted from None)
+        assert X[0, 1] == 0.5   # elo defaulted
         assert X[0, 0] == 0.7   # prior kept
-        assert X[0, 12] == 0.8  # pear kept
-        assert X[0, 13] == 0.5  # quality defaulted
+        assert X[0, 11] == 0.8  # pear kept
+        assert X[0, 12] == 0.5  # quality defaulted
 
     def test_get_feature_importance_no_model(self):
         """get_feature_importance returns empty dict when no model trained."""
