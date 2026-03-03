@@ -167,6 +167,7 @@
                     <!-- Away team -->
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="d-flex align-items-center">
+                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.away_team_id, 'primary') }};"></span>
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
@@ -187,6 +188,7 @@
                     <!-- Home team -->
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
+                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.home_team_id, 'primary') }};"></span>
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
@@ -319,6 +321,7 @@
                     <!-- Away team -->
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="d-flex align-items-center">
+                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.away_team_id, 'primary') }};"></span>
                             {% if game.away_logo %}<img src="{{ game.away_logo }}" alt="" width="20" height="20" class="me-1">{% endif %}
                             <span class="{% if game.away_rank %}fw-bold{% endif %}">
                                 {% if game.away_rank %}<small class="text-muted">{{ game.away_rank }}</small> {% endif %}
@@ -336,6 +339,7 @@
                     <!-- Home team -->
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
+                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.home_team_id, 'primary') }};"></span>
                             {% if game.home_logo %}<img src="{{ game.home_logo }}" alt="" width="20" height="20" class="me-1">{% endif %}
                             <span class="{% if game.home_rank %}fw-bold{% endif %}">
                                 {% if game.home_rank %}<small class="text-muted">{{ game.home_rank }}</small> {% endif %}
@@ -435,6 +439,7 @@
                                 <!-- Away team -->
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <div class="d-flex align-items-center">
+                                        <span class="team-color-dot me-1" style="background-color:{{ team_color(game.away_team_id, 'primary') }};"></span>
                                         {% if game.away_rank %}
                                         <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                                         {% endif %}
@@ -451,6 +456,7 @@
                                 <!-- Home team -->
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div class="d-flex align-items-center">
+                                        <span class="team-color-dot me-1" style="background-color:{{ team_color(game.home_team_id, 'primary') }};"></span>
                                         {% if game.home_rank %}
                                         <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                                         {% endif %}
@@ -562,6 +568,7 @@
                     <!-- Away team -->
                     <div class="d-flex justify-content-between align-items-center mb-1 {% if game.winner_id == game.away_team_id %}fw-bold{% endif %}">
                         <div class="d-flex align-items-center">
+                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.away_team_id, 'primary') }};"></span>
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
@@ -578,6 +585,7 @@
                     <!-- Home team -->
                     <div class="d-flex justify-content-between align-items-center {% if game.winner_id == game.home_team_id %}fw-bold{% endif %}">
                         <div class="d-flex align-items-center">
+                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.home_team_id, 'primary') }};"></span>
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
@@ -697,6 +705,13 @@
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+}
+.team-color-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
 </style>
 {% endblock %}

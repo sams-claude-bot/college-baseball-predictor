@@ -71,15 +71,44 @@ def create_app():
 
 def register_filters(app):
     """Register Jinja2 template filters."""
+    
+    # Cache for team colors (populated on first use)
+    _team_colors_cache = {}
+    
+    def _load_team_colors():
+        """Load all team colors from DB into cache."""
+        if _team_colors_cache:
+            return
+        try:
+            from database import get_connection
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, primary_color, secondary_color FROM teams WHERE primary_color IS NOT NULL')
+            for row in cursor.fetchall():
+                _team_colors_cache[row['id']] = {
+                    'primary': row['primary_color'],
+                    'secondary': row['secondary_color']
+                }
+            conn.close()
+        except Exception:
+            pass
 
-    # Template global for team logos
+    # Template global for team logos and colors
     @app.context_processor
-    def inject_team_logo():
+    def inject_team_helpers():
         def team_logo(team_id):
             if team_id:
                 return f'/static/logos/{team_id}.png'
             return ''
-        return dict(team_logo=team_logo)
+        
+        def team_color(team_id, which='primary'):
+            """Get team color by ID. Returns hex color or default."""
+            _load_team_colors()
+            if team_id in _team_colors_cache:
+                return _team_colors_cache[team_id].get(which, '#5E6A71')
+            return '#5E6A71'  # Default gray
+        
+        return dict(team_logo=team_logo, team_color=team_color)
 
     @app.template_filter('format_odds')
     def format_odds(value):

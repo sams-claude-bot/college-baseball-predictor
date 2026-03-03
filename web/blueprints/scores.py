@@ -280,6 +280,8 @@ def game_detail(game_id):
         SELECT g.*, ht.name as home_name, at.name as away_name,
                ht.current_rank as home_rank, at.current_rank as away_rank,
                ht.conference as home_conf, at.conference as away_conf,
+               ht.primary_color as home_primary_color, ht.secondary_color as home_secondary_color,
+               at.primary_color as away_primary_color, at.secondary_color as away_secondary_color,
                he.rating as home_elo, ae.rating as away_elo
         FROM games g
         LEFT JOIN teams ht ON g.home_team_id = ht.id
@@ -336,9 +338,13 @@ def game_detail(game_id):
     away_record = get_team_record(away_id)
 
     home = {'id': home_id, 'name': game['home_name'], 'rank': game['home_rank'],
-            'elo': game['home_elo'] or 1500, 'record': f"{home_record['wins']}-{home_record['losses']}"}
+            'elo': game['home_elo'] or 1500, 'record': f"{home_record['wins']}-{home_record['losses']}",
+            'primary_color': game['home_primary_color'] or '#60a5fa',
+            'secondary_color': game['home_secondary_color'] or '#FFFFFF'}
     away = {'id': away_id, 'name': game['away_name'], 'rank': game['away_rank'],
-            'elo': game['away_elo'] or 1500, 'record': f"{away_record['wins']}-{away_record['losses']}"}
+            'elo': game['away_elo'] or 1500, 'record': f"{away_record['wins']}-{away_record['losses']}",
+            'primary_color': game['away_primary_color'] or '#f87171',
+            'secondary_color': game['away_secondary_color'] or '#FFFFFF'}
 
     # Predictions from stored model_predictions (no live model execution)
     prediction = None
