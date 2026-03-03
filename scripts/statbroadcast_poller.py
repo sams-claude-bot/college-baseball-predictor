@@ -613,6 +613,24 @@ class StatBroadcastPoller:
                 elif int(visitor_score) > int(home_score):
                     winner_id = away_tid
 
+            # Get hits/errors from the last known situation
+            sit_row = self.conn.execute(
+                "SELECT situation_json FROM games WHERE id = ?", (game_id,)
+            ).fetchone()
+            h_hits = a_hits = h_err = a_err = None
+            if sit_row:
+                sit_json = sit_row[0] if isinstance(sit_row, tuple) else sit_row['situation_json']
+                if sit_json:
+                    import json as _json
+                    try:
+                        sit = _json.loads(sit_json)
+                        h_hits = sit.get('sb_home_hits')
+                        a_hits = sit.get('sb_away_hits')
+                        h_err = sit.get('sb_home_errors')
+                        a_err = sit.get('sb_away_errors')
+                    except Exception:
+                        pass
+
             self.conn.execute("""
                 UPDATE games
                 SET home_score = ?, away_score = ?,
@@ -620,10 +638,15 @@ class StatBroadcastPoller:
                     innings = ?,
                     status = 'final',
                     winner_id = COALESCE(?, winner_id),
+                    home_hits = COALESCE(?, home_hits),
+                    away_hits = COALESCE(?, away_hits),
+                    home_errors = COALESCE(?, home_errors),
+                    away_errors = COALESCE(?, away_errors),
                     updated_at = ?
                 WHERE id = ?
             """, (home_score, visitor_score, inning_display,
                   final_innings, winner_id,
+                  h_hits, a_hits, h_err, a_err,
                   datetime.utcnow().isoformat(), game_id))
             self.conn.commit()
             logger.info("Finalized game %s: %s-%s, winner=%s, innings=%s",
@@ -690,14 +713,26 @@ class StatBroadcastPoller:
         inning_display = situation.get('inning_display', '')
 
         if home_score is not None and visitor_score is not None:
+            # Also propagate hits/errors from SB situation to games table
+            # SB uses 'visitor_*' naming, games table uses 'away_*'
+            home_hits = situation.get('home_hits')
+            away_hits = situation.get('visitor_hits')
+            home_errors = situation.get('home_errors')
+            away_errors = situation.get('visitor_errors')
+
             self.conn.execute("""
                 UPDATE games
                 SET home_score = ?, away_score = ?,
                     inning_text = COALESCE(?, inning_text),
+                    home_hits = COALESCE(?, home_hits),
+                    away_hits = COALESCE(?, away_hits),
+                    home_errors = COALESCE(?, home_errors),
+                    away_errors = COALESCE(?, away_errors),
                     status = 'in-progress',
                     updated_at = ?
                 WHERE id = ?
             """, (home_score, visitor_score, inning_display,
+                  home_hits, away_hits, home_errors, away_errors,
                   datetime.utcnow().isoformat(), game_id))
             self.conn.commit()
 
