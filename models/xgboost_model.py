@@ -31,6 +31,7 @@ except ImportError:
 
 from models.base_model import BaseModel
 from models.nn_features import FeatureComputer
+from models.features_pitching import PitchingFeatureComputer
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 MONEYLINE_PATH = DATA_DIR / "xgb_moneyline.pkl"
@@ -46,9 +47,7 @@ class XGBMoneylineModel(BaseModel):
     description = "XGBoost gradient boosting for moneyline predictions"
 
     def __init__(self, use_model_predictions=False):
-        self.feature_computer = FeatureComputer(
-            use_model_predictions=use_model_predictions
-        )
+        self.feature_computer = PitchingFeatureComputer()
         self.model = None
         self.feature_mean = None
         self.feature_std = None

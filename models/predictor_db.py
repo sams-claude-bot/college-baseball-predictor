@@ -42,6 +42,9 @@ from models.xgboost_model import XGBMoneylineModel
 from models.lightgbm_model import LGBMoneylineModel
 from models.pear_model import PearModel
 from models.quality_model import QualityModel
+from models.venue_model import VenueModel
+from models.rest_travel_model import RestTravelModel
+from models.upset_model import UpsetModel
 
 
 class TeamStats:
@@ -122,6 +125,9 @@ class Predictor:
         'lightgbm': LGBMoneylineModel,
         'pear': PearModel,
         'quality': QualityModel,
+        'venue': VenueModel,
+        'rest_travel': RestTravelModel,
+        'upset': UpsetModel,
         'ensemble': EnsembleModel,
         'neural': None  # Lazy-loaded due to PyTorch dependency
     }

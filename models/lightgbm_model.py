@@ -32,6 +32,7 @@ except ImportError:
 
 from models.base_model import BaseModel
 from models.nn_features import FeatureComputer
+from models.features_batting import BattingFeatureComputer
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 MONEYLINE_PATH = DATA_DIR / "lgb_moneyline.pkl"
@@ -47,9 +48,7 @@ class LGBMoneylineModel(BaseModel):
     description = "LightGBM gradient boosting for moneyline predictions"
 
     def __init__(self, use_model_predictions=False):
-        self.feature_computer = FeatureComputer(
-            use_model_predictions=use_model_predictions
-        )
+        self.feature_computer = BattingFeatureComputer()
         self.model = None
         self.feature_mean = None
         self.feature_std = None
