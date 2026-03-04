@@ -22,7 +22,7 @@
         }
     })();
     </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <title>{% block title %}Dinger{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
@@ -583,7 +583,7 @@
         .more-menu { display: none; position: fixed; z-index: 1042; }
 
         @media (max-width: 991.98px) {
-            /* Bottom tab bar */
+            /* Bottom tab bar — use sticky to flow with Chrome's dynamic toolbar */
             .bottom-nav {
                 display: flex;
                 position: fixed;
@@ -596,6 +596,8 @@
                 padding-bottom: env(safe-area-inset-bottom, 0px);
                 justify-content: space-around;
                 align-items: stretch;
+                /* GPU layer for smooth Chrome toolbar transitions */
+                will-change: transform;
             }
             .bottom-nav-item {
                 display: flex;
@@ -646,9 +648,9 @@
 
             /* Content clearance — generous to prevent nav overlap */
             body {
-                padding-bottom: 72px;
-                padding-bottom: calc(72px + constant(safe-area-inset-bottom));
-                padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+                padding-bottom: 80px;
+                padding-bottom: calc(80px + constant(safe-area-inset-bottom));
+                padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
             }
 
             /* Footer hidden in mobile PWA */
@@ -1147,6 +1149,35 @@
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function() {});
     }
+
+    // Pin bottom nav to visual viewport (handles Chrome URL bar resize smoothly)
+    (function() {
+        var nav = document.getElementById('bottomNav');
+        if (!nav || !window.visualViewport) return;
+        
+        var ticking = false;
+        function updateNav() {
+            ticking = false;
+            var vv = window.visualViewport;
+            // Offset = difference between layout viewport and visual viewport
+            var offset = window.innerHeight - (vv.height + vv.offsetTop);
+            if (Math.abs(offset) > 1) {
+                nav.style.transform = 'translateY(' + (-offset) + 'px)';
+            } else {
+                nav.style.transform = '';
+            }
+        }
+        
+        function onResize() {
+            if (!ticking) {
+                ticking = true;
+                requestAnimationFrame(updateNav);
+            }
+        }
+        
+        window.visualViewport.addEventListener('resize', onResize);
+        window.visualViewport.addEventListener('scroll', onResize);
+    })();
 
     // Haptic feedback on mobile nav taps
     document.querySelectorAll('.bottom-nav-item, .more-menu-item, .more-menu-btn').forEach(function(el) {
