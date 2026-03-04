@@ -412,6 +412,7 @@ class StatBroadcastPoller:
             self._update_situation(game_id, situation)
             self._insert_live_event(game_id, situation)
             self._update_scores(game_id, situation)
+            self._check_notifications(game_id, situation)
 
         logger.info(
             "Updated game %s from SB %s: %s %s-%s %s (%s, %s outs)",
@@ -889,7 +890,7 @@ class StatBroadcastPoller:
                                 'tag': f"upset-{game_id}",
                                 'game_id': game_id,
                             },
-                            dedup_key=f"upset:{game_id}:{inning}",
+                            dedup_key=f"upset:{game_id}",
                             conn=self.conn,
                         )
                 except Exception as e:

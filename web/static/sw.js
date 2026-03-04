@@ -1,14 +1,41 @@
 // Service Worker for College Baseball Predictor PWA
-const CACHE_NAME = 'baseball-v1';
+const CACHE_NAME = 'baseball-v2';
+const OFFLINE_URL = '/static/offline.html';
 
-// Install — cache essential assets
+// Install — cache offline page and essential assets
 self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll([
+        OFFLINE_URL,
+        '/static/icons/icon-192.png',
+        '/static/icons/icon-512.png'
+      ]);
+    })
+  );
   self.skipWaiting();
 });
 
 // Activate — clean old caches
 self.addEventListener('activate', event => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      );
+    }).then(() => clients.claim())
+  );
+});
+
+// Fetch — network first, offline fallback for navigation requests
+self.addEventListener('fetch', event => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        return caches.match(OFFLINE_URL);
+      })
+    );
+  }
 });
 
 // Push notification handler
@@ -32,7 +59,6 @@ self.addEventListener('push', event => {
     data: {
       url: data.url || '/'
     },
-    // Vibrate pattern: short-long-short
     vibrate: [100, 200, 100]
   };
 
@@ -50,14 +76,12 @@ self.addEventListener('notificationclick', event => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clientList => {
-        // Focus existing window if possible
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
             client.navigate(url);
             return client.focus();
           }
         }
-        // Otherwise open a new window
         return clients.openWindow(url);
       })
   );

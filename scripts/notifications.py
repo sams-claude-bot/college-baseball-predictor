@@ -19,6 +19,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from py_vapid import Vapid
 from pywebpush import webpush, WebPushException
 
 logger = logging.getLogger('notifications')
@@ -209,10 +210,12 @@ def send_push(endpoint, keys, payload, conn=None):
             "endpoint": endpoint,
             "keys": keys
         }
+        # Build Vapid instance from PEM (from_string expects raw b64, not PEM)
+        vv = Vapid.from_pem(vapid['private_pem'].encode())
         webpush(
             subscription_info=subscription_info,
             data=json.dumps(payload),
-            vapid_private_key=vapid['private_pem'],
+            vapid_private_key=vv,
             vapid_claims={"sub": vapid['contact']}
         )
         return True
