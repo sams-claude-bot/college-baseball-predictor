@@ -16,6 +16,7 @@
             var s=document.documentElement.style;
             s.setProperty('--team-c1',tc.c1);
             s.setProperty('--team-c2',tc.c2||'#777');
+            s.setProperty('--team-accent',tc.c2||tc.c1);
             s.setProperty('--maroon',t==='dark'?tc.c1:tc.c1);
             s.setProperty('--maroon-dark',tc.c1);
         }
@@ -43,6 +44,7 @@
         :root {
             --maroon: #5D1725;
             --maroon-dark: #4a1120;
+            --team-accent: #5D1725;
             --grey: #777777;
             --dark: #1a1a1a;
             --light-grey: #e9ecef;
@@ -470,78 +472,11 @@
             }
         }
         
-        /* Auburn theme */
-        [data-team="auburn"] {
-            --maroon: #0C2340;
-            --maroon-dark: #091a2e;
-        }
-        [data-team="auburn"] .bg-maroon,
-        [data-team="auburn"] .card-header.bg-maroon {
-            background-color: #0C2340 !important;
-        }
-        [data-team="auburn"] .btn-maroon {
-            background-color: #0C2340; border-color: #0C2340;
-        }
-        [data-team="auburn"] .btn-maroon:hover {
-            background-color: #091a2e; border-color: #091a2e;
-        }
-        [data-team="auburn"] .navbar .nav-link:hover,
-        [data-team="auburn"] .navbar .nav-link.active {
-            background-color: #DD550C;
-        }
-        [data-team="auburn"] .stat-card .stat-value { color: #0C2340; }
-        [data-team="auburn"] .card-header { border-bottom-color: #DD550C; }
-        [data-team="auburn"] .table thead th { border-bottom-color: #DD550C; }
-        [data-team="auburn"] .badge.bg-maroon { background-color: #DD550C !important; }
-        [data-team="auburn"] a.team-link:hover { color: #DD550C; }
-        [data-team="auburn"] .progress-bar { background-color: #0C2340; }
-        [data-team="auburn"] .navbar-brand .icon { color: #DD550C; }
-        [data-team="auburn"] .card .nav-link.active {
-            background-color: #0C2340 !important; border-color: #0C2340;
-        }
-        /* Auburn dark mode combo */
-        [data-team="auburn"][data-theme="dark"] {
-            --maroon: #DD550C;
-            --maroon-dark: #c44a0a;
-            --bg-body: #0f1520;
-            --bg-card: #162033;
-            --bg-card-header: #162033;
-            --light-grey: #1e2d45;
-            --border-color: #2a3f5f;
-        }
-        [data-team="auburn"][data-theme="dark"] .bg-maroon,
-        [data-team="auburn"][data-theme="dark"] .card-header.bg-maroon {
-            background-color: #1a3158 !important;
-            border-bottom: 2px solid #DD550C;
-        }
-        [data-team="auburn"][data-theme="dark"] .stat-card .stat-value { color: #DD550C; }
-        [data-team="auburn"][data-theme="dark"] .btn-maroon {
-            background-color: #DD550C; border-color: #DD550C; color: white;
-        }
-        [data-team="auburn"][data-theme="dark"] .btn-maroon:hover {
-            background-color: #c44a0a; border-color: #c44a0a;
-        }
-        [data-team="auburn"][data-theme="dark"] .card-header { border-bottom-color: #DD550C; }
-        [data-team="auburn"][data-theme="dark"] .table thead th { 
-            border-bottom-color: #DD550C; background-color: #1e2d45;
-        }
-        [data-team="auburn"][data-theme="dark"] .badge.bg-maroon { background-color: #DD550C !important; }
-        [data-team="auburn"][data-theme="dark"] a.team-link:hover { color: #DD550C; }
-        [data-team="auburn"][data-theme="dark"] .navbar-brand .icon { color: #DD550C; }
-        [data-team="auburn"][data-theme="dark"] .navbar .nav-link:hover,
-        [data-team="auburn"][data-theme="dark"] .navbar .nav-link.active {
-            background-color: #DD550C;
-        }
-        [data-team="auburn"][data-theme="dark"] .progress-bar { background-color: #DD550C; }
-        [data-team="auburn"][data-theme="dark"] .card .nav-link.active {
-            background-color: #DD550C !important; border-color: #DD550C;
-        }
-        
-        /* MSU dark mode improvements */
-        [data-team="mississippi-state"][data-theme="dark"] .stat-card .stat-value,
-        [data-theme="dark"] .stat-card .stat-value { color: #c46475; }
+        /* Dynamic team accent color (secondary color from team picker) */
+        .navbar-brand .icon { color: var(--team-accent); }
+        [data-theme="dark"] .stat-card .stat-value { color: var(--team-accent); }
         [data-theme="dark"] .card-header.bg-maroon {
-            border-bottom: 2px solid rgba(255,255,255,0.1);
+            border-bottom: 2px solid var(--team-accent);
         }
         
         /* Team toggle button */
@@ -551,8 +486,6 @@
             font-weight: 600; letter-spacing: 0.5px; transition: all 0.2s;
         }
         .team-toggle:hover { border-color: rgba(255,255,255,0.7); color: white; }
-        [data-team="auburn"] .team-toggle { border-color: #DD550C; color: #DD550C; }
-        [data-team="auburn"] .team-toggle:hover { background-color: #DD550C; color: white; }
         
         @media (max-width: 576px) {
             /* Layout compacting — phone only */
@@ -810,6 +743,10 @@
             @keyframes pageIn {
                 from { opacity: 0; transform: translateY(6px); }
                 to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes slideUp {
+                from { opacity: 0; transform: translate(-50%, 20px); }
+                to { opacity: 1; transform: translate(-50%, 0); }
             }
         }
 
@@ -1308,6 +1245,8 @@
         var s = document.documentElement.style;
         if (c1) {
             s.setProperty('--team-c1', c1);
+            s.setProperty('--team-c2', c2 || '#777');
+            s.setProperty('--team-accent', c2 || c1);
             s.setProperty('--maroon', c1);
             s.setProperty('--maroon-dark', c1);
         }
@@ -1326,6 +1265,29 @@
             label.textContent = pretty;
         } else if (label) {
             label.textContent = 'Pick Team';
+        }
+    })();
+
+    // First-visit team picker prompt
+    (function() {
+        if (!localStorage.getItem('featured_team') && !localStorage.getItem('team_picker_dismissed')) {
+            // Show welcome banner after a short delay
+            var banner = document.createElement('div');
+            banner.id = 'welcomeTeamBanner';
+            banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:1060;' +
+                'background:linear-gradient(135deg,#1e293b,#0f172a);color:white;padding:16px 20px;border-radius:16px;' +
+                'box-shadow:0 8px 32px rgba(0,0,0,0.4);max-width:340px;width:90%;text-align:center;' +
+                'border:1px solid rgba(255,255,255,0.1);animation:slideUp 0.3s ease-out;';
+            banner.innerHTML = '<div style="font-size:1.5em;margin-bottom:6px;">⚾</div>' +
+                '<div style="font-weight:700;font-size:1.05rem;margin-bottom:4px;">Welcome to Dinger!</div>' +
+                '<div style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Pick your team to customize scores, colors, and alerts.</div>' +
+                '<div style="display:flex;gap:8px;justify-content:center;">' +
+                '<button onclick="document.getElementById(\'welcomeTeamBanner\').remove();openTeamPicker();" ' +
+                'style="background:var(--maroon);color:white;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:pointer;">Pick My Team</button>' +
+                '<button onclick="localStorage.setItem(\'team_picker_dismissed\',\'1\');document.getElementById(\'welcomeTeamBanner\').remove();" ' +
+                'style="background:transparent;color:#94a3b8;border:1px solid rgba(255,255,255,0.2);padding:8px 14px;border-radius:8px;font-size:0.85rem;cursor:pointer;">Later</button>' +
+                '</div>';
+            setTimeout(function() { document.body.appendChild(banner); }, 1000);
         }
     })();
 
