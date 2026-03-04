@@ -746,9 +746,123 @@ class StatBroadcastPoller:
                   datetime.utcnow().isoformat(), game_id))
             self.conn.commit()
 
+    # ------------------------------------------------------------------
+    # Staleness Detection
+    # ------------------------------------------------------------------
+
+    def _check_stale_games(self):
+        """Detect in-progress games that stopped updating — likely canceled/postponed.
+
+        Checks every ~5 min. If a game has been 'in-progress' but not updated
+        in 30+ minutes:
+        1. Cross-check ESPN API for postponed/canceled status
+        2. If ESPN confirms postponement → update status
+        3. If no ESPN data but stale 45+ min in early innings with 0-0 → mark canceled
+        """
+        try:
+            rows = self.conn.execute("""
+                SELECT id, home_team_id, away_team_id, home_score, away_score,
+                       inning_text, updated_at, date
+                FROM games
+                WHERE status = 'in-progress'
+                  AND updated_at < datetime('now', '-30 minutes')
+            """).fetchall()
+
+            if not rows:
+                return
+
+            # Fetch ESPN scores for today to cross-reference
+            from espn_live_scores import fetch_espn_scores, build_espn_id_mapping, espn_status_to_db
+            today = datetime.now().strftime('%Y-%m-%d')
+            espn_data = fetch_espn_scores(today)
+
+            # Build ESPN game lookup by team ids
+            espn_statuses = {}
+            if espn_data and 'events' in espn_data:
+                for event in espn_data['events']:
+                    status_type = event.get('status', {}).get('type', {})
+                    comps = event.get('competitions', [{}])[0]
+                    teams = comps.get('competitors', [])
+                    if len(teams) == 2:
+                        team_ids = set()
+                        for t in teams:
+                            slug = t.get('team', {}).get('slug', '')
+                            if slug:
+                                team_ids.add(slug)
+                        espn_statuses[frozenset(team_ids)] = status_type
+
+            for row in rows:
+                game_id = row[0] if isinstance(row, tuple) else row['id']
+                home_id = row[1] if isinstance(row, tuple) else row['home_team_id']
+                away_id = row[2] if isinstance(row, tuple) else row['away_team_id']
+                home_score = row[3] if isinstance(row, tuple) else row['home_score']
+                away_score = row[4] if isinstance(row, tuple) else row['away_score']
+                inning = row[5] if isinstance(row, tuple) else row['inning_text']
+                updated = row[6] if isinstance(row, tuple) else row['updated_at']
+
+                # Check ESPN for this matchup
+                team_key = frozenset({home_id, away_id})
+                espn_status = espn_statuses.get(team_key)
+
+                new_status = None
+                if espn_status:
+                    db_status = espn_status_to_db(espn_status)
+                    if db_status in ('postponed', 'canceled'):
+                        new_status = db_status
+                        logger.info(
+                            "Stale game %s: ESPN says %s — updating",
+                            game_id, db_status
+                        )
+
+                # No ESPN match — if very stale + early innings + scoreless, assume canceled
+                if not new_status and not espn_status:
+                    is_early = inning and ('1st' in str(inning) or '2nd' in str(inning))
+                    is_scoreless = (home_score or 0) == 0 and (away_score or 0) == 0
+                    # Check if updated_at is >45 minutes old
+                    try:
+                        from datetime import datetime as dt2
+                        updated_dt = dt2.fromisoformat(updated.replace('Z', '+00:00'))
+                        age_min = (dt2.utcnow() - updated_dt.replace(tzinfo=None)).total_seconds() / 60
+                    except Exception:
+                        age_min = 999
+
+                    if is_early and is_scoreless and age_min > 45:
+                        new_status = 'canceled'
+                        logger.info(
+                            "Stale game %s: no ESPN data, %s 0-0, %.0f min stale — marking canceled",
+                            game_id, inning, age_min
+                        )
+
+                if new_status:
+                    self.conn.execute("""
+                        UPDATE games
+                        SET status = ?, home_score = NULL, away_score = NULL,
+                            inning_text = NULL, innings = NULL,
+                            home_hits = NULL, away_hits = NULL,
+                            home_errors = NULL, away_errors = NULL,
+                            situation_json = NULL,
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (new_status, datetime.utcnow().isoformat(), game_id))
+                    self.conn.commit()
+
+                    # Also mark the SB event as completed so we stop polling it
+                    self.conn.execute("""
+                        UPDATE statbroadcast_events
+                        SET status = 'completed'
+                        WHERE game_id = ?
+                    """, (game_id,))
+                    self.conn.commit()
+
+                    logger.info("Game %s set to '%s', SB event marked completed", game_id, new_status)
+
+        except Exception as e:
+            logger.error("Staleness check error: %s", e, exc_info=True)
+
     def run(self):
         """Run the polling loop until stopped."""
         logger.info("StatBroadcast poller starting (interval=%ds)", self.interval)
+        stale_check_counter = 0
 
         while self._running:
             try:
@@ -757,6 +871,15 @@ class StatBroadcastPoller:
                     logger.info("Updated %d games", n)
             except Exception as e:
                 logger.error("Polling loop error: %s", e)
+
+            # Staleness check every ~5 min (15 cycles × 20s interval)
+            stale_check_counter += 1
+            if stale_check_counter >= 15:
+                stale_check_counter = 0
+                try:
+                    self._check_stale_games()
+                except Exception as e:
+                    logger.error("Staleness check failed: %s", e)
 
             # Sleep in short intervals so we can respond to stop signals
             for _ in range(self.interval * 10):
