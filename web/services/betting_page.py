@@ -143,83 +143,92 @@ def build_betting_page_context(conference=''):
     games_with_edge = [g for g in games if g.get('adjusted_edge')]
     games_with_edge.sort(key=lambda x: x.get('adjusted_edge', 0), reverse=True)
 
-    # Confident bets (7/10+ models agree, sorted by adjusted edge)
-    # Cap at -300: heavy favorites aren't worth betting even with consensus
-    MAX_FAVORITE_ML = -300
+    # === Load tracked bets from DB (source of truth for cards) ===
+    # Cards should show exactly what the pipeline locked in, not re-derive.
+    from scripts.database import get_connection as _get_tracked_conn
+    _tc = _get_tracked_conn()
+    _tc_cursor = _tc.cursor()
 
-    def passes_favorite_cap(g):
-        ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
-        return ml is None or ml >= MAX_FAVORITE_ML
+    # Build game lookup for enriching tracked bets with full game data
+    games_by_id = {g['game_id']: g for g in games}
 
-    confident_candidates = [
-        g for g in games
-        if g.get('model_agreement')
-        and g['model_agreement']['count'] >= 7
-        and passes_favorite_cap(g)
-    ]
-    # Apply v3 quality gates to confident bets
-    quality_confident = []
-    for g in confident_candidates:
-        agreement = g['model_agreement']
-        pick = agreement.get('pick', 'home')
-        ml = g.get('home_ml') if pick == 'home' else g.get('away_ml')
-        bet_check = {
-            'moneyline': ml,
-            'avg_prob': agreement.get('avg_prob', 0.5),
-            'models_agree': agreement['count'],
-            'pick_team_name': g.get('home_team_name') if pick == 'home' else g.get('away_team_name'),
-        }
-        passes, reason = passes_quality_gate(bet_check, category='consensus')
-        # Add disagreement flag for display
-        prob = agreement.get('avg_prob', 0.5)
-        disagrees, _, vi, diff = has_vegas_disagreement(prob, ml)
-        g['vegas_disagreement'] = disagrees
-        g['disagreement_pp'] = round(diff * 100, 1)
-        g['rejection_reason'] = reason
-        if passes:
-            g['quality_score'] = bet_quality_score(bet_check, 'consensus')
+    # Consensus bets from tracked_confident_bets
+    _tc_cursor.execute(
+        'SELECT * FROM tracked_confident_bets WHERE date = ? ORDER BY avg_prob DESC',
+        (today_str,)
+    )
+    tracked_consensus = [dict(r) for r in _tc_cursor.fetchall()]
+    confident_bets = []
+    for tb in tracked_consensus:
+        g = games_by_id.get(tb['game_id'])
+        if g:
+            # Enrich game with tracked bet info
+            pick = 'home' if tb['is_home'] else 'away'
+            prob = tb.get('avg_prob', 0.5)
+            ml = tb.get('moneyline')
+            g['tracked_consensus'] = True
+            g['model_agreement'] = g.get('model_agreement') or {
+                'count': tb.get('models_agree', 7),
+                'total': tb.get('models_total', 10),
+                'pick': pick,
+                'avg_prob': prob,
+                'confidence': prob,
+            }
+            if ml:
+                vi = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
+                g['vegas_disagreement'] = prob < vi
+                g['disagreement_pp'] = round((prob - vi) * 100, 1)
             _add_calibrated_edge(g, prob, ml)
-            quality_confident.append(g)
-    quality_confident.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
-    confident_bets = quality_confident[:QUALITY_MAX_PER_TYPE]
+            confident_bets.append(g)
 
-    # EV bets — pure raw edge over DK line (exclude consensus picks)
+    # EV bets from tracked_bets (exclude games already in consensus)
     confident_ids = {g['game_id'] for g in confident_bets}
-    ev_candidates = [
-        g for g in games_with_edge
-        if g['game_id'] not in confident_ids
-        and g.get('best_edge', 0) >= ML_EDGE_FAVORITE
-        and passes_favorite_cap(g)
-    ]
-    # Apply v3 quality gates to EV bets
-    quality_ev = []
-    for g in ev_candidates:
-        pick = g.get('best_pick', 'home')
-        ml = g.get('home_ml') if pick == 'home' else g.get('away_ml')
-        prob = g.get('model_home_prob', 0.5) if pick == 'home' else g.get('model_away_prob', 0.5)
-        bet_check = {
-            'moneyline': ml,
-            'model_prob': prob,
-            'edge': g.get('best_edge', 0),
-            'models_agree': g.get('models_agree', 5),
-            'pick_team_name': g.get('home_team_name') if pick == 'home' else g.get('away_team_name'),
-        }
-        passes, reason = passes_quality_gate(bet_check, category='ev')
-        disagrees, _, vi, diff = has_vegas_disagreement(prob, ml)
-        g['vegas_disagreement'] = disagrees
-        g['disagreement_pp'] = round(diff * 100, 1)
-        g['rejection_reason'] = reason
-        if passes:
-            g['quality_score'] = bet_quality_score(bet_check, 'ev')
+    _tc_cursor.execute(
+        'SELECT * FROM tracked_bets WHERE date = ? ORDER BY edge DESC',
+        (today_str,)
+    )
+    tracked_ev = [dict(r) for r in _tc_cursor.fetchall()]
+    ev_bets = []
+    for tb in tracked_ev:
+        if tb['game_id'] in confident_ids:
+            continue
+        g = games_by_id.get(tb['game_id'])
+        if g:
+            pick = 'home' if tb['is_home'] else 'away'
+            prob = tb.get('model_prob', 0.5)
+            ml = tb.get('moneyline')
+            g['tracked_ev'] = True
+            g['best_pick'] = pick
+            g['best_edge'] = tb.get('edge', 0)
+            if ml:
+                vi = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
+                g['vegas_disagreement'] = prob < vi
+                g['disagreement_pp'] = round((prob - vi) * 100, 1)
             _add_calibrated_edge(g, prob, ml)
-            quality_ev.append(g)
-    quality_ev.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
-    ev_bets = quality_ev[:QUALITY_MAX_PER_TYPE]
+            ev_bets.append(g)
 
-    # Best totals (3+ runs edge)
-    games_with_totals = [g for g in games if g.get('over_under')]
-    games_with_totals.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
-    best_totals = [g for g in games_with_totals if abs(g.get('total_diff', 0)) >= TOTALS_EDGE_RUNS]
+    # Best totals from tracked_bets_spreads
+    _tc_cursor.execute(
+        'SELECT * FROM tracked_bets_spreads WHERE date = ? AND bet_type = ? ORDER BY ABS(edge) DESC',
+        (today_str, 'total')
+    )
+    tracked_totals = [dict(r) for r in _tc_cursor.fetchall()]
+    best_totals = []
+    for tb in tracked_totals:
+        g = games_by_id.get(tb['game_id'])
+        if g:
+            g['tracked_total'] = True
+            g['total_lean'] = tb.get('pick', 'OVER')
+            g['total_diff'] = tb.get('edge', 0) / 8.0  # approximate runs diff from edge
+            best_totals.append(g)
+
+    # Fallback: if no tracked bets exist yet (pre-pipeline), use dynamic calculation
+    if not confident_bets and not ev_bets and not best_totals:
+        games_with_totals = [g for g in games if g.get('over_under')]
+        games_with_totals.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
+        best_totals = [g for g in games_with_totals if abs(g.get('total_diff', 0)) >= 3.0]
+
+    _tc.close()
 
     # === 4-LEG PARLAY BUILDER ===
     # Mix of ML + Totals picks. Sweet spot: ~80% confidence, -200 range, good edge.
