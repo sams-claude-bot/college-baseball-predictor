@@ -36,7 +36,7 @@ ADJUSTMENT_RATE = 0.3
 MIN_WEIGHT = 0.05
 
 # OVER confidence gate threshold
-OVER_EDGE_THRESHOLD = 8.0  # Require >8% edge for OVER predictions
+OVER_EDGE_THRESHOLD = 15.0  # OVER accuracy ~46% — require very high edge to bet
 
 # ── TASK A: Day-of-Week Adjustments ──────────────────────────────────
 # Based on verified data: Sun=13.6, Mon=14.2, Tue=15.1, Wed=13.5,

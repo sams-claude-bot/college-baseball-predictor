@@ -330,14 +330,12 @@ def api_best_bets():
 
         if passes:
             bet_info['quality_score'] = bet_quality_score(bet_info, 'consensus')
-            # Add calibrated probability + edge
-            cal = _get_calibrator()
-            if cal and ml:
-                raw_p = meta_prob or agreement['avg_prob']
-                cal_p = cal.calibrate(raw_p)
+            # Model prob is already DB-calibrated — compute edge directly
+            if ml:
+                model_p = meta_prob or agreement['avg_prob']
                 implied = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
-                bet_info['calibrated_prob'] = round(cal_p, 4)
-                bet_info['calibrated_edge'] = round((cal_p - implied) * 100, 1)
+                bet_info['calibrated_prob'] = round(model_p, 4)
+                bet_info['calibrated_edge'] = round((model_p - implied) * 100, 1)
             confident_bets.append(bet_info)
         else:
             bet_info['rejection_reason'] = reason
@@ -403,14 +401,12 @@ def api_best_bets():
 
         if passes:
             bet_info['quality_score'] = bet_quality_score(bet_info, 'ev')
-            # Add calibrated probability + edge
-            cal = _get_calibrator()
-            if cal and ml:
-                raw_p = meta_prob or prob
-                cal_p = cal.calibrate(raw_p)
+            # Model prob is already DB-calibrated — compute edge directly
+            if ml:
+                model_p = meta_prob or prob
                 implied = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
-                bet_info['calibrated_prob'] = round(cal_p, 4)
-                bet_info['calibrated_edge'] = round((cal_p - implied) * 100, 1)
+                bet_info['calibrated_prob'] = round(model_p, 4)
+                bet_info['calibrated_edge'] = round((model_p - implied) * 100, 1)
             ml_bets.append(bet_info)
         else:
             bet_info['rejection_reason'] = reason

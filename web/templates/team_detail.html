@@ -2,6 +2,19 @@
 
 {% block title %}{{ team.name }} - College Baseball Predictor{% endblock %}
 
+{% block extra_css %}
+<style>
+@media (max-width: 576px) {
+    .card-body .fs-1 { font-size: 1.5rem !important; }
+    .card-body .fs-4 { font-size: 1rem !important; }
+    .card-body img[height="64"] { height: 40px !important; }
+    .table th, .table td { padding: 0.3rem 0.4rem; font-size: 0.8rem; }
+    .table .team-link { max-width: 120px; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .col-md-4 .card { margin-bottom: 0.5rem; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Team Header -->
 <div class="card mb-4" style="border-top: 4px solid {{ team_color(team.id, 'primary') }};">

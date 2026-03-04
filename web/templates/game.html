@@ -2,6 +2,21 @@
 
 {% block title %}{{ away.name }} @ {{ home.name }} - Game Detail{% endblock %}
 
+{% block extra_css %}
+<style>
+@media (max-width: 576px) {
+    .display-4 { font-size: 2.5rem; }
+    .card-header .fs-5 { font-size: 0.95rem !important; }
+    .card-header img { height: 28px !important; }
+    .card-header .gap-3 { gap: 0.5rem !important; }
+    .table-sm th, .table-sm td { padding: 0.2rem 0.15rem; font-size: 0.75rem; }
+    .table-sm th:first-child, .table-sm td:first-child { min-width: 70px !important; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .col-md-6 .card { margin-bottom: 0.5rem; }
+    .stat-card { padding: 0.75rem 0.5rem; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="mb-3">
     <a href="javascript:history.back()" class="text-muted"><i class="bi bi-arrow-left"></i> Back</a>

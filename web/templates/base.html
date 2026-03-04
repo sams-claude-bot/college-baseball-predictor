@@ -838,10 +838,15 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark">
         <div class="container">
-            <a class="navbar-brand" href="/">
+            <a class="navbar-brand" href="/" id="navBrand">
                 <i class="bi bi-trophy-fill icon"></i>
-                Baseball Predictor
+                <span class="d-none d-sm-inline">Baseball Predictor</span>
+                <span class="d-sm-none">Baseball</span>
             </a>
+            <!-- Mobile search toggle -->
+            <button class="btn btn-sm p-1 d-lg-none" style="color:rgba(255,255,255,0.7);border:none;" onclick="toggleMobileSearch()">
+                <i class="bi bi-search" style="font-size:1.1rem;"></i>
+            </button>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -906,6 +911,18 @@
             </div>
         </div>
     </nav>
+
+    <!-- Mobile Search Bar -->
+    <div id="mobileSearchBar" style="display:none;position:sticky;top:0;z-index:1031;background:var(--navbar-bg);padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.1);">
+        <div class="d-flex gap-2">
+            <input type="search" class="form-control form-control-sm" id="mobileSearchInput" 
+                   placeholder="Search teams..." autocomplete="off" style="background:var(--bg-card);color:var(--text-primary);border-color:var(--border-color);">
+            <button class="btn btn-sm" style="color:rgba(255,255,255,0.6);" onclick="toggleMobileSearch()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div id="mobileSearchResults" style="max-height:50vh;overflow-y:auto;"></div>
+    </div>
 
     <!-- Loading bar -->
     <div class="loading-bar" id="loadingBar"></div>
@@ -1309,6 +1326,53 @@
             label.textContent = pretty;
         } else if (label) {
             label.textContent = 'Pick Team';
+        }
+    })();
+
+    // Mobile search
+    function toggleMobileSearch() {
+        var bar = document.getElementById('mobileSearchBar');
+        var input = document.getElementById('mobileSearchInput');
+        if (bar.style.display === 'none') {
+            bar.style.display = '';
+            input.value = '';
+            input.focus();
+            document.getElementById('mobileSearchResults').innerHTML = '';
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+    (function() {
+        var input = document.getElementById('mobileSearchInput');
+        if (!input) return;
+        var results = document.getElementById('mobileSearchResults');
+        var debounce;
+        input.addEventListener('input', function() {
+            clearTimeout(debounce);
+            var q = input.value.trim().toLowerCase();
+            if (q.length < 2) { results.innerHTML = ''; return; }
+            debounce = setTimeout(function() {
+                if (!_teamCache) {
+                    fetch('/api/teams-compact').then(function(r){return r.json();}).then(function(teams){
+                        _teamCache = teams;
+                        showSearchResults(q);
+                    });
+                } else {
+                    showSearchResults(q);
+                }
+            }, 150);
+        });
+        function showSearchResults(q) {
+            var matches = _teamCache.filter(function(t) {
+                return t.name.toLowerCase().indexOf(q) !== -1 || t.id.toLowerCase().indexOf(q) !== -1;
+            }).slice(0, 8);
+            if (!matches.length) { results.innerHTML = '<div class="p-2 text-muted" style="font-size:0.85rem;">No teams found</div>'; return; }
+            results.innerHTML = matches.map(function(t) {
+                return '<a href="/team/' + t.id + '" class="d-flex align-items-center gap-2 p-2 text-decoration-none" style="color:var(--text-primary);border-bottom:1px solid var(--border-color);">' +
+                    '<span style="width:10px;height:10px;border-radius:50%;background:' + (t.c1||'#777') + ';flex-shrink:0;"></span>' +
+                    '<span style="font-size:0.9rem;">' + t.name + '</span>' +
+                    '<small class="text-muted ms-auto">' + (t.conf||'') + '</small></a>';
+            }).join('');
         }
     })();
 
