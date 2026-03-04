@@ -10,32 +10,67 @@
     <span class="text-muted">{{ today }}</span>
 </div>
 
-<!-- Quick Stats Row -->
-<div class="row mb-4">
-    <div class="col-6 col-md-3">
-        <div class="card stat-card">
-            <div class="stat-value">{{ todays_games|length }}</div>
-            <div class="stat-label">Today's Games</div>
+<!-- What's New (dismissible per version) -->
+<div class="card mb-4" id="whatsNewCard" style="display:none;">
+    <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, var(--maroon), #2d1b4e); color:white; border:none;">
+        <span><i class="bi bi-megaphone-fill"></i> What's New</span>
+        <button class="btn btn-sm p-0" style="color:rgba(255,255,255,0.7);font-size:1.1rem;line-height:1;" onclick="dismissWhatsNew()" title="Dismiss">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+    <div class="card-body py-3">
+        <div class="row g-3">
+            <!-- Install as App -->
+            <div class="col-12 col-md-6" id="installPrompt">
+                <div class="d-flex gap-2">
+                    <i class="bi bi-phone-fill fs-4" style="color:var(--maroon);"></i>
+                    <div>
+                        <strong>Install as App</strong>
+                        <p class="text-muted mb-1" style="font-size:0.85rem;">Add to your home screen for the best experience — live scores, push notifications, and offline support.</p>
+                        <small class="text-muted" id="installInstructions">
+                            <strong>iPhone:</strong> Tap <i class="bi bi-box-arrow-up"></i> Share → "Add to Home Screen"<br>
+                            <strong>Android:</strong> Tap <i class="bi bi-three-dots-vertical"></i> Menu → "Install App"
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <!-- Alerts -->
+            <div class="col-12 col-md-6">
+                <div class="d-flex gap-2">
+                    <i class="bi bi-bell-fill fs-4" style="color:var(--maroon);"></i>
+                    <div>
+                        <strong>Game Alerts</strong>
+                        <p class="text-muted mb-1" style="font-size:0.85rem;">Get push notifications for your team's games — live score updates, final scores, and SEC upset watch.</p>
+                        <a href="/alerts" class="btn btn-sm btn-maroon">Set Up Alerts <i class="bi bi-arrow-right"></i></a>
+                    </div>
+                </div>
+            </div>
+            <!-- Recent Features -->
+            <div class="col-12">
+                <div class="border-top pt-2 mt-1">
+                    <small class="text-muted"><strong>Recent updates:</strong>
+                        Live game tracker on dashboard •
+                        Choose any D1 team •
+                        Bottom navigation bar •
+                        Pull to refresh •
+                        Win probability charts
+                    </small>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card stat-card">
-            <div class="stat-value">{{ stats.games_played }}</div>
-            <div class="stat-label">Games Played</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card stat-card">
-            <div class="stat-value">{{ accuracy.ensemble.pct or '—' }}{% if accuracy.ensemble.pct %}%{% endif %}</div>
-            <div class="stat-label">Ensemble Accuracy</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card stat-card">
-            <div class="stat-value">{{ accuracy.neural.pct or '—' }}{% if accuracy.neural.pct %}%{% endif %}</div>
-            <div class="stat-label">Neural Accuracy</div>
-        </div>
-    </div>
+</div>
+
+<!-- Quick Stats (compact single row) -->
+<div class="d-flex gap-2 mb-4 flex-wrap">
+    <span class="badge bg-secondary" style="font-size:0.8rem;">{{ todays_games|length }} games today</span>
+    <span class="badge bg-secondary" style="font-size:0.8rem;">{{ stats.games_played }} played</span>
+    {% if accuracy.ensemble.pct %}
+    <span class="badge {% if accuracy.ensemble.pct >= 60 %}bg-success{% else %}bg-secondary{% endif %}" style="font-size:0.8rem;">Ens {{ accuracy.ensemble.pct }}%</span>
+    {% endif %}
+    {% if accuracy.neural.pct %}
+    <span class="badge {% if accuracy.neural.pct >= 60 %}bg-success{% else %}bg-secondary{% endif %}" style="font-size:0.8rem;">NN {{ accuracy.neural.pct }}%</span>
+    {% endif %}
 </div>
 
 <div class="row">
@@ -460,4 +495,29 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// What's New card — dismissible per version
+(function() {
+    var VERSION = '2026-03-03';
+    var card = document.getElementById('whatsNewCard');
+    if (!card) return;
+    var dismissed = localStorage.getItem('whatsNewDismissed');
+    if (dismissed !== VERSION) {
+        card.style.display = '';
+    }
+    // Hide install prompt if already in standalone PWA
+    if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+        var prompt = document.getElementById('installPrompt');
+        if (prompt) prompt.style.display = 'none';
+    }
+})();
+
+function dismissWhatsNew() {
+    localStorage.setItem('whatsNewDismissed', '2026-03-03');
+    document.getElementById('whatsNewCard').style.display = 'none';
+}
+</script>
 {% endblock %}
