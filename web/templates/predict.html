@@ -318,8 +318,9 @@ document.getElementById('predictForm').addEventListener('submit', async function
     document.getElementById('loadingState').style.display = 'none';
 });
 
+const _mc = getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725';
+
 function displayResults(data, homeId, awayId) {
-    const _mc = getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725';
     // Get team names from dropdowns
     const homeSelect = document.getElementById('homeTeam');
     const awaySelect = document.getElementById('awayTeam');
