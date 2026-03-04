@@ -9,12 +9,22 @@ DB_PATH = 'data/baseball.db'
 
 
 def build_parlay(results: dict) -> dict:
-    """Build a 4-leg parlay from the day's best picks (ML + totals mix)."""
-    PARLAY_ML_CAP = -250
-    PARLAY_MIN_PROB = 0.62
-    PARLAY_MAX_PROB = 0.88
-    PARLAY_MIN_EDGE = 5.0
+    """Build a 3-leg parlay from the day's highest-confidence picks.
+    
+    v2 strategy changes (2026-03-04):
+    - Reduced from 4 legs to 3 (each leg must win → fewer legs = higher hit rate)
+    - Use meta_ensemble probability instead of old consensus (which was 38% accurate)
+    - Require minimum 72% model probability per leg (was 62%)
+    - Minimum 8% edge per leg (was 5%)
+    - No totals legs (they're harder to predict and drag down parlay probability)
+    - Score by meta_ensemble_prob * edge (higher = more confident + more value)
+    """
+    PARLAY_ML_CAP = -250       # Skip heavy favorites (juiced lines)
+    PARLAY_MIN_PROB = 0.72     # Higher floor — each leg must be strong
+    PARLAY_MAX_PROB = 0.92     # Cap to avoid overfit high-confidence busts
+    PARLAY_MIN_EDGE = 8.0      # Meaningful edge required
     PARLAY_BET = 25
+    PARLAY_LEGS = 3            # 3 legs instead of 4
 
     ml_candidates = []
     for b in results['bets']:
@@ -23,29 +33,22 @@ def build_parlay(results: dict) -> dict:
         ml = b.get('moneyline')
         if ml is None or ml < PARLAY_ML_CAP:
             continue
-        prob = b.get('model_prob', 0.5)
+        # Use meta_ensemble prob if available, fall back to model_prob
+        prob = b.get('meta_prob', b.get('model_prob', 0.5))
         if not (PARLAY_MIN_PROB <= prob <= PARLAY_MAX_PROB):
             continue
         if b.get('edge', 0) < PARLAY_MIN_EDGE:
             continue
-        prob_score = 1.0 - abs(prob - 0.77) * 3
-        ml_candidates.append({**b, 'parlay_score': prob_score * b.get('edge', 0)})
+        # Score: probability × edge — want legs that are both confident AND have value
+        parlay_score = prob * b.get('edge', 0)
+        ml_candidates.append({**b, 'parlay_score': parlay_score, 'parlay_prob': prob})
     ml_candidates.sort(key=lambda x: x['parlay_score'], reverse=True)
 
-    totals_candidates = []
-    for b in results['bets']:
-        if b['type'] != 'TOTAL':
-            continue
-        if b.get('edge', 0) < 3.0:
-            continue
-        est_prob = min(0.5 + abs(b['edge']) * 0.06, 0.85)
-        totals_candidates.append({**b, 'est_prob': est_prob})
-    totals_candidates.sort(key=lambda x: x.get('edge', 0), reverse=True)
-
+    # v2: ML-only legs, no totals (totals legs were unreliable in parlays)
     legs = []
     used_ids = set()
     for c in ml_candidates:
-        if len(legs) >= 3:
+        if len(legs) >= PARLAY_LEGS:
             break
         if c['game_id'] not in used_ids:
             legs.append({
@@ -55,40 +58,12 @@ def build_parlay(results: dict) -> dict:
                 'pick': c.get('pick_team_name', ''),
                 'matchup': f"{c.get('opponent_name', '')} vs {c.get('pick_team_name', '')}",
                 'odds': c['moneyline'],
-                'prob': c['model_prob'],
-                'edge': c['edge'],
-            })
-            used_ids.add(c['game_id'])
-    for c in totals_candidates:
-        if len(legs) >= 4:
-            break
-        legs.append({
-            'type': 'Total',
-            'game_id': c['game_id'],
-            'date': c.get('date', ''),
-            'pick': f"{c['pick']} {c['line']}",
-            'matchup': c['game_id'].replace('_', ' '),
-            'odds': c.get('odds', -110),
-            'prob': c.get('est_prob', 0.5),
-            'edge': c['edge'],
-        })
-    for c in ml_candidates:
-        if len(legs) >= 4:
-            break
-        if c['game_id'] not in used_ids:
-            legs.append({
-                'type': c['type'],
-                'game_id': c['game_id'],
-                'date': c.get('date', ''),
-                'pick': c.get('pick_team_name', ''),
-                'matchup': f"{c.get('opponent_name', '')} vs {c.get('pick_team_name', '')}",
-                'odds': c['moneyline'],
-                'prob': c['model_prob'],
+                'prob': c.get('parlay_prob', c['model_prob']),
                 'edge': c['edge'],
             })
             used_ids.add(c['game_id'])
 
-    if len(legs) < 4:
+    if len(legs) < PARLAY_LEGS:
         return None
 
     def ml_to_decimal(ml):
