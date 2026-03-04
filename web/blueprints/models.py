@@ -141,8 +141,11 @@ def model_trends():
     ''')
     dates = [row['date'] for row in c.fetchall()]
 
-    # Note: neural date-shift hack removed (was causing 03-03 gap).
-    # Neural dates now align naturally from the same games/dates query.
+    # Start charts from v2 overhaul date — pre-overhaul data is noise
+    CHART_START_DATE = '2026-02-24'
+    dates = [d for d in dates if d >= CHART_START_DATE]
+    for model_name in rolling_data:
+        rolling_data[model_name] = [p for p in rolling_data[model_name] if p['date'] >= CHART_START_DATE]
     
     conn.close()
     
