@@ -191,6 +191,10 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
         edge = game['edge']
         rejection_reasons = []
 
+        # OVER predictions are 47% accurate — worse than coin flip. Disable.
+        if game.get('pick') == 'OVER':
+            rejection_reasons.append("OVER bets disabled (47% historical accuracy)")
+
         if edge < TOTALS_EDGE_THRESHOLD:
             rejection_reasons.append(f"edge {edge:.1f} runs < {TOTALS_EDGE_THRESHOLD} threshold")
 
