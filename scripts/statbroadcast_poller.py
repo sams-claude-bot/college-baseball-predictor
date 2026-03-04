@@ -20,10 +20,14 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import signal
 import sqlite3
 import sys
 import time
+
+# Ensure scripts/ is on sys.path for local imports (notifications.py, etc.)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
@@ -824,15 +828,14 @@ class StatBroadcastPoller:
             inning_label = situation.get('inning_display', f"{'Top' if half == 'top' else 'Bot'} {inning}")
 
             # --- 1. Half-inning summary for subscribed teams ---
-            from scripts.notifications import send_team_notification, ensure_tables
+            from notifications import send_team_notification, ensure_tables
             ensure_tables(self.conn)
 
             score_line = f"{away_name} {visitor_score}, {home_name} {home_score}"
             body = f"{inning_label} | {score_line}"
 
-            dedup = f"game_update:{game_id}:{inning}:{half}"
-
             for team_id in (home_tid, away_tid):
+                dedup = f"game_update:{game_id}:{team_id}:{inning}:{half}"
                 send_team_notification(
                     team_id, 'game_update',
                     {
@@ -880,7 +883,7 @@ class StatBroadcastPoller:
                         sec_wp = home_wp if sec_team == 'home' else (1 - home_wp)
                         lose_pct = (1 - sec_wp) * 100
 
-                        from scripts.notifications import send_conference_notification
+                        from notifications import send_conference_notification
                         send_conference_notification(
                             'SEC', 'upset_watch',
                             {
@@ -894,15 +897,15 @@ class StatBroadcastPoller:
                             conn=self.conn,
                         )
                 except Exception as e:
-                    logger.debug("WP calculation failed for upset check: %s", e)
+                    logger.warning("WP calculation failed for upset check: %s", e)
 
         except Exception as e:
-            logger.debug("Notification check error for %s: %s", game_id, e)
+            logger.warning("Notification check error for %s: %s", game_id, e, exc_info=True)
 
     def _check_final_notifications(self, game_id):
         """Send final score notifications when a game completes."""
         try:
-            from scripts.notifications import send_team_notification, ensure_tables
+            from notifications import send_team_notification, ensure_tables
             ensure_tables(self.conn)
 
             row = self.conn.execute("""
@@ -941,7 +944,7 @@ class StatBroadcastPoller:
                     conn=self.conn,
                 )
         except Exception as e:
-            logger.debug("Final notification error for %s: %s", game_id, e)
+            logger.warning("Final notification error for %s: %s", game_id, e)
 
 
 # ---------------------------------------------------------------------------
