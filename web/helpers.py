@@ -2,6 +2,7 @@
 Shared helper functions and utilities for the College Baseball Dashboard.
 """
 
+import json
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -1249,6 +1250,52 @@ def get_featured_team_info(team_id='mississippi-state'):
             score = f"{r['away_score']}-{r['home_score']}"
         last_5.append({'won': won, 'opponent': opponent, 'score': score, 'date': r['date']})
 
+    # Live game (in progress)
+    c.execute('''
+        SELECT g.id, g.date, g.time, g.home_team_id, g.away_team_id,
+               g.home_score, g.away_score, g.inning_text, g.situation_json,
+               g.home_hits, g.away_hits, g.home_errors, g.away_errors,
+               ht.name as home_name, at.name as away_name,
+               ht.primary_color as home_color, at.primary_color as away_color
+        FROM games g
+        LEFT JOIN teams ht ON g.home_team_id = ht.id
+        LEFT JOIN teams at ON g.away_team_id = at.id
+        WHERE (g.home_team_id = ? OR g.away_team_id = ?) AND g.status = 'in-progress'
+        ORDER BY g.date DESC
+        LIMIT 1
+    ''', (team_id, team_id))
+    live_game = None
+    row = c.fetchone()
+    if row:
+        r = dict(row)
+        is_home = r['home_team_id'] == team_id
+        situation = None
+        if r['situation_json']:
+            try:
+                situation = json.loads(r['situation_json']) if isinstance(r['situation_json'], str) else r['situation_json']
+            except Exception:
+                pass
+        live_game = {
+            'game_id': r['id'],
+            'is_home': is_home,
+            'opponent': r['away_name'] if is_home else r['home_name'],
+            'opponent_id': r['away_team_id'] if is_home else r['home_team_id'],
+            'opponent_color': r['away_color'] if is_home else r['home_color'],
+            'location': 'vs' if is_home else '@',
+            'team_score': r['home_score'] if is_home else r['away_score'],
+            'opp_score': r['away_score'] if is_home else r['home_score'],
+            'home_score': r['home_score'],
+            'away_score': r['away_score'],
+            'inning_text': r['inning_text'] or 'In Progress',
+            'home_name': r['home_name'],
+            'away_name': r['away_name'],
+            'home_hits': r['home_hits'],
+            'away_hits': r['away_hits'],
+            'home_errors': r['home_errors'],
+            'away_errors': r['away_errors'],
+            'situation': situation,
+        }
+
     # Next game
     today = datetime.now().strftime('%Y-%m-%d')
     c.execute('''
@@ -1284,6 +1331,7 @@ def get_featured_team_info(team_id='mississippi-state'):
         'elo': elo,
         'rank': rank,
         'last_5': last_5,
+        'live_game': live_game,
         'next_game': next_game
     }
 
