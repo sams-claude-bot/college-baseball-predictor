@@ -874,6 +874,23 @@
         });
     }
     document.addEventListener('DOMContentLoaded', convertLocalTimes);
+
+    // PWA: Ensure all same-origin navigations stay in the app
+    // Replaces onclick="window.location=..." with proper navigation
+    if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+        document.addEventListener('click', function(e) {
+            // Find the closest clickable element with an onclick that sets window.location
+            var el = e.target.closest('[onclick*="window.location"]');
+            if (el) {
+                var match = el.getAttribute('onclick').match(/window\.location\s*=\s*['"](\/[^'"]*)['"]/);
+                if (match) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.location.href = match[1];
+                }
+            }
+        }, true);
+    }
     </script>
     
     {% block extra_js %}{% endblock %}

@@ -3,6 +3,7 @@
   "short_name": "⚾ Baseball",
   "description": "Live scores, predictions, win probability, and alerts for D1 college baseball",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#1e293b",
