@@ -346,7 +346,7 @@
                                 <td>{{ bet.game }}</td>
                                 <td><strong>{{ bet.pick }}</strong></td>
                                 <td class="text-center">{{ bet.moneyline|format_odds }}</td>
-                                <td class="text-center"><span class="badge bg-primary">{{ bet.models_agree }}/12</span></td>
+                                <td class="text-center"><span class="badge bg-primary">{{ bet.models_agree }}/{{ bet.models_total|default(12) }}</span></td>
                                 <td class="text-center">{{ (bet.model_prob * 100)|round(0) }}%</td>
                                 <td class="text-center"><span class="badge bg-secondary">PENDING</span></td>
                                 <td class="text-end">—</td>
@@ -358,7 +358,7 @@
                                 <td>{{ bet.game }}</td>
                                 <td><strong>{{ bet.pick }}</strong></td>
                                 <td class="text-center">{{ bet.moneyline|format_odds }}</td>
-                                <td class="text-center"><span class="badge bg-primary">{{ bet.models_agree }}/12</span></td>
+                                <td class="text-center"><span class="badge bg-primary">{{ bet.models_agree }}/{{ bet.models_total|default(12) }}</span></td>
                                 <td class="text-center">{{ (bet.model_prob * 100)|round(0) }}%</td>
                                 <td class="text-center">
                                     {% if bet.won %}<span class="badge bg-success">W</span>

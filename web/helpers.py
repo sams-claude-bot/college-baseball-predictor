@@ -25,8 +25,9 @@ from models.compare_models import MODELS, normalize_team_id
 
 # Models to use for consensus voting (11 component models, NOT ensemble)
 # Ensemble is excluded because it's already a weighted blend of these models
-CONSENSUS_MODELS = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching',
-                    'conference', 'prior', 'poisson', 'neural', 'xgboost', 'lightgbm']
+CONSENSUS_MODELS = ['pythagorean', 'elo', 'pitching', 'poisson', 'neural',
+                    'xgboost', 'lightgbm', 'pear', 'quality',
+                    'venue', 'rest_travel', 'upset']
 
 
 # ============================================
@@ -58,7 +59,7 @@ def calculate_adjusted_edge(raw_edge: float, moneyline: int = None, models_agree
     Args:
         raw_edge: Raw edge percentage from model vs implied odds
         moneyline: American odds (positive = underdog)
-        models_agree: Number of models agreeing on the pick (out of 11)
+        models_agree: Number of models agreeing on the pick (out of 12)
     
     Returns:
         Adjusted edge percentage
@@ -446,9 +447,11 @@ def get_value_picks(limit=5):
 
             # Model agreement from stored predictions — majority vote
             game_models = stored_vp_agreement.get(game_id, {})
-            exclude_agg = {'ensemble', 'meta_ensemble', 'runs_ensemble'}
-            home_count = sum(1 for m, p in game_models.items() if m not in exclude_agg and p > 0.5)
-            away_count = sum(1 for m, p in game_models.items() if m not in exclude_agg and p <= 0.5)
+            # Exclude aggregates and deprecated models from consensus voting
+            exclude_from_vote = {'ensemble', 'meta_ensemble', 'runs_ensemble',
+                                 'conference', 'advanced', 'log5', 'prior'}
+            home_count = sum(1 for m, p in game_models.items() if m not in exclude_from_vote and p > 0.5)
+            away_count = sum(1 for m, p in game_models.items() if m not in exclude_from_vote and p <= 0.5)
             # models_agree = count for the majority side
             models_agree = max(home_count, away_count)
 
@@ -493,7 +496,7 @@ def get_value_picks(limit=5):
                 'home_team_id': line['home_team_id'],
                 'away_team_id': line['away_team_id'],
                 'models_agree': models_agree,
-                'models_total': sum(1 for m in game_models if m != 'ensemble') if game_models else 11,
+                'models_total': sum(1 for m in game_models if m not in exclude_from_vote) if game_models else 12,
                 'ensemble_confidence': max(model_home_prob, 1 - model_home_prob),
                 'is_underdog': is_underdog,
                 'consensus_bonus': consensus_bonus
@@ -805,8 +808,9 @@ def get_betting_games(date_str=None):
             # Model consensus from stored predictions — majority vote, not ensemble-driven
             game_models = stored_model_agreement.get(game_id, {})
             if game_models:
-                # Exclude ensemble and meta_ensemble from voting — they're aggregates
-                exclude = {'ensemble', 'meta_ensemble', 'runs_ensemble'}
+                # Exclude aggregates and deprecated models from voting
+                exclude = {'ensemble', 'meta_ensemble', 'runs_ensemble',
+                           'conference', 'advanced', 'log5', 'prior'}
                 home_voters = [m for m, p in game_models.items() if m not in exclude and p > 0.5]
                 away_voters = [m for m, p in game_models.items() if m not in exclude and p <= 0.5]
                 

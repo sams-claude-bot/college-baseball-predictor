@@ -432,7 +432,7 @@
                                 <div class="fw-bold">
                                     {{ pick.pick }} {{ pick.moneyline|format_odds }}
                                     {% if pick.is_underdog %}<span class="badge bg-warning text-dark ms-1" title="Underdog (50% edge discount)">🐕</span>{% endif %}
-                                    {% if pick.models_agree >= 7 %}<span class="badge bg-primary ms-1">{{ pick.models_agree }}/{{ pick.models_total|default(11) }}</span>{% endif %}
+                                    {% if pick.models_agree >= 7 %}<span class="badge bg-primary ms-1">{{ pick.models_agree }}/{{ pick.models_total|default(12) }}</span>{% endif %}
                                 </div>
                                 <div class="small text-muted mb-1">{{ pick.game }}</div>
                                 <div class="small">
@@ -440,7 +440,7 @@
                                     <span class="badge bg-dark me-1">Ensemble: {{ (pick.ensemble_confidence * 100)|round(0)|int }}%</span>
                                     {% endif %}
                                     {% if pick.models_agree >= 9 %}
-                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/{{ pick.models_total|default(11) }} models agree. <strong>{{ pick.adjusted_edge|round(1) }}% edge</strong> (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%).
+                                    <span class="text-primary fw-bold">High consensus!</span> {{ pick.models_agree }}/{{ pick.models_total|default(12) }} models agree. <strong>{{ pick.adjusted_edge|round(1) }}% edge</strong> (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%).
                                     {% elif pick.adjusted_edge > 20 %}
                                     <span class="text-success fw-bold">Strong value.</span> <strong>{{ pick.adjusted_edge|round(1) }}% edge</strong> (DK: {{ (pick.dk_implied * 100)|round(0)|int }}%){% if pick.is_underdog %} <span class="text-muted">(raw {{ pick.edge|round(1) }}%)</span>{% endif %}.
                                     {% else %}
