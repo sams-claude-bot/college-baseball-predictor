@@ -20,27 +20,6 @@
         s.setProperty('--team-accent',c2||c1);
         s.setProperty('--maroon',c1);
         s.setProperty('--maroon-dark',c1);
-        var hsl=_hexToHsl(c1),h=hsl[0],sat=hsl[1];
-        if(theme==='dark'){
-            // Dark mode: team-tinted backgrounds
-            s.setProperty('--bg-body',_hsl(h,Math.min(sat,25),8));
-            s.setProperty('--bg-card',_hsl(h,Math.min(sat,20),12));
-            s.setProperty('--bg-card-header',_hsl(h,Math.min(sat,20),12));
-            s.setProperty('--light-grey',_hsl(h,Math.min(sat,18),16));
-            s.setProperty('--border-color',_hsl(h,Math.min(sat,15),20));
-            s.setProperty('--navbar-bg',_hsl(h,Math.min(sat,30),5));
-            s.setProperty('--table-hover-bg','hsla('+h+','+Math.min(sat,40)+'%,30%,0.15)');
-            document.documentElement.style.backgroundColor=_hsl(h,Math.min(sat,25),8);
-        } else {
-            // Light mode: subtle team tint
-            s.setProperty('--bg-body',_hsl(h,Math.min(sat,15),97));
-            s.setProperty('--bg-card','#ffffff');
-            s.setProperty('--bg-card-header','#ffffff');
-            s.setProperty('--light-grey',_hsl(h,Math.min(sat,10),92));
-            s.setProperty('--border-color',_hsl(h,Math.min(sat,12),87));
-            s.setProperty('--table-hover-bg','hsla('+h+','+Math.min(sat,30)+'%,50%,0.05)');
-            document.documentElement.style.backgroundColor=_hsl(h,Math.min(sat,15),97);
-        }
     }
     (function(){
         var t=localStorage.getItem('theme')||'light';
@@ -48,10 +27,9 @@
         var tc=JSON.parse(localStorage.getItem('team_colors')||'{}');
         document.documentElement.setAttribute('data-theme',t);
         if(team) document.documentElement.setAttribute('data-team',team);
+        document.documentElement.style.backgroundColor=t==='dark'?'#1a1a2e':'#f8f9fa';
         if(tc.c1){
             applyTeamPalette(tc.c1,tc.c2,t);
-        } else {
-            document.documentElement.style.backgroundColor=t==='dark'?'#1a1a2e':'#f8f9fa';
         }
     })();
     </script>
