@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Betting Analysis - College Baseball Predictor{% endblock %}
+{% block title %}Betting Analysis - Dinger{% endblock %}
 
 {# Macro for visual model agreement meter #}
 {% macro agreement_meter(count, total, size='md') %}
@@ -181,7 +181,7 @@
 <div id="parlayShareCard" style="position:absolute;left:-9999px;top:0;">
     <div style="width:600px;padding:32px;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);border-radius:16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:white;">
         <div style="text-align:center;margin-bottom:20px;">
-            <div style="font-size:14px;text-transform:uppercase;letter-spacing:2px;color:#a855f7;margin-bottom:4px;">⚾ College Baseball Predictor</div>
+            <div style="font-size:14px;text-transform:uppercase;letter-spacing:2px;color:#a855f7;margin-bottom:4px;">⚾ Dinger</div>
             <div style="font-size:28px;font-weight:800;background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">4-Leg Parlay of the Day</div>
             <div style="font-size:13px;color:#94a3b8;margin-top:4px;">{{ parlay_legs[0].game_id[:10] if parlay_legs else '' }}</div>
         </div>
@@ -232,11 +232,18 @@
         <div class="row">
             {% for game in confident_bets %}
             <div class="col-md-4 mb-3">
-                <div class="card h-100 border-primary" data-game-id="{{ game.game_id }}" style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
+                <div class="card h-100 {% if game.bet_result == 'won' %}border-success{% elif game.bet_result == 'lost' %}border-danger{% elif game.bet_result == 'live' %}border-warning{% else %}border-primary{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer;{% if game.bet_result == 'won' %}background:rgba(16,185,129,0.08);{% elif game.bet_result == 'lost' %}background:rgba(239,68,68,0.08);{% elif game.bet_result == 'live' %}background:rgba(251,191,36,0.08);{% endif %}" onclick="window.location='/game/{{ game.game_id }}'">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
                             <div>
+                                {% if game.bet_result == 'won' %}
+                                <span class="badge bg-success">✓ Won</span>
+                                {% elif game.bet_result == 'lost' %}
+                                <span class="badge bg-danger">✗ Lost</span>
+                                {% elif game.bet_result == 'live' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
+                                {% endif %}
                                 {% if game.adjusted_edge %}
                                 <span class="badge bg-success">+{{ game.adjusted_edge|round(1) }}%</span>
                                 {% endif %}
@@ -245,6 +252,13 @@
                                 {% endif %}
                             </div>
                         </div>
+                        {% if game.status == 'final' or game.status == 'in-progress' %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 py-1 px-2 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem;">
+                            <span>{{ game.away_team_name[:15] }} <strong>{{ game.away_score or 0 }}</strong></span>
+                            <small class="{% if game.status == 'final' %}text-muted{% else %}text-warning{% endif %}">{{ game.inning_text or ('Final' if game.status == 'final' else '') }}</small>
+                            <span>{{ game.home_team_name[:15] }} <strong>{{ game.home_score or 0 }}</strong></span>
+                        </div>
+                        {% endif %}
                         <h6 class="mb-1 fw-bold d-flex align-items-center">
                             <img src="{{ team_logo(game.home_team_id if game.model_agreement.pick == 'home' else game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
@@ -298,11 +312,18 @@
         <div class="row">
             {% for game in ev_bets[:6] %}
             <div class="col-md-4 mb-3">
-                <div class="card h-100 border-success" data-game-id="{{ game.game_id }}" style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
+                <div class="card h-100 {% if game.bet_result == 'won' %}border-success{% elif game.bet_result == 'lost' %}border-danger{% elif game.bet_result == 'live' %}border-warning{% else %}border-success{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer;{% if game.bet_result == 'won' %}background:rgba(16,185,129,0.08);{% elif game.bet_result == 'lost' %}background:rgba(239,68,68,0.08);{% elif game.bet_result == 'live' %}background:rgba(251,191,36,0.08);{% endif %}" onclick="window.location='/game/{{ game.game_id }}'">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
                             <div>
+                                {% if game.bet_result == 'won' %}
+                                <span class="badge bg-success">✓ Won</span>
+                                {% elif game.bet_result == 'lost' %}
+                                <span class="badge bg-danger">✗ Lost</span>
+                                {% elif game.bet_result == 'live' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
+                                {% endif %}
                                 {% if game.adjusted_edge and game.adjusted_edge != game.best_edge %}
                                 <span class="badge bg-success" title="Raw: {{ game.best_edge|round(1) }}%">{{ game.adjusted_edge|round(1) }}% adj</span>
                                 {% else %}
@@ -319,6 +340,13 @@
                                 {% endif %}
                             </div>
                         </div>
+                        {% if game.status == 'final' or game.status == 'in-progress' %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 py-1 px-2 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem;">
+                            <span>{{ game.away_team_name[:15] }} <strong>{{ game.away_score or 0 }}</strong></span>
+                            <small class="{% if game.status == 'final' %}text-muted{% else %}text-warning{% endif %}">{{ game.inning_text or ('Final' if game.status == 'final' else '') }}</small>
+                            <span>{{ game.home_team_name[:15] }} <strong>{{ game.home_score or 0 }}</strong></span>
+                        </div>
+                        {% endif %}
                         <h6 class="mb-1 d-flex align-items-center">
                             <img src="{{ team_logo(game.home_team_id if game.best_pick == 'home' else game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             {% if game.best_pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
@@ -368,15 +396,31 @@
         <div class="row">
             {% for game in best_totals[:6] %}
             <div class="col-md-4 mb-3">
-                <div class="card h-100 {% if game.total_lean == 'OVER' %}border-success{% else %}border-danger{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
+                <div class="card h-100 {% if game.bet_result == 'won' %}border-success{% elif game.bet_result == 'lost' %}border-danger{% elif game.bet_result == 'live' %}border-warning{% elif game.total_lean == 'OVER' %}border-success{% else %}border-danger{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer;{% if game.bet_result == 'won' %}background:rgba(16,185,129,0.08);{% elif game.bet_result == 'lost' %}background:rgba(239,68,68,0.08);{% elif game.bet_result == 'live' %}background:rgba(251,191,36,0.08);{% endif %}" onclick="window.location='/game/{{ game.game_id }}'">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <small class="text-muted">{{ game.date }}</small>
-                            <span class="badge {% if game.total_lean == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
-                                {% if game.total_prob %}{{ game.total_lean }} {{ (game.total_prob * 100)|round(0) }}%{% else %}{{ game.total_lean }} +{{ game.total_edge|round(0) }}%{% endif %}
-                            </span>
+                            <div>
+                                {% if game.bet_result == 'won' %}
+                                <span class="badge bg-success">✓ Won</span>
+                                {% elif game.bet_result == 'lost' %}
+                                <span class="badge bg-danger">✗ Lost</span>
+                                {% elif game.bet_result == 'live' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
+                                {% endif %}
+                                <span class="badge {% if game.total_lean == 'OVER' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if game.total_prob %}{{ game.total_lean }} {{ (game.total_prob * 100)|round(0) }}%{% else %}{{ game.total_lean }} +{{ game.total_edge|round(0) }}%{% endif %}
+                                </span>
+                            </div>
                         </div>
                         <h6 class="mb-1">{{ game.away_team_name }} @ {{ game.home_team_name }}</h6>
+                        {% if game.status == 'final' or game.status == 'in-progress' %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 py-1 px-2 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem;">
+                            <span>{{ game.away_team_name[:15] }} <strong>{{ game.away_score or 0 }}</strong></span>
+                            <small class="{% if game.status == 'final' %}text-muted{% else %}text-warning{% endif %}">{{ game.inning_text or ('Final' if game.status == 'final' else '') }}</small>
+                            <span>{{ game.home_team_name[:15] }} <strong>{{ game.home_score or 0 }}</strong></span>
+                        </div>
+                        {% endif %}
                         <div class="d-flex justify-content-between align-items-center mt-2">
                             <div>
                                 <span class="fw-bold">O/U {{ game.over_under }}</span><br>

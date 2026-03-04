@@ -1,6 +1,6 @@
 {
-  "name": "College Baseball Predictor",
-  "short_name": "⚾ Baseball",
+  "name": "Dinger",
+  "short_name": "Dinger",
   "description": "Live scores, predictions, win probability, and alerts for D1 college baseball",
   "start_url": "/",
   "scope": "/",

@@ -455,6 +455,49 @@ def build_betting_page_context(conference=''):
                     leg['leg_result'] = 'pending'
     _score_conn.close()
 
+    # --- Tag bet results for final games (red/green shading) ---
+    def _tag_ml_result(g, pick_side):
+        """Tag a ML bet with 'won', 'lost', 'live', or None (pending)."""
+        status = g.get('status')
+        if status == 'final':
+            winner = g.get('winner_id')
+            if not winner:
+                return None
+            picked_id = g.get('home_team_id') if pick_side == 'home' else g.get('away_team_id')
+            return 'won' if winner == picked_id else 'lost'
+        elif status == 'in-progress':
+            return 'live'
+        return None
+
+    def _tag_total_result(g):
+        """Tag a totals bet with 'won', 'lost', 'live', or None."""
+        status = g.get('status')
+        if status == 'final':
+            actual_total = (g.get('home_score') or 0) + (g.get('away_score') or 0)
+            line = g.get('over_under')
+            lean = g.get('total_lean', '').upper()
+            if not line or not lean:
+                return None
+            if lean == 'OVER':
+                return 'won' if actual_total > line else 'lost'
+            elif lean == 'UNDER':
+                return 'won' if actual_total < line else 'lost'
+            return None
+        elif status == 'in-progress':
+            return 'live'
+        return None
+
+    for g in confident_bets:
+        pick = g.get('model_agreement', {}).get('pick', 'home')
+        g['bet_result'] = _tag_ml_result(g, pick)
+
+    for g in ev_bets:
+        pick = g.get('best_pick', 'home')
+        g['bet_result'] = _tag_ml_result(g, pick)
+
+    for g in best_totals:
+        g['bet_result'] = _tag_total_result(g)
+
     return {
         'games': games_with_edge,
         'confident_bets': confident_bets,

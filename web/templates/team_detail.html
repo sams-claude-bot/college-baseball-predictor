@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ team.name }} - College Baseball Predictor{% endblock %}
+{% block title %}{{ team.name }} - Dinger{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -216,7 +216,7 @@
                             {% set their_score = game.away_score if is_home else game.home_score %}
                             {% endif %}
                             
-                            <tr class="{% if game.status == 'final' %}{% if won %}table-success{% else %}table-danger{% endif %}{% endif %}" style="{% if game.status == 'final' %}{% if won %}--bs-table-bg: rgba(25,135,84,0.05);{% else %}--bs-table-bg: rgba(220,53,69,0.05);{% endif %}{% endif %}">
+                            <tr class="{% if game.status == 'final' %}{% if won %}table-success{% else %}table-danger{% endif %}{% endif %}" style="cursor:pointer;{% if game.status == 'final' %}{% if won %}--bs-table-bg: rgba(25,135,84,0.05);{% else %}--bs-table-bg: rgba(220,53,69,0.05);{% endif %}{% endif %}" onclick="window.location='/game/{{ game.id }}'">
                                 <td>
                                     {{ game.date }}
                                     {% if game.time %}<br><small class="text-muted"><span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span></small>{% endif %}

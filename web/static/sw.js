@@ -1,4 +1,4 @@
-// Service Worker for College Baseball Predictor PWA
+// Service Worker for Dinger PWA
 const CACHE_NAME = 'baseball-v2';
 const OFFLINE_URL = '/static/offline.html';
 

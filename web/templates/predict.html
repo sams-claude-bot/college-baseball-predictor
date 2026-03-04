@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Predict Game - College Baseball Predictor{% endblock %}
+{% block title %}Predict Game - Dinger{% endblock %}
 
 {% block content %}
 <div class="mb-4">
@@ -679,31 +679,52 @@ function buildKeyFactors(data, homeName, awayName) {
     }
 }
 
-// Team filtering
+// Team filtering — rebuild options instead of CSS hide (iOS Safari ignores display:none on <option>)
+const _allTeamOptions = {};
+['awayTeam', 'homeTeam'].forEach(id => {
+    const select = document.getElementById(id);
+    _allTeamOptions[id] = [];
+    select.querySelectorAll('option').forEach(opt => {
+        _allTeamOptions[id].push({
+            value: opt.value,
+            text: opt.textContent,
+            conf: opt.dataset.conf || '',
+            rank: opt.dataset.rank || '',
+            html: opt.outerHTML
+        });
+    });
+});
+
 function filterTeamDropdown(selectId, searchText, conference) {
     const select = document.getElementById(selectId);
     const currentValue = select.value;
-    const options = select.querySelectorAll('option[value]');
     const search = searchText.toLowerCase();
+    const allOpts = _allTeamOptions[selectId];
     
-    options.forEach(opt => {
-        if (!opt.value) return; // skip placeholder
-        const text = opt.textContent.toLowerCase();
-        const conf = opt.dataset.conf || '';
-        const rank = opt.dataset.rank || '';
+    // Rebuild the select with only matching options
+    select.innerHTML = '';
+    let currentStillValid = false;
+    
+    allOpts.forEach(opt => {
+        // Always keep placeholder
+        if (!opt.value) {
+            select.insertAdjacentHTML('beforeend', opt.html);
+            return;
+        }
         
         let show = true;
-        if (search && !text.includes(search)) show = false;
-        if (conference === '__ranked__' && !rank) show = false;
-        else if (conference && conference !== '__ranked__' && conf !== conference) show = false;
+        if (search && !opt.text.toLowerCase().includes(search)) show = false;
+        if (conference === '__ranked__' && !opt.rank) show = false;
+        else if (conference && conference !== '__ranked__' && opt.conf !== conference) show = false;
         
-        opt.style.display = show ? '' : 'none';
-        opt.disabled = !show;
+        if (show) {
+            select.insertAdjacentHTML('beforeend', opt.html);
+            if (opt.value === currentValue) currentStillValid = true;
+        }
     });
     
-    // If current selection is now hidden, reset
-    const selectedOpt = select.querySelector(`option[value="${currentValue}"]`);
-    if (selectedOpt && selectedOpt.disabled) select.value = '';
+    // Restore selection if still visible, otherwise reset
+    select.value = currentStillValid ? currentValue : '';
 }
 
 function applyFilters() {
