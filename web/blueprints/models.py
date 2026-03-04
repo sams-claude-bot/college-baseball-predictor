@@ -162,12 +162,39 @@ def models():
     weights = get_ensemble_weights()
     accuracy = get_model_accuracy()
 
+    # Model metadata for display
+    MODEL_INFO = {
+        'meta_ensemble': {'display': 'Meta-Ensemble', 'desc': 'XGBoost stacker combining all models', 'tier': 'meta'},
+        'pitching': {'display': 'Pitching Matchup', 'desc': 'Starter + bullpen quality matchup', 'tier': 'core'},
+        'upset': {'display': 'Upset Detector', 'desc': 'Contrarian signal for favorite vulnerability', 'tier': 'core'},
+        'pear': {'display': 'PEAR Ratings', 'desc': 'External power ratings (scraped)', 'tier': 'core'},
+        'venue': {'display': 'Venue / Park', 'desc': 'Park factors, elevation, dome, travel distance', 'tier': 'core'},
+        'elo': {'display': 'Elo', 'desc': 'Margin-adjusted win/loss history', 'tier': 'core'},
+        'quality': {'display': 'Quality', 'desc': 'Batting + pitching quality differentials', 'tier': 'core'},
+        'neural': {'display': 'Neural Net', 'desc': '83-feature slim NN (v4)', 'tier': 'core'},
+        'rest_travel': {'display': 'Rest / Travel', 'desc': 'Fatigue, rest days, travel distance', 'tier': 'core'},
+        'lightgbm': {'display': 'LightGBM (Batting)', 'desc': 'Gradient boosting on batting features', 'tier': 'core'},
+        'xgboost': {'display': 'XGBoost (Pitching)', 'desc': 'Gradient boosting on pitching features', 'tier': 'core'},
+        'pythagorean': {'display': 'Pythagorean', 'desc': 'Run differential (RS²/RS²+RA²)', 'tier': 'core'},
+        'poisson': {'display': 'Poisson', 'desc': 'Run-scoring rates with weather adjustment', 'tier': 'core'},
+        # Legacy models (still in DB but not in current meta-ensemble)
+        'conference': {'display': 'Conference', 'desc': 'Conference-adjusted win% (legacy)', 'tier': 'legacy'},
+        'advanced': {'display': 'Advanced', 'desc': 'Team quality stats (legacy)', 'tier': 'legacy'},
+        'log5': {'display': 'Log5', 'desc': 'Bradley-Terry win% (legacy)', 'tier': 'legacy'},
+        'ensemble': {'display': 'Static Ensemble', 'desc': 'Fixed-weight average (legacy)', 'tier': 'legacy'},
+        'prior': {'display': 'Prior / Preseason', 'desc': 'Preseason rankings (legacy)', 'tier': 'legacy'},
+    }
+
     # Combine weights and accuracy (include models with accuracy but not in ensemble)
     model_data = []
     all_model_names = set(weights.keys()) | set(accuracy.keys())
     for name in all_model_names:
+        info = MODEL_INFO.get(name, {'display': name, 'desc': '', 'tier': 'unknown'})
         data = {
             'name': name,
+            'display_name': info['display'],
+            'description': info['desc'],
+            'tier': info['tier'],
             'weight': weights.get(name, 0),
             'weight_pct': weights.get(name, 0) * 100,
             'independent': name not in weights
@@ -176,8 +203,12 @@ def models():
             data['accuracy'] = accuracy[name]
         model_data.append(data)
 
-    # Sort: ensemble models by weight first, then independent models by accuracy
-    model_data.sort(key=lambda x: (not x['independent'], x['weight']), reverse=True)
+    # Sort: meta first, then core by accuracy, then legacy
+    tier_order = {'meta': 0, 'core': 1, 'legacy': 2, 'unknown': 3}
+    model_data.sort(key=lambda x: (
+        tier_order.get(x['tier'], 3),
+        -(x.get('accuracy', {}).get('all_time_accuracy', 0) or 0)
+    ))
 
     # Get weight history from DB (if exists)
     conn = get_connection()
@@ -413,7 +444,6 @@ def models():
                 ROUND(100.0 * SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) / COUNT(*), 1) as accuracy
             FROM model_predictions
             WHERE was_correct IS NOT NULL
-            AND model_name IN ('meta_ensemble', 'ensemble', 'prior', 'neural', 'elo', 'pear', 'quality')
             GROUP BY model_name
             ORDER BY accuracy DESC
         ''')

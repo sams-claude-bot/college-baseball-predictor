@@ -37,12 +37,25 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {# Sort by all-time accuracy descending #}
-                            {% for model in model_data|sort(attribute='accuracy.all_time_accuracy', reverse=true) if model.accuracy and model.accuracy.all_time_accuracy %}
-                            <tr class="{% if model.name == 'meta_ensemble' %}table-active{% endif %}">
+                            {# Models already sorted: meta → core → legacy #}
+                            {% for model in model_data if model.accuracy and model.accuracy.all_time_accuracy %}
+                            {% if loop.first or model.tier != model_data[loop.index0 - 1].tier %}
+                            <tr class="table-light">
+                                <td colspan="5" class="small fw-bold text-uppercase text-muted py-1">
+                                    {% if model.tier == 'meta' %}⭐ Stacking Model
+                                    {% elif model.tier == 'core' %}📊 Active Models (feed meta-ensemble)
+                                    {% elif model.tier == 'legacy' %}📦 Legacy (historical only)
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            <tr class="{% if model.name == 'meta_ensemble' %}table-active{% elif model.tier == 'legacy' %}text-muted{% endif %}">
                                 <td>
                                     {% if model.name == 'meta_ensemble' %}<i class="bi bi-stars text-warning"></i> {% endif %}
-                                    <strong>{{ model.name }}</strong>
+                                    <strong>{{ model.display_name or model.name }}</strong>
+                                    {% if model.description %}
+                                    <br><small class="text-muted">{{ model.description }}</small>
+                                    {% endif %}
                                 </td>
                                 <td class="text-center">
                                     {% if model.accuracy.recent_accuracy %}
@@ -99,8 +112,8 @@
             <div class="card-body">
                 {% if meta_feature_importance %}
                 <p class="text-muted small mb-2">
-                    XGBoost + Logistic Regression stacking model. Trained on <strong>{{ meta_training_size }}</strong> games
-                    (walk-forward validation). Evaluated on {{ meta_accuracy.get('meta_ensemble', {}).get('total', '?') }} graded predictions.
+                    XGBoost stacking model combining 12 diverse sub-models. Trained on <strong>{{ meta_training_size }}</strong> games
+                    (walk-forward validation). {{ meta_accuracy.get('meta_ensemble', {}).get('total', '?') }} graded predictions.
                 </p>
                 {% set max_imp = meta_feature_importance.values()|list|first if meta_feature_importance else 1 %}
                 {% set top_features = meta_feature_importance.items()|list %}
