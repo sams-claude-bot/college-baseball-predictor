@@ -38,13 +38,13 @@ class TestMetaEnsemble:
             'prior_prob', 'elo_prob', 'ensemble_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
-            'pear_prob', 'quality_prob',
+            'pear_prob', 'quality_prob', 'neural_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        n_models = len(MODEL_NAMES)  # 13
-        n_features = n_models + 3 + 7  # 23
+        n_models = len(MODEL_NAMES)  # 14
+        n_features = n_models + 3 + 7  # 24
         # Create 5 fake rows
         rows = []
         for i in range(5):
@@ -82,10 +82,11 @@ class TestMetaEnsemble:
         assert '2026-02-19' in train_dates
 
     def test_model_names_complete(self):
-        """All 13 expected models are listed (neural deprecated)."""
+        """All 14 expected models are listed (nn_slim runs as 'neural')."""
         expected = {'prior', 'elo', 'ensemble', 'pythagorean', 
                     'lightgbm', 'poisson', 'conference', 'xgboost', 
-                    'advanced', 'log5', 'pitching', 'pear', 'quality'}
+                    'advanced', 'log5', 'pitching', 'pear', 'quality',
+                    'neural'}
         assert set(MODEL_NAMES) == expected
 
     @patch.object(MetaEnsemble, '_compute_win_pct_cache', return_value={})
@@ -97,14 +98,14 @@ class TestMetaEnsemble:
             'prior_prob', 'elo_prob', 'ensemble_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
-            'pear_prob', 'quality_prob',
+            'pear_prob', 'quality_prob', 'neural_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        # Row with None for some probs (prior=0.7, elo=None, ensemble=0.6, ...)
+        # Row with None for some probs (prior=0.7, elo=None, ensemble=0.6, ..., neural=None)
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
-        row += [0.7, None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None]
+        row += [0.7, None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
         row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
         rows = [tuple(row)]
@@ -115,6 +116,7 @@ class TestMetaEnsemble:
         assert X[0, 0] == 0.7   # prior kept
         assert X[0, 11] == 0.8  # pear kept
         assert X[0, 12] == 0.5  # quality defaulted
+        assert X[0, 13] == 0.55 # neural kept
 
     def test_get_feature_importance_no_model(self):
         """get_feature_importance returns empty dict when no model trained."""

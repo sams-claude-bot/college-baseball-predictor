@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Meta-Ensemble: A trained XGBoost meta-learner that combines all 12 model predictions
+Meta-Ensemble: A trained XGBoost meta-learner that combines all 14 model predictions
 plus context features to produce a calibrated win probability.
 
 Unlike the static ensemble which uses fixed/slowly-adapting weights, this model
@@ -18,12 +18,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 BASE_DIR = Path(__file__).parent.parent
 MODEL_PATH = BASE_DIR / "data" / "meta_ensemble_xgb.pkl"
 
-# Note: 'neural' (full NN, 81 features) removed — deprecated Mar 3 2026.
-# nn_slim v4 contributes through the ensemble model.
+# Full NN (81 features) was deprecated Mar 3 2026 and replaced by nn_slim v4
+# which runs under the 'neural' model name. Added back as a meta-ensemble input.
 MODEL_NAMES = [
     'prior', 'elo', 'ensemble', 'pythagorean', 'lightgbm',
     'poisson', 'conference', 'xgboost', 'advanced', 'log5', 'pitching',
-    'pear', 'quality'
+    'pear', 'quality', 'neural'
 ]
 
 
@@ -63,6 +63,7 @@ class MetaEnsemble:
             MAX(CASE WHEN mp.model_name='pitching' THEN mp.predicted_home_prob END) as pitching_prob,
             MAX(CASE WHEN mp.model_name='pear' THEN mp.predicted_home_prob END) as pear_prob,
             MAX(CASE WHEN mp.model_name='quality' THEN mp.predicted_home_prob END) as quality_prob,
+            MAX(CASE WHEN mp.model_name='neural' THEN mp.predicted_home_prob END) as neural_prob,
             CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END as home_won,
             COALESCE(eh.rating, 1500) as home_elo,
             COALESCE(ea.rating, 1500) as away_elo,
@@ -132,7 +133,7 @@ class MetaEnsemble:
         col_idx = {name: i for i, name in enumerate(columns)}
 
         feature_names = []
-        # 14 model probs
+        # Model probability features (one per model)
         for m in MODEL_NAMES:
             feature_names.append(f'{m}_prob')
         # Agreement features
@@ -405,7 +406,7 @@ class MetaEnsemble:
                 WHERE g.home_team_id = ? AND g.away_team_id = ?
                   AND mp.model_name != 'meta_ensemble'
                 ORDER BY mp.predicted_at DESC
-                LIMIT 14
+                LIMIT 15
             """, (home_team_id, away_team_id))
             rows = c.fetchall()
         else:
