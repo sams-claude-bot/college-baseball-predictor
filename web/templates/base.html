@@ -1,7 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Prevent FOUC: set theme + background BEFORE any render -->
+    <script>
+    (function(){
+        var t=localStorage.getItem('theme')||'light';
+        var team=localStorage.getItem('featured_team')||'mississippi-state';
+        document.documentElement.setAttribute('data-theme',t);
+        document.documentElement.setAttribute('data-team',team);
+        document.documentElement.style.backgroundColor=t==='dark'?'#1a1a2e':'#f8f9fa';
+    })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}College Baseball Predictor{% endblock %}</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
@@ -11,16 +21,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Baseball">
-    
-    <!-- iOS Splash Screen (uses theme colors instead of white flash) -->
-    <style>
-        @media (prefers-color-scheme: dark) {
-            html { background-color: #1a1a2e; }
-        }
-        @media (prefers-color-scheme: light) {
-            html { background-color: #1a1a2e; }
-        }
-    </style>
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -675,6 +675,11 @@
                 position: relative;
             }
             .bottom-nav-item i { font-size: 1.2rem; margin-bottom: 1px; }
+            .bottom-nav-item:active {
+                transform: scale(0.9);
+                opacity: 0.6;
+                transition: none;
+            }
             .bottom-nav-item.active { color: rgba(255,255,255,0.95); }
             .bottom-nav-item.active::after {
                 content: '';
@@ -776,7 +781,7 @@
                 font-size: 0.72rem; font-weight: 500;
                 -webkit-tap-highlight-color: transparent;
             }
-            .more-menu-item:active { background-color: var(--light-grey); }
+            .more-menu-item:active { background-color: var(--light-grey); transform: scale(0.92); }
             .more-menu-item:hover { color: var(--text-primary); text-decoration: none; }
             .more-menu-item i { font-size: 1.3rem; color: var(--text-muted); }
             .more-menu-divider { height: 1px; background: var(--border-color); margin: 8px 0; }
@@ -1084,19 +1089,19 @@
         if (mLabel) mLabel.textContent = 'Switch to ' + teamName;
     }
     
-    // Load saved preferences
+    // Apply saved preferences (theme already set in <head> to prevent FOUC)
     (function() {
         const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
         updateIcon(savedTheme);
         
         // Check URL param first (overrides localStorage)
         const urlTeam = new URLSearchParams(window.location.search).get('team');
         const savedTeam = urlTeam || localStorage.getItem('featured_team') || 'mississippi-state';
-        if (urlTeam) localStorage.setItem('featured_team', urlTeam);
-        document.documentElement.setAttribute('data-team', savedTeam);
+        if (urlTeam) {
+            localStorage.setItem('featured_team', urlTeam);
+            document.documentElement.setAttribute('data-team', urlTeam);
+        }
         updateTeamLabel(savedTeam);
-        // Update dashboard link to include team preference
         const dashLink = document.getElementById('dashboardLink');
         if (dashLink) dashLink.href = '/?team=' + savedTeam;
     })();
