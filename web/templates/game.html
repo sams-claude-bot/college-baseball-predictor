@@ -316,7 +316,7 @@
     fetch('/api/win-probability/' + encodeURIComponent(gameId))
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (!data.timeline || data.timeline.length < 3) return;
+            if (!data.timeline || data.timeline.length < 2) return;
             document.getElementById('wp-card').style.display = '';
 
             var homeName = data.home_team || 'Home';
