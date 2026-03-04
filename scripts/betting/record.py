@@ -12,7 +12,7 @@ def build_parlay(results: dict) -> dict:
     """Build a 3-leg parlay from the day's highest-confidence picks.
     
     v2 strategy changes (2026-03-04):
-    - Reduced from 4 legs to 3 (each leg must win → fewer legs = higher hit rate)
+    - Kept at 4 legs (more fun, bigger payouts)
     - Use meta_ensemble probability instead of old consensus (which was 38% accurate)
     - Require minimum 72% model probability per leg (was 62%)
     - Minimum 8% edge per leg (was 5%)
@@ -24,7 +24,7 @@ def build_parlay(results: dict) -> dict:
     PARLAY_MAX_PROB = 0.92     # Cap to avoid overfit high-confidence busts
     PARLAY_MIN_EDGE = 8.0      # Meaningful edge required
     PARLAY_BET = 25
-    PARLAY_LEGS = 3            # 3 legs instead of 4
+    PARLAY_LEGS = 4
 
     ml_candidates = []
     for b in results['bets']:
