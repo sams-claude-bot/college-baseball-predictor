@@ -63,7 +63,7 @@ def build_parlay(results: dict) -> dict:
             })
             used_ids.add(c['game_id'])
 
-    if len(legs) < PARLAY_LEGS:
+    if len(legs) < 3:  # Need at least 3 legs; prefer 4
         return None
 
     def ml_to_decimal(ml):
