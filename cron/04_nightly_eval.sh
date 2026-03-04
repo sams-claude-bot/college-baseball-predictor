@@ -13,6 +13,9 @@ python3 scripts/backup_db.py >> "$LOG" 2>&1
 echo "--- Evaluate bets ---" >> "$LOG"
 python3 scripts/record_daily_bets.py evaluate >> "$LOG" 2>&1
 
+echo "--- Grade all bets (EV, consensus, parlays) ---" >> "$LOG"
+python3 scripts/grade_bets.py >> "$LOG" 2>&1
+
 echo "--- Update Elo ---" >> "$LOG"
 python3 scripts/update_elo.py --date "$YESTERDAY" >> "$LOG" 2>&1
 
