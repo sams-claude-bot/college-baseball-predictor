@@ -418,8 +418,13 @@ def get_active_events(conn):
         if game_date > today:
             continue
         
-        # Past dates: include for cleanup (mark_completed will handle)
+        # Past dates: only include if game is still in-progress
+        # (postponed/canceled/final games should not be polled from stale SB events)
         if game_date < today:
+            if game_status in ('final', 'postponed', 'canceled', 'scheduled'):
+                # Auto-complete stale SB events for games that are done/postponed
+                mark_completed(conn, ev['sb_event_id'])
+                continue
             result.append(ev)
             continue
         
