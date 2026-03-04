@@ -99,23 +99,32 @@ def model_trends():
         
         for i, date in enumerate(sorted_dates):
             day_results = by_date[date]
-            cumulative_correct += sum(day_results)
-            cumulative_total += len(day_results)
+            day_correct = sum(day_results)
+            day_total = len(day_results)
+            cumulative_correct += day_correct
+            cumulative_total += day_total
             
-            # Rolling: last 7 days
-            rolling_correct = 0
-            rolling_total = 0
-            for j in range(max(0, i - 6), i + 1):  # Last 7 days including today
+            # Daily accuracy for this specific day
+            daily_acc = round(day_correct / day_total * 100, 1) if day_total > 0 else 0
+            
+            # Rolling: 7-day window daily accuracy (average of per-day accuracies)
+            window_start = max(0, i - 6)
+            window_accs = []
+            for j in range(window_start, i + 1):
                 d = sorted_dates[j]
-                rolling_correct += sum(by_date[d])
-                rolling_total += len(by_date[d])
+                d_correct = sum(by_date[d])
+                d_total = len(by_date[d])
+                if d_total > 0:
+                    window_accs.append(d_correct / d_total * 100)
+            rolling_avg = round(sum(window_accs) / len(window_accs), 1) if window_accs else 0
             
             points.append({
                 'date': date,
+                'daily': daily_acc,
                 'cumulative': round(cumulative_correct / cumulative_total * 100, 1),
-                'rolling': round(rolling_correct / rolling_total * 100, 1) if rolling_total > 0 else 0,
+                'rolling': rolling_avg,
                 'games': cumulative_total,
-                'day_games': len(day_results)
+                'day_games': day_total
             })
         rolling_data[model_name] = points
     
@@ -439,17 +448,33 @@ def models():
 
     rolling_data = {}
     for model_name, entries in model_history.items():
-        points = []
-        window = []
+        # Group by date for per-day accuracy
+        by_date = defaultdict(list)
         for entry in entries:
-            window.append(entry['correct'])
-            if len(window) > 30:
-                window.pop(0)
-            if len(window) >= 3:  # Show after just 3 games (early season friendly)
-                points.append({
-                    'date': entry['date'],
-                    'accuracy': round(sum(window) / len(window) * 100, 1)
-                })
+            by_date[entry['date']].append(entry['correct'])
+        
+        points = []
+        sorted_dates = sorted(by_date.keys())
+        for i, date in enumerate(sorted_dates):
+            day_results = by_date[date]
+            day_acc = sum(day_results) / len(day_results) * 100 if day_results else 0
+            
+            # 7-day rolling average of daily accuracies
+            window_start = max(0, i - 6)
+            window_accs = []
+            for j in range(window_start, i + 1):
+                d = sorted_dates[j]
+                d_res = by_date[d]
+                if d_res:
+                    window_accs.append(sum(d_res) / len(d_res) * 100)
+            rolling_avg = sum(window_accs) / len(window_accs) if window_accs else 0
+            
+            points.append({
+                'date': date,
+                'accuracy': round(rolling_avg, 1),
+                'daily': round(day_acc, 1),
+                'games': len(day_results)
+            })
         rolling_data[model_name] = points
     conn3.close()
 
