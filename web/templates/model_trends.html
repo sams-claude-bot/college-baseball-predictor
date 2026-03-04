@@ -36,15 +36,15 @@
 <!-- Rolling Accuracy (7-day window) -->
 <div class="card mb-4">
     <div class="card-header bg-maroon">
-        <i class="bi bi-graph-up"></i> Rolling Accuracy (Last 7 Days)
+        <i class="bi bi-bar-chart"></i> Daily Accuracy
     </div>
     <div class="card-body">
         {% if rolling_data %}
         <div style="position: relative; height: 350px; width: 100%;">
-            <canvas id="rollingChart"></canvas>
+            <canvas id="cumulativeChart"></canvas>
         </div>
         <p class="text-muted small mt-2 mb-0">
-            <i class="bi bi-info-circle"></i> Average of daily accuracies over the last 7 calendar days
+            <i class="bi bi-info-circle"></i> Each model's accuracy for that specific day
         </p>
         {% else %}
         <div class="text-center py-5">
@@ -55,18 +55,18 @@
     </div>
 </div>
 
-<!-- Daily Accuracy -->
+<!-- Rolling Accuracy -->
 <div class="card mb-4">
     <div class="card-header">
-        <i class="bi bi-bar-chart"></i> Daily Accuracy (Per-Day)
+        <i class="bi bi-graph-up"></i> Rolling Accuracy (Last 7 Days)
     </div>
     <div class="card-body">
         {% if rolling_data %}
         <div style="position: relative; height: 350px; width: 100%;">
-            <canvas id="cumulativeChart"></canvas>
+            <canvas id="rollingChart"></canvas>
         </div>
         <p class="text-muted small mt-2 mb-0">
-            <i class="bi bi-info-circle"></i> Each model's accuracy for that specific day
+            <i class="bi bi-info-circle"></i> Average of daily accuracies over the last 7 calendar days
         </p>
         {% else %}
         <p class="text-muted text-center">No data yet</p>
