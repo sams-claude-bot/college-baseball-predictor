@@ -18,7 +18,7 @@ class TestMetaEnsemble:
     def test_feature_names_count(self):
         """Feature extraction produces correct number of columns."""
         meta = MetaEnsemble()
-        # 9 model probs + 3 agreement + 7 context = 19 features
+        # 12 model probs + 3 agreement + 7 context = 22 features
         expected = len(MODEL_NAMES) + 3 + 7
         # Simulate building features
         meta.feature_names = []
@@ -38,12 +38,13 @@ class TestMetaEnsemble:
             'elo_prob', 'pythagorean_prob', 'lightgbm_prob', 'poisson_prob',
             'xgboost_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
+            'venue_prob', 'rest_travel_prob', 'upset_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        n_models = len(MODEL_NAMES)  # 9
-        n_features = n_models + 3 + 7  # 19
+        n_models = len(MODEL_NAMES)  # 12
+        n_features = n_models + 3 + 7  # 22
         # Create 5 fake rows
         rows = []
         for i in range(5):
@@ -81,11 +82,11 @@ class TestMetaEnsemble:
         assert '2026-02-19' in train_dates
 
     def test_model_names_complete(self):
-        """All 9 expected models listed (dropped conference/advanced/log5 for diversity)."""
+        """All 12 diverse models listed (dropped W/L clones, added venue/rest/upset)."""
         expected = {'elo', 'pythagorean', 
                     'lightgbm', 'poisson', 'xgboost', 
                     'pitching', 'pear', 'quality',
-                    'neural'}
+                    'neural', 'venue', 'rest_travel', 'upset'}
         assert set(MODEL_NAMES) == expected
 
     @patch.object(MetaEnsemble, '_compute_win_pct_cache', return_value={})
@@ -97,25 +98,29 @@ class TestMetaEnsemble:
             'elo_prob', 'pythagorean_prob', 'lightgbm_prob', 'poisson_prob',
             'xgboost_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
+            'venue_prob', 'rest_travel_prob', 'upset_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
         # Row with None for some probs
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
-        # elo=None, pyth=0.6, lgbm=0.5, poisson=0.5, xgb=0.5, pitch=0.5, pear=0.8, quality=None, neural=0.55
-        row += [None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55]
+        # elo=None, pyth=0.6, lgbm=0.5, poisson=0.5, xgb=0.5, pitch=0.5,
+        # pear=0.8, quality=None, neural=0.55, venue=0.7, rest=None, upset=0.4
+        row += [None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55, 0.7, None, 0.4]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
         row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
         rows = [tuple(row)]
 
         X, y, dates, names = meta._build_features(rows, columns)
-        # elo_prob (index 0) should be 0.5 (defaulted from None)
         assert X[0, 0] == 0.5   # elo defaulted
         assert X[0, 1] == 0.6   # pythagorean kept
         assert X[0, 6] == 0.8   # pear kept
         assert X[0, 7] == 0.5   # quality defaulted
         assert X[0, 8] == 0.55  # neural kept
+        assert X[0, 9] == 0.7   # venue kept
+        assert X[0, 10] == 0.5  # rest_travel defaulted
+        assert X[0, 11] == 0.4  # upset kept
 
     def test_get_feature_importance_no_model(self):
         """get_feature_importance returns empty dict when no model trained."""

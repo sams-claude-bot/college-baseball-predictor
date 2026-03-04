@@ -23,15 +23,15 @@ MODEL_PATH = BASE_DIR / "data" / "meta_ensemble_xgb.pkl"
 MODEL_NAMES = [
     'elo', 'pythagorean', 'lightgbm',
     'poisson', 'xgboost', 'pitching',
-    'pear', 'quality', 'neural'
+    'pear', 'quality', 'neural',
+    'venue', 'rest_travel', 'upset'
 ]
 
-# Dropped for diversity (r > 0.88 with remaining models):
-#   conference (r=0.96 with advanced, which was also dropped)
-#   advanced (r=0.96 with log5, which was also dropped)
-#   log5 (r=0.96 with advanced/conference)
-# These three are functionally identical W/L-record models.
-# Keeping pythagorean as the run-based W/L representative.
+# 12 diverse models (replacing 12 correlated ones):
+#   Dropped: conference/advanced/log5 (r=0.94-0.96 W/L clones)
+#   Added: venue (park factors, r=0.34), rest_travel (fatigue, r=0.09),
+#          upset (contrarian signal, r=0.46)
+#   Specialized: lightgbm=batting features, xgboost=pitching features
 
 
 class MetaEnsemble:
@@ -66,6 +66,9 @@ class MetaEnsemble:
             MAX(CASE WHEN mp.model_name='pear' THEN mp.predicted_home_prob END) as pear_prob,
             MAX(CASE WHEN mp.model_name='quality' THEN mp.predicted_home_prob END) as quality_prob,
             MAX(CASE WHEN mp.model_name='neural' THEN mp.predicted_home_prob END) as neural_prob,
+            MAX(CASE WHEN mp.model_name='venue' THEN mp.predicted_home_prob END) as venue_prob,
+            MAX(CASE WHEN mp.model_name='rest_travel' THEN mp.predicted_home_prob END) as rest_travel_prob,
+            MAX(CASE WHEN mp.model_name='upset' THEN mp.predicted_home_prob END) as upset_prob,
             CASE WHEN g.home_score > g.away_score THEN 1 ELSE 0 END as home_won,
             COALESCE(eh.rating, 1500) as home_elo,
             COALESCE(ea.rating, 1500) as away_elo,
