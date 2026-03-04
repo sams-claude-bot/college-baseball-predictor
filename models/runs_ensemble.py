@@ -1,7 +1,7 @@
 """
-Ensemble model for run total predictions (v2.1).
+Ensemble model for run total predictions (v2.2).
 
-Combines Poisson and Advanced models with confidence-weighted averaging.
+Combines Poisson, Advanced, and XGBoost models with confidence-weighted averaging.
 Uses both Poisson and Negative Binomial distributions for over/under probability calculations.
 Includes game-context variance adjustment, OVER confidence gate,
 day-of-week adjustment, and team scoring volatility.
@@ -19,10 +19,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.database import get_connection
 from models.negbin_model import negbin_over_under, fit_dispersion_from_db
 
-# Default weights for run projections — poisson + advanced only (v2)
+# Default weights for run projections — poisson + advanced + xgb_totals (v2.2)
 DEFAULT_RUN_WEIGHTS = {
-    'poisson': 0.60,
+    'poisson': 0.40,
     'advanced': 0.40,
+    'xgb_totals': 0.20,
 }
 
 # Active weights (updated by auto-adjustment)
@@ -227,9 +228,9 @@ def _update_weights_from_accuracy():
                    ROW_NUMBER() OVER (PARTITION BY model_name ORDER BY predicted_at DESC) as recency_rank
             FROM totals_predictions
             WHERE was_correct IS NOT NULL
-            AND model_name IN ('runs_poisson', 'runs_advanced')
+            AND model_name IN ('runs_poisson', 'runs_advanced', 'runs_xgb_totals')
         ''')
-        
+
         model_scores = {}
         model_counts = {}
         for row in c.fetchall():
@@ -273,7 +274,7 @@ def _update_weights_from_accuracy():
                     SELECT model_name, AVG(ABS(projected_total - actual_total)) as mae
                     FROM totals_predictions
                     WHERE actual_total IS NOT NULL
-                    AND model_name IN ('runs_poisson', 'runs_advanced')
+                    AND model_name IN ('runs_poisson', 'runs_advanced', 'runs_xgb_totals')
                     GROUP BY model_name
                 ''')
                 mae_rows = {r['model_name'].replace('runs_', ''): r['mae'] for r in c2.fetchall()}
@@ -324,12 +325,17 @@ def _get_cached_model(name: str):
         elif name == 'elo':
             from models.elo_model import EloModel
             _MODEL_CACHE[name] = EloModel()
+        elif name == 'xgb_totals':
+            from models.xgb_totals_model import XGBTotalsModel
+            _MODEL_CACHE[name] = XGBTotalsModel()
     return _MODEL_CACHE.get(name)
 
-def get_model_projections(home_id: str, away_id: str) -> Dict[str, Dict[str, float]]:
-    """Get run projections from poisson and advanced models (no pitching)."""
+def get_model_projections(home_id: str, away_id: str,
+                          game_id: str = None,
+                          game_date: str = None) -> Dict[str, Dict[str, float]]:
+    """Get run projections from poisson, advanced, and xgb_totals models."""
     projections = {}
-    
+
     # Advanced model
     try:
         model = _get_cached_model('advanced')
@@ -343,7 +349,7 @@ def get_model_projections(home_id: str, away_id: str) -> Dict[str, Dict[str, flo
                 }
     except Exception:
         pass
-    
+
     # Poisson model
     try:
         import models.poisson_model as pm
@@ -356,7 +362,33 @@ def get_model_projections(home_id: str, away_id: str) -> Dict[str, Dict[str, flo
             }
     except Exception:
         pass
-    
+
+    # XGBoost totals model
+    try:
+        xgb = _get_cached_model('xgb_totals')
+        if xgb and xgb.is_trained():
+            pred = xgb.predict(home_id, away_id, game_id=game_id, game_date=game_date)
+            if pred.get('projected_total') is not None:
+                total = pred['projected_total']
+                # Split home/away using poisson/advanced ratio if available
+                if 'poisson' in projections:
+                    base = projections['poisson']
+                elif 'advanced' in projections:
+                    base = projections['advanced']
+                else:
+                    base = None
+                if base and base['total'] > 0:
+                    ratio = base['home'] / base['total']
+                else:
+                    ratio = 0.5
+                projections['xgb_totals'] = {
+                    'home': total * ratio,
+                    'away': total * (1 - ratio),
+                    'total': total,
+                }
+    except Exception:
+        pass
+
     return projections
 
 def weighted_average(projections: Dict[str, Dict[str, float]], 
@@ -497,7 +529,8 @@ def predict(home_team_id: str, away_team_id: str,
     _update_weights_from_accuracy()
     
     # Get projections from all models
-    projections = get_model_projections(home_team_id, away_team_id)
+    projections = get_model_projections(home_team_id, away_team_id,
+                                        game_id=game_id)
     
     if not projections:
         home_stats = get_team_stats(home_team_id)
@@ -627,7 +660,7 @@ def predict(home_team_id: str, away_team_id: str,
         'dow_adjustment': round(dow_adj, 2),
         'volatility_adjustment': round(volatility_adj, 2),
         'combined_volatility': round(combined_volatility, 2),
-        'model_version': 'v2.1',
+        'model_version': 'v2.2',
     }
     
     # Over/under analysis

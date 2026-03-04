@@ -405,6 +405,39 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 else:
                     print(f"  {'nn_slim_tot':12}: ERROR - {e}")
 
+        # XGBoost totals prediction
+        if 'xgb_totals' not in existing_totals:
+            try:
+                from models.xgb_totals_model import XGBTotalsModel
+                if not hasattr(predict_games, '_xgb_totals'):
+                    predict_games._xgb_totals = XGBTotalsModel()
+                xgb_model = predict_games._xgb_totals
+                if xgb_model.is_trained():
+                    xgb_pred = xgb_model.predict(home_id, away_id, line=dk_line, game_id=game_id)
+                    xgb_total = xgb_pred.get('projected_total', 0)
+                    if xgb_total and xgb_total > 0:
+                        dk = dk_line or 0
+                        prediction = 'OVER' if dk and xgb_total > dk else 'UNDER' if dk else 'N/A'
+                        edge = abs(xgb_total - dk) / dk * 100 if dk else 0
+                        over_prob = xgb_pred.get('over_prob')
+                        under_prob = xgb_pred.get('under_prob')
+                        cur.execute('''
+                            INSERT OR IGNORE INTO totals_predictions
+                            (game_id, over_under_line, projected_total, prediction, edge_pct, model_name, over_prob, under_prob)
+                            VALUES (?, ?, ?, ?, ?, 'xgb_totals', ?, ?)
+                        ''', (game_id, dk, xgb_total, prediction, edge, over_prob, under_prob))
+                        line_str = f" (line {dk})" if dk else ""
+                        pred_str = f" → {prediction}" if prediction != 'N/A' else ""
+                        if runner:
+                            runner.info(f"  {'xgb_totals':12}: projected total {xgb_total:.1f}{line_str}{pred_str}")
+                        else:
+                            print(f"  {'xgb_totals':12}: projected total {xgb_total:.1f}{line_str}{pred_str}")
+            except Exception as e:
+                if runner:
+                    runner.warn(f"  {'xgb_totals':12}: ERROR - {e}")
+                else:
+                    print(f"  {'xgb_totals':12}: ERROR - {e}")
+
         # Old nn_spread removed — spreads disabled
     
     conn.commit()
