@@ -138,17 +138,8 @@ def model_trends():
     ''')
     dates = [row['date'] for row in c.fetchall()]
 
-    # Defensive normalization: if neural points are one day ahead of canonical dates,
-    # shift them back by one day for display consistency.
-    if dates and 'neural' in rolling_data and rolling_data['neural']:
-        max_date = max(dates)
-        neural_max = max(p['date'] for p in rolling_data['neural'])
-        if neural_max > max_date:
-            from datetime import datetime, timedelta
-            for p in rolling_data['neural']:
-                p['date'] = (datetime.strptime(p['date'], '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
-            # Re-sort after adjustment
-            rolling_data['neural'].sort(key=lambda x: x['date'])
+    # Note: neural date-shift hack removed (was causing 03-03 gap).
+    # Neural dates now align naturally from the same games/dates query.
     
     conn.close()
     

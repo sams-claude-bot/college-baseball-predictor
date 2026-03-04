@@ -269,12 +269,7 @@ const shiftDate = (dateStr, days) => {
 const rollingDatasets = [];
 for (const [model, points] of Object.entries(rollingData)) {
     if (points.length === 0) continue;
-    let adjustedPoints = points;
-    // Defensive fix: if neural series is offset +1 day, pull it back.
-    if (model === 'neural' && points.length > 0 && dates.length > 1 && points[0].date > dates[1]) {
-        adjustedPoints = points.map(p => ({...p, date: shiftDate(p.date, -1)}));
-    }
-    const byDate = Object.fromEntries(adjustedPoints.map(p => [p.date, p]));
+    const byDate = Object.fromEntries(points.map(p => [p.date, p]));
     const dayGames = dates.map(d => (byDate[d] ? byDate[d].day_games : null));
     rollingDatasets.push({
         label: model.charAt(0).toUpperCase() + model.slice(1),
@@ -327,11 +322,7 @@ new Chart(document.getElementById('rollingChart'), {
 const dailyDatasets = [];
 for (const [model, points] of Object.entries(rollingData)) {
     if (points.length === 0) continue;
-    let adjustedPoints = points;
-    if (model === 'neural' && points.length > 0 && dates.length > 1 && points[0].date > dates[1]) {
-        adjustedPoints = points.map(p => ({...p, date: shiftDate(p.date, -1)}));
-    }
-    const byDate = Object.fromEntries(adjustedPoints.map(p => [p.date, p]));
+    const byDate = Object.fromEntries(points.map(p => [p.date, p]));
     const gamesDay = dates.map(d => (byDate[d] ? byDate[d].day_games : null));
     dailyDatasets.push({
         label: model.charAt(0).toUpperCase() + model.slice(1),
