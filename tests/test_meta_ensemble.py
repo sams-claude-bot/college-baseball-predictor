@@ -35,7 +35,7 @@ class TestMetaEnsemble:
         meta = MetaEnsemble()
         columns = [
             'game_id', 'date', 'home_team_id', 'away_team_id',
-            'prior_prob', 'elo_prob', 'ensemble_prob',
+            'elo_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
@@ -43,8 +43,8 @@ class TestMetaEnsemble:
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        n_models = len(MODEL_NAMES)  # 14
-        n_features = n_models + 3 + 7  # 24
+        n_models = len(MODEL_NAMES)  # 12
+        n_features = n_models + 3 + 7  # 22
         # Create 5 fake rows
         rows = []
         for i in range(5):
@@ -82,8 +82,8 @@ class TestMetaEnsemble:
         assert '2026-02-19' in train_dates
 
     def test_model_names_complete(self):
-        """All 14 expected models are listed (nn_slim runs as 'neural')."""
-        expected = {'prior', 'elo', 'ensemble', 'pythagorean', 
+        """All 12 expected models listed (no ensemble/prior, nn_slim as 'neural')."""
+        expected = {'elo', 'pythagorean', 
                     'lightgbm', 'poisson', 'conference', 'xgboost', 
                     'advanced', 'log5', 'pitching', 'pear', 'quality',
                     'neural'}
@@ -95,7 +95,7 @@ class TestMetaEnsemble:
         meta = MetaEnsemble()
         columns = [
             'game_id', 'date', 'home_team_id', 'away_team_id',
-            'prior_prob', 'elo_prob', 'ensemble_prob',
+            'elo_prob',
             'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
             'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
@@ -103,20 +103,20 @@ class TestMetaEnsemble:
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        # Row with None for some probs (prior=0.7, elo=None, ensemble=0.6, ..., neural=None)
+        # Row with None for some probs (elo=None, pythagorean=0.6, ..., neural=0.55)
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
-        row += [0.7, None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55]
+        row += [None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
         row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
         rows = [tuple(row)]
 
         X, y, dates, names = meta._build_features(rows, columns)
-        # elo_prob (index 1) should be 0.5 (defaulted from None)
-        assert X[0, 1] == 0.5   # elo defaulted
-        assert X[0, 0] == 0.7   # prior kept
-        assert X[0, 11] == 0.8  # pear kept
-        assert X[0, 12] == 0.5  # quality defaulted
-        assert X[0, 13] == 0.55 # neural kept
+        # elo_prob (index 0) should be 0.5 (defaulted from None)
+        assert X[0, 0] == 0.5   # elo defaulted
+        assert X[0, 1] == 0.6   # pythagorean kept
+        assert X[0, 9] == 0.8   # pear kept
+        assert X[0, 10] == 0.5  # quality defaulted
+        assert X[0, 11] == 0.55 # neural kept
 
     def test_get_feature_importance_no_model(self):
         """get_feature_importance returns empty dict when no model trained."""

@@ -18,10 +18,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 BASE_DIR = Path(__file__).parent.parent
 MODEL_PATH = BASE_DIR / "data" / "meta_ensemble_xgb.pkl"
 
-# Full NN (81 features) was deprecated Mar 3 2026 and replaced by nn_slim v4
-# which runs under the 'neural' model name. Added back as a meta-ensemble input.
+# Removed 'ensemble' (double-counts individual models) and 'prior' (preseason
+# priors no longer needed mid-season). nn_slim runs as 'neural'.
 MODEL_NAMES = [
-    'prior', 'elo', 'ensemble', 'pythagorean', 'lightgbm',
+    'elo', 'pythagorean', 'lightgbm',
     'poisson', 'conference', 'xgboost', 'advanced', 'log5', 'pitching',
     'pear', 'quality', 'neural'
 ]
@@ -50,9 +50,7 @@ class MetaEnsemble:
             mp.game_id,
             g.date,
             g.home_team_id, g.away_team_id,
-            MAX(CASE WHEN mp.model_name='prior' THEN mp.predicted_home_prob END) as prior_prob,
             MAX(CASE WHEN mp.model_name='elo' THEN mp.predicted_home_prob END) as elo_prob,
-            MAX(CASE WHEN mp.model_name='ensemble' THEN mp.predicted_home_prob END) as ensemble_prob,
             MAX(CASE WHEN mp.model_name='pythagorean' THEN mp.predicted_home_prob END) as pythagorean_prob,
             MAX(CASE WHEN mp.model_name='lightgbm' THEN mp.predicted_home_prob END) as lightgbm_prob,
             MAX(CASE WHEN mp.model_name='poisson' THEN mp.predicted_home_prob END) as poisson_prob,
@@ -406,7 +404,7 @@ class MetaEnsemble:
                 WHERE g.home_team_id = ? AND g.away_team_id = ?
                   AND mp.model_name != 'meta_ensemble'
                 ORDER BY mp.predicted_at DESC
-                LIMIT 15
+                LIMIT 13
             """, (home_team_id, away_team_id))
             rows = c.fetchall()
         else:
