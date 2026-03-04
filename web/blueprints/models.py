@@ -107,11 +107,14 @@ def model_trends():
             # Daily accuracy for this specific day
             daily_acc = round(day_correct / day_total * 100, 1) if day_total > 0 else 0
             
-            # Rolling: 7-day window daily accuracy (average of per-day accuracies)
-            window_start = max(0, i - 6)
+            # Rolling: last 7 calendar days of daily accuracy
+            from datetime import datetime as _dt, timedelta as _td
+            cutoff = (_dt.strptime(date, '%Y-%m-%d') - _td(days=6)).strftime('%Y-%m-%d')
             window_accs = []
-            for j in range(window_start, i + 1):
+            for j in range(i, -1, -1):
                 d = sorted_dates[j]
+                if d < cutoff:
+                    break
                 d_correct = sum(by_date[d])
                 d_total = len(by_date[d])
                 if d_total > 0:
@@ -450,11 +453,14 @@ def models():
             day_results = by_date[date]
             day_acc = sum(day_results) / len(day_results) * 100 if day_results else 0
             
-            # 7-day rolling average of daily accuracies
-            window_start = max(0, i - 6)
+            # 7 calendar day rolling average of daily accuracies
+            from datetime import datetime as _dt, timedelta as _td
+            cutoff = (_dt.strptime(date, '%Y-%m-%d') - _td(days=6)).strftime('%Y-%m-%d')
             window_accs = []
-            for j in range(window_start, i + 1):
+            for j in range(i, -1, -1):
                 d = sorted_dates[j]
+                if d < cutoff:
+                    break
                 d_res = by_date[d]
                 if d_res:
                     window_accs.append(sum(d_res) / len(d_res) * 100)
