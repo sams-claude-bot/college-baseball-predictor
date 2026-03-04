@@ -226,6 +226,21 @@ def api_teams():
     return jsonify(teams)
 
 
+@api_bp.route('/api/teams-compact')
+def api_teams_compact():
+    """Compact team list for picker: id, name, conference, colors."""
+    conn = get_connection()
+    rows = conn.execute('''
+        SELECT id, name, conference, primary_color, secondary_color
+        FROM teams WHERE conference IS NOT NULL
+        ORDER BY name
+    ''').fetchall()
+    return jsonify([{
+        'id': r['id'], 'name': r['name'], 'conf': r['conference'],
+        'c1': r['primary_color'] or '#5D1725', 'c2': r['secondary_color'] or '#777777'
+    } for r in rows])
+
+
 @api_bp.route('/api/best-bets')
 def api_best_bets():
     """Return best bets for a date with quality-gated selection.

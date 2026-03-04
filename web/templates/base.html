@@ -6,10 +6,19 @@
     <script>
     (function(){
         var t=localStorage.getItem('theme')||'light';
-        var team=localStorage.getItem('featured_team')||'mississippi-state';
+        var team=localStorage.getItem('featured_team')||'';
+        var tc=JSON.parse(localStorage.getItem('team_colors')||'{}');
         document.documentElement.setAttribute('data-theme',t);
-        document.documentElement.setAttribute('data-team',team);
+        if(team) document.documentElement.setAttribute('data-team',team);
         document.documentElement.style.backgroundColor=t==='dark'?'#1a1a2e':'#f8f9fa';
+        // Apply team colors as CSS custom properties
+        if(tc.c1){
+            var s=document.documentElement.style;
+            s.setProperty('--team-c1',tc.c1);
+            s.setProperty('--team-c2',tc.c2||'#777');
+            s.setProperty('--maroon',t==='dark'?tc.c1:tc.c1);
+            s.setProperty('--maroon-dark',tc.c1);
+        }
     })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -889,7 +898,7 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/experimental/risk-engine"><i class="bi bi-flask"></i> Risk Engine (Experimental)</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" onclick="toggleTeam(); return false;"><i class="bi bi-arrow-left-right"></i> Switch to <span id="teamToggleSwitchTo">Auburn</span></a></li>
+                            <li><a class="dropdown-item" href="#" onclick="openTeamPicker(); return false;"><i class="bi bi-star-fill"></i> My Team</a></li>
                             <li><a class="dropdown-item" href="#" onclick="toggleDarkMode(); return false;"><i class="bi bi-moon-fill" id="darkModeIcon"></i> <span id="darkModeLabel">Dark Mode</span></a></li>
                         </ul>
                     </li>
@@ -973,10 +982,29 @@
                 <i class="bi bi-moon-fill" id="moreMenuDarkIcon"></i>
                 <span id="moreMenuDarkLabel">Dark Mode</span>
             </button>
-            <button class="more-menu-btn" onclick="toggleTeam(); toggleMoreMenu();">
-                <i class="bi bi-arrow-left-right"></i>
-                <span id="moreMenuTeamLabel">Switch Team</span>
+            <button class="more-menu-btn" onclick="toggleMoreMenu(); openTeamPicker();">
+                <i class="bi bi-star-fill" style="color:var(--team-c1, var(--maroon));"></i>
+                <span id="moreMenuTeamLabel">My Team</span>
             </button>
+        </div>
+    </div>
+
+    <!-- Team Picker Modal -->
+    <div class="modal fade" id="teamPickerModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-star-fill"></i> Choose Your Team</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-2">
+                    <input type="search" class="form-control mb-2" id="teamSearchInput" 
+                           placeholder="Search teams..." autocomplete="off">
+                    <div id="teamPickerResults" style="max-height:55vh;overflow-y:auto;">
+                        <div class="text-center text-muted py-3">Loading teams...</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1059,51 +1087,17 @@
         });
     }
     
-    // Team toggle
-    const TEAM_CONFIG = {
-        'mississippi-state': { label: 'MSU', next: 'auburn' },
-        'auburn': { label: 'AUB', next: 'mississippi-state' }
-    };
-    
-    function toggleTeam() {
-        const current = localStorage.getItem('featured_team') || 'mississippi-state';
-        const next = TEAM_CONFIG[current]?.next || 'mississippi-state';
-        localStorage.setItem('featured_team', next);
-        document.documentElement.setAttribute('data-team', next);
-        updateTeamLabel(next);
-        const dashLink = document.getElementById('dashboardLink');
-        if (dashLink) dashLink.href = '/?team=' + next;
-        // Reload dashboard if we're on it to swap featured team
-        if (window.location.pathname === '/') {
-            window.location.href = '/?team=' + next;
-        }
-    }
-    
-    function updateTeamLabel(team) {
-        const nextTeam = TEAM_CONFIG[team]?.next || 'auburn';
-        const teamName = nextTeam === 'auburn' ? 'Auburn' : 'Mississippi State';
-        const switchLabel = document.getElementById('teamToggleSwitchTo');
-        if (switchLabel) switchLabel.textContent = teamName;
-        // Sync more menu team toggle
-        const mLabel = document.getElementById('moreMenuTeamLabel');
-        if (mLabel) mLabel.textContent = 'Switch to ' + teamName;
-    }
+    // (Team toggle replaced by team picker — see openTeamPicker/selectTeam below)
     
     // Apply saved preferences (theme already set in <head> to prevent FOUC)
     (function() {
         const savedTheme = localStorage.getItem('theme') || 'light';
         updateIcon(savedTheme);
         
-        // Check URL param first (overrides localStorage)
-        const urlTeam = new URLSearchParams(window.location.search).get('team');
-        const savedTeam = urlTeam || localStorage.getItem('featured_team') || 'mississippi-state';
-        if (urlTeam) {
-            localStorage.setItem('featured_team', urlTeam);
-            document.documentElement.setAttribute('data-team', urlTeam);
-        }
-        updateTeamLabel(savedTeam);
+        // Dashboard link includes team preference
+        const savedTeam = localStorage.getItem('featured_team') || '';
         const dashLink = document.getElementById('dashboardLink');
-        if (dashLink) dashLink.href = '/?team=' + savedTeam;
+        if (dashLink && savedTeam) dashLink.href = '/?team=' + savedTeam;
     })();
     </script>
     
@@ -1219,6 +1213,103 @@
                 bar.classList.add('active');
             }
         });
+    })();
+
+    // Team Picker
+    var _teamCache = null;
+    function openTeamPicker() {
+        var modal = new bootstrap.Modal(document.getElementById('teamPickerModal'));
+        modal.show();
+        var input = document.getElementById('teamSearchInput');
+        input.value = '';
+        setTimeout(function() { input.focus(); }, 300);
+
+        if (_teamCache) {
+            renderTeamResults(_teamCache, '');
+        } else {
+            fetch('/api/teams-compact')
+                .then(function(r) { return r.json(); })
+                .then(function(teams) {
+                    _teamCache = teams;
+                    renderTeamResults(teams, '');
+                });
+        }
+
+        input.oninput = function() {
+            if (_teamCache) renderTeamResults(_teamCache, input.value.toLowerCase());
+        };
+    }
+
+    function renderTeamResults(teams, query) {
+        var container = document.getElementById('teamPickerResults');
+        var currentTeam = localStorage.getItem('featured_team') || '';
+        var filtered = query
+            ? teams.filter(function(t) {
+                return t.name.toLowerCase().indexOf(query) !== -1 ||
+                       t.id.toLowerCase().indexOf(query) !== -1 ||
+                       (t.conf && t.conf.toLowerCase().indexOf(query) !== -1);
+              })
+            : teams;
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted py-3">No teams found</div>';
+            return;
+        }
+
+        // Group by conference
+        var byConf = {};
+        filtered.forEach(function(t) {
+            var c = t.conf || 'Other';
+            if (!byConf[c]) byConf[c] = [];
+            byConf[c].push(t);
+        });
+
+        var html = '';
+        var confs = Object.keys(byConf).sort();
+        confs.forEach(function(conf) {
+            html += '<div class="px-2 py-1 text-muted" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">' + conf + '</div>';
+            byConf[conf].forEach(function(t) {
+                var isActive = t.id === currentTeam;
+                html += '<div class="d-flex align-items-center px-2 py-2 rounded team-pick-row' +
+                    (isActive ? ' active' : '') + '" ' +
+                    'onclick="selectTeam(\'' + t.id + '\',\'' + (t.c1||'') + '\',\'' + (t.c2||'') + '\')" ' +
+                    'style="cursor:pointer;' + (isActive ? 'background:var(--light-grey);' : '') + '">' +
+                    '<span style="width:12px;height:12px;border-radius:50%;background:' + (t.c1||'#777') + ';flex-shrink:0;margin-right:8px;"></span>' +
+                    '<span style="flex:1;font-size:0.9rem;">' + t.name + '</span>' +
+                    (isActive ? '<i class="bi bi-check-circle-fill" style="color:var(--maroon);"></i>' : '') +
+                    '</div>';
+            });
+        });
+        container.innerHTML = html;
+    }
+
+    function selectTeam(teamId, c1, c2) {
+        localStorage.setItem('featured_team', teamId);
+        localStorage.setItem('team_colors', JSON.stringify({c1: c1, c2: c2}));
+        // Apply immediately
+        document.documentElement.setAttribute('data-team', teamId);
+        var s = document.documentElement.style;
+        if (c1) {
+            s.setProperty('--team-c1', c1);
+            s.setProperty('--maroon', c1);
+            s.setProperty('--maroon-dark', c1);
+        }
+        // Close modal and go to dashboard with the team
+        bootstrap.Modal.getInstance(document.getElementById('teamPickerModal')).hide();
+        window.location.href = '/?team=' + teamId;
+    }
+
+    // Show current team name in More menu
+    (function() {
+        var teamId = localStorage.getItem('featured_team');
+        var label = document.getElementById('moreMenuTeamLabel');
+        if (label && teamId) {
+            // Prettify: "mississippi-state" → "Mississippi State"
+            var pretty = teamId.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+            label.textContent = pretty;
+        } else if (label) {
+            label.textContent = 'Pick Team';
+        }
     })();
 
     // Notification badge on Alerts in More menu (show dot if not subscribed)
