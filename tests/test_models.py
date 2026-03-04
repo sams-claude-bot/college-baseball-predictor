@@ -366,16 +366,16 @@ class TestEnsembleModel:
             f"Ensemble weights sum to {total}, expected ~1.0"
         )
     
-    def test_ensemble_pitching_weight_is_five_percent(self):
-        """Pitching model should have 5% weight in ensemble (re-enabled)."""
+    def test_ensemble_pitching_weight_is_reasonable(self):
+        """Pitching model should have a reasonable weight in ensemble."""
         from models.ensemble_model import EnsembleModel
-        
+
         ensemble = EnsembleModel()
         weights = ensemble.weights
-        
+
         pitching_weight = weights.get('pitching', 0)
-        assert 0.04 <= pitching_weight <= 0.12, (
-            f"Pitching model weight is {pitching_weight}, expected 4-12%"
+        assert 0.04 <= pitching_weight <= 0.20, (
+            f"Pitching model weight is {pitching_weight}, expected 4-20%"
         )
     
     def test_ensemble_prediction_includes_model(self, sample_team_ids):

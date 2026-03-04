@@ -123,18 +123,34 @@ def compute_team_pitching(db, team_id):
     # Ace = #1 by IP
     ace = pitchers[0]
     
+    # kwFIP constant: calibrated so league-avg kwFIP ≈ league-avg ERA
+    KWFIP_CONSTANT = 6.434
+
+    def compute_kwfip(p):
+        """Compute kwFIP for a pitcher from K, BB, IP components.
+        kwFIP = ((3*BB - 2*K) / IP) + constant
+        Falls back to ERA if K/BB data is missing.
+        """
+        ip = p['innings_pitched']
+        k = p['strikeouts_pitched']
+        bb = p['walks_allowed']
+        if ip and ip > 0 and k is not None and bb is not None:
+            return (3 * bb - 2 * k) / ip + KWFIP_CONSTANT
+        # Use precomputed FIP if available, else ERA
+        return p['fip'] or (p['era'] or 4.50)
+
     def ip_weighted_stats(group):
         """Compute IP-weighted average stats for a group of pitchers."""
         group_ip = sum(p['innings_pitched'] for p in group)
         if group_ip == 0:
             return {'era': 4.50, 'whip': 1.35, 'k_per_9': 7.5, 'bb_per_9': 3.5, 'fip': 4.50, 'ip': 0}
-        
+
         w_era = sum((p['era'] or 4.50) * p['innings_pitched'] for p in group) / group_ip
         w_whip = sum((p['whip'] or 1.35) * p['innings_pitched'] for p in group) / group_ip
         w_k9 = sum((p['k_per_9'] or 7.5) * p['innings_pitched'] for p in group) / group_ip
         w_bb9 = sum((p['bb_per_9'] or 3.5) * p['innings_pitched'] for p in group) / group_ip
-        w_fip = sum((p['fip'] or (p['era'] or 4.50)) * p['innings_pitched'] for p in group) / group_ip
-        
+        w_fip = sum(compute_kwfip(p) * p['innings_pitched'] for p in group) / group_ip
+
         return {'era': w_era, 'whip': w_whip, 'k_per_9': w_k9, 'bb_per_9': w_bb9, 'fip': w_fip, 'ip': group_ip}
     
     rotation = ip_weighted_stats(top3)
@@ -157,7 +173,7 @@ def compute_team_pitching(db, team_id):
         'ace_whip': ace['whip'] or 1.35,
         'ace_k_per_9': ace['k_per_9'] or 7.5,
         'ace_bb_per_9': ace['bb_per_9'] or 3.5,
-        'ace_fip': ace['fip'] or (ace['era'] or 4.50),
+        'ace_fip': compute_kwfip(ace),
         'ace_innings': ace['innings_pitched'],
         'rotation_era': rotation['era'],
         'rotation_whip': rotation['whip'],

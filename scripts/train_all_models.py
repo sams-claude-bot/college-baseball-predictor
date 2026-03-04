@@ -757,6 +757,27 @@ def run_training(val_days=7, nn_only=False, gb_only=False, dry_run=False, use_gp
             results_summary.update(gb_results)
     
     # ============================================================
+    # PITCHING LOGISTIC REGRESSION
+    # ============================================================
+    print("\n" + "=" * 60)
+    print("PITCHING MODEL (LogisticRegression)")
+    print("=" * 60)
+    try:
+        from scripts.train_pitching_model import get_connection as _ptc, build_training_data, train_model
+        _db = _ptc()
+        X, y = build_training_data(_db)
+        _db.close()
+        if len(X) > 0:
+            pipe = train_model(X, y, cv_only=False)
+            results_summary['pitching_lr'] = {'status': 'completed'}
+        else:
+            print("  No training data")
+            results_summary['pitching_lr'] = {'status': 'no data'}
+    except Exception as e:
+        print(f"  Error: {e}")
+        results_summary['pitching_lr'] = {'status': 'error', 'error': str(e)}
+
+    # ============================================================
     # SUMMARY
     # ============================================================
     print("\n" + "=" * 60)
