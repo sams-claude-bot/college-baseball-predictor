@@ -22,9 +22,16 @@ MODEL_PATH = BASE_DIR / "data" / "meta_ensemble_xgb.pkl"
 # priors no longer needed mid-season). nn_slim runs as 'neural'.
 MODEL_NAMES = [
     'elo', 'pythagorean', 'lightgbm',
-    'poisson', 'conference', 'xgboost', 'advanced', 'log5', 'pitching',
+    'poisson', 'xgboost', 'pitching',
     'pear', 'quality', 'neural'
 ]
+
+# Dropped for diversity (r > 0.88 with remaining models):
+#   conference (r=0.96 with advanced, which was also dropped)
+#   advanced (r=0.96 with log5, which was also dropped)
+#   log5 (r=0.96 with advanced/conference)
+# These three are functionally identical W/L-record models.
+# Keeping pythagorean as the run-based W/L representative.
 
 
 class MetaEnsemble:
@@ -54,10 +61,7 @@ class MetaEnsemble:
             MAX(CASE WHEN mp.model_name='pythagorean' THEN mp.predicted_home_prob END) as pythagorean_prob,
             MAX(CASE WHEN mp.model_name='lightgbm' THEN mp.predicted_home_prob END) as lightgbm_prob,
             MAX(CASE WHEN mp.model_name='poisson' THEN mp.predicted_home_prob END) as poisson_prob,
-            MAX(CASE WHEN mp.model_name='conference' THEN mp.predicted_home_prob END) as conference_prob,
             MAX(CASE WHEN mp.model_name='xgboost' THEN mp.predicted_home_prob END) as xgboost_prob,
-            MAX(CASE WHEN mp.model_name='advanced' THEN mp.predicted_home_prob END) as advanced_prob,
-            MAX(CASE WHEN mp.model_name='log5' THEN mp.predicted_home_prob END) as log5_prob,
             MAX(CASE WHEN mp.model_name='pitching' THEN mp.predicted_home_prob END) as pitching_prob,
             MAX(CASE WHEN mp.model_name='pear' THEN mp.predicted_home_prob END) as pear_prob,
             MAX(CASE WHEN mp.model_name='quality' THEN mp.predicted_home_prob END) as quality_prob,
@@ -85,7 +89,7 @@ class MetaEnsemble:
         LEFT JOIN team_rpi ra ON g.away_team_id = ra.team_id
         WHERE mp.was_correct IS NOT NULL
         GROUP BY mp.game_id
-        HAVING COUNT(DISTINCT mp.model_name) >= 10
+        HAVING COUNT(DISTINCT mp.model_name) >= 7
         ORDER BY g.date
         """
         c.execute(query)
@@ -486,12 +490,13 @@ class MetaEnsemble:
             pear_diff, rpi_diff, wp_diff, both_ranked
         ]])
 
-        # Use LogReg as primary (better on small-data walk-forward validation)
-        # XGBoost tends to overfit with <1000 training samples
-        if self.lr_model is not None:
-            prob = float(self.lr_model.predict_proba(features)[:, 1][0])
-        else:
+        # Use XGBoost as primary — LR has pathological coefficients due to
+        # multicollinearity (7/12 model-prob weights inverted, away picks near-random).
+        # XGB handles correlated features naturally via tree splits.
+        if self.xgb_model is not None:
             prob = float(self.xgb_model.predict_proba(features)[:, 1][0])
+        else:
+            prob = float(self.lr_model.predict_proba(features)[:, 1][0])
         return min(max(prob, 0.001), 0.999)
 
     def get_feature_importance(self):

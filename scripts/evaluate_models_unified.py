@@ -188,10 +188,25 @@ def _predict_ensemble(game: GameRow, _cache={"model": None}):
     )
 
 
+def _predict_pitching(game: GameRow, _cache={"model": None}):
+    if _cache["model"] is None:
+        from models.pitching_model import PitchingModel
+
+        _cache["model"] = PitchingModel()
+    return _cache["model"].predict_game(
+        game.home_team_id,
+        game.away_team_id,
+        neutral_site=game.neutral_site,
+        game_date=game.date,
+        game_id=game.game_id,
+    )
+
+
 MODEL_RUNNERS: Dict[str, Callable[[GameRow], Dict[str, object]]] = {
     "poisson": _predict_poisson,
     "elo": _predict_elo,
     "ensemble": _predict_ensemble,
+    "pitching": _predict_pitching,
 }
 
 
@@ -266,7 +281,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--models",
         default="poisson,ensemble,elo",
-        help="Comma-separated model list (supported: poisson,ensemble,elo)",
+        help="Comma-separated model list (supported: poisson,ensemble,elo,pitching)",
     )
     parser.add_argument(
         "--output",

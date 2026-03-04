@@ -15,21 +15,6 @@ sys.path.insert(0, str(base_dir / "scripts"))
 
 from database import get_connection, get_team_record, get_team_runs
 from models.compare_models import MODELS, normalize_team_id
-from models.calibration import Calibrator
-
-# Lazy-loaded calibrator for betting page
-_api_calibrator = None
-
-def _get_calibrator():
-    global _api_calibrator
-    if _api_calibrator is None:
-        cal = Calibrator()
-        if cal._load():
-            _api_calibrator = cal
-        else:
-            _api_calibrator = False
-    return _api_calibrator if _api_calibrator is not False else None
-
 from web.helpers import (
     get_all_teams, get_betting_games,
     american_to_implied_prob, compute_model_agreement,

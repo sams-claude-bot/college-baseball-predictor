@@ -27,7 +27,12 @@ from scripts.run_utils import ScriptRunner
 
 # Note: 'neural' (full NN, 81 features) removed — deprecated, stale since Feb 18.
 # nn_slim v4 runs through the ensemble model; meta_ensemble covers its signal.
-MODEL_NAMES = ['pythagorean', 'elo', 'log5', 'advanced', 'pitching', 'conference', 'prior', 'poisson', 'xgboost', 'lightgbm', 'pear', 'quality', 'ensemble', 'meta_ensemble']
+MODEL_NAMES = ['pythagorean', 'elo', 'pitching', 'poisson', 'xgboost', 'lightgbm', 'pear', 'quality', 'neural', 'meta_ensemble']
+
+# Dropped from prediction pipeline (still in DB for historical tracking):
+#   conference, advanced, log5 — r=0.94-0.96 correlated (W/L record clones)
+#   ensemble — double-counts individual models
+#   prior — stale preseason data, no longer feeds meta-ensemble
 
 
 def _load_calibration_params(cur):

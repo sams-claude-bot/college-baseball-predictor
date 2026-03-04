@@ -18,7 +18,7 @@ class TestMetaEnsemble:
     def test_feature_names_count(self):
         """Feature extraction produces correct number of columns."""
         meta = MetaEnsemble()
-        # 13 model probs + 3 agreement + 7 context = 23 features
+        # 9 model probs + 3 agreement + 7 context = 19 features
         expected = len(MODEL_NAMES) + 3 + 7
         # Simulate building features
         meta.feature_names = []
@@ -35,21 +35,20 @@ class TestMetaEnsemble:
         meta = MetaEnsemble()
         columns = [
             'game_id', 'date', 'home_team_id', 'away_team_id',
-            'elo_prob',
-            'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
-            'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
+            'elo_prob', 'pythagorean_prob', 'lightgbm_prob', 'poisson_prob',
+            'xgboost_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        n_models = len(MODEL_NAMES)  # 12
-        n_features = n_models + 3 + 7  # 22
+        n_models = len(MODEL_NAMES)  # 9
+        n_features = n_models + 3 + 7  # 19
         # Create 5 fake rows
         rows = []
         for i in range(5):
             row = [f'game_{i}', '2026-02-20', 'team-a', 'team-b']
-            row += [0.6] * n_models  # 13 model probs
+            row += [0.6] * n_models  # 9 model probs
             row += [1, 1520, 1480, 'SEC', 'SEC', 5, None]
             row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
             rows.append(tuple(row))
@@ -82,10 +81,10 @@ class TestMetaEnsemble:
         assert '2026-02-19' in train_dates
 
     def test_model_names_complete(self):
-        """All 12 expected models listed (no ensemble/prior, nn_slim as 'neural')."""
+        """All 9 expected models listed (dropped conference/advanced/log5 for diversity)."""
         expected = {'elo', 'pythagorean', 
-                    'lightgbm', 'poisson', 'conference', 'xgboost', 
-                    'advanced', 'log5', 'pitching', 'pear', 'quality',
+                    'lightgbm', 'poisson', 'xgboost', 
+                    'pitching', 'pear', 'quality',
                     'neural'}
         assert set(MODEL_NAMES) == expected
 
@@ -95,17 +94,17 @@ class TestMetaEnsemble:
         meta = MetaEnsemble()
         columns = [
             'game_id', 'date', 'home_team_id', 'away_team_id',
-            'elo_prob',
-            'pythagorean_prob', 'lightgbm_prob', 'poisson_prob', 'conference_prob',
-            'xgboost_prob', 'advanced_prob', 'log5_prob', 'pitching_prob',
+            'elo_prob', 'pythagorean_prob', 'lightgbm_prob', 'poisson_prob',
+            'xgboost_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
             'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
             'home_rank', 'away_rank',
             'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
         ]
-        # Row with None for some probs (elo=None, pythagorean=0.6, ..., neural=0.55)
+        # Row with None for some probs
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
-        row += [None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55]
+        # elo=None, pyth=0.6, lgbm=0.5, poisson=0.5, xgb=0.5, pitch=0.5, pear=0.8, quality=None, neural=0.55
+        row += [None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55]
         row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
         row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
         rows = [tuple(row)]
@@ -114,9 +113,9 @@ class TestMetaEnsemble:
         # elo_prob (index 0) should be 0.5 (defaulted from None)
         assert X[0, 0] == 0.5   # elo defaulted
         assert X[0, 1] == 0.6   # pythagorean kept
-        assert X[0, 9] == 0.8   # pear kept
-        assert X[0, 10] == 0.5  # quality defaulted
-        assert X[0, 11] == 0.55 # neural kept
+        assert X[0, 6] == 0.8   # pear kept
+        assert X[0, 7] == 0.5   # quality defaulted
+        assert X[0, 8] == 0.55  # neural kept
 
     def test_get_feature_importance_no_model(self):
         """get_feature_importance returns empty dict when no model trained."""
