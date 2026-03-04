@@ -395,7 +395,8 @@ function displayResults(data, homeId, awayId) {
         }
         
         const pick = model.home_win_prob > 0.5 ? homeName : awayName;
-        const pickColor = model.home_win_prob > 0.5 ? '#5D1725' : '#777';
+        const _mc = getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725';
+        const pickColor = model.home_win_prob > 0.5 ? _mc : '#777';
         
         row.innerHTML = `
             <td>${modelName === 'ensemble' ? '★ ' : ''}${modelName}</td>
@@ -627,7 +628,7 @@ function buildKeyFactors(data, homeName, awayName) {
     
     document.getElementById('modelAgreementBar').innerHTML = `
         <div class="d-flex" style="height: 24px; border-radius: 12px; overflow: hidden;">
-            <div style="width: ${homePct}%; background: #5D1725; display: flex; align-items: center; justify-content: center;">
+            <div style="width: ${homePct}%; background: var(--maroon); display: flex; align-items: center; justify-content: center;">
                 <small class="text-white fw-bold">${homeVotes}</small>
             </div>
             <div style="width: ${awayPct}%; background: #777; display: flex; align-items: center; justify-content: center;">
@@ -659,7 +660,7 @@ function buildKeyFactors(data, homeName, awayName) {
         
         wbContainer.innerHTML = contributions.map(c => {
             const barWidth = (c.weight / maxWeight * 100);
-            const color = c.favorsHome ? '#5D1725' : '#777';
+            const color = c.favorsHome ? _mc : '#777';
             const teamPick = c.favorsHome ? homeName : awayName;
             return `
                 <div class="d-flex align-items-center mb-1" style="font-size: 0.85em;">

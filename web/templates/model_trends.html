@@ -242,7 +242,7 @@ function buildOverhaulAnnotations(chartDates) {
 
 // Color palette for models
 const modelColors = {
-    'ensemble': '#5D1725',
+    'ensemble': getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725',
     'neural': '#2563eb', 
     'elo': '#E74C3C',
     'pythagorean': '#F39C12',

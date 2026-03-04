@@ -674,7 +674,7 @@ function buildPLChart(canvasId, rawData, color, label) {
 }
 
 {% if running_pl %}
-buildPLChart('combinedChart', {{ running_pl|tojson }}, '#5D1725', 'Combined P&L ($)');
+buildPLChart('combinedChart', {{ running_pl|tojson }}, getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725', 'Combined P&L ($)');
 {% endif %}
 {% if consensus_running_pl %}
 buildPLChart('consensusChart', {{ consensus_running_pl|tojson }}, '#0d6efd', 'Consensus ML P&L ($)');
