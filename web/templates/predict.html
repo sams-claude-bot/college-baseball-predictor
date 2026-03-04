@@ -319,6 +319,7 @@ document.getElementById('predictForm').addEventListener('submit', async function
 });
 
 function displayResults(data, homeId, awayId) {
+    const _mc = getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725';
     // Get team names from dropdowns
     const homeSelect = document.getElementById('homeTeam');
     const awaySelect = document.getElementById('awayTeam');
@@ -395,7 +396,6 @@ function displayResults(data, homeId, awayId) {
         }
         
         const pick = model.home_win_prob > 0.5 ? homeName : awayName;
-        const _mc = getComputedStyle(document.documentElement).getPropertyValue('--maroon').trim() || '#5D1725';
         const pickColor = model.home_win_prob > 0.5 ? _mc : '#777';
         
         row.innerHTML = `
