@@ -1037,6 +1037,33 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
     }
 })();
 
+// Swipe between days (mobile)
+(function() {
+    var startX = 0, startY = 0, swiping = false;
+    document.addEventListener('touchstart', function(e) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        swiping = true;
+    }, { passive: true });
+    document.addEventListener('touchmove', function(e) {
+        if (!swiping) return;
+        var dy = Math.abs(e.touches[0].clientY - startY);
+        if (dy > 30) swiping = false; // vertical scroll, abort swipe
+    }, { passive: true });
+    document.addEventListener('touchend', function(e) {
+        if (!swiping) return;
+        swiping = false;
+        var dx = e.changedTouches[0].clientX - startX;
+        if (Math.abs(dx) > 80) {
+            var conf = document.getElementById('conferenceFilter') ? document.getElementById('conferenceFilter').value : '';
+            var base = dx > 0 ? '{{ prev_date }}' : '{{ next_date }}';
+            var url = '/scores?date=' + base;
+            if (conf) url += '&conference=' + encodeURIComponent(conf);
+            window.location.href = url;
+        }
+    }, { passive: true });
+})();
+
 // Time conversion handled by base.html global script
 </script>
 {% endblock %}

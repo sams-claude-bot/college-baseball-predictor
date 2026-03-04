@@ -790,6 +790,30 @@
             }
             .more-menu-btn:active { background-color: var(--light-grey); }
             .more-menu-btn i { font-size: 1rem; }
+
+            /* Page fade-in animation */
+            main { animation: pageIn 0.2s ease-out; }
+            @keyframes pageIn {
+                from { opacity: 0; transform: translateY(6px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        }
+
+        /* Navigation loading bar (all screens) */
+        .loading-bar {
+            position: fixed;
+            top: 0; left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--maroon), #c46475);
+            z-index: 9999;
+            width: 0;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+        .loading-bar.active {
+            opacity: 1;
+            width: 70%;
+            transition: opacity 0.1s, width 10s cubic-bezier(0.1, 0.05, 0, 1);
         }
     </style>
     {% block extra_css %}{% endblock %}
@@ -868,6 +892,9 @@
             </div>
         </div>
     </nav>
+
+    <!-- Loading bar -->
+    <div class="loading-bar" id="loadingBar"></div>
 
     <!-- Pull-to-refresh indicator -->
     <div class="ptr-indicator" id="ptrIndicator">
@@ -1167,6 +1194,38 @@
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function() {});
     }
+
+    // Haptic feedback on mobile nav taps
+    document.querySelectorAll('.bottom-nav-item, .more-menu-item, .more-menu-btn').forEach(function(el) {
+        el.addEventListener('click', function() {
+            if (navigator.vibrate) navigator.vibrate(10);
+        });
+    });
+
+    // Loading bar on internal navigation
+    (function() {
+        var bar = document.getElementById('loadingBar');
+        if (!bar) return;
+        document.addEventListener('click', function(e) {
+            var link = e.target.closest('a[href]');
+            if (link && link.href && link.href.startsWith(window.location.origin) && !link.target && !link.href.includes('#')) {
+                bar.style.width = '0';
+                bar.offsetHeight;
+                bar.classList.add('active');
+            }
+        });
+    })();
+
+    // Notification badge on Alerts in More menu (show dot if not subscribed)
+    (function() {
+        if (!('Notification' in window) || Notification.permission === 'granted') return;
+        var alertsLink = document.querySelector('.more-menu-item[href="/alerts"]');
+        if (!alertsLink) return;
+        alertsLink.style.position = 'relative';
+        var dot = document.createElement('span');
+        dot.style.cssText = 'position:absolute;top:4px;right:8px;width:8px;height:8px;background:#dc3545;border-radius:50%;';
+        alertsLink.appendChild(dot);
+    })();
 
     // Pull-to-refresh (mobile only)
     (function() {

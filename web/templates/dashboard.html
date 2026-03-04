@@ -92,9 +92,10 @@
 
         <!-- Today's Games -->
         <div class="card">
-            <div class="card-header">
+            <div class="card-header" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('d-none'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-down'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-up');">
                 <i class="bi bi-calendar-event"></i> Today's Games
                 <span class="badge bg-secondary ms-2">{{ todays_games|length }}</span>
+                <i class="bi bi-chevron-up collapse-icon float-end d-md-none" style="font-size:0.8rem;margin-top:4px;"></i>
             </div>
             <div class="card-body p-0">
                 {% if todays_games %}
@@ -177,9 +178,10 @@
         <!-- Recent Results -->
         {% if recent_results %}
         <div class="card">
-            <div class="card-header bg-maroon">
+            <div class="card-header bg-maroon" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('d-none'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-down'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-up');">
                 <i class="bi bi-clipboard-check"></i> Recent Results
-                <a href="/scores" class="btn btn-sm btn-light float-end">View All</a>
+                <i class="bi bi-chevron-up collapse-icon float-end d-md-none" style="font-size:0.8rem;margin-top:4px;"></i>
+                <a href="/scores" class="btn btn-sm btn-light float-end me-2">View All</a>
             </div>
             <div class="card-body p-0">
                 {% for day in recent_results[:2] %}
