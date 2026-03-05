@@ -2,10 +2,7 @@
 """Tests for meta-ensemble model."""
 
 import sys
-import numpy as np
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -18,19 +15,16 @@ class TestMetaEnsemble:
     def test_feature_names_count(self):
         """Feature extraction produces correct number of columns."""
         meta = MetaEnsemble()
-        # 12 model probs + 3 agreement + 7 context = 22 features
-        expected = len(MODEL_NAMES) + 3 + 7
+        # 12 model probs + 3 agreement = 15 features
+        expected = len(MODEL_NAMES) + 3
         # Simulate building features
         meta.feature_names = []
         for m in MODEL_NAMES:
             meta.feature_names.append(f'{m}_prob')
         meta.feature_names.extend(['models_predicting_home', 'avg_home_prob', 'prob_spread'])
-        meta.feature_names.extend(['elo_diff', 'same_conference', 'any_ranked',
-                                   'pear_diff', 'rpi_diff', 'wp_diff', 'both_ranked'])
         assert len(meta.feature_names) == expected
 
-    @patch.object(MetaEnsemble, '_compute_win_pct_cache', return_value={})
-    def test_build_features_shape(self, mock_wp):
+    def test_build_features_shape(self):
         """_build_features returns correct shape."""
         meta = MetaEnsemble()
         columns = [
@@ -39,19 +33,16 @@ class TestMetaEnsemble:
             'xgboost_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
             'venue_prob', 'rest_travel_prob', 'upset_prob',
-            'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
-            'home_rank', 'away_rank',
-            'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
+            'home_won',
         ]
         n_models = len(MODEL_NAMES)  # 12
-        n_features = n_models + 3 + 7  # 22
+        n_features = n_models + 3  # 15
         # Create 5 fake rows
         rows = []
         for i in range(5):
             row = [f'game_{i}', '2026-02-20', 'team-a', 'team-b']
-            row += [0.6] * n_models  # 9 model probs
-            row += [1, 1520, 1480, 'SEC', 'SEC', 5, None]
-            row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
+            row += [0.6] * n_models
+            row += [1]
             rows.append(tuple(row))
 
         X, y, dates, feature_names = meta._build_features(rows, columns)
@@ -89,8 +80,7 @@ class TestMetaEnsemble:
                     'neural', 'venue', 'rest_travel', 'upset'}
         assert set(MODEL_NAMES) == expected
 
-    @patch.object(MetaEnsemble, '_compute_win_pct_cache', return_value={})
-    def test_missing_model_probs_default_to_half(self, mock_wp):
+    def test_missing_model_probs_default_to_half(self):
         """Missing model probs default to 0.5."""
         meta = MetaEnsemble()
         columns = [
@@ -99,17 +89,14 @@ class TestMetaEnsemble:
             'xgboost_prob', 'pitching_prob',
             'pear_prob', 'quality_prob', 'neural_prob',
             'venue_prob', 'rest_travel_prob', 'upset_prob',
-            'home_won', 'home_elo', 'away_elo', 'home_conf', 'away_conf',
-            'home_rank', 'away_rank',
-            'home_pear', 'away_pear', 'home_rpi', 'away_rpi',
+            'home_won',
         ]
         # Row with None for some probs
         row = ['game_1', '2026-02-20', 'team-a', 'team-b']
         # elo=None, pyth=0.6, lgbm=0.5, poisson=0.5, xgb=0.5, pitch=0.5,
         # pear=0.8, quality=None, neural=0.55, venue=0.7, rest=None, upset=0.4
         row += [None, 0.6, 0.5, 0.5, 0.5, 0.5, 0.8, None, 0.55, 0.7, None, 0.4]
-        row += [1, 1500, 1500, 'Big 12', 'ACC', None, None]
-        row += [80.0, 75.0, 0.600, 0.550]  # pear + rpi
+        row += [1]
         rows = [tuple(row)]
 
         X, y, dates, names = meta._build_features(rows, columns)

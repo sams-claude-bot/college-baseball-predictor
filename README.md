@@ -48,6 +48,8 @@ Meta-ensemble training uses leak-safe filtering:
 
 This keeps retrospective/backfilled/postgame snapshots out of training and eval cohorts.
 
+P0-2 as-of hygiene is now active: meta-ensemble context features that relied on current-state tables are temporarily disabled to eliminate lookahead risk. A future P1 can reintroduce them using proper as-of snapshots.
+
 ## Data Sources
 
 - **D1Baseball** — Scores, schedules, box scores, player stats (basic + advanced), rankings
