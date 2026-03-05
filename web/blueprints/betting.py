@@ -13,6 +13,7 @@ sys.path.insert(0, str(base_dir / "scripts"))
 
 from database import get_connection
 
+from web.helpers import get_clv_summary
 from web.services.betting_page import build_betting_page_context
 from web.services.risk_engine_page import build_risk_engine_page_context
 
@@ -320,7 +321,11 @@ def tracker():
     if underdog_bucket and underdog_bucket['count'] >= 3 and underdog_bucket['win_rate'] < 40:
         bet_recommendation = f"⚠️ Underdog bets: {underdog_bucket['wins']}W-{underdog_bucket['count'] - underdog_bucket['wins']}L ({underdog_bucket['win_rate']}%), ${underdog_bucket['pl']:+.0f}. New filters now skip all underdogs."
 
+    # --- CLV SUMMARY ---
+    clv_summary = get_clv_summary()
+
     return render_template('tracker.html',
+                          clv_summary=clv_summary,
                           consensus_bets=consensus_bets,
                           pending_consensus=pending_consensus,
                           ev_bets=ev_bets,

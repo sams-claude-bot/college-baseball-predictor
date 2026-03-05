@@ -249,11 +249,66 @@ def record(date_override=None, runner=None):
             print("ℹ️  No games with betting lines today (off day or no DK odds scraped)")
 
 
+def _compute_clv(opening_ml, closing_ml):
+    """Compute CLV in implied probability points."""
+    if opening_ml is None or closing_ml is None:
+        return None, None
+    def american_to_prob(ml):
+        ml = float(ml)
+        if ml > 0:
+            return 100 / (ml + 100)
+        else:
+            return abs(ml) / (abs(ml) + 100)
+    opening_prob = american_to_prob(opening_ml)
+    closing_prob = american_to_prob(closing_ml)
+    clv_implied = closing_prob - opening_prob
+    clv_cents = round(clv_implied * 100, 2)
+    return round(clv_implied, 6), clv_cents
+
+
+def _fill_clv_from_history(conn, runner=None):
+    """Backfill CLV on graded bets that have closing lines in history but no CLV yet."""
+    c = conn.cursor()
+    updated = 0
+    for table in ('tracked_bets', 'tracked_confident_bets'):
+        rows = c.execute(f"""
+            SELECT t.id, t.game_id, t.pick_team_id, t.moneyline, t.is_home,
+                   g.home_team_id
+            FROM {table} t
+            JOIN games g ON t.game_id = g.id
+            WHERE t.closing_ml IS NULL AND t.won IS NOT NULL
+        """).fetchall()
+
+        for row in rows:
+            row = dict(row)
+            # Look for closing snapshot
+            bl = c.execute("""
+                SELECT home_ml, away_ml FROM betting_line_history
+                WHERE game_id = ? AND snapshot_type = 'closing'
+                ORDER BY captured_at DESC LIMIT 1
+            """, (row['game_id'],)).fetchone()
+            if not bl:
+                continue
+
+            picked_home = row['pick_team_id'] == row['home_team_id'] or row['is_home'] == 1
+            closing_ml = bl['home_ml'] if picked_home else bl['away_ml']
+            if closing_ml is None:
+                continue
+
+            clv_implied, clv_cents = _compute_clv(row['moneyline'], closing_ml)
+            c.execute(
+                f"UPDATE {table} SET closing_ml = ?, clv_implied = ?, clv_cents = ? WHERE id = ?",
+                (closing_ml, clv_implied, clv_cents, row['id'])
+            )
+            updated += 1
+    return updated
+
+
 def evaluate(runner=None):
     """Grade completed bets based on final scores."""
     conn = get_conn()
     c = conn.cursor()
-    
+
     total_profit = 0.0
     
     # --- Evaluate confident bets (model consensus) ---
@@ -518,9 +573,18 @@ def evaluate(runner=None):
         else:
             print(f"  {icon} {msg}")
 
+    # --- CLV BACKFILL ---
+    clv_filled = _fill_clv_from_history(conn, runner)
+    if clv_filled > 0:
+        msg = f"CLV: updated {clv_filled} bets with closing line data"
+        if runner:
+            runner.info(msg)
+        else:
+            print(f"  📊 {msg}")
+
     conn.commit()
     conn.close()
-    
+
     total = conf_evaluated + ml_evaluated + sp_evaluated + tot_evaluated + parlay_evaluated
     if runner:
         runner.info(f"Evaluated {total} bets (CONF:{conf_evaluated} EV-ML:{ml_evaluated} SPR:{sp_evaluated} TOT:{tot_evaluated} PARLAY:{parlay_evaluated})")

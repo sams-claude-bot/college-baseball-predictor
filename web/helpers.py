@@ -52,6 +52,68 @@ UNDERDOG_EDGE_DISCOUNT = BET_UNDERDOG_DISCOUNT
 CONSENSUS_BONUS_PER_MODEL = BET_CONSENSUS_BONUS
 
 
+def get_clv_summary():
+    """Get CLV summary stats across all graded bets with closing lines.
+
+    Returns dict with:
+        avg_clv: average CLV in implied probability points
+        avg_clv_cents: average CLV in cents (percentage points)
+        total_bets_with_clv: number of bets with CLV data
+        by_type: {'ML': {...}, 'CONSENSUS': {...}} breakdown
+        trend: list of {date, clv_cents} for charting
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    results = {'avg_clv': None, 'avg_clv_cents': None, 'total_bets_with_clv': 0,
+               'by_type': {}, 'trend': []}
+
+    # Gather CLV data from both tables
+    clv_rows = []
+
+    ev_rows = c.execute("""
+        SELECT date, clv_implied, clv_cents FROM tracked_bets
+        WHERE clv_implied IS NOT NULL AND won IS NOT NULL
+        ORDER BY date
+    """).fetchall()
+    for r in ev_rows:
+        clv_rows.append({'date': r['date'], 'clv_implied': r['clv_implied'],
+                         'clv_cents': r['clv_cents'], 'type': 'ML'})
+
+    conf_rows = c.execute("""
+        SELECT date, clv_implied, clv_cents FROM tracked_confident_bets
+        WHERE clv_implied IS NOT NULL AND won IS NOT NULL
+        ORDER BY date
+    """).fetchall()
+    for r in conf_rows:
+        clv_rows.append({'date': r['date'], 'clv_implied': r['clv_implied'],
+                         'clv_cents': r['clv_cents'], 'type': 'CONSENSUS'})
+
+    conn.close()
+
+    if not clv_rows:
+        return results
+
+    results['total_bets_with_clv'] = len(clv_rows)
+    results['avg_clv'] = round(sum(r['clv_implied'] for r in clv_rows) / len(clv_rows), 4)
+    results['avg_clv_cents'] = round(sum(r['clv_cents'] for r in clv_rows) / len(clv_rows), 2)
+
+    # By type
+    for bet_type in ('ML', 'CONSENSUS'):
+        typed = [r for r in clv_rows if r['type'] == bet_type]
+        if typed:
+            results['by_type'][bet_type] = {
+                'count': len(typed),
+                'avg_clv_cents': round(sum(r['clv_cents'] for r in typed) / len(typed), 2),
+            }
+
+    # Trend (sorted by date)
+    clv_rows.sort(key=lambda r: r['date'])
+    results['trend'] = [{'date': r['date'], 'clv_cents': r['clv_cents']} for r in clv_rows]
+
+    return results
+
+
 def calculate_adjusted_edge(raw_edge: float, moneyline: int = None, models_agree: int = 5) -> float:
     """
     Calculate adjusted betting edge with underdog discount and consensus bonus.

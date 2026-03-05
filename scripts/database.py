@@ -261,7 +261,29 @@ def init_database():
     c.execute('CREATE INDEX IF NOT EXISTS idx_betting_lines_date ON betting_lines(date)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_totals_game ON totals_predictions(game_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_totals_model ON totals_predictions(model_name)')
-    
+
+    # Betting line history (CLV tracking - multiple snapshots per game)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS betting_line_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            home_team_id TEXT NOT NULL,
+            away_team_id TEXT NOT NULL,
+            book TEXT DEFAULT 'draftkings',
+            home_ml INTEGER,
+            away_ml INTEGER,
+            over_under REAL,
+            over_odds INTEGER,
+            under_odds INTEGER,
+            snapshot_type TEXT NOT NULL,
+            captured_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (game_id) REFERENCES games(id)
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_blh_game ON betting_line_history(game_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_blh_date ON betting_line_history(date)')
+
     conn.commit()
     conn.close()
     print(f"✓ Database initialized at {DB_PATH}")
@@ -701,3 +723,47 @@ def init_pear_ratings_table():
     conn.commit()
     conn.close()
     print("✓ PEAR ratings table initialized")
+
+
+def init_clv_tracking():
+    """Add CLV tracking: betting_line_history table + CLV columns on bet tables."""
+    conn = get_connection()
+    c = conn.cursor()
+
+    # Create betting_line_history table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS betting_line_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            home_team_id TEXT NOT NULL,
+            away_team_id TEXT NOT NULL,
+            book TEXT DEFAULT 'draftkings',
+            home_ml INTEGER,
+            away_ml INTEGER,
+            over_under REAL,
+            over_odds INTEGER,
+            under_odds INTEGER,
+            snapshot_type TEXT NOT NULL,
+            captured_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (game_id) REFERENCES games(id)
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_blh_game ON betting_line_history(game_id)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_blh_date ON betting_line_history(date)')
+
+    # Add CLV columns to tracked_bets (if not present)
+    existing = {row[1] for row in c.execute('PRAGMA table_info(tracked_bets)').fetchall()}
+    for col, typ in [('closing_ml', 'REAL'), ('clv_implied', 'REAL'), ('clv_cents', 'REAL')]:
+        if col not in existing:
+            c.execute(f'ALTER TABLE tracked_bets ADD COLUMN {col} {typ}')
+
+    # Add CLV columns to tracked_confident_bets (if not present)
+    existing = {row[1] for row in c.execute('PRAGMA table_info(tracked_confident_bets)').fetchall()}
+    for col, typ in [('closing_ml', 'REAL'), ('clv_implied', 'REAL'), ('clv_cents', 'REAL')]:
+        if col not in existing:
+            c.execute(f'ALTER TABLE tracked_confident_bets ADD COLUMN {col} {typ}')
+
+    conn.commit()
+    conn.close()
+    print("✓ CLV tracking initialized (betting_line_history + CLV columns)")

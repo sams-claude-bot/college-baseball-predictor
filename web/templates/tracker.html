@@ -53,6 +53,37 @@
     </div>
 </div>
 
+<!-- CLV Summary Card -->
+{% if clv_summary and clv_summary.total_bets_with_clv > 0 %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-{% if clv_summary.avg_clv_cents > 0 %}success{% elif clv_summary.avg_clv_cents < 0 %}danger{% else %}secondary{% endif %}">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-1"><i class="bi bi-speedometer2"></i> Closing Line Value (CLV)</h6>
+                        <div class="h3 mb-0 {% if clv_summary.avg_clv_cents > 0 %}text-success{% elif clv_summary.avg_clv_cents < 0 %}text-danger{% endif %}">
+                            {{ '+' if clv_summary.avg_clv_cents > 0 else '' }}{{ clv_summary.avg_clv_cents }}%
+                        </div>
+                        <small class="text-muted">
+                            {{ clv_summary.total_bets_with_clv }} bets with closing line data
+                            {% if clv_summary.avg_clv_cents > 0 %} &mdash; beating the closing line{% endif %}
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        {% for type_name, type_data in clv_summary.by_type.items() %}
+                        <div class="small {% if type_data.avg_clv_cents > 0 %}text-success{% elif type_data.avg_clv_cents < 0 %}text-danger{% else %}text-muted{% endif %}">
+                            {{ type_name }}: {{ '+' if type_data.avg_clv_cents > 0 else '' }}{{ type_data.avg_clv_cents }}% ({{ type_data.count }} bets)
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Bet Type Breakdown -->
 <div class="row mb-4">
     <div class="col-md-3">

@@ -35,7 +35,7 @@ import argparse
 import json
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -102,6 +102,43 @@ def validate_home_away(db, date_str, home_id, away_id, runner=None):
     # No matching game found at all - could be future game not yet in schedule
     # or team name resolution issue. Allow it through but log.
     return home_id, away_id, False
+
+
+def get_snapshot_type():
+    """Determine snapshot type based on current Central Time."""
+    # Central Time = UTC-6 (CST) or UTC-5 (CDT)
+    # Use March-November as CDT for simplicity
+    utc_now = datetime.now(timezone.utc)
+    month = utc_now.month
+    ct_offset = timedelta(hours=-5) if 3 <= month <= 10 else timedelta(hours=-6)
+    ct_now = utc_now + ct_offset
+    hour = ct_now.hour
+    if hour < 10:
+        return 'opening'
+    elif hour < 14:
+        return 'midday'
+    else:
+        return 'pregame'
+
+
+def save_line_snapshot(db, game_id, date_str, home_id, away_id,
+                       home_ml, away_ml, over_under, over_odds, under_odds,
+                       snapshot_type=None):
+    """Insert a snapshot into betting_line_history."""
+    if snapshot_type is None:
+        snapshot_type = get_snapshot_type()
+    try:
+        db.execute("""
+            INSERT INTO betting_line_history
+                (game_id, date, home_team_id, away_team_id, book,
+                 home_ml, away_ml, over_under, over_odds, under_odds,
+                 snapshot_type)
+            VALUES (?, ?, ?, ?, 'draftkings', ?, ?, ?, ?, ?, ?)
+        """, (game_id, date_str, home_id, away_id,
+              home_ml, away_ml, over_under, over_odds, under_odds,
+              snapshot_type))
+    except Exception:
+        pass  # Don't let history insert failures block main load
 
 
 def load_odds(games_json, date_str=None, runner=None):
@@ -221,6 +258,10 @@ def load_odds(games_json, date_str=None, runner=None):
                       home_ml, away_ml, home_spread, home_spread_odds,
                       away_spread, away_spread_odds, over_under, over_odds, under_odds))
                 added += 1
+
+            # Save snapshot to betting_line_history for CLV tracking
+            save_line_snapshot(db, game_id, date_str, home_id, away_id,
+                               home_ml, away_ml, over_under, over_odds, under_odds)
 
             log(f"  {'UPD' if existing else 'NEW'}: {away_name} @ {home_name} | ML: {away_ml}/{home_ml}" +
                 (f" | O/U: {over_under}" if over_under else "") +
