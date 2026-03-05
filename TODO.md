@@ -1,62 +1,91 @@
 # College Baseball Predictor — TODO
 
-*Updated Feb 26, 2026*
+*Updated: 2026-03-05*
 
-## Pipeline & Data
-- [x] **6. Schedule Gateway** — *(done 2026-02-26: single write path, 4 scripts rewired, backfill removed from cron, 24 tests)*
-- [x] **9. Doubleheader game 2 tracking bug** — *(resolved: 114 gm2 games scored correctly, 0 missing)*
-- [ ] **11. Early season regression for all run models** — Bayesian dampening like Poisson fix
-- [ ] **15. NCAA stats scraper — expand to all 9 stat types**
-  - Currently only collecting ERA + OBP (2 of 9)
-  - Missing: batting_avg, fielding_pct, scoring, slugging, k_per_9, whip, k_bb_ratio
-  - Need historical seasons (2021-2025) for nn_slim retraining
+## Current Phase
 
-## Models
-- [x] **1. Runs ensemble auto-weights** — *(done 2026-02-24: MAE-based + O/U accuracy blended weighting)*
-- [ ] **5. Review Poisson model** once more data accumulates
-- [x] **12. Parlay totals** — *(done 2026-02-24: real NegBin+Poisson CDF probabilities replace fake formulas)*
-- [x] **13. Auto-update ensemble weights** — *(done: meta-ensemble retraining, rolling accuracy)*
-- [x] **14. Trained meta-ensemble** — *(done 2026-02-26: LogReg stacking, 76.7% walk-forward, 20 features from 14 models)*
-- [ ] **16. Weekly meta-ensemble retraining cron** — retrain as more games accumulate
-- [ ] **17. Probability calibration** — Platt/isotonic calibration for all models (betting P&L audit showed probabilities are overconfident)
-- [ ] **18. Model confidence intervals** — track prediction uncertainty, not just point estimates
-- [ ] **21. Totals OVER accuracy** — currently 45.7%; asymmetric threshold or higher edge requirement
-- [ ] **22. runs_pitching at 51%** — consider disabling or zero-weighting in totals ensemble
-- [ ] **23. Re-evaluate XGBoost vs LogReg** for meta-ensemble at ~1,500 graded games
+We completed P0 + P1.1/P1.3 foundation work:
+- leak-safe prediction provenance
+- meta feature hygiene (15-feature schema)
+- canonical benchmark tooling
+- strict walk-forward retraining for LGB/XGB/Upset
+- trusted replay uplift harness
+- CLV infrastructure + closing-line capture
 
-## Betting
-- [x] **Betting quality gates (v3)** — *(done 2026-02-24: no underdogs, margin requirements, Vegas disagreement cap, team cooldowns)*
-- [ ] **19. Track CLV (Closing Line Value)** — compare model prob vs closing line to measure edge quality
-- [ ] **20. Kelly sizing with calibrated probabilities** — current Kelly uses uncalibrated probs
+Next work focuses on coverage reliability and as-of feature quality.
 
-## Verification & Cleanup
-- [ ] **2. Verify nn_slim_totals is wired into runs/totals projections**
-- [ ] **8. Audit model outputs & clean up display** — separate win prob vs run-scoring models
-- [ ] **23. Clean noisy rosters** — remove players with no stats from team rosters (leftover from previous scrape attempts)
+---
 
-## Dashboard & UI
-- [ ] **3. Power rankings top 25** — downloadable card
-- [ ] **4. Parlay of the day** — live scores on parlay card or highlighted on scores tab
-- [ ] **7. Exact score consensus indicator** — when models converge, show ✓ in table
-- [x] **10. Add SOS sort option to teams page** *(done 2026-02-22)*
+## P1 — In Progress
 
-## Completed
-### Feb 26
-- Schedule Gateway: single write path to games table (24 tests, W/L verification vs D1BB)
-- Rewired 4 scripts (d1bb_team_sync, finalize_games, espn_live_scores, d1bb_schedule)
-- Removed backfill_missing_games from cron (redundant)
-- Meta-ensemble retrained with pear+quality (76.7% walk-forward, LogReg primary)
-- Fixed all 4 broken meta_ensemble tests → 350/350 tests green
-- PEAR model (76.1%) and Quality model (72.1%) added
-- Committed 3,721 lines of outstanding work
-- Fixed phantom Georgia game (Oakland series ghost from ESPN import)
+### P1.4 Coverage Reliability (high priority)
+- [ ] Ensure every scheduled game has full active stack pregame:
+  - 12 base models + meta
+- [ ] Add coverage guardrail check before first pitch (alert/report missing models by game)
+- [ ] Add cron-safe auto-refresh for games missing model rows
+- [ ] Add benchmark note when strict cohort is small due to coverage, not model quality
 
-### Feb 24 (Overhaul)
-- Fixed 10 failing tests (90→114 passing)
-- Totals accuracy audit (measurement bug: was 68% not 35%)
-- MAE + O/U accuracy metrics (CLI + dashboard)
-- Runs Ensemble v2 (NegBin, no pitching, OVER gate, context adjustment)
-- DOW + temperature + volatility + MAE auto-weights for totals
-- Real NegBin CDF for parlays/betting page
-- Models page overhaul + trend chart markers
-- Betting v3 quality gates (simulated +$381 improvement)
+### P1.5 Upset Model As-of Elo (high priority)
+- [ ] Replace current Elo proxy with true as-of historical Elo snapshots in upset training
+- [ ] Re-run strict walk-forward OOF for upset model
+- [ ] Re-run trusted replay uplift and compare delta
+
+### P1.6 Meta Calibration / Confidence
+- [ ] Evaluate post-stack calibration (isotonic vs Platt) on strict cohort only
+- [ ] Add confidence gating policy for low-quality consensus zones
+
+---
+
+## P2 — Planned
+
+### Training + Ops Hardening
+- [ ] Align cron training pipeline with strict walk-forward scripts
+  - `train_lightgbm_v2.py`
+  - `train_xgboost_v2.py`
+  - `train_upset_model.py`
+  - `train_meta_ensemble.py`
+- [ ] Add daily/weekly benchmark artifact generation and retention
+- [ ] Stabilize OpenClaw browser/gateway reliability for FD/DK scrape jobs (recurring timeout incidents)
+
+### Betting Quality
+- [ ] Add CLV trend card/summary message automation (daily)
+- [ ] Add Kelly sizing that explicitly uses calibrated probabilities
+- [ ] Add strategy-level reporting (EV bets vs confident bets vs parlays)
+
+### Model/Data
+- [ ] NCAA stat expansion validation for historical depth and missing season coverage
+- [ ] Early-season Bayesian dampening review for run models
+- [ ] Revisit totals OVER bias handling with updated calibration + CLV feedback loop
+
+---
+
+## Completed (Recent)
+
+### 2026-03-05
+- [x] **P0-1** Prediction provenance + leak guard
+  - `prediction_source`, `prediction_context`
+  - backfill/late-row exclusions in training cohort
+- [x] **P0-2** Meta as-of feature hygiene
+  - removed leak-prone context features from meta
+  - moved to 15-feature leak-safe schema
+- [x] **P0-3** Canonical benchmark script + artifact
+  - `scripts/evaluate_meta_stack.py`
+- [x] **P1.1** Strict walk-forward retraining
+  - `train_lightgbm_v2.py`, `train_xgboost_v2.py`, `train_upset_model.py`
+- [x] **P1.2** Meta retrain + benchmark diff workflow
+- [x] **P1.3** Trusted replay uplift harness
+  - `scripts/replay_uplift_benchmark.py`
+- [x] CLV tracking implementation
+  - line history, closing capture, tracker summary
+
+### 2026-03-04
+- [x] Added new base models to active stack: `venue`, `rest_travel`, `upset`
+- [x] Specialized feature builders:
+  - LightGBM batting-focused
+  - XGBoost pitching-focused
+- [x] Updated models dashboard and betting agreement counts
+- [x] Parlay strategy tightened; default kept at 4 legs with 3-leg fallback
+
+### Prior
+- [x] Schedule gateway single-write-path and core cron pipeline cleanup
+- [x] Model pages/trend updates and general testing hardening

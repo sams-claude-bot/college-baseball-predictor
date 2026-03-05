@@ -1,59 +1,71 @@
 # College Baseball Predictor
 
-NCAA D1 college baseball prediction system with 14 win-probability models, 5 totals models, automated data pipelines, betting analytics, and a live web dashboard.
+NCAA D1 college baseball prediction + betting analytics platform with automated pipelines, model stacking, and a live dashboard.
 
 **Live:** [baseball.mcdevitt.page](https://baseball.mcdevitt.page)  
-**Season:** 2026 (Feb 14 – June 22, CWS in Omaha)
+**Season:** 2026 (Feb–Jun)
 
-## Models (14 Win Probability + Meta-Ensemble)
+---
 
-| Model | Type | Accuracy | Description |
-|-------|------|----------|-------------|
-| **PEAR** | Rating | **76.1%** | Power, Experience, Adjusted Rating composite |
-| **Quality** | Statistical | **72.1%** | Pitching + batting quality matchup model |
-| Neural | ML | 67.4% | PyTorch NN, 81 features, 2-phase training |
-| Elo | Rating | 67.3% | Chess-style, updated per game |
-| Prior | Bayesian | 67.2% | Preseason rankings + program history |
-| Ensemble | Blend | 66.7% | Dynamic weighted combination of all base models |
-| LightGBM | ML | 65.8% | Gradient boosting, 81 features |
-| Pythagorean | Formula | 65.8% | Runs scored/allowed expectation |
-| Conference | Statistical | 64.6% | Conference strength adjustments |
-| Poisson | Statistical | 64.3% | Run distribution with weather adjustments |
-| XGBoost | ML | 64.3% | Gradient boosting, 81 features |
-| Pitching | Statistical | 63.8% | Staff quality tables (ace, rotation, bullpen depth) |
-| Advanced | Statistical | 63.6% | Opponent-adjusted stats, recency-weighted |
-| Log5 | Formula | 63.6% | Bill James head-to-head |
-| **Meta-Ensemble** | Stacking | **76.7%** | LogReg over all 14 models (walk-forward validated) |
+## Current Strategy (as of 2026-03-05)
 
-Plus 5 totals models (runs_ensemble 67.9%, runs_poisson 67.2%, runs_advanced 66.9%, nn_slim_totals 64.7%, runs_pitching 51.1%) and a weather adjustment model.
+The project moved to a **leak-safe model strategy**:
 
-## Features
+1. **P0-1 Provenance Guard**
+   - `model_predictions` now tracks:
+     - `prediction_source` (`live|refresh|backfill|manual`)
+     - `prediction_context`
+   - Training/eval filters exclude backfilled and late rows.
 
-- **Live scores** — In-progress games update every 15 minutes with current inning
-- **12 prediction models** — Statistical, ML, and ensemble approaches
-- **Stored predictions** — Sub-100ms page loads (predictions pre-computed daily)
+2. **P0-2 As-of Feature Hygiene**
+   - Meta-ensemble temporarily removed leak-prone context features from current-state tables.
+   - Meta now uses a **15-feature schema**:
+     - 12 base model probabilities
+     - 3 agreement features (`models_predicting_home`, `avg_home_prob`, `prob_spread`)
 
-## Prediction Provenance & Leak Guard
+3. **P0-3 Canonical Benchmarking**
+   - `scripts/evaluate_meta_stack.py` provides one reproducible benchmark format:
+     - accuracy, brier, log loss, ECE
+     - strict apples-to-apples cohort
+     - correlation + disagreement analysis
 
-`model_predictions` now tracks provenance:
+4. **P1.1 Strict Walk-Forward Retraining**
+   - LightGBM/XGBoost/Upset trainers now run chronological OOF evaluation (no random holdout shortcuts).
 
-- `prediction_source` (`live|refresh|backfill|manual`, default `live`)
-- `prediction_context` (optional freeform writer context)
+5. **P1.3 Trusted Replay Uplift**
+   - `scripts/replay_uplift_benchmark.py` compares:
+     - baseline stored pregame meta predictions
+     - candidate meta replay on the **same stored base probabilities**
+   - This isolates meta-layer uplift without recomputing base models from current DB state.
 
-Meta-ensemble training uses leak-safe filtering:
+---
 
-- excludes `prediction_source='backfill'`
-- excludes rows where `predicted_at` is after pregame cutoff
-- cutoff = game start time when parseable, otherwise `game_date 23:59:59`, with a strict `-5 minute` margin
+## Active Win-Probability Stack
 
-This keeps retrospective/backfilled/postgame snapshots out of training and eval cohorts.
+### Base models used by meta-ensemble (12)
+- `elo`
+- `pythagorean`
+- `lightgbm` (batting-focused features)
+- `poisson`
+- `xgboost` (pitching-focused features)
+- `pitching`
+- `pear`
+- `quality`
+- `neural`
+- `venue`
+- `rest_travel`
+- `upset`
 
-P0-2 as-of hygiene is now active: meta-ensemble context features that relied on current-state tables are temporarily disabled to eliminate lookahead risk. A future P1 can reintroduce them using proper as-of snapshots.
+### Stacker
+- `meta_ensemble` (XGBoost inference path)
 
-## Canonical Meta-Stack Benchmark (P0-3)
+Legacy models (`conference`, `advanced`, `log5`, `prior`, legacy `ensemble`) remain in DB history but are not part of the active voting stack.
 
-Run the canonical leak-safe benchmark report:
+---
 
+## Benchmark Commands
+
+### Canonical leak-safe benchmark
 ```bash
 python3 scripts/evaluate_meta_stack.py \
   --start-date 2026-01-01 \
@@ -61,93 +73,92 @@ python3 scripts/evaluate_meta_stack.py \
 # optional: --out artifacts/model_benchmark_custom.md
 ```
 
-Report output fields (per model):
-- `n predictions`
-- `win accuracy`
-- `Brier`
-- `log loss`
-- `ECE` + reliability bins
-
-It also includes a strict apples-to-apples cohort (all active models + meta on the same games), top pairwise correlations, and meta-vs-submodel agreement/disagreement analysis.
-
-## Data Sources
-
-- **D1Baseball** — Scores, schedules, box scores, player stats (basic + advanced), rankings
-- **DraftKings** — Betting lines (moneyline, spreads, totals)
-- **ESPN** — Legacy schedule backbone (being phased out)
-- **Open-Meteo** — Weather forecasts
-
-## Web Dashboard
-
-Flask app serving 12 pages: Dashboard, Scores, Betting, Teams, Team Detail, Game Detail, Predict, Rankings, Standings, Models, Calendar, Tracker.
-
-API: `/api/best-bets`, `/api/predict`, `/api/runs`, `/api/teams`
-
-## Stack
-
-- Python 3, SQLite (WAL), Flask, Playwright
-- PyTorch, XGBoost, LightGBM
-- OpenClaw cron jobs for automation
-- Cloudflare Tunnel for public access
-
-## Architecture: Schedule Gateway
-
-All schedule writes (creates, scores, finalize, postpone) route through `scripts/schedule_gateway.py` — a single write path with:
-- Deterministic game ID generation
-- Multi-strategy dedup (exact, legacy suffix, swapped H/A, fuzzy)
-- Status hierarchy enforcement (final > in-progress > scheduled)
-- Ghost replacement with FK migration across 16 tables
-- Structured audit logging
-
-## Structure
-
-```
-├── models/          # 23 model files (win prob, runs, features, weather)
-├── scripts/         # Data collection, training, predictions, betting
-│   └── schedule_gateway.py  # Single write path to games table
-├── web/             # Flask app + 16 Jinja2 templates
-├── config/          # Team ID mappings (D1BB slugs, ESPN IDs)
-├── tasks/           # Lessons learned, task tracking
-├── data/            # Database, model weights, configs (local only, not in repo)
-└── CONTEXT.md       # Full project documentation
-```
-
-## Quick Start
-
+### Trusted replay uplift benchmark
 ```bash
-# Predictions
-PYTHONPATH=. python3 scripts/predict_and_track.py predict
-
-# Model accuracy
-PYTHONPATH=. python3 scripts/predict_and_track.py accuracy
-
-# Start dashboard
-python3 -m flask run --host=0.0.0.0 --port=5000
-
-# Train all models
-PYTHONPATH=. python3 scripts/train_all_models.py
+python3 scripts/replay_uplift_benchmark.py \
+  --start-date 2026-02-20 \
+  --end-date 2026-03-05
 ```
 
-See `CONTEXT.md` for full documentation — data pipeline, cron schedule, database schema, model details, betting system.
+Optional exploratory (non-trusted) shadow section:
+```bash
+python3 scripts/replay_uplift_benchmark.py \
+  --start-date 2026-02-20 \
+  --end-date 2026-03-05 \
+  --exploratory-shadow-submodels
+```
 
-## Betting Risk Engine v1 (Selection Flow)
+---
 
-`scripts/bet_selection_v2.py` now supports a config-driven risk engine with:
+## Recent Findings Snapshot
 
-- Legacy fixed stake mode (`BET_RISK_ENGINE_MODE = "fixed"`, default)
-- Fractional Kelly mode (`"fractional_kelly"`) with bankroll/min/max stake caps
-- Drawdown-aware Kelly throttle
-- Correlation exposure caps (team / conference / day buckets)
+From `artifacts/replay_uplift_2026-03-05.md` (trusted replay):
 
-Risk knobs live in `config/model_config.py`. Recommendation outputs include `risk_score`, `kelly_fraction_used`, `suggested_stake`, and `exposure_bucket`.
+- Cohort games: **634**
+- Meta accuracy: **0.6483 → 0.7776**
+- Brier: **0.2309 → 0.1545**
+- Log loss: **0.6762 → 0.4742**
+- ECE: **0.1119 → 0.0582**
+- Side flips: **152**, net correct change: **+82**
 
-## Documentation Status
+Interpret this as strong directional uplift at the meta layer; continue validating with forward live performance.
 
-- `README.md` (this file) is for overview + quickstart only.
-- `CONTEXT.md` is the canonical operational source of truth (cron flow, runtime behavior, deployment notes).
-- `MANIFEST.md` is the canonical path/classification inventory (what files are active, cron-adjacent, one-shot, archived).
-- `docs/DASHBOARD.md` is the dashboard route/data dependency reference only.
-- Cleanup planning and status tracking:
-  - `docs/CLEANUP_AUDIT_2026-02-22.md`
-  - `docs/CLEANUP_CHECKLIST.md`
-  - `docs/CLEANUP_PROGRESS_2026-02-22.md`
+---
+
+## Betting / CLV
+
+CLV tracking is now live:
+- Line history table: `betting_line_history`
+- Closing line capture script: `scripts/capture_closing_lines.py`
+- CLV fields on tracked bets: `closing_ml`, `clv_implied`, `clv_cents`
+- Tracker page includes CLV summary card.
+
+Suggested system cron:
+```bash
+*/15 10-22 * * * cd /home/sam/college-baseball-predictor && python3 scripts/capture_closing_lines.py >> logs/cron/$(date +\%Y-\%m-\%d)_closing_lines.log 2>&1
+```
+
+Parlay strategy:
+- Default target: 4 legs
+- Fallback allowed: 3 legs if only 3 qualifying legs exist
+- Uses tighter filters (higher probability/edge thresholds, ML-first selection)
+
+---
+
+## Dashboard
+
+Core routes include:
+- `/` Dashboard
+- `/scores`
+- `/teams`, `/team/<id>`
+- `/models`, `/models/trends`
+- `/betting`
+- `/tracker` (includes CLV)
+- `/game/<id>`
+
+See `docs/DASHBOARD.md` for route/data details.
+
+---
+
+## Project Layout
+
+```text
+models/      # model implementations + feature builders
+scripts/     # data pipeline, training, prediction, benchmarking, betting
+web/         # Flask app + blueprints + templates
+docs/        # operational/model documentation
+artifacts/   # generated benchmark/replay reports
+data/        # local DB and model weights (not committed)
+```
+
+---
+
+## Documentation Map
+
+- `README.md` — overview + current strategy + run commands
+- `TODO.md` — active backlog/priorities
+- `MANIFEST.md` — code classification + cron/runtime inventory
+- `docs/MODEL_IMPROVEMENT_PLAN_2026-02-22.md` — model strategy + execution plan (refreshed)
+- `docs/DASHBOARD.md` — dashboard route/data dependency reference
+
+If docs conflict, treat benchmark artifacts + current scripts as source of truth and update docs accordingly.
