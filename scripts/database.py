@@ -35,6 +35,40 @@ def get_connection():
     conn.row_factory = sqlite3.Row  # Dict-like access
     return conn
 
+def _ensure_prediction_provenance_schema(conn):
+    """Ensure model_predictions has provenance columns/indexes and conservative backfill."""
+    c = conn.cursor()
+    c.execute("PRAGMA table_info(model_predictions)")
+    cols = {row[1] for row in c.fetchall()}
+
+    if 'prediction_source' not in cols:
+        c.execute("ALTER TABLE model_predictions ADD COLUMN prediction_source TEXT NOT NULL DEFAULT 'live'")
+    if 'prediction_context' not in cols:
+        c.execute("ALTER TABLE model_predictions ADD COLUMN prediction_context TEXT")
+
+    # Conservative backfill: only tag known retrospective models when predicted much later.
+    c.execute("""
+        UPDATE model_predictions
+        SET prediction_source = 'live'
+        WHERE prediction_source IS NULL OR TRIM(prediction_source) = ''
+    """)
+    c.execute("""
+        UPDATE model_predictions
+        SET prediction_source = 'backfill'
+        WHERE model_name IN ('venue', 'rest_travel', 'upset')
+          AND game_id IN (
+              SELECT g.id
+              FROM games g
+              WHERE g.id = model_predictions.game_id
+                AND datetime(model_predictions.predicted_at) >= datetime(g.date || ' 23:59:59', '+1 day')
+          )
+    """)
+
+    c.execute("CREATE INDEX IF NOT EXISTS idx_model_pred_source ON model_predictions(prediction_source)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_model_pred_predicted_at ON model_predictions(predicted_at)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_model_pred_train_filter ON model_predictions(model_name, prediction_source, predicted_at)")
+
+
 def init_database():
     """Initialize database schema"""
     conn = get_connection()
@@ -199,6 +233,8 @@ def init_database():
             predicted_home_runs REAL,
             predicted_away_runs REAL,
             predicted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            prediction_source TEXT NOT NULL DEFAULT 'live',
+            prediction_context TEXT,
             was_correct INTEGER,
             UNIQUE(game_id, model_name),
             FOREIGN KEY (game_id) REFERENCES games(id)
@@ -257,6 +293,9 @@ def init_database():
     c.execute('CREATE INDEX IF NOT EXISTS idx_predictions_game ON predictions(game_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_game ON model_predictions(game_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_model ON model_predictions(model_name)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_source ON model_predictions(prediction_source)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_predicted_at ON model_predictions(predicted_at)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_model_pred_train_filter ON model_predictions(model_name, prediction_source, predicted_at)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_betting_lines_game ON betting_lines(game_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_betting_lines_date ON betting_lines(date)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_totals_game ON totals_predictions(game_id)')
@@ -283,6 +322,8 @@ def init_database():
     ''')
     c.execute('CREATE INDEX IF NOT EXISTS idx_blh_game ON betting_line_history(game_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_blh_date ON betting_line_history(date)')
+
+    _ensure_prediction_provenance_schema(conn)
 
     conn.commit()
     conn.close()

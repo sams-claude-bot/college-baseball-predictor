@@ -33,6 +33,21 @@ Plus 5 totals models (runs_ensemble 67.9%, runs_poisson 67.2%, runs_advanced 66.
 - **12 prediction models** — Statistical, ML, and ensemble approaches
 - **Stored predictions** — Sub-100ms page loads (predictions pre-computed daily)
 
+## Prediction Provenance & Leak Guard
+
+`model_predictions` now tracks provenance:
+
+- `prediction_source` (`live|refresh|backfill|manual`, default `live`)
+- `prediction_context` (optional freeform writer context)
+
+Meta-ensemble training uses leak-safe filtering:
+
+- excludes `prediction_source='backfill'`
+- excludes rows where `predicted_at` is after pregame cutoff
+- cutoff = game start time when parseable, otherwise `game_date 23:59:59`, with a strict `-5 minute` margin
+
+This keeps retrospective/backfilled/postgame snapshots out of training and eval cohorts.
+
 ## Data Sources
 
 - **D1Baseball** — Scores, schedules, box scores, player stats (basic + advanced), rankings

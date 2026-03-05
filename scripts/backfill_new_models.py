@@ -50,11 +50,13 @@ def backfill(model_name, model_cls, batch_size=100):
 
             c.execute("""
                 INSERT INTO model_predictions
-                (game_id, model_name, predicted_home_prob, raw_home_prob)
-                VALUES (?, ?, ?, ?)
+                (game_id, model_name, predicted_home_prob, raw_home_prob, prediction_source, prediction_context)
+                VALUES (?, ?, ?, ?, 'backfill', 'backfill_new_models')
                 ON CONFLICT(game_id, model_name) DO UPDATE SET
                     predicted_home_prob = excluded.predicted_home_prob,
                     raw_home_prob = excluded.raw_home_prob,
+                    prediction_source = excluded.prediction_source,
+                    prediction_context = excluded.prediction_context,
                     predicted_at = CURRENT_TIMESTAMP
             """, (game_id, model_name, home_prob, home_prob))
             success += 1
@@ -114,11 +116,13 @@ def main():
                     home_prob = min(max(result.get('home_win_probability', 0.5), 0.001), 0.999)
                     c.execute("""
                         INSERT INTO model_predictions
-                        (game_id, model_name, predicted_home_prob, raw_home_prob)
-                        VALUES (?, ?, ?, ?)
+                        (game_id, model_name, predicted_home_prob, raw_home_prob, prediction_source, prediction_context)
+                        VALUES (?, ?, ?, ?, 'backfill', 'backfill_new_models')
                         ON CONFLICT(game_id, model_name) DO UPDATE SET
                             predicted_home_prob = excluded.predicted_home_prob,
                             raw_home_prob = excluded.raw_home_prob,
+                            prediction_source = excluded.prediction_source,
+                            prediction_context = excluded.prediction_context,
                             predicted_at = CURRENT_TIMESTAMP
                     """, (game_id, name, home_prob, home_prob))
                 except Exception:

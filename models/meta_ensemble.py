@@ -47,12 +47,24 @@ class MetaEnsemble:
         return get_connection()
 
     def _extract_training_data(self):
-        """Extract feature matrix from graded games in the database."""
+        """Extract leak-safe feature matrix from graded games in the database.
+
+        Rules:
+        - Exclude rows tagged as prediction_source='backfill'.
+        - Exclude any row where predicted_at is after pregame cutoff.
+        - Pregame cutoff uses game start when time is available, else end-of-date fallback
+          (23:59:59 local) minus 5 minutes.
+        """
         conn = self._get_connection()
         c = conn.cursor()
 
-        # Get all graded games with model predictions pivoted
-        query = """
+        c.execute("PRAGMA table_info(model_predictions)")
+        mp_cols = {row[1] for row in c.fetchall()}
+        has_prediction_source = 'prediction_source' in mp_cols
+
+        source_filter = "COALESCE(mp.prediction_source, 'live') != 'backfill' AND" if has_prediction_source else ""
+
+        query = f"""
         SELECT 
             mp.game_id,
             g.date,
@@ -91,6 +103,14 @@ class MetaEnsemble:
         LEFT JOIN team_rpi rh ON g.home_team_id = rh.team_id
         LEFT JOIN team_rpi ra ON g.away_team_id = ra.team_id
         WHERE mp.was_correct IS NOT NULL
+          AND {source_filter}
+          datetime(mp.predicted_at) <= datetime(
+              COALESCE(
+                datetime(g.date || ' ' || g.time),
+                datetime(g.date || ' 23:59:59')
+              ),
+              '-5 minutes'
+          )
         GROUP BY mp.game_id
         HAVING COUNT(DISTINCT mp.model_name) >= 7
         ORDER BY g.date
@@ -101,6 +121,75 @@ class MetaEnsemble:
         conn.close()
 
         return rows, columns
+
+    def cohort_integrity_report(self):
+        """Return source/timestamp exclusion counts + final cohort size for training."""
+        conn = self._get_connection()
+        c = conn.cursor()
+
+        c.execute("PRAGMA table_info(model_predictions)")
+        mp_cols = {row[1] for row in c.fetchall()}
+        has_prediction_source = 'prediction_source' in mp_cols
+
+        source_expr = "COALESCE(mp.prediction_source, 'live')" if has_prediction_source else "'live'"
+
+        c.execute(f"""
+            WITH evaluated AS (
+                SELECT mp.game_id, mp.model_name, mp.predicted_at, {source_expr} as prediction_source,
+                       g.date, g.time
+                FROM model_predictions mp
+                JOIN games g ON g.id = mp.game_id
+                WHERE mp.was_correct IS NOT NULL
+            ), flags AS (
+                SELECT *,
+                       CASE WHEN prediction_source = 'backfill' THEN 1 ELSE 0 END as by_source,
+                       CASE WHEN datetime(predicted_at) > datetime(
+                            COALESCE(
+                                datetime(date || ' ' || time),
+                                datetime(date || ' 23:59:59')
+                            ),
+                            '-5 minutes'
+                       ) THEN 1 ELSE 0 END as by_timestamp
+                FROM evaluated
+            )
+            SELECT
+                SUM(by_source) as excluded_by_source,
+                SUM(CASE WHEN by_source = 0 AND by_timestamp = 1 THEN 1 ELSE 0 END) as excluded_by_timestamp,
+                SUM(CASE WHEN by_source = 0 AND by_timestamp = 0 THEN 1 ELSE 0 END) as included_rows,
+                COUNT(*) as evaluated_rows
+            FROM flags
+        """)
+        row = c.fetchone()
+
+        c.execute(f"""
+            WITH filtered AS (
+                SELECT mp.game_id
+                FROM model_predictions mp
+                JOIN games g ON g.id = mp.game_id
+                WHERE mp.was_correct IS NOT NULL
+                  AND {source_expr} != 'backfill'
+                  AND datetime(mp.predicted_at) <= datetime(
+                        COALESCE(
+                            datetime(g.date || ' ' || g.time),
+                            datetime(g.date || ' 23:59:59')
+                        ),
+                        '-5 minutes'
+                  )
+                GROUP BY mp.game_id
+                HAVING COUNT(DISTINCT mp.model_name) >= 7
+            )
+            SELECT COUNT(*) FROM filtered
+        """)
+        final_games = c.fetchone()[0]
+        conn.close()
+
+        return {
+            'excluded_by_source': int(row[0] or 0),
+            'excluded_by_timestamp': int(row[1] or 0),
+            'included_rows': int(row[2] or 0),
+            'evaluated_rows': int(row[3] or 0),
+            'final_training_games': int(final_games or 0),
+        }
 
     def _compute_win_pct_cache(self):
         """Pre-compute rolling win pct for all teams up to each game date."""

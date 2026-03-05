@@ -133,6 +133,8 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
     conn = get_connection()
     cur = conn.cursor()
     calibration_params = _load_calibration_params(cur)
+    prediction_source = 'refresh' if refresh_existing else 'live'
+    prediction_context = 'predict_and_track:refresh' if refresh_existing else 'predict_and_track:daily'
 
     # Ensure raw_home_prob column exists
     try:
@@ -264,15 +266,17 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
 
                 cur.execute('''
                     INSERT INTO model_predictions
-                    (game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs, raw_home_prob)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    (game_id, model_name, predicted_home_prob, predicted_home_runs, predicted_away_runs, raw_home_prob, prediction_source, prediction_context)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(game_id, model_name) DO UPDATE SET
                         predicted_home_prob = excluded.predicted_home_prob,
                         predicted_home_runs = excluded.predicted_home_runs,
                         predicted_away_runs = excluded.predicted_away_runs,
                         raw_home_prob = excluded.raw_home_prob,
+                        prediction_source = excluded.prediction_source,
+                        prediction_context = excluded.prediction_context,
                         predicted_at = CURRENT_TIMESTAMP
-                ''', (game_id, model_name, home_prob, home_runs, away_runs, raw_prob))
+                ''', (game_id, model_name, home_prob, home_runs, away_runs, raw_prob, prediction_source, prediction_context))
                 
                 if runner:
                     runs_str = f"{home_runs:.1f}-{away_runs:.1f}" if (home_runs is not None and away_runs is not None) else "—"
@@ -295,12 +299,14 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 meta_prob = meta_ensemble.predict(game_id=game_id)
                 cur.execute('''
                     INSERT INTO model_predictions 
-                    (game_id, model_name, predicted_home_prob)
-                    VALUES (?, 'meta_ensemble', ?)
+                    (game_id, model_name, predicted_home_prob, prediction_source, prediction_context)
+                    VALUES (?, 'meta_ensemble', ?, ?, ?)
                     ON CONFLICT(game_id, model_name) DO UPDATE SET
                         predicted_home_prob = excluded.predicted_home_prob,
+                        prediction_source = excluded.prediction_source,
+                        prediction_context = excluded.prediction_context,
                         predicted_at = CURRENT_TIMESTAMP
-                ''', (game_id, meta_prob))
+                ''', (game_id, meta_prob, prediction_source, prediction_context))
                 if runner:
                     runner.info(f"  {'meta_ensemble':12}: {meta_prob*100:5.1f}% {home_name}")
                 else:
