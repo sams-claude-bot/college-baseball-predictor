@@ -2,14 +2,16 @@
 """
 Train XGBoost moneyline model with pitching-specialized features.
 
-Uses PitchingFeatureComputer (pitching-only features) instead of the generic
-FeatureComputer. Walk-forward training with recency weighting.
+Uses PitchingFeatureComputer (pitching-only features) and strict date-based
+walk-forward evaluation (train date < D, test date == D).
 
 Saves to data/xgb_moneyline.pkl (overwrites existing model).
 """
 
+import argparse
+import json
+import pickle
 import sys
-import time
 import numpy as np
 from pathlib import Path
 from datetime import datetime, date
@@ -18,10 +20,10 @@ from math import exp
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.database import get_connection
-from models.features_pitching import PitchingFeatureComputer, HistoricalPitchingFeatureComputer
+from models.features_pitching import PitchingFeatureComputer
+from scripts.walkforward_utils import build_strict_date_folds, aggregate_binary_oof
 
 import xgboost as xgb
-from sklearn.metrics import log_loss, accuracy_score
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 MODEL_PATH = DATA_DIR / "xgb_moneyline.pkl"
@@ -41,12 +43,6 @@ def compute_recency_weights(game_dates, decay_rate=0.002, min_weight=0.1):
 
 
 def load_data():
-    """Load 2026 final games with pitching features.
-
-    Uses only 2026 data where team_pitching_quality features are available,
-    ensuring the model learns from pitching-specific signals rather than
-    defaulting to generic runs allowed.
-    """
     print("Loading 2026 data with pitching features...")
     conn = get_connection()
     c = conn.cursor()
@@ -58,16 +54,16 @@ def load_data():
         WHERE status = 'final' AND home_score IS NOT NULL AND away_score IS NOT NULL
         ORDER BY date ASC
     """)
-    current_rows = c.fetchall()
-    print(f"  2026 final games: {len(current_rows)}")
+    rows = c.fetchall()
+    print(f"  final games: {len(rows)}")
     conn.close()
 
-    fc_live = PitchingFeatureComputer()
+    fc = PitchingFeatureComputer()
     features, labels, dates = [], [], []
 
-    for row in current_rows:
+    for row in rows:
         try:
-            feat = fc_live.compute_features(
+            feat = fc.compute_features(
                 row['home_team_id'], row['away_team_id'],
                 game_date=row['date'],
                 neutral_site=bool(row['is_neutral_site']))
@@ -81,38 +77,15 @@ def load_data():
 
     X = np.array(features, dtype=np.float32)
     y = np.array(labels, dtype=np.float32)
+    dates = np.array(dates, dtype=object)
     X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
 
-    print(f"  Total samples: {len(X)}, features: {X.shape[1]}")
+    print(f"  samples: {len(X)}, features: {X.shape[1] if len(X) else 0}")
     return X, y, dates
 
 
-def train():
-    print("=" * 60)
-    print("XGBOOST PITCHING-SPECIALIZED TRAINING")
-    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-
-    X, y, dates = load_data()
-    weights = compute_recency_weights(dates)
-
-    # Split: last 15% for validation
-    n = len(X)
-    val_size = max(int(n * 0.15), 50)
-    X_train, y_train = X[:-val_size], y[:-val_size]
-    X_val, y_val = X[-val_size:], y[-val_size:]
-    w_train = weights[:-val_size]
-
-    print(f"\nTrain: {len(X_train)}, Val: {len(X_val)}")
-
-    # Normalize features
-    feature_mean = X_train.mean(axis=0)
-    feature_std = X_train.std(axis=0)
-    feature_std[feature_std < 1e-8] = 1.0
-    X_train_norm = (X_train - feature_mean) / feature_std
-    X_val_norm = (X_val - feature_mean) / feature_std
-
-    params = {
+def _xgb_params(device='cuda'):
+    return {
         'n_estimators': 800,
         'max_depth': 5,
         'learning_rate': 0.05,
@@ -124,52 +97,125 @@ def train():
         'random_state': 42,
         'n_jobs': -1,
         'tree_method': 'hist',
-        'device': 'cuda',
-        'early_stopping_rounds': 50,
+        'device': device,
+        'eval_metric': 'logloss',
     }
 
-    model = xgb.XGBClassifier(**params)
-    model.fit(
-        X_train_norm, y_train,
-        sample_weight=w_train,
-        eval_set=[(X_val_norm, y_val)],
-        verbose=50,
-    )
 
-    # Evaluate
-    y_pred = model.predict(X_val_norm)
-    y_prob = model.predict_proba(X_val_norm)[:, 1]
-    acc = accuracy_score(y_val, y_pred)
-    ll = log_loss(y_val, y_prob)
-    print(f"\nVal accuracy: {acc:.4f}, log_loss: {ll:.4f}")
+def _fit_xgb(X_train, y_train, w_train):
+    model = xgb.XGBClassifier(**_xgb_params(device='cuda'))
+    try:
+        model.fit(X_train, y_train, sample_weight=w_train, verbose=False)
+        return model
+    except Exception:
+        model = xgb.XGBClassifier(**_xgb_params(device='cpu'))
+        model.fit(X_train, y_train, sample_weight=w_train, verbose=False)
+        return model
 
-    # Feature importance
-    importance = model.feature_importances_
-    fc = PitchingFeatureComputer()
-    feat_names = fc.get_feature_names()
-    if len(feat_names) < len(importance):
-        feat_names += [f'f{i}' for i in range(len(feat_names), len(importance))]
-    top_idx = np.argsort(importance)[::-1][:10]
-    print("\nTop 10 features:")
-    for i in top_idx:
-        name = feat_names[i] if i < len(feat_names) else f'f{i}'
-        print(f"  {name}: {importance[i]:.4f}")
 
-    # Save
-    import pickle
+def write_report(path, payload):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# XGBoost Walk-Forward Report",
+        "",
+        f"- generated_at: {payload['generated_at']}",
+        f"- folds: {payload['folds']}",
+        f"- oof_n: {payload['oof_metrics']['n']}",
+        f"- oof_accuracy: {payload['oof_metrics']['accuracy']}",
+        f"- oof_brier: {payload['oof_metrics']['brier']}",
+        f"- oof_logloss: {payload['oof_metrics']['logloss']}",
+        f"- final_train_size: {payload['final_train_size']}",
+        "",
+        "```json",
+        json.dumps(payload, indent=2),
+        "```",
+    ]
+    path.write_text("\n".join(lines), encoding='utf-8')
+
+
+def train(min_warmup=200, report_path=None):
+    print("=" * 60)
+    print("XGBOOST PITCHING-SPECIALIZED TRAINING")
+    print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 60)
+
+    X, y, dates = load_data()
+    weights = compute_recency_weights(dates)
+
+    folds = build_strict_date_folds(dates, min_warmup=min_warmup)
+    oof_probs, oof_true = [], []
+
+    for fold in folds:
+        tr_idx = fold.train_idx
+        te_idx = fold.test_idx
+
+        X_train, y_train = X[tr_idx], y[tr_idx]
+        X_test, y_test = X[te_idx], y[te_idx]
+        w_train = weights[tr_idx]
+
+        if len(np.unique(y_train)) < 2:
+            continue
+
+        mean = X_train.mean(axis=0)
+        std = X_train.std(axis=0)
+        std[std < 1e-8] = 1.0
+
+        X_train_norm = (X_train - mean) / std
+        X_test_norm = (X_test - mean) / std
+
+        model = _fit_xgb(X_train_norm, y_train, w_train)
+        probs = model.predict_proba(X_test_norm)[:, 1]
+
+        oof_probs.extend(probs.tolist())
+        oof_true.extend(y_test.tolist())
+
+    metrics = aggregate_binary_oof(np.array(oof_true), np.array(oof_probs))
+
+    feature_mean = X.mean(axis=0)
+    feature_std = X.std(axis=0)
+    feature_std[feature_std < 1e-8] = 1.0
+    X_norm = (X - feature_mean) / feature_std
+
+    final_model = _fit_xgb(X_norm, y, weights)
+
     checkpoint = {
-        'model': model,
+        'model': final_model,
         'feature_mean': feature_mean,
         'feature_std': feature_std,
         'task': 'classification',
     }
     with open(MODEL_PATH, 'wb') as f:
         pickle.dump(checkpoint, f)
-    print(f"\nSaved: {MODEL_PATH}")
-    print(f"Done: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    return acc, ll
+    print(f"\nfolds: {len(folds)}")
+    print(f"OOF metrics: acc={metrics['accuracy']}, brier={metrics['brier']}, logloss={metrics['logloss']}, n={metrics['n']}")
+    print(f"final train size: {len(X)}")
+    print(f"Saved: {MODEL_PATH}")
+
+    payload = {
+        'model': 'xgboost_v2',
+        'generated_at': datetime.now().isoformat(),
+        'folds': len(folds),
+        'min_warmup': int(min_warmup),
+        'oof_metrics': metrics,
+        'final_train_size': int(len(X)),
+        'model_path': str(MODEL_PATH),
+    }
+    if report_path:
+        write_report(report_path, payload)
+        print(f"report: {report_path}")
+
+    return payload
+
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument('--min-warmup', type=int, default=200)
+    p.add_argument('--report-path', type=str, default=None)
+    return p.parse_args()
 
 
 if __name__ == "__main__":
-    train()
+    args = parse_args()
+    train(min_warmup=args.min_warmup, report_path=args.report_path)

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-Train the upset model with walk-forward validation.
+Train the upset model with strict date-based walk-forward validation.
 
 Trains ONLY on games where one team was a clear favorite (>60% elo-implied).
 Uses Random Forest to detect when favorites are vulnerable.
 
-Usage:
-    python scripts/train_upset_model.py
+Note: this training still uses a proxy for pregame Elo (current elo table),
+not fully reconstructed as-of historical Elo snapshots.
 """
 
-import sys
+import argparse
+import json
 import pickle
+import sys
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
@@ -21,6 +23,7 @@ from sklearn.ensemble import RandomForestClassifier
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.database import get_connection
+from scripts.walkforward_utils import build_strict_date_folds, aggregate_binary_oof
 from models.upset_model import UpsetModel, elo_expected, ELO_HOME_ADV, MODEL_PATH
 
 
@@ -29,7 +32,6 @@ def load_data():
     conn = get_connection()
     c = conn.cursor()
 
-    # Games
     c.execute("""
         SELECT g.id, g.date, g.home_team_id, g.away_team_id,
                g.home_score, g.away_score, g.winner_id,
@@ -40,11 +42,10 @@ def load_data():
     """)
     games = [dict(r) for r in c.fetchall()]
 
-    # Current elo ratings (used as proxy; ideally we'd have historical)
+    # LIMITATION: Uses current Elo ratings as proxy instead of true as-of values.
     c.execute("SELECT team_id, rating FROM elo_ratings")
     elos = {r['team_id']: r['rating'] for r in c.fetchall()}
 
-    # Team conferences
     c.execute("SELECT id, conference FROM teams")
     conferences = {r['id']: r['conference'] for r in c.fetchall()}
 
@@ -53,7 +54,6 @@ def load_data():
 
 
 def compute_team_stats_before(games, idx, team_id):
-    """Compute season and recent stats for team from games before idx."""
     wins, total, margin_sum = 0, 0, 0
     recent_wins, recent_total, recent_margin_sum = 0, 0, 0
     home_losses = 0
@@ -108,11 +108,8 @@ def compute_team_stats_before(games, idx, team_id):
 
 
 def build_dataset(games, elos, conferences):
-    """Build feature matrix. Only include games with clear favorites."""
-    X, y, dates, game_indices = [], [], [], []
-
-    # Track upset rates by elo bucket (for walk-forward)
-    bucket_upsets = defaultdict(lambda: [0, 0])  # [upsets, total]
+    X, y, dates = [], [], []
+    bucket_upsets = defaultdict(lambda: [0, 0])
 
     for i in range(50, len(games)):
         g = games[i]
@@ -122,7 +119,6 @@ def build_dataset(games, elos, conferences):
         a_elo = elos.get(aid, 1500)
         home_exp = elo_expected(h_elo, a_elo, ELO_HOME_ADV)
 
-        # Only train on games with clear favorite (>60% implied)
         if 0.40 <= home_exp <= 0.60:
             continue
 
@@ -146,7 +142,6 @@ def build_dataset(games, elos, conferences):
         gd = datetime.strptime(g['date'], '%Y-%m-%d').date()
         is_midweek = 1 if gd.weekday() in (1, 2, 3) else 0
 
-        # Historical upset rate for this elo bucket
         bucket = int(abs(elo_gap) // 50) * 50
         bt = bucket_upsets[bucket]
         hist_rate = bt[0] / bt[1] if bt[1] > 10 else 0.30
@@ -163,23 +158,53 @@ def build_dataset(games, elos, conferences):
             hist_rate,
         ]
 
-        # Target: did the underdog win?
         upset = 1 if g['winner_id'] == dog_id else 0
 
-        # Update bucket stats for future games
         bucket_upsets[bucket][0] += upset
         bucket_upsets[bucket][1] += 1
 
         X.append(features)
         y.append(upset)
         dates.append(g['date'])
-        game_indices.append(i)
 
-    return (np.array(X, dtype=np.float64), np.array(y),
-            dates, dict(bucket_upsets))
+    return np.array(X, dtype=np.float64), np.array(y, dtype=np.int32), np.array(dates, dtype=object), dict(bucket_upsets)
 
 
-def main():
+def _rf_model():
+    return RandomForestClassifier(
+        n_estimators=200,
+        max_depth=6,
+        min_samples_leaf=20,
+        random_state=42,
+        n_jobs=-1,
+    )
+
+
+def write_report(path, payload):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "# Upset Model Walk-Forward Report",
+        "",
+        f"- generated_at: {payload['generated_at']}",
+        f"- folds: {payload['folds']}",
+        f"- oof_n: {payload['oof_metrics']['n']}",
+        f"- oof_accuracy: {payload['oof_metrics']['accuracy']}",
+        f"- oof_brier: {payload['oof_metrics']['brier']}",
+        f"- oof_logloss: {payload['oof_metrics']['logloss']}",
+        f"- final_train_size: {payload['final_train_size']}",
+        "",
+        "## Known limitation",
+        payload['known_limitation'],
+        "",
+        "```json",
+        json.dumps(payload, indent=2),
+        "```",
+    ]
+    path.write_text("\n".join(lines), encoding='utf-8')
+
+
+def main(min_warmup=200, report_path=None):
     print("=" * 70)
     print("UPSET MODEL TRAINING")
     print("=" * 70)
@@ -191,78 +216,89 @@ def main():
     print(f"Dataset: {len(X)} games with clear favorite (>60%)")
     print(f"Upset rate: {y.mean():.1%}")
 
-    # Walk-forward split
-    split = int(len(X) * 0.7)
-    X_train, X_test = X[:split], X[split:]
-    y_train, y_test = y[:split], y[split:]
+    folds = build_strict_date_folds(dates, min_warmup=min_warmup)
+    oof_probs, oof_true = [], []
 
-    # Train Random Forest
-    rf = RandomForestClassifier(
-        n_estimators=200, max_depth=6, min_samples_leaf=20,
-        random_state=42, n_jobs=-1)
-    rf.fit(X_train, y_train)
+    for fold in folds:
+        tr_idx = fold.train_idx
+        te_idx = fold.test_idx
+        X_train, y_train = X[tr_idx], y[tr_idx]
+        X_test, y_test = X[te_idx], y[te_idx]
 
-    train_acc = rf.score(X_train, y_train)
-    test_acc = rf.score(X_test, y_test)
+        if len(np.unique(y_train)) < 2:
+            continue
 
-    # Upset-specific accuracy
-    test_probs = rf.predict_proba(X_test)[:, 1]
-    upset_mask = y_test == 1
-    chalk_mask = y_test == 0
+        rf = _rf_model()
+        rf.fit(X_train, y_train)
+        probs = rf.predict_proba(X_test)[:, 1]
 
-    upset_pred_correct = np.sum((test_probs > 0.5) & upset_mask)
-    total_upsets = upset_mask.sum()
-    chalk_pred_correct = np.sum((test_probs <= 0.5) & chalk_mask)
-    total_chalk = chalk_mask.sum()
+        oof_probs.extend(probs.tolist())
+        oof_true.extend(y_test.tolist())
 
-    print(f"\nWalk-forward validation:")
-    print(f"  Train: {len(X_train)} games, accuracy {train_acc:.1%}")
-    print(f"  Test:  {len(X_test)} games, accuracy {test_acc:.1%}")
-    print(f"  Upsets called correctly: {upset_pred_correct}/{total_upsets} "
-          f"({upset_pred_correct/total_upsets:.1%})" if total_upsets > 0 else "")
-    print(f"  Chalk called correctly:  {chalk_pred_correct}/{total_chalk} "
-          f"({chalk_pred_correct/total_chalk:.1%})" if total_chalk > 0 else "")
+    metrics = aggregate_binary_oof(np.array(oof_true), np.array(oof_probs))
 
-    # Feature importance
-    print(f"\nFeature importance:")
-    for name, imp in sorted(zip(UpsetModel.FEATURE_NAMES,
-                                rf.feature_importances_),
-                            key=lambda x: -x[1]):
-        bar = "#" * int(imp * 100)
-        print(f"  {name:<30} {imp:.4f} {bar}")
+    print("\nStrict walk-forward validation:")
+    print(f"  folds: {len(folds)}")
+    print(f"  OOF metrics: acc={metrics['accuracy']}, brier={metrics['brier']}, logloss={metrics['logloss']}, n={metrics['n']}")
 
-    # Elo bucket upset rates
-    print(f"\nHistorical upset rates by elo gap:")
+    print("\nFeature importance:")
+    rf_full = _rf_model()
+    rf_full.fit(X, y)
+    for name, imp in sorted(zip(UpsetModel.FEATURE_NAMES, rf_full.feature_importances_), key=lambda x: -x[1]):
+        print(f"  {name:<30} {imp:.4f}")
+
     elo_gap_rates = {}
     for bucket, (upsets, total) in sorted(bucket_upsets.items()):
         if total > 5:
-            rate = upsets / total
-            elo_gap_rates[bucket] = rate
-            print(f"  Gap {bucket:>3}-{bucket+49}: {upsets}/{total} = {rate:.1%}")
+            elo_gap_rates[bucket] = upsets / total
 
-    # Retrain on all data
-    rf_full = RandomForestClassifier(
-        n_estimators=200, max_depth=6, min_samples_leaf=20,
-        random_state=42, n_jobs=-1)
-    rf_full.fit(X, y)
+    limitation = (
+        "Pregame Elo values are approximated using current elo_ratings table, "
+        "not reconstructed true as-of Elo snapshots per historical game date."
+    )
+    print("\nKnown limitation:")
+    print(f"  {limitation}")
 
-    # Save
     save_data = {
         'model': rf_full,
         'feature_names': UpsetModel.FEATURE_NAMES,
         'elo_gap_upset_rates': elo_gap_rates,
         'train_size': len(X),
         'upset_rate': float(y.mean()),
-        'test_accuracy': test_acc,
+        'test_accuracy': metrics['accuracy'],
         'saved_at': datetime.now().isoformat(),
         'version': '1.0',
     }
     with open(MODEL_PATH, 'wb') as f:
         pickle.dump(save_data, f)
-    print(f"\nModel saved to {MODEL_PATH}")
+
+    print(f"\nfinal train size: {len(X)}")
+    print(f"Model saved to {MODEL_PATH}")
+
+    payload = {
+        'model': 'upset_model',
+        'generated_at': datetime.now().isoformat(),
+        'folds': len(folds),
+        'min_warmup': int(min_warmup),
+        'oof_metrics': metrics,
+        'final_train_size': int(len(X)),
+        'model_path': str(MODEL_PATH),
+        'known_limitation': limitation,
+    }
+    if report_path:
+        write_report(report_path, payload)
+        print(f"report: {report_path}")
 
     return 0
 
 
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument('--min-warmup', type=int, default=200)
+    p.add_argument('--report-path', type=str, default=None)
+    return p.parse_args()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    args = parse_args()
+    sys.exit(main(min_warmup=args.min_warmup, report_path=args.report_path))
