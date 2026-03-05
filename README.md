@@ -50,6 +50,26 @@ This keeps retrospective/backfilled/postgame snapshots out of training and eval 
 
 P0-2 as-of hygiene is now active: meta-ensemble context features that relied on current-state tables are temporarily disabled to eliminate lookahead risk. A future P1 can reintroduce them using proper as-of snapshots.
 
+## Canonical Meta-Stack Benchmark (P0-3)
+
+Run the canonical leak-safe benchmark report:
+
+```bash
+python3 scripts/evaluate_meta_stack.py \
+  --start-date 2026-01-01 \
+  --end-date 2026-12-31
+# optional: --out artifacts/model_benchmark_custom.md
+```
+
+Report output fields (per model):
+- `n predictions`
+- `win accuracy`
+- `Brier`
+- `log loss`
+- `ECE` + reliability bins
+
+It also includes a strict apples-to-apples cohort (all active models + meta on the same games), top pairwise correlations, and meta-vs-submodel agreement/disagreement analysis.
+
 ## Data Sources
 
 - **D1Baseball** — Scores, schedules, box scores, player stats (basic + advanced), rankings
