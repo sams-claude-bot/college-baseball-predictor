@@ -27,6 +27,9 @@
             <div id="notif-granted" class="d-none">
                 <span class="text-success fs-4"><i class="bi bi-check-circle"></i> Notifications enabled</span>
                 <button class="btn btn-outline-secondary btn-sm ms-3" onclick="testNotification()">Send Test</button>
+                <button class="btn btn-outline-danger btn-sm ms-2" onclick="disableNotifications()" id="btn-disable">
+                    <i class="bi bi-bell-slash"></i> Disable
+                </button>
             </div>
             <div id="notif-denied" class="d-none">
                 <p class="text-danger"><i class="bi bi-x-circle"></i> Notifications blocked. Enable them in your browser/device settings.</p>
@@ -224,6 +227,32 @@ async function testNotification() {
         }
     } catch (err) {
         showStatus('Error: ' + err.message, 'danger');
+    }
+}
+
+async function disableNotifications() {
+    if (!currentSubscription) return;
+
+    if (!confirm('This will unsubscribe you from all push notifications. Continue?')) return;
+
+    const sub = currentSubscription.toJSON();
+    try {
+        // Unsubscribe server-side
+        await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ subscription: sub })
+        });
+
+        // Unsubscribe browser-side
+        await currentSubscription.unsubscribe();
+        currentSubscription = null;
+
+        document.getElementById('notif-granted').classList.add('d-none');
+        document.getElementById('notif-ready').classList.remove('d-none');
+        showStatus('Notifications disabled. You can re-enable anytime.', 'info');
+    } catch (err) {
+        showStatus('Error disabling notifications: ' + err.message, 'danger');
     }
 }
 
