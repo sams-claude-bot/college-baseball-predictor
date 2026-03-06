@@ -128,7 +128,7 @@ BET_RISK_USE_CALIBRATION = True              # Enabled Feb 26 — fixes overconf
 
 # Correlation / concentration caps (aggregate stake exposure)
 BET_RISK_CORRELATION_CAP_ENABLED = True
-BET_RISK_MAX_EXPOSURE_PER_TEAM = 200.0
+BET_RISK_MAX_EXPOSURE_PER_TEAM = 250.0
 BET_RISK_MAX_EXPOSURE_PER_CONFERENCE = 350.0
 BET_RISK_MAX_EXPOSURE_PER_DAY = 800.0
 
