@@ -38,6 +38,13 @@ Next work focuses on coverage reliability and as-of feature quality.
 
 ## P2 — Planned
 
+### Live Data Integrity
+- [ ] SIDEARM poller: add date guard to prevent applying previous-day game data to new same-matchup games
+  - Bug: 3/6 Austin Peay @ Utah Tech got 3/5's final score + play-by-play via SIDEARM
+  - Root cause: poller matches by team, stale SIDEARM feed still shows yesterday's completed game
+  - Fix: compare SIDEARM game date against DB game date before writing
+- [ ] d1b_team_sync: guard against D1BB showing stale scores for future games in multi-game series
+
 ### Training + Ops Hardening
 - [ ] Align cron training pipeline with strict walk-forward scripts
   - `train_lightgbm_v2.py`

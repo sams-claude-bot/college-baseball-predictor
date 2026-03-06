@@ -84,6 +84,76 @@
 </div>
 {% endif %}
 
+<!-- Strategy Breakdown -->
+{% if strategy_breakdown %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clipboard-data"></i> Strategy Breakdown
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Strategy</th>
+                            <th class="text-center">Bets</th>
+                            <th class="text-center">Record</th>
+                            <th class="text-center">Win%</th>
+                            <th class="text-center">Profit</th>
+                            <th class="text-center">Avg Edge</th>
+                            <th class="text-center">ROI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(total_bets=0, total_wins=0, total_losses=0, total_profit=0.0, total_wagered=0.0) %}
+                        {% for name, s in strategy_breakdown.items() %}
+                        <tr>
+                            <td><strong>{{ name }}</strong></td>
+                            <td class="text-center">{{ s.bets }}</td>
+                            <td class="text-center">{{ s.wins }}-{{ s.losses }}</td>
+                            <td class="text-center {% if s.win_pct >= 55 %}text-success{% elif s.win_pct < 50 and s.bets > 0 %}text-danger{% endif %}">
+                                {{ s.win_pct }}%
+                            </td>
+                            <td class="text-center {% if s.profit > 0 %}text-success{% elif s.profit < 0 %}text-danger{% endif %}">
+                                {{ '+' if s.profit > 0 else '' }}${{ '%.2f'|format(s.profit) }}
+                            </td>
+                            <td class="text-center">
+                                {% if s.avg_edge %}{{ '%.2f'|format(s.avg_edge) }}%{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="text-center {% if s.roi > 0 %}text-success{% elif s.roi < 0 %}text-danger{% endif %}">
+                                {{ '+' if s.roi > 0 else '' }}{{ s.roi }}%
+                            </td>
+                        </tr>
+                        {% set ns.total_bets = ns.total_bets + s.bets %}
+                        {% set ns.total_wins = ns.total_wins + s.wins %}
+                        {% set ns.total_losses = ns.total_losses + s.losses %}
+                        {% set ns.total_profit = ns.total_profit + s.profit %}
+                        {% set ns.total_wagered = ns.total_wagered + s.wagered %}
+                        {% endfor %}
+                        <tr class="table-light fw-bold">
+                            <td>TOTAL</td>
+                            <td class="text-center">{{ ns.total_bets }}</td>
+                            <td class="text-center">{{ ns.total_wins }}-{{ ns.total_losses }}</td>
+                            <td class="text-center">
+                                {% if ns.total_bets > 0 %}{{ '%.1f'|format(ns.total_wins / ns.total_bets * 100) }}%{% else %}0%{% endif %}
+                            </td>
+                            <td class="text-center {% if ns.total_profit > 0 %}text-success{% elif ns.total_profit < 0 %}text-danger{% endif %}">
+                                {{ '+' if ns.total_profit > 0 else '' }}${{ '%.2f'|format(ns.total_profit) }}
+                            </td>
+                            <td class="text-center">&mdash;</td>
+                            <td class="text-center {% if ns.total_wagered > 0 and ns.total_profit / ns.total_wagered * 100 > 0 %}text-success{% elif ns.total_wagered > 0 and ns.total_profit / ns.total_wagered * 100 < 0 %}text-danger{% endif %}">
+                                {% if ns.total_wagered > 0 %}{{ '+' if ns.total_profit > 0 else '' }}{{ '%.1f'|format(ns.total_profit / ns.total_wagered * 100) }}%{% else %}0%{% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Bet Type Breakdown -->
 <div class="row mb-4">
     <div class="col-md-3">

@@ -40,6 +40,18 @@ unevaled = db.execute('SELECT COUNT(*) FROM model_predictions mp JOIN games g ON
 print(f'Unevaluated predictions on final games: {unevaled}')
 " >> "$LOG" 2>&1
 
+echo "--- Daily Benchmark Artifact ---" >> "$LOG"
+python3 scripts/daily_benchmark.py >> "$LOG" 2>&1
+
+echo "--- CLV Daily Report ---" >> "$LOG"
+python3 scripts/clv_daily_report.py >> "$LOG" 2>&1 || true
+
+# Weekly CLV summary on Sundays
+if [ "$(date +%u)" = "7" ]; then
+    echo "--- CLV Weekly Summary ---" >> "$LOG"
+    python3 scripts/clv_weekly_summary.py >> "$LOG" 2>&1 || true
+fi
+
 echo "--- Integrity Guard ---" >> "$LOG"
 python3 scripts/integrity_guard.py >> "$LOG" 2>&1
 

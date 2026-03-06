@@ -12,6 +12,7 @@ sys.path.insert(0, str(base_dir))
 sys.path.insert(0, str(base_dir / "scripts"))
 
 from database import get_connection
+from strategy_pl_report import generate_report as generate_strategy_report
 
 from web.helpers import get_clv_summary
 from web.services.betting_page import build_betting_page_context
@@ -324,7 +325,14 @@ def tracker():
     # --- CLV SUMMARY ---
     clv_summary = get_clv_summary()
 
+    # --- STRATEGY BREAKDOWN ---
+    try:
+        strategy_stats, _, _ = generate_strategy_report()
+    except Exception:
+        strategy_stats = {}
+
     return render_template('tracker.html',
+                          strategy_breakdown=strategy_stats,
                           clv_summary=clv_summary,
                           consensus_bets=consensus_bets,
                           pending_consensus=pending_consensus,
