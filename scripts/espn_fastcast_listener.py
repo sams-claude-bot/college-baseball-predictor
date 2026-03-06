@@ -187,6 +187,57 @@ class GameStateTracker:
         self.prev_scores = {}    # game_id → (home_score, away_score)
         self.prev_status = {}    # game_id → status string
         self.event_teams = {}    # espn_event_id → (away_db_id, home_db_id, date)
+        self._dh_cache = {}      # (date, away, home) → [game_ids] from DB
+        self._espn_order = {}    # (date, away, home) → [espn_ids] sorted by date
+
+    def _resolve_dh_game_id(self, espn_id, date_str, away_db, home_db):
+        """Resolve the correct game_id for doubleheaders.
+
+        Collects all ESPN events for the same team pair on the same date,
+        sorts them chronologically, and matches them 1:1 to our DB game
+        rows (sorted by ID, so gm1 sorts before _gm2).
+        """
+        dh_key = (date_str, away_db, home_db)
+        base_id = f'{date_str}_{away_db}_{home_db}'
+
+        # Build/update the ESPN event ordering for this team pair
+        if dh_key not in self._espn_order:
+            self._espn_order[dh_key] = []
+        if espn_id not in self._espn_order[dh_key]:
+            self._espn_order[dh_key].append(espn_id)
+            # Sort by event date
+            self._espn_order[dh_key].sort(
+                key=lambda eid: self.games.get(eid, {}).get('date', ''))
+
+        # Cache DB game IDs for this team pair
+        if dh_key not in self._dh_cache:
+            try:
+                conn = sqlite3.connect(DB_PATH, timeout=10)
+                rows = conn.execute(
+                    "SELECT id FROM games WHERE date = ? AND "
+                    "((home_team_id = ? AND away_team_id = ?) OR "
+                    " (home_team_id = ? AND away_team_id = ?)) "
+                    "ORDER BY id",
+                    (date_str, home_db, away_db, away_db, home_db)
+                ).fetchall()
+                self._dh_cache[dh_key] = [r[0] for r in rows]
+                conn.close()
+            except Exception:
+                self._dh_cache[dh_key] = [base_id]
+
+        db_ids = self._dh_cache[dh_key]
+        espn_ids = self._espn_order[dh_key]
+
+        # Find this ESPN event's position in the chronological order
+        try:
+            idx = espn_ids.index(espn_id)
+        except ValueError:
+            idx = 0
+
+        # Map to the corresponding DB game ID
+        if idx < len(db_ids):
+            return db_ids[idx]
+        return base_id
 
     def refresh_mapping(self):
         self.espn_mapping = build_espn_mapping_if_needed()
@@ -324,7 +375,10 @@ class GameStateTracker:
                 return None
 
         away_db, home_db, date_str = team_info
-        game_id = f'{date_str}_{away_db}_{home_db}'
+
+        # Determine correct game_id for doubleheaders by matching ESPN event
+        # chronologically to DB game rows (earlier event → gm1, later → gm2).
+        game_id = self._resolve_dh_game_id(espn_id, date_str, away_db, home_db)
 
         # Extract current state from event
         comp = event.get('competitions', [{}])[0]

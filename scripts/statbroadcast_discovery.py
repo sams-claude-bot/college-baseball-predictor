@@ -136,22 +136,45 @@ def match_game(sb_event_info, conn, resolver=None):
     home_id = resolver.resolve(home_name)
     visitor_id = resolver.resolve(visitor_name)
 
-    # If both teams resolve, try exact match first
+    # If both teams resolve, find matching games
     if home_id and visitor_id:
         c = conn.cursor()
-        row = c.execute("""
+        rows = c.execute("""
             SELECT id FROM games
             WHERE date = ?
               AND (
                 (home_team_id = ? AND away_team_id = ?) OR
                 (home_team_id = ? AND away_team_id = ?)
               )
-            LIMIT 1
-        """, (game_date, home_id, visitor_id, visitor_id, home_id)).fetchone()
+            ORDER BY id
+        """, (game_date, home_id, visitor_id, visitor_id, home_id)).fetchall()
 
-        if row:
-            game_id = row[0] if isinstance(row, tuple) else row['id']
+        if len(rows) == 1:
+            game_id = rows[0][0] if isinstance(rows[0], tuple) else rows[0]['id']
             return game_id
+
+        if len(rows) > 1:
+            # Doubleheader: assign to the first game that doesn't already
+            # have an active (non-completed) SB event.  This ensures gm1
+            # and gm2 get separate SB events.
+            sb_event_id = sb_event_info.get('event_id')
+            assigned_ids = set()
+            try:
+                sb_rows = c.execute("""
+                    SELECT game_id FROM statbroadcast_events
+                    WHERE game_date = ? AND sb_event_id != ?
+                      AND game_id IS NOT NULL
+                """, (game_date, sb_event_id or -1)).fetchall()
+                assigned_ids = {r[0] if isinstance(r, tuple) else r['game_id'] for r in sb_rows}
+            except Exception:
+                pass
+
+            candidate_ids = [r[0] if isinstance(r, tuple) else r['id'] for r in rows]
+            for gid in candidate_ids:
+                if gid not in assigned_ids:
+                    return gid
+            # All already assigned — return the first one as fallback
+            return candidate_ids[0]
 
     # Fallback: if only ONE team resolves, find that team's game on this date.
     # This handles cases where the other team's name can't be resolved

@@ -230,14 +230,18 @@ def update_scores(date_str=None):
     espn_mapping = build_espn_id_mapping(conn)
     
     # Get our games for this date
-    our_games = {}
+    # Build a list of games per team pair (handles doubleheaders)
+    our_games_list = {}  # (away, home) → [game1, game2, ...] sorted by id
     rows = conn.execute(
         'SELECT id, home_team_id, away_team_id, status, home_score, away_score FROM games WHERE date = ?',
         (date_str,)
     ).fetchall()
     for r in rows:
         key = (r['away_team_id'], r['home_team_id'])
-        our_games[key] = dict(r)
+        our_games_list.setdefault(key, []).append(dict(r))
+    # Sort each list by game id so gm1 comes before gm2
+    for key in our_games_list:
+        our_games_list[key].sort(key=lambda g: g['id'])
     
     # Exclude games actively covered by StatBroadcast (SB is providing live data).
     # Only skip when there is an ACTIVE (non-completed) SB event AND the game
@@ -260,21 +264,26 @@ def update_scores(date_str=None):
     
     if sb_game_ids:
         sb_skipped = 0
-        for key in list(our_games.keys()):
-            if our_games[key]['id'] in sb_game_ids:
-                del our_games[key]
-                sb_skipped += 1
+        for key in list(our_games_list.keys()):
+            before = len(our_games_list[key])
+            our_games_list[key] = [g for g in our_games_list[key] if g['id'] not in sb_game_ids]
+            sb_skipped += before - len(our_games_list[key])
+            if not our_games_list[key]:
+                del our_games_list[key]
         if sb_skipped:
             print(f"Skipping {sb_skipped} games with active StatBroadcast data")
     
     updated = 0
     unmatched_espn = []
-    
+
+    # --- Phase 1: Collect ESPN events by team pair and sort chronologically ---
+    # This ensures doubleheader events are matched 1:1 to our game rows
+    # (gm1 event → gm1 row, gm2 event → gm2 row).
+    espn_by_pair = {}  # (away_db_id, home_db_id) → [(event, swapped), ...] sorted by date
+
     for event in data.get('events', []):
         # Guard: skip events whose actual date (converted to Central) doesn't
-        # match the date we're updating. ESPN's API sometimes returns games
-        # from adjacent UTC dates (e.g. a 7 PM CST game on Mar 5 has a UTC
-        # date of Mar 6).
+        # match the date we're updating.
         espn_event_date = event.get('date', '')
         if espn_event_date and len(espn_event_date) > 10:
             try:
@@ -288,164 +297,177 @@ def update_scores(date_str=None):
 
         comp = event['competitions'][0]
         status = comp['status']
-        
-        # Get teams
+
         competitors = comp['competitors']
         away_espn = [c for c in competitors if c['homeAway'] == 'away']
         home_espn = [c for c in competitors if c['homeAway'] == 'home']
-        
+
         if not away_espn or not home_espn:
             continue
-        
-        away_espn = away_espn[0]
-        home_espn = home_espn[0]
-        
-        away_espn_id = str(away_espn['team']['id'])
-        home_espn_id = str(home_espn['team']['id'])
-        away_name = away_espn['team']['displayName']
-        home_name = home_espn['team']['displayName']
-        
-        # Match to our DB via ESPN ID mapping
+
+        away_espn_id = str(away_espn[0]['team']['id'])
+        home_espn_id = str(home_espn[0]['team']['id'])
+        away_name = away_espn[0]['team']['displayName']
+        home_name = home_espn[0]['team']['displayName']
+
         away_id = espn_mapping.get(away_espn_id)
         home_id = espn_mapping.get(home_espn_id)
-        
+
         if not away_id or not home_id:
             if status['type']['name'] != 'STATUS_SCHEDULED':
                 unmatched_espn.append(f"{away_name} @ {home_name} (espn:{away_espn_id}/{home_espn_id})")
             continue
-        
+
         key = (away_id, home_id)
         swapped = False
-        if key not in our_games:
-            # Try swapped home/away (ESPN sometimes reverses)
+        if key not in our_games_list:
             key = (home_id, away_id)
             swapped = True
-            if key not in our_games:
+            if key not in our_games_list:
                 continue
-        
-        game = our_games[key]
-        db_status = espn_status_to_db(status['type'], game_date=game.get('date'))
-        
-        # Game times now handled by D1Baseball scraper (cron/d1b_game_times.sh)
-        # D1B covers ~150+ games/day vs ESPN API's ~102 cap
-        
-        # Get scores (swap if ESPN has home/away reversed from our DB)
-        if swapped:
-            away_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
-            home_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
-            away_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
-            home_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
-            away_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
-            home_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
-        else:
-            away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
-            home_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
-            away_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
-            home_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
-            away_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
-            home_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
-        
-        # Get linescore (inning-by-inning)
-        linescore = None
-        home_ls = home_espn.get('linescores', [])
-        away_ls = away_espn.get('linescores', [])
-        if home_ls or away_ls:
-            linescore = json.dumps({
-                'home': [int(l.get('value', 0)) for l in home_ls],
-                'away': [int(l.get('value', 0)) for l in away_ls],
-            })
-        
-        # Get inning info
-        inning_text = status['type'].get('detail', '')
-        if not inning_text:
-            inning_text = status['type'].get('shortDetail', '')
-        
-        innings = status.get('period', None)
-        
-        # Get live situation (runners, count, pitcher, batter, last play)
-        situation = None
-        sit = comp.get('situation')
-        if sit and db_status == 'in-progress':
-            situation = json.dumps({
-                'outs': sit.get('outs', 0),
-                'balls': sit.get('balls', 0),
-                'strikes': sit.get('strikes', 0),
-                'onFirst': sit.get('onFirst', False),
-                'onSecond': sit.get('onSecond', False),
-                'onThird': sit.get('onThird', False),
-                'batter': _extract_athlete(sit.get('batter')),
-                'pitcher': _extract_athlete(sit.get('pitcher')),
-                'lastPlay': sit.get('lastPlay', {}).get('text', '') if isinstance(sit.get('lastPlay'), dict) else '',
-                'dueUp': [_extract_athlete(a) for a in sit.get('dueUp', [])] if sit.get('dueUp') else [],
-            })
-        
-        # Determine winner
-        winner_id = None
-        if db_status == 'final' and home_score is not None and away_score is not None:
-            if home_score > away_score:
-                winner_id = home_id
-            elif away_score > home_score:
-                winner_id = away_id
-        
-        # Check if anything changed (score, hits, situation all count)
-        score_changed = (game['home_score'] != home_score or game['away_score'] != away_score)
-        status_changed = (game['status'] != db_status)
-        
-        if not score_changed and not status_changed and db_status != 'in-progress':
-            continue
-        
-        # Update the game with full data
-        from schedule_gateway import ScheduleGateway
-        gw = ScheduleGateway(conn)
-        
-        if db_status == 'final' and home_score is not None and away_score is not None:
-            gw.finalize_game(game['id'], home_score, away_score, innings=innings)
-        elif db_status == 'in-progress' and home_score is not None and away_score is not None:
-            gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
-        else:
+
+        espn_by_pair.setdefault(key, []).append((event, swapped))
+
+    # Sort each pair's events chronologically (earlier event = gm1)
+    for key in espn_by_pair:
+        espn_by_pair[key].sort(key=lambda x: x[0].get('date', ''))
+
+    # --- Phase 2: Match events to game rows 1:1 ---
+    for key, event_list in espn_by_pair.items():
+        game_list = our_games_list.get(key, [])
+        for idx, (event, swapped) in enumerate(event_list):
+            if idx >= len(game_list):
+                break  # More ESPN events than DB games
+
+            game = game_list[idx]
+            comp = event['competitions'][0]
+            status = comp['status']
+            competitors = comp['competitors']
+            away_espn = [c for c in competitors if c['homeAway'] == 'away'][0]
+            home_espn = [c for c in competitors if c['homeAway'] == 'home'][0]
+
+            db_status = espn_status_to_db(status['type'], game_date=game.get('date'))
+
+            home_id = game['home_team_id']
+            away_id = game['away_team_id']
+
+            # Get scores (swap if ESPN has home/away reversed from our DB)
+            if swapped:
+                away_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
+                home_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
+                away_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
+                home_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
+                away_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
+                home_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
+            else:
+                away_score = int(away_espn.get('score', 0)) if away_espn.get('score') else None
+                home_score = int(home_espn.get('score', 0)) if home_espn.get('score') else None
+                away_hits = int(away_espn.get('hits', 0)) if away_espn.get('hits') is not None else None
+                home_hits = int(home_espn.get('hits', 0)) if home_espn.get('hits') is not None else None
+                away_errors = int(away_espn.get('errors', 0)) if away_espn.get('errors') is not None else None
+                home_errors = int(home_espn.get('errors', 0)) if home_espn.get('errors') is not None else None
+
+            # Get linescore (inning-by-inning)
+            linescore = None
+            home_ls = home_espn.get('linescores', [])
+            away_ls = away_espn.get('linescores', [])
+            if home_ls or away_ls:
+                linescore = json.dumps({
+                    'home': [int(l.get('value', 0)) for l in home_ls],
+                    'away': [int(l.get('value', 0)) for l in away_ls],
+                })
+
+            # Get inning info
+            inning_text = status['type'].get('detail', '')
+            if not inning_text:
+                inning_text = status['type'].get('shortDetail', '')
+
+            innings = status.get('period', None)
+
+            # Get live situation (runners, count, pitcher, batter, last play)
+            situation = None
+            sit = comp.get('situation')
+            if sit and db_status == 'in-progress':
+                situation = json.dumps({
+                    'outs': sit.get('outs', 0),
+                    'balls': sit.get('balls', 0),
+                    'strikes': sit.get('strikes', 0),
+                    'onFirst': sit.get('onFirst', False),
+                    'onSecond': sit.get('onSecond', False),
+                    'onThird': sit.get('onThird', False),
+                    'batter': _extract_athlete(sit.get('batter')),
+                    'pitcher': _extract_athlete(sit.get('pitcher')),
+                    'lastPlay': sit.get('lastPlay', {}).get('text', '') if isinstance(sit.get('lastPlay'), dict) else '',
+                    'dueUp': [_extract_athlete(a) for a in sit.get('dueUp', [])] if sit.get('dueUp') else [],
+                })
+
+            # Determine winner
+            winner_id = None
+            if db_status == 'final' and home_score is not None and away_score is not None:
+                if home_score > away_score:
+                    winner_id = home_id
+                elif away_score > home_score:
+                    winner_id = away_id
+
+            # Check if anything changed (score, hits, situation all count)
+            score_changed = (game['home_score'] != home_score or game['away_score'] != away_score)
+            status_changed = (game['status'] != db_status)
+
+            if not score_changed and not status_changed and db_status != 'in-progress':
+                continue
+
+            # Update the game with full data
+            from schedule_gateway import ScheduleGateway
+            gw = ScheduleGateway(conn)
+
+            if db_status == 'final' and home_score is not None and away_score is not None:
+                gw.finalize_game(game['id'], home_score, away_score, innings=innings)
+            elif db_status == 'in-progress' and home_score is not None and away_score is not None:
+                gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
+            else:
+                conn.execute('''
+                    UPDATE games 
+                    SET status = ?, home_score = ?, away_score = ?, 
+                        winner_id = ?, inning_text = ?, innings = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (db_status, home_score, away_score, winner_id, inning_text, innings, game['id']))
+
+            # Always update extended fields (hits, errors, linescore, situation)
+            # Merge situation_json to preserve StatBroadcast sb_* fields
+            merged_situation = situation
+            if situation:
+                existing_sit = conn.execute(
+                    'SELECT situation_json FROM games WHERE id = ?', (game['id'],)
+                ).fetchone()
+                if existing_sit and existing_sit[0]:
+                    try:
+                        existing = json.loads(existing_sit[0])
+                        new_sit = json.loads(situation)
+                        # Preserve sb_* fields from StatBroadcast
+                        for k, v in existing.items():
+                            if k.startswith('sb_') and k not in new_sit:
+                                new_sit[k] = v
+                        merged_situation = json.dumps(new_sit)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
             conn.execute('''
                 UPDATE games 
-                SET status = ?, home_score = ?, away_score = ?, 
-                    winner_id = ?, inning_text = ?, innings = ?,
-                    updated_at = CURRENT_TIMESTAMP
+                SET home_hits = ?, away_hits = ?, 
+                    home_errors = ?, away_errors = ?,
+                    linescore_json = ?,
+                    situation_json = ?
                 WHERE id = ?
-            ''', (db_status, home_score, away_score, winner_id, inning_text, innings, game['id']))
-        
-        # Always update extended fields (hits, errors, linescore, situation)
-        # Merge situation_json to preserve StatBroadcast sb_* fields
-        merged_situation = situation
-        if situation:
-            existing_sit = conn.execute(
-                'SELECT situation_json FROM games WHERE id = ?', (game['id'],)
-            ).fetchone()
-            if existing_sit and existing_sit[0]:
-                try:
-                    existing = json.loads(existing_sit[0])
-                    new_sit = json.loads(situation)
-                    # Preserve sb_* fields from StatBroadcast
-                    for k, v in existing.items():
-                        if k.startswith('sb_') and k not in new_sit:
-                            new_sit[k] = v
-                    merged_situation = json.dumps(new_sit)
-                except (json.JSONDecodeError, TypeError):
-                    pass
+            ''', (home_hits, away_hits, home_errors, away_errors,
+                  linescore, merged_situation, game['id']))
 
-        conn.execute('''
-            UPDATE games 
-            SET home_hits = ?, away_hits = ?, 
-                home_errors = ?, away_errors = ?,
-                linescore_json = ?,
-                situation_json = ?
-            WHERE id = ?
-        ''', (home_hits, away_hits, home_errors, away_errors,
-              linescore, merged_situation, game['id']))
-        
-        updated += 1
-        rhe = f"R:{away_score}-{home_score}"
-        if away_hits is not None:
-            rhe += f" H:{away_hits}-{home_hits} E:{away_errors}-{home_errors}"
-        print(f"Updated: {away_id} @ {home_id} ({db_status}, {inning_text}) {rhe}")
-    
+            updated += 1
+            rhe = f"R:{away_score}-{home_score}"
+            if away_hits is not None:
+                rhe += f" H:{away_hits}-{home_hits} E:{away_errors}-{home_errors}"
+            print(f"Updated: {away_id} @ {home_id} ({db_status}, {inning_text}) {rhe}")
+
     conn.commit()
     conn.close()
     
