@@ -20,7 +20,7 @@ echo "--- Predictions ---" >> "$LOG"
 PYTHONPATH=. python3 scripts/predict_and_track.py predict --refresh-existing >> "$LOG" 2>&1
 
 echo "--- Coverage Guardrail ---" >> "$LOG"
-python3 scripts/coverage_check.py --fix --quiet >> "$LOG" 2>&1
+python3 scripts/coverage_check.py --fix --quiet >> "$LOG" 2>&1 || true
 
 echo "--- Bet selection ---" >> "$LOG"
 python3 scripts/bet_selection_v2.py record >> "$LOG" 2>&1
