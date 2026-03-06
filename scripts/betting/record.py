@@ -90,108 +90,201 @@ def build_parlay(results: dict) -> dict:
     }
 
 
-def build_risky_parlay(results: dict) -> dict:
-    """Build an untracked 'risky' parlay for fun.
+def build_longshot_parlay(date_str=None) -> dict:
+    """Build an untracked longshot parlay — highest probability at +1500 or better.
+
+    Pulls from ALL games with betting lines and model predictions (not just
+    bet-selected games). Finds the combination of legs that maximizes model
+    probability while achieving at least +1500 combined odds.
 
     Rules:
-    - Max odds per leg: -120 (no heavy favorites)
-    - Must include at least one underdog leg (+100 or longer)
-    - 4-5 legs for big payouts
-    - Minimum 5% edge per leg
-    - Still uses model probability to pick legs, but looser thresholds
-    - $10 fun bet, not tracked in P&L
+    - Minimum combined American odds: +1500
+    - Uses meta_ensemble probabilities for all games
+    - Can mix favorites and underdogs from any game
+    - Picks the side (home/away) with better model edge per game
+    - 3-6 legs
+    - $5 fun bet, completely untracked
     """
-    RISKY_ML_CAP = -120        # No favorites heavier than -120
-    RISKY_MIN_EDGE = 5.0       # Looser edge threshold
-    RISKY_MIN_PROB = 0.40      # Allow lower confidence picks
-    RISKY_MAX_PROB = 0.70      # Exclude heavy favorites
-    RISKY_BET = 10
-    RISKY_TARGET_LEGS = 5
+    import sqlite3
+    from itertools import combinations
+    from datetime import datetime, timezone, timedelta
 
-    source_bets = results.get('parlay_candidates', results['bets'])
-    candidates = []
+    MIN_COMBINED_DECIMAL = 16.0  # +1500 American = 16.0 decimal
+    MIN_LEGS = 3
+    MAX_LEGS = 6
+    LONGSHOT_BET = 5
+    MAX_FAVORITE = -400  # Don't include super-heavy favorites (boring legs)
+    MIN_MODEL_PROB = 0.35  # Don't include picks the model hates
 
-    for b in source_bets:
-        if b['type'] not in ('CONSENSUS', 'ML'):
-            continue
-        ml = b.get('moneyline')
-        if ml is None:
-            continue
-        # Only allow lines -120 or longer (closer to even/underdog)
-        if ml < RISKY_ML_CAP:
-            continue
-        prob = b.get('meta_prob', b.get('model_prob', 0.5))
-        if not (RISKY_MIN_PROB <= prob <= RISKY_MAX_PROB):
-            continue
-        if b.get('edge', 0) < RISKY_MIN_EDGE:
-            continue
+    if date_str is None:
+        utc_now = datetime.now(timezone.utc)
+        ct_offset = timedelta(hours=-5) if 3 <= utc_now.month <= 10 else timedelta(hours=-6)
+        date_str = (utc_now + ct_offset).strftime('%Y-%m-%d')
 
-        is_dog = ml > 0
-        # Score: underdogs get a bonus, plus edge weighting
-        dog_bonus = 1.5 if is_dog else 1.0
-        score = prob * b.get('edge', 0) * dog_bonus
-        candidates.append({**b, 'risky_score': score, 'risky_prob': prob, 'is_dog': is_dog})
+    conn = sqlite3.connect(str(DB_PATH), timeout=30)
+    conn.row_factory = sqlite3.Row
 
-    candidates.sort(key=lambda x: x['risky_score'], reverse=True)
+    # Get all games with odds AND model predictions
+    rows = conn.execute("""
+        SELECT g.id as game_id, g.date, g.status,
+               bl.home_ml, bl.away_ml,
+               h.name as home_name, a.name as away_name,
+               g.home_team_id, g.away_team_id,
+               mp.predicted_home_prob as meta_prob
+        FROM games g
+        JOIN betting_lines bl ON g.id = bl.game_id
+        JOIN teams h ON g.home_team_id = h.id
+        JOIN teams a ON g.away_team_id = a.id
+        LEFT JOIN model_predictions mp ON g.id = mp.game_id AND mp.model_name = 'meta_ensemble'
+        WHERE g.date = ? AND g.status = 'scheduled'
+        AND bl.home_ml IS NOT NULL AND bl.away_ml IS NOT NULL
+    """, (date_str,)).fetchall()
+    conn.close()
 
-    # Must include at least one underdog
-    dogs = [c for c in candidates if c['is_dog']]
-    non_dogs = [c for c in candidates if not c['is_dog']]
-
-    legs = []
-    used_ids = set()
-
-    # Add the best underdog first (required)
-    for c in dogs:
-        if c['game_id'] not in used_ids:
-            legs.append(c)
-            used_ids.add(c['game_id'])
-            break
-
-    # Fill remaining legs from all candidates
-    for c in candidates:
-        if len(legs) >= RISKY_TARGET_LEGS:
-            break
-        if c['game_id'] not in used_ids:
-            legs.append(c)
-            used_ids.add(c['game_id'])
-
-    if len(legs) < 3 or not any(l['is_dog'] for l in legs):
+    if not rows:
         return None
 
     def ml_to_decimal(ml):
         return 1 + ml / 100 if ml > 0 else 1 + 100 / abs(ml)
 
+    def american_to_prob(ml):
+        if ml > 0:
+            return 100 / (ml + 100)
+        return abs(ml) / (abs(ml) + 100)
+
+    # Build candidate legs: for each game, pick the side with better model edge
+    candidates = []
+    for r in rows:
+        r = dict(r)
+        meta_prob = r['meta_prob']
+        if meta_prob is None:
+            continue
+
+        home_ml = r['home_ml']
+        away_ml = r['away_ml']
+
+        # Home side
+        if home_ml >= MAX_FAVORITE and meta_prob >= MIN_MODEL_PROB:
+            implied = american_to_prob(home_ml)
+            edge = (meta_prob - implied) * 100
+            candidates.append({
+                'game_id': r['game_id'],
+                'date': r['date'],
+                'pick': r['home_name'],
+                'opponent': r['away_name'],
+                'matchup': f"{r['away_name']} @ {r['home_name']}",
+                'odds': home_ml,
+                'decimal_odds': ml_to_decimal(home_ml),
+                'prob': meta_prob,
+                'edge': edge,
+                'is_dog': home_ml > 0,
+                'side': 'home',
+            })
+
+        # Away side
+        away_prob = 1 - meta_prob
+        if away_ml >= MAX_FAVORITE and away_prob >= MIN_MODEL_PROB:
+            implied = american_to_prob(away_ml)
+            edge = (away_prob - implied) * 100
+            candidates.append({
+                'game_id': r['game_id'],
+                'date': r['date'],
+                'pick': r['away_name'],
+                'opponent': r['home_name'],
+                'matchup': f"{r['away_name']} @ {r['home_name']}",
+                'odds': away_ml,
+                'decimal_odds': ml_to_decimal(away_ml),
+                'prob': away_prob,
+                'edge': edge,
+                'is_dog': away_ml > 0,
+                'side': 'away',
+            })
+
+    if len(candidates) < MIN_LEGS:
+        return None
+
+    # Sort by probability (greedy: start with highest confidence picks)
+    candidates.sort(key=lambda x: x['prob'], reverse=True)
+
+    # Only keep the best side per game
+    seen_games = set()
+    unique_candidates = []
+    for c in candidates:
+        if c['game_id'] not in seen_games:
+            unique_candidates.append(c)
+            seen_games.add(c['game_id'])
+
+    # Also keep high-value underdogs that might not be the "best side"
+    for c in candidates:
+        if c['game_id'] not in {u['game_id'] for u in unique_candidates} or c['is_dog']:
+            if c['game_id'] not in {u['game_id'] for u in unique_candidates if u['side'] == c['side']}:
+                unique_candidates.append(c)
+
+    # Dedupe by game_id + side
+    seen = set()
+    deduped = []
+    for c in unique_candidates:
+        key = (c['game_id'], c['side'])
+        if key not in seen:
+            deduped.append(c)
+            seen.add(key)
+
+    # Greedy search: find best parlay at each leg count
+    best_parlay = None
+    best_prob = 0
+
+    # For efficiency, limit candidate pool to top ~20 by prob for combo search
+    top_candidates = sorted(deduped, key=lambda x: x['prob'], reverse=True)[:20]
+
+    for n_legs in range(MIN_LEGS, min(MAX_LEGS + 1, len(top_candidates) + 1)):
+        for combo in combinations(top_candidates, n_legs):
+            # Skip if same game appears twice
+            game_ids = [c['game_id'] for c in combo]
+            if len(set(game_ids)) != len(game_ids):
+                continue
+
+            combined_decimal = 1.0
+            combined_prob = 1.0
+            for leg in combo:
+                combined_decimal *= leg['decimal_odds']
+                combined_prob *= leg['prob']
+
+            if combined_decimal >= MIN_COMBINED_DECIMAL and combined_prob > best_prob:
+                best_prob = combined_prob
+                best_parlay = combo
+
+    if best_parlay is None:
+        return None
+
+    # Format result
+    legs = []
     decimal_odds = 1.0
     combined_prob = 1.0
-    for leg in legs:
-        decimal_odds *= ml_to_decimal(leg['moneyline'])
-        combined_prob *= leg['risky_prob']
-
-    american = round((decimal_odds - 1) * 100) if decimal_odds > 2 else round(-100 / (decimal_odds - 1))
-
-    formatted_legs = []
-    for c in legs:
-        formatted_legs.append({
-            'type': c['type'],
+    for c in best_parlay:
+        decimal_odds *= c['decimal_odds']
+        combined_prob *= c['prob']
+        legs.append({
             'game_id': c['game_id'],
-            'date': c.get('date', ''),
-            'pick': c.get('pick_team_name', ''),
-            'matchup': f"{c.get('opponent_name', '')} vs {c.get('pick_team_name', '')}",
-            'odds': c['moneyline'],
-            'prob': c.get('risky_prob', c['model_prob']),
-            'edge': c['edge'],
+            'date': c['date'],
+            'pick': c['pick'],
+            'opponent': c['opponent'],
+            'matchup': c['matchup'],
+            'odds': c['odds'],
+            'prob': round(c['prob'], 4),
+            'edge': round(c['edge'], 1),
             'is_dog': c['is_dog'],
         })
 
+    american = round((decimal_odds - 1) * 100) if decimal_odds > 2 else round(-100 / (decimal_odds - 1))
+
     return {
-        'legs': formatted_legs,
-        'num_legs': len(formatted_legs),
+        'legs': legs,
+        'num_legs': len(legs),
         'american_odds': american,
         'decimal_odds': round(decimal_odds, 4),
         'model_prob': round(combined_prob, 4),
-        'bet_amount': RISKY_BET,
-        'payout': round(RISKY_BET * decimal_odds, 2),
+        'bet_amount': LONGSHOT_BET,
+        'payout': round(LONGSHOT_BET * decimal_odds, 2),
     }
 
 

@@ -435,36 +435,36 @@ html[data-theme='dark'] .betting-loading-overlay {
 </div>
 {% endif %}
 
-{% if risky_parlay %}
+{% if longshot_parlay %}
 <div class="card mb-4" style="border-color: #f59e0b;">
     <div class="card-header" style="background: linear-gradient(135deg, #f59e0b, #ef4444); color: white;">
         <div class="d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-fire"></i> Risky Parlay — For Fun Only</span>
+            <span><i class="bi bi-fire"></i> Longshot Parlay — For Fun Only</span>
             <span>
-                <span class="badge bg-dark">{{ risky_parlay.num_legs }} Legs</span>
-                <span class="badge" style="background:#ef4444;">{{ '+' if risky_parlay.american_odds > 0 else '' }}{{ risky_parlay.american_odds }}</span>
+                <span class="badge bg-dark">{{ longshot_parlay.num_legs }} Legs</span>
+                <span class="badge" style="background:#ef4444;">+{{ longshot_parlay.american_odds }}</span>
             </span>
         </div>
     </div>
     <div class="card-body">
-        <div class="row mb-2">
+        <div class="row mb-3">
             <div class="col text-center">
-                <small class="text-muted d-block">$10 wins</small>
-                <span class="h5 text-warning">${{ risky_parlay.payout }}</span>
+                <small class="text-muted d-block">$5 wins</small>
+                <span class="h4 text-warning">${{ longshot_parlay.payout }}</span>
             </div>
             <div class="col text-center">
                 <small class="text-muted d-block">Model Prob</small>
-                <span class="h5">{{ (risky_parlay.model_prob * 100)|round(1) }}%</span>
+                <span class="h4">{{ (longshot_parlay.model_prob * 100)|round(1) }}%</span>
             </div>
         </div>
         <div class="row">
-            {% for leg in risky_parlay.legs %}
-            <div class="col-md-{{ 12 // risky_parlay.num_legs }} mb-2">
+            {% for leg in longshot_parlay.legs %}
+            <div class="col-md-4 mb-2">
                 <div class="card h-100 {% if leg.is_dog %}border-warning{% else %}border-secondary{% endif %}" style="font-size:0.85rem;">
                     <div class="card-body py-2 px-3">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="badge {% if leg.is_dog %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
-                                {% if leg.is_dog %}🐕 DOG{% else %}ML{% endif %}
+                                {% if leg.is_dog %}🐕 DOG{% else %}FAV{% endif %}
                             </span>
                             <span class="fw-bold {% if leg.odds > 0 %}text-warning{% endif %}">
                                 {{ '+' if leg.odds > 0 else '' }}{{ leg.odds }}
@@ -472,13 +472,13 @@ html[data-theme='dark'] .betting-loading-overlay {
                         </div>
                         <strong>{{ leg.pick }}</strong>
                         <small class="text-muted d-block">{{ leg.matchup }}</small>
-                        <small>Edge: +{{ leg.edge|round(1) }}% | {{ (leg.prob * 100)|round(0) }}% prob</small>
+                        <small>{{ (leg.prob * 100)|round(0) }}% model prob {% if leg.edge > 0 %}| +{{ leg.edge }}% edge{% endif %}</small>
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
-        <small class="text-muted"><i class="bi bi-exclamation-triangle"></i> Untracked — max -120 per leg, must include an underdog. This is for fun, not for the bankroll.</small>
+        <small class="text-muted"><i class="bi bi-fire"></i> Best model probability at +1500 or better. Untracked — this is for fun, not the bankroll.</small>
     </div>
 </div>
 {% endif %}

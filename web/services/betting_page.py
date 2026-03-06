@@ -479,12 +479,11 @@ def build_betting_page_context(conference=''):
     for g in best_totals:
         g['bet_result'] = _tag_total_result(g)
 
-    # Build risky parlay (untracked, for fun)
-    risky_parlay = None
+    # Build longshot parlay (untracked, for fun — highest prob at +1500+)
+    longshot_parlay = None
     try:
-        from scripts.betting.record import build_risky_parlay
-        risky_results = analyze_games()
-        risky_parlay = build_risky_parlay(risky_results)
+        from scripts.betting.record import build_longshot_parlay
+        longshot_parlay = build_longshot_parlay(today_str)
     except Exception:
         pass
 
@@ -497,7 +496,7 @@ def build_betting_page_context(conference=''):
         'parlay_payout': parlay_payout_per_10,
         'parlay_prob': round(parlay_combined_prob * 100, 1),
         'parlay_calibrated_prob': round(parlay_calibrated_prob * 100, 1),
-        'risky_parlay': risky_parlay,
+        'longshot_parlay': longshot_parlay,
         'best_totals': best_totals,
         'conferences': conferences,
         'selected_conference': conference,
