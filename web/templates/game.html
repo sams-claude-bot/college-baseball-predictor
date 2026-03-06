@@ -188,9 +188,7 @@
             </div>
         </div>
 
-        <!-- Previously This Inning -->
-        {% if (sit.sb_plays is defined and sit.sb_plays) or (sit.sa_plays is defined and sit.sa_plays) %}
-        {# Use SB plays if available, fall back to SA plays #}
+        <!-- Previously This Inning (SB) or Recent Plays (SIDEARM) -->
         {% if sit.sb_plays is defined and sit.sb_plays %}
         {% set current_half = sit.sb_plays[-1] if sit.sb_plays else none %}
         {% if current_half and current_half.plays %}
@@ -220,7 +218,6 @@
             {% endif %}
         </div>
         {% endif %}
-        {% endif %}
         {% elif sit.sa_plays is defined and sit.sa_plays %}
         {# SIDEARM recent plays (flat list) #}
         <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
@@ -244,7 +241,6 @@
                 {% endfor %}
             </div>
         </div>
-        {% endif %}
         {% endif %}
 
         <!-- All Scoring Plays -->
