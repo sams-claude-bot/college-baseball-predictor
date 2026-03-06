@@ -1658,7 +1658,70 @@
     // Register Service Worker (PWA)
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(function() {});
+
+        // Listen for game-removal messages from the service worker (final score cleanup)
+        navigator.serviceWorker.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'dinger:remove-game') {
+                var gameId = event.data.gameId;
+                if (!gameId) return;
+                _removeFinishedGame(gameId);
+            }
+        });
     }
+
+    // Remove a finished game from localStorage favorites + exclusions
+    function _removeFinishedGame(gameId) {
+        var gamesMap = getFavoriteGamesMap();
+        if (gamesMap[gameId]) {
+            delete gamesMap[gameId];
+            _writeJsonObject('favorite_games', gamesMap);
+            _dispatchFavoriteGamesUpdated();
+        }
+
+        // Also clean from exclusions if present
+        var exclMap = getFavoriteGameExclusionsMap();
+        if (exclMap[gameId]) {
+            delete exclMap[gameId];
+            _writeJsonObject('favorite_game_exclusions', exclMap);
+        }
+    }
+
+    // On page load, clean up any followed games that have already gone final
+    function _cleanupFinishedGames() {
+        var gamesMap = getFavoriteGamesMap();
+        var gameIds = Object.keys(gamesMap).filter(Boolean);
+        if (!gameIds.length) return;
+
+        // Batch check game statuses
+        fetch('/api/games/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ game_ids: gameIds }),
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (!data || !data.statuses) return;
+            var changed = false;
+            Object.keys(data.statuses).forEach(function(gid) {
+                if (data.statuses[gid] === 'final' && gamesMap[gid]) {
+                    delete gamesMap[gid];
+                    changed = true;
+                }
+            });
+            if (changed) {
+                _writeJsonObject('favorite_games', gamesMap);
+                _dispatchFavoriteGamesUpdated();
+                // Also sync to account
+                scheduleAccountFavoritesSync();
+            }
+        })
+        .catch(function() {}); // Non-fatal
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Delay cleanup so it doesn't block page render
+        setTimeout(_cleanupFinishedGames, 3000);
+    });
 
     // Pin bottom nav to visual viewport (handles Chrome URL bar resize smoothly)
     (function() {

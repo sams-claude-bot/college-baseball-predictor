@@ -180,6 +180,50 @@ def test_half_transition_no_scoring_no_recap(notif_db):
         assert len(score_change_calls) == 0
 
 
+def test_check_final_cleans_up_game_follows(tmp_path):
+    """check_final should remove game-follow prefs and account favorites after sending."""
+    conn = _make_db(tmp_path)
+    game_id = '2026-03-06_auburn_oregon-state'
+
+    # Set up alert_preferences and account_favorite_games for this game
+    conn.executescript(f"""
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY, endpoint TEXT, keys_json TEXT, active INTEGER DEFAULT 1,
+            account_id INTEGER, created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS alert_preferences (
+            id INTEGER PRIMARY KEY, subscription_id INTEGER, alert_type TEXT,
+            team_id TEXT, conference TEXT, game_id TEXT, enabled INTEGER DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS account_favorite_games (
+            account_id INTEGER, game_id TEXT, meta_json TEXT,
+            created_at TEXT, updated_at TEXT, PRIMARY KEY (account_id, game_id)
+        );
+        CREATE TABLE IF NOT EXISTS notification_log (
+            id INTEGER PRIMARY KEY, game_id TEXT, alert_type TEXT,
+            message TEXT, recipients INTEGER, dedup_key TEXT UNIQUE, created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        INSERT INTO push_subscriptions VALUES (1, 'https://push.test/x', '{{"p256dh":"a","auth":"b"}}', 1, NULL, datetime('now'));
+        INSERT INTO alert_preferences VALUES (1, 1, 'game_update_scoring', NULL, NULL, '{game_id}', 1);
+        INSERT INTO account_favorite_games VALUES (1, '{game_id}', NULL, datetime('now'), datetime('now'));
+    """)
+    conn.commit()
+
+    # Verify data exists before
+    assert conn.execute("SELECT COUNT(*) FROM alert_preferences WHERE game_id=?", (game_id,)).fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM account_favorite_games WHERE game_id=?", (game_id,)).fetchone()[0] == 1
+
+    dispatcher = GameNotificationDispatcher(conn)
+
+    with patch(PATCH_TEAM), patch(PATCH_GAME), patch(PATCH_ENSURE):
+        dispatcher.check_final(game_id)
+
+    # Both should be cleaned up
+    assert conn.execute("SELECT COUNT(*) FROM alert_preferences WHERE game_id=?", (game_id,)).fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM account_favorite_games WHERE game_id=?", (game_id,)).fetchone()[0] == 0
+
+
 def test_check_final_sends_to_team_and_game_subscribers(notif_db):
     """check_final should send to both team-follow AND game-follow subscribers."""
     dispatcher = GameNotificationDispatcher(notif_db)

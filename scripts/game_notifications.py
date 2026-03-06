@@ -396,6 +396,7 @@ class GameNotificationDispatcher:
                 'url': f"/game/{game_id}",
                 'tag': f"final-{game_id}",
                 'game_id': game_id,
+                'removeGame': True,
             }
 
             # Send to team-follow subscribers.
@@ -417,8 +418,42 @@ class GameNotificationDispatcher:
                 conn=self.conn,
             )
 
+            # Remove completed game from followed-game preferences and
+            # account favorites so it drops off the user's list.
+            self._cleanup_finished_game(game_id)
+
         except Exception as e:
             logger.warning("Final notification error for %s: %s", game_id, e)
+
+    def _cleanup_finished_game(self, game_id: str):
+        """Remove a finished game from all followed-game lists (server-side).
+
+        Deletes:
+        - alert_preferences rows where game_id matches (push notification prefs)
+        - account_favorite_games rows where game_id matches (light account sync)
+        """
+        try:
+            self.conn.execute(
+                "DELETE FROM alert_preferences WHERE game_id = ?",
+                (game_id,),
+            )
+        except Exception:
+            pass  # Table may not exist
+
+        try:
+            self.conn.execute(
+                "DELETE FROM account_favorite_games WHERE game_id = ?",
+                (game_id,),
+            )
+        except Exception:
+            pass  # Table may not exist
+
+        try:
+            self.conn.commit()
+        except Exception:
+            pass
+
+        logger.debug("Cleaned up finished game %s from followed lists", game_id)
 
     def cleanup_game(self, game_id: str):
         """Remove cached state for a completed game."""

@@ -696,3 +696,29 @@ def win_probability(game_id):
     wp = WinProbabilityModel()
     result = wp.game_wp_timeline(game_id)
     return jsonify(result)
+
+
+@api_bp.route('/api/games/status', methods=['POST'])
+def games_status():
+    """Return status for a batch of game IDs (used by client-side cleanup)."""
+    data = request.get_json() or {}
+    game_ids = data.get('game_ids', [])
+    if not game_ids or not isinstance(game_ids, list):
+        return jsonify({'statuses': {}})
+
+    # Limit to 100 to prevent abuse
+    game_ids = game_ids[:100]
+
+    conn = get_connection()
+    placeholders = ','.join('?' for _ in game_ids)
+    rows = conn.execute(
+        f"SELECT id, status FROM games WHERE id IN ({placeholders})",
+        game_ids,
+    ).fetchall()
+    conn.close()
+
+    statuses = {}
+    for r in rows:
+        statuses[r['id'] if hasattr(r, 'keys') else r[0]] = r['status'] if hasattr(r, 'keys') else r[1]
+
+    return jsonify({'statuses': statuses})

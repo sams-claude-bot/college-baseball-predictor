@@ -1,5 +1,5 @@
 // Service Worker for Dinger PWA
-const SW_VERSION = 'v3';
+const SW_VERSION = 'v4';
 const PRECACHE_NAME = `dinger-precache-${SW_VERSION}`;
 const RUNTIME_STATIC_CACHE = `dinger-static-${SW_VERSION}`;
 const RUNTIME_CDN_CACHE = `dinger-cdn-${SW_VERSION}`;
@@ -99,13 +99,29 @@ self.addEventListener('push', event => {
     tag: data.tag || 'baseball-alert',
     renotify: true,
     data: {
-      url: data.url || '/'
+      url: data.url || '/',
+      gameId: data.game_id || null,
+      removeGame: data.removeGame || false,
     },
     vibrate: [100, 200, 100]
   };
 
   event.waitUntil(
     self.registration.showNotification(data.title || 'Baseball Alert', options)
+      .then(() => {
+        // If game is final, tell open clients to remove it from favorites
+        if (data.removeGame && data.game_id) {
+          return clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(clientList => {
+              clientList.forEach(client => {
+                client.postMessage({
+                  type: 'dinger:remove-game',
+                  gameId: data.game_id,
+                });
+              });
+            });
+        }
+      })
   );
 });
 
