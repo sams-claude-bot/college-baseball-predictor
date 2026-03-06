@@ -271,6 +271,21 @@ def update_scores(date_str=None):
     unmatched_espn = []
     
     for event in data.get('events', []):
+        # Guard: skip events whose actual date (converted to Central) doesn't
+        # match the date we're updating. ESPN's API sometimes returns games
+        # from adjacent UTC dates (e.g. a 7 PM CST game on Mar 5 has a UTC
+        # date of Mar 6).
+        espn_event_date = event.get('date', '')
+        if espn_event_date and len(espn_event_date) > 10:
+            try:
+                import pytz
+                utc_dt = datetime.fromisoformat(espn_event_date.replace('Z', '+00:00'))
+                event_local_date = utc_dt.astimezone(pytz.timezone('US/Central')).strftime('%Y-%m-%d')
+                if event_local_date != date_str:
+                    continue
+            except Exception:
+                pass
+
         comp = event['competitions'][0]
         status = comp['status']
         

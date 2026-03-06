@@ -259,8 +259,18 @@ class GameStateTracker:
             home_db = self.espn_mapping.get(home_espn)
             if not away_db or not home_db:
                 return
-            # Date from event
-            date_str = event.get('date', '')[:10]  # 'YYYY-MM-DD...'
+            # Date from event — convert ESPN's UTC timestamp to US/Central
+            raw_date = event.get('date', '')
+            date_str = ''
+            if raw_date and len(raw_date) > 10:
+                try:
+                    import pytz
+                    utc_dt = datetime.fromisoformat(raw_date.replace('Z', '+00:00'))
+                    date_str = utc_dt.astimezone(pytz.timezone('US/Central')).strftime('%Y-%m-%d')
+                except Exception:
+                    date_str = raw_date[:10]
+            elif raw_date:
+                date_str = raw_date[:10]
             if not date_str:
                 date_str = datetime.utcnow().strftime('%Y-%m-%d')
             self.event_teams[espn_id] = (away_db, home_db, date_str)
