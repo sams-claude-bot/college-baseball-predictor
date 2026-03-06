@@ -495,6 +495,15 @@ class SidearmPoller:
         inning_display = sa_fields.get('sa_inning_display', '')
 
         if home is not None and visitor is not None:
+            # DH guard: never mark a game in-progress if its counterpart already is
+            partner_id = game_id[:-4] if game_id.endswith('_gm2') else game_id + '_gm2'
+            partner = self.conn.execute(
+                "SELECT status FROM games WHERE id = ?", (partner_id,)
+            ).fetchone()
+            if partner and (partner[0] if isinstance(partner, tuple) else partner['status']) == 'in-progress':
+                logger.debug("DH guard: skipping %s, partner %s is already in-progress", game_id, partner_id)
+                return
+
             self.conn.execute("""
                 UPDATE games
                 SET home_score = ?, away_score = ?,

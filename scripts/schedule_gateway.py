@@ -394,6 +394,20 @@ class ScheduleGateway:
                           away_score: int, inning_text: str,
                           innings: int = None) -> bool:
         """Update in-progress game scores and inning text."""
+        # Doubleheader guard: never allow both gm1 and gm2 in-progress
+        # simultaneously. If the counterpart is already live, skip this update.
+        if game_id.endswith('_gm2'):
+            partner_id = game_id[:-4]
+        else:
+            partner_id = game_id + '_gm2'
+        partner = self.db.execute(
+            "SELECT status FROM games WHERE id = ?", (partner_id,)
+        ).fetchone()
+        if partner and (partner[0] if isinstance(partner, tuple) else partner['status']) == 'in-progress':
+            # Partner is already live — don't mark this one as in-progress.
+            # Just update scores on the partner if they match our team pair.
+            return False
+
         if innings is not None:
             n = self.db.execute("""
                 UPDATE games

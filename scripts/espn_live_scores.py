@@ -425,6 +425,14 @@ def update_scores(date_str=None):
             elif db_status == 'in-progress' and home_score is not None and away_score is not None:
                 gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
             else:
+                # DH guard: skip setting in-progress if counterpart already is
+                if db_status == 'in-progress':
+                    gid = game['id']
+                    partner_id = gid[:-4] if gid.endswith('_gm2') else gid + '_gm2'
+                    partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
+                    if partner and partner[0] == 'in-progress':
+                        continue
+
                 conn.execute('''
                     UPDATE games 
                     SET status = ?, home_score = ?, away_score = ?, 
