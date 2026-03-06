@@ -479,11 +479,50 @@ def build_betting_page_context(conference=''):
     for g in best_totals:
         g['bet_result'] = _tag_total_result(g)
 
-    # Build longshot parlay (untracked, for fun — highest prob at +1500+)
+    # Claude's Parlay (longshot, tracked — highest prob at +1500+)
     longshot_parlay = None
+    longshot_record = {'wins': 0, 'losses': 0, 'total': 0}
     try:
-        from scripts.betting.record import build_longshot_parlay
-        longshot_parlay = build_longshot_parlay(today_str)
+        from scripts.database import get_connection as _get_ls_conn
+        _ls_conn = _get_ls_conn()
+
+        # Today's longshot
+        stored_ls = _ls_conn.execute(
+            "SELECT legs_json, american_odds, decimal_odds, model_prob, payout, bet_amount "
+            "FROM tracked_longshot_parlays WHERE date = ?",
+            (today_str,)
+        ).fetchone()
+
+        if stored_ls:
+            import json as _ls_json
+            ls = dict(stored_ls)
+            longshot_parlay = {
+                'legs': _ls_json.loads(ls['legs_json']),
+                'num_legs': len(_ls_json.loads(ls['legs_json'])),
+                'american_odds': ls['american_odds'],
+                'decimal_odds': ls['decimal_odds'],
+                'model_prob': ls['model_prob'],
+                'bet_amount': ls['bet_amount'],
+                'payout': ls['payout'],
+            }
+        else:
+            # Generate dynamically if not yet recorded
+            from scripts.betting.record import build_longshot_parlay
+            longshot_parlay = build_longshot_parlay(today_str)
+
+        # W/L record
+        record = _ls_conn.execute(
+            "SELECT COUNT(*) as total, SUM(CASE WHEN won=1 THEN 1 ELSE 0 END) as wins, "
+            "SUM(CASE WHEN won=0 THEN 1 ELSE 0 END) as losses "
+            "FROM tracked_longshot_parlays WHERE won IS NOT NULL"
+        ).fetchone()
+        if record:
+            longshot_record = {
+                'wins': record['wins'] or 0,
+                'losses': record['losses'] or 0,
+                'total': record['total'] or 0,
+            }
+        _ls_conn.close()
     except Exception:
         pass
 
@@ -497,6 +536,7 @@ def build_betting_page_context(conference=''):
         'parlay_prob': round(parlay_combined_prob * 100, 1),
         'parlay_calibrated_prob': round(parlay_calibrated_prob * 100, 1),
         'longshot_parlay': longshot_parlay,
+        'longshot_record': longshot_record,
         'best_totals': best_totals,
         'conferences': conferences,
         'selected_conference': conference,

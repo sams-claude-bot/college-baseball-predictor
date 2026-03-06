@@ -16,6 +16,9 @@ python3 scripts/record_daily_bets.py evaluate >> "$LOG" 2>&1
 echo "--- Grade all bets (EV, consensus, parlays) ---" >> "$LOG"
 python3 scripts/grade_bets.py >> "$LOG" 2>&1
 
+echo "--- Grade Claude's Parlays ---" >> "$LOG"
+PYTHONPATH=. python3 -c "from scripts.betting.record import grade_longshot_parlays; grade_longshot_parlays()" >> "$LOG" 2>&1 || true
+
 echo "--- Update Elo ---" >> "$LOG"
 python3 scripts/update_elo.py --date "$YESTERDAY" >> "$LOG" 2>&1
 

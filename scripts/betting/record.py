@@ -413,8 +413,99 @@ def record_bets(results: dict):
                 f"${parlay['bet_amount']} to win ${parlay['payout']}"
             )
 
+    # Claude's Parlay (longshot, tracked separately)
+    longshot = build_longshot_parlay(results['date'])
+    if longshot:
+        c.execute(
+            '''
+            INSERT OR IGNORE INTO tracked_longshot_parlays
+            (date, legs_json, num_legs, american_odds, decimal_odds, model_prob, bet_amount, payout)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
+            (
+                results['date'],
+                json.dumps(longshot['legs']),
+                longshot['num_legs'],
+                longshot['american_odds'],
+                longshot['decimal_odds'],
+                longshot['model_prob'],
+                longshot['bet_amount'],
+                longshot['payout'],
+            ),
+        )
+        if c.rowcount > 0:
+            recorded += 1
+            print(
+                f"\n🔥 Claude's Parlay: {longshot['num_legs']} legs, +{longshot['american_odds']}, "
+                f"${longshot['bet_amount']} to win ${longshot['payout']} ({longshot['model_prob']*100:.1f}% model)"
+            )
+
     conn.commit()
     conn.close()
 
     print(f"\n✅ Recorded {recorded} bets")
+
+
+def grade_longshot_parlays():
+    """Grade longshot parlays for completed dates."""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # Get ungraded longshot parlays
+    ungraded = c.execute(
+        "SELECT id, date, legs_json FROM tracked_longshot_parlays WHERE won IS NULL"
+    ).fetchall()
+
+    graded = 0
+    for parlay in ungraded:
+        parlay = dict(parlay)
+        legs = json.loads(parlay['legs_json'])
+        legs_won = 0
+        legs_lost = 0
+        all_graded = True
+
+        for leg in legs:
+            game = c.execute(
+                "SELECT status, home_score, away_score, home_team_id, away_team_id, winner_id FROM games WHERE id = ?",
+                (leg['game_id'],)
+            ).fetchone()
+
+            if not game or game['status'] != 'final':
+                all_graded = False
+                break
+
+            game = dict(game)
+            # Determine if our pick won
+            if leg.get('side') == 'home' or leg['pick'] in (game.get('home_team_id', ''), ''):
+                # Check by comparing pick name to winner
+                pass
+
+            winner = game['winner_id']
+            # Match pick to team — the pick name might not match team_id exactly
+            # Use the side stored in the leg, or match by game teams
+            pick_is_home = leg.get('side') == 'home'
+            if pick_is_home is None:
+                # Fallback: try matching pick name
+                pick_is_home = leg['pick'].lower().replace(' ', '-') in (game['home_team_id'] or '').lower()
+
+            picked_team = game['home_team_id'] if pick_is_home else game['away_team_id']
+            if winner == picked_team:
+                legs_won += 1
+            else:
+                legs_lost += 1
+
+        if all_graded:
+            won = 1 if legs_won == len(legs) else 0
+            c.execute(
+                "UPDATE tracked_longshot_parlays SET legs_won=?, legs_lost=?, won=?, graded_at=datetime('now') WHERE id=?",
+                (legs_won, legs_lost, won, parlay['id'])
+            )
+            graded += 1
+            result = "✅ HIT" if won else f"❌ {legs_won}/{len(legs)}"
+            print(f"Claude's Parlay {parlay['date']}: {result}")
+
+    conn.commit()
+    conn.close()
+    return graded
 
