@@ -79,8 +79,8 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
         edge = (model_prob - american_to_prob(ml)) * 100 if meta_prob else game['edge']
         is_underdog = ml > 0
 
-        consensus = consensus_lookup.get(game['game_id'], {})
-        models_agree = consensus.get('models_agree', 5)
+        # Use models_agree from the game data first (API includes it), fall back to consensus lookup
+        models_agree = game.get('models_agree') or consensus_lookup.get(game['game_id'], {}).get('models_agree', 5)
         rejection_reasons = []
 
         edge_threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_THRESHOLD

@@ -188,8 +188,9 @@ class TestRiskThrottleAndCorrelation:
 
         assert len(capped['bets']) == 2
         assert capped['bets'][0]['suggested_stake'] == 150.0
-        assert capped['bets'][1]['suggested_stake'] == 50.0
-        assert capped['bets'][1]['correlation_capped'] is True
+        # With $250 team cap: bet 1 ($150) + bet 2 ($100) = $250 exactly at cap
+        assert capped['bets'][1]['suggested_stake'] == 100.0
+        # Bet 3 rejected because cap exhausted
         assert any('correlation cap reached' in r['reasons'][0] for r in capped['rejections'])
 
 

@@ -90,6 +90,111 @@ def build_parlay(results: dict) -> dict:
     }
 
 
+def build_risky_parlay(results: dict) -> dict:
+    """Build an untracked 'risky' parlay for fun.
+
+    Rules:
+    - Max odds per leg: -120 (no heavy favorites)
+    - Must include at least one underdog leg (+100 or longer)
+    - 4-5 legs for big payouts
+    - Minimum 5% edge per leg
+    - Still uses model probability to pick legs, but looser thresholds
+    - $10 fun bet, not tracked in P&L
+    """
+    RISKY_ML_CAP = -120        # No favorites heavier than -120
+    RISKY_MIN_EDGE = 5.0       # Looser edge threshold
+    RISKY_MIN_PROB = 0.40      # Allow lower confidence picks
+    RISKY_MAX_PROB = 0.70      # Exclude heavy favorites
+    RISKY_BET = 10
+    RISKY_TARGET_LEGS = 5
+
+    source_bets = results.get('parlay_candidates', results['bets'])
+    candidates = []
+
+    for b in source_bets:
+        if b['type'] not in ('CONSENSUS', 'ML'):
+            continue
+        ml = b.get('moneyline')
+        if ml is None:
+            continue
+        # Only allow lines -120 or longer (closer to even/underdog)
+        if ml < RISKY_ML_CAP:
+            continue
+        prob = b.get('meta_prob', b.get('model_prob', 0.5))
+        if not (RISKY_MIN_PROB <= prob <= RISKY_MAX_PROB):
+            continue
+        if b.get('edge', 0) < RISKY_MIN_EDGE:
+            continue
+
+        is_dog = ml > 0
+        # Score: underdogs get a bonus, plus edge weighting
+        dog_bonus = 1.5 if is_dog else 1.0
+        score = prob * b.get('edge', 0) * dog_bonus
+        candidates.append({**b, 'risky_score': score, 'risky_prob': prob, 'is_dog': is_dog})
+
+    candidates.sort(key=lambda x: x['risky_score'], reverse=True)
+
+    # Must include at least one underdog
+    dogs = [c for c in candidates if c['is_dog']]
+    non_dogs = [c for c in candidates if not c['is_dog']]
+
+    legs = []
+    used_ids = set()
+
+    # Add the best underdog first (required)
+    for c in dogs:
+        if c['game_id'] not in used_ids:
+            legs.append(c)
+            used_ids.add(c['game_id'])
+            break
+
+    # Fill remaining legs from all candidates
+    for c in candidates:
+        if len(legs) >= RISKY_TARGET_LEGS:
+            break
+        if c['game_id'] not in used_ids:
+            legs.append(c)
+            used_ids.add(c['game_id'])
+
+    if len(legs) < 3 or not any(l['is_dog'] for l in legs):
+        return None
+
+    def ml_to_decimal(ml):
+        return 1 + ml / 100 if ml > 0 else 1 + 100 / abs(ml)
+
+    decimal_odds = 1.0
+    combined_prob = 1.0
+    for leg in legs:
+        decimal_odds *= ml_to_decimal(leg['moneyline'])
+        combined_prob *= leg['risky_prob']
+
+    american = round((decimal_odds - 1) * 100) if decimal_odds > 2 else round(-100 / (decimal_odds - 1))
+
+    formatted_legs = []
+    for c in legs:
+        formatted_legs.append({
+            'type': c['type'],
+            'game_id': c['game_id'],
+            'date': c.get('date', ''),
+            'pick': c.get('pick_team_name', ''),
+            'matchup': f"{c.get('opponent_name', '')} vs {c.get('pick_team_name', '')}",
+            'odds': c['moneyline'],
+            'prob': c.get('risky_prob', c['model_prob']),
+            'edge': c['edge'],
+            'is_dog': c['is_dog'],
+        })
+
+    return {
+        'legs': formatted_legs,
+        'num_legs': len(formatted_legs),
+        'american_odds': american,
+        'decimal_odds': round(decimal_odds, 4),
+        'model_prob': round(combined_prob, 4),
+        'bet_amount': RISKY_BET,
+        'payout': round(RISKY_BET * decimal_odds, 2),
+    }
+
+
 def record_bets(results: dict):
     """Record recommended bets to database."""
     if not results['bets']:

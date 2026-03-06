@@ -1,7 +1,7 @@
 """Bet selection v2 modules with backwards-compatible re-exports."""
 
 from .cli import main, print_analysis
-from .record import DB_PATH, build_parlay, record_bets
+from .record import DB_PATH, build_parlay, build_risky_parlay, record_bets
 from .risk import (
     BASE_BET,
     RISK_BANKROLL,
