@@ -3,7 +3,8 @@
 NCAA D1 college baseball prediction + betting analytics platform with automated pipelines, model stacking, and a live dashboard.
 
 **Live:** [baseball.mcdevitt.page](https://baseball.mcdevitt.page)  
-**Season:** 2026 (Feb–Jun)
+**Season:** 2026 (Feb–Jun)  
+**Live data:** StatBroadcast (~65%) + SIDEARM (~15%) + ESPN (100%) — runners, count, plays, win probability
 
 ---
 

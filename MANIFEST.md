@@ -19,6 +19,13 @@
 - `web/blueprints/*`
 - `web/templates/*`
 
+### 🔴 Live Scoring Daemons (systemd)
+- `scripts/statbroadcast_poller.py` — SB live data, 20s interval
+- `scripts/sidearm_poller.py` — SIDEARM live data, 30s interval
+- `scripts/espn_fastcast_listener.py` — ESPN WebSocket listener
+- `models/win_probability.py` — live WP from sb_situation + sa_situation events
+- See `docs/live-scoring-architecture.md` for full details
+
 ### 🔴 Core Prediction Path
 - `scripts/predict_and_track.py`
 - `models/predictor_db.py`

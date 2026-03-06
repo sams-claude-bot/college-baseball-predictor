@@ -17,8 +17,12 @@
 
 ### `/scores`
 - **Shows:** date-filtered games + predictions vs outcomes
-- **Data:** `games`, `model_predictions`, `totals_predictions`
-- **Freshness:** score update cron + prediction pipeline
+- **Sections:** Live with Stats (SB/SIDEARM) → Live ESPN-only → Completed → Scheduled
+- **Live data:** base diamond, outs dots, count, pitcher (+ pitch count), batter, on-deck
+- **Data cascade:** StatBroadcast (`sb_*`) → SIDEARM (`sa_*`) → ESPN (no prefix)
+- **Data:** `games`, `model_predictions`, `totals_predictions`, `situation_json`
+- **Freshness:** SB poller (20s) + SIDEARM poller (30s) + ESPN cron (1 min)
+- **See:** `docs/live-scoring-architecture.md`
 
 ### `/calendar`
 - **Shows:** monthly schedule and completed games
@@ -26,7 +30,9 @@
 
 ### `/game/<game_id>`
 - **Shows:** game-level model breakdown, WP, weather, matchup context
-- **Data:** `games`, model classes, `game_weather`, `pitching_matchups`
+- **Live panels:** situation (diamond/count/pitcher/batter), recent plays, scoring plays, WP chart
+- **Data:** `games`, model classes, `game_weather`, `pitching_matchups`, `live_events`
+- **WP source:** `sb_situation` + `sa_situation` events from `live_events`
 - **Notes:** one of the few routes that can run live model logic
 
 ### `/predict`
