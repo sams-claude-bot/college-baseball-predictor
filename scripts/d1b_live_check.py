@@ -72,6 +72,15 @@ EXTRACT_JS = """() => {
             if (m) sbId = parseInt(m[1]);
         });
 
+        // Extract SIDEARM live stats link
+        const saLinks = t.querySelectorAll('a[href*="sidearmstats"]');
+        let saUrl = null;
+        saLinks.forEach(a => {
+            if (!saUrl) {
+                try { saUrl = new URL(a.href).origin + new URL(a.href).pathname; } catch(e) {}
+            }
+        });
+
         if (awaySlug && homeSlug) {
             games.push({
                 a: awaySlug, h: homeSlug,
@@ -79,7 +88,8 @@ EXTRACT_JS = """() => {
                 as: isNaN(awayScore) ? null : awayScore,
                 hs: isNaN(homeScore) ? null : homeScore,
                 t: ts,
-                sb: sbId
+                sb: sbId,
+                sa: saUrl
             });
         }
     });
@@ -371,6 +381,50 @@ def main():
 
             import time
             time.sleep(0.15)
+
+        # --- SIDEARM link registration from D1B ---
+        sa_registered = 0
+        for dg in d1b_games:
+            sa_url = dg.get('sa')
+            if not sa_url:
+                continue
+            if not (dg.get('ip') or dg.get('over')):
+                continue
+
+            away_id = slug_map.get(dg['a'])
+            home_id = slug_map.get(dg['h'])
+            game_id = None
+            if away_id and home_id:
+                game_id = game_lookup_sb.get((away_id, home_id)) or game_lookup_sb.get((home_id, away_id))
+            if not game_id:
+                continue
+
+            # Extract domain from URL
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(sa_url)
+                domain = parsed.hostname or ''
+            except Exception:
+                continue
+
+            # Check if already registered
+            existing = conn.execute(
+                "SELECT 1 FROM sidearm_links WHERE game_id = ? AND domain = ?",
+                (game_id, domain)
+            ).fetchone()
+            if existing:
+                continue
+
+            conn.execute("""
+                INSERT OR IGNORE INTO sidearm_links (game_id, domain, url, game_date)
+                VALUES (?, ?, ?, ?)
+            """, (game_id, domain, sa_url, date_str))
+            sa_registered += 1
+            games_without_active_sb.discard(game_id)
+            print(f"  SIDEARM link: {game_id} -> {domain}")
+
+        if sa_registered:
+            print(f"  Registered {sa_registered} new SIDEARM links")
 
         # --- Phase 2: Re-probe SB team schedule pages for remaining ESPN-only games ---
         # Catches SB events created after the morning pregame discovery.
