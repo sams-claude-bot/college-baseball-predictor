@@ -214,9 +214,9 @@
                                 </td>
                                 <td class="text-center">
                                     {% if game.status == 'final' %}
-                                    <span class="{% if game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score }}</span>
+                                    <span class="{% if game.away_score is not none and game.home_score is not none and game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score if game.away_score is not none else '-' }}</span>
                                     -
-                                    <span class="{% if game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score }}</span>
+                                    <span class="{% if game.away_score is not none and game.home_score is not none and game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score if game.home_score is not none else '-' }}</span>
                                     <br><small class="text-success">Final</small>
                                     {% else %}
                                     <span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span>

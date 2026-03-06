@@ -168,7 +168,7 @@
                                 {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
                             </small>
                             {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
-                            {% if game.game_number %}<span class="badge bg-info">Gm {{ game.game_number }}</span>{% endif %}
+                            
                         </div>
                         <div class="d-flex gap-1">
                             <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
@@ -334,7 +334,7 @@
                                 {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
                             </small>
                             {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
-                            {% if game.game_number %}<span class="badge bg-info">Gm {{ game.game_number }}</span>{% endif %}
+                            
                         </div>
                         <div class="d-flex gap-1">
                             <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
@@ -466,7 +466,7 @@
                                     <div class="d-flex align-items-center gap-2">
                                         <span class="status-pill status-scheduled">Scheduled</span>
                                         {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
-                                        {% if game.game_number %}<span class="badge bg-info">Gm {{ game.game_number }}</span>{% endif %}
+                                        
                                     </div>
                                     <div class="d-flex gap-1">
                                         <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
@@ -596,7 +596,7 @@
                                 {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
                             </small>
                             {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
-                            {% if game.game_number %}<span class="badge bg-info">Gm {{ game.game_number }}</span>{% endif %}
+                            
                         </div>
                         <div class="d-flex gap-1">
                             <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">

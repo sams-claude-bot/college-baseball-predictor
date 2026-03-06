@@ -420,19 +420,30 @@ def update_scores(date_str=None):
             from schedule_gateway import ScheduleGateway
             gw = ScheduleGateway(conn)
 
+            # Guard: never write 'final' without actual scores
+            if db_status == 'final' and (home_score is None or away_score is None):
+                continue
+
+            # DH guard: don't touch gm2 if gm1 isn't final yet
+            gid = game['id']
+            if gid.endswith('_gm2'):
+                partner_id = gid[:-4]
+                partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
+                if partner and partner[0] != 'final':
+                    if db_status in ('in-progress', 'final'):
+                        continue
+            elif db_status == 'in-progress':
+                # For gm1: skip if gm2 is somehow already in-progress
+                partner_id = gid + '_gm2'
+                partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
+                if partner and partner[0] == 'in-progress':
+                    continue
+
             if db_status == 'final' and home_score is not None and away_score is not None:
                 gw.finalize_game(game['id'], home_score, away_score, innings=innings)
             elif db_status == 'in-progress' and home_score is not None and away_score is not None:
                 gw.update_live_score(game['id'], home_score, away_score, inning_text, innings=innings)
             else:
-                # DH guard: skip setting in-progress if counterpart already is
-                if db_status == 'in-progress':
-                    gid = game['id']
-                    partner_id = gid[:-4] if gid.endswith('_gm2') else gid + '_gm2'
-                    partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
-                    if partner and partner[0] == 'in-progress':
-                        continue
-
                 conn.execute('''
                     UPDATE games 
                     SET status = ?, home_score = ?, away_score = ?, 

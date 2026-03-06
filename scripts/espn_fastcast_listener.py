@@ -606,6 +606,12 @@ def write_change_to_db(change):
                 return
 
         # Final DB-level date guard: don't mark future games as in-progress
+        # Guard: never write 'final' without actual scores
+        if db_status == 'final' and (home_score is None or away_score is None):
+            log.debug('Skipping final with null scores for %s', game_id)
+            conn.close()
+            return
+
         if db_status == 'in-progress':
             game_row = conn.execute('SELECT date FROM games WHERE id = ?', (game_id,)).fetchone()
             if game_row:
@@ -617,10 +623,22 @@ def write_change_to_db(change):
                     conn.close()
                     return
 
-            # DH guard: don't mark a game in-progress if its counterpart already is
-            partner_id = game_id[:-4] if game_id.endswith('_gm2') else game_id + '_gm2'
+        # DH guard: gm2 can't go in-progress/final until gm1 is final
+        if game_id.endswith('_gm2'):
+            partner_id = game_id[:-4]
             partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
-            if partner and (partner[0] if isinstance(partner, tuple) else partner['status']) == 'in-progress':
+            partner_status = (partner[0] if isinstance(partner, tuple) else partner['status']) if partner else None
+            if partner_status and partner_status != 'final':
+                if db_status in ('in-progress', 'final'):
+                    log.debug('DH guard: skipping %s (%s), gm1 %s is %s', game_id, db_status, partner_id, partner_status)
+                    conn.close()
+                    return
+        elif db_status == 'in-progress':
+            # For gm1: skip if gm2 is somehow already in-progress
+            partner_id = game_id + '_gm2'
+            partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
+            partner_status = (partner[0] if isinstance(partner, tuple) else partner['status']) if partner else None
+            if partner_status == 'in-progress':
                 log.debug('DH guard: skipping %s, partner %s is already in-progress', game_id, partner_id)
                 conn.close()
                 return
