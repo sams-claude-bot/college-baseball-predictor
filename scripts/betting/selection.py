@@ -295,6 +295,8 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
     total_bets = cap_and_reject(total_bets, MAX_TOTALS_PER_DAY, 'totals')
 
     results['bets'] = consensus_bets + ev_bets + total_bets
+    # Save pre-cap bets for parlay builder (parlay is flat $25, not Kelly-sized)
+    results['parlay_candidates'] = list(results['bets'])
     results = apply_correlation_caps(results)
 
     return results

@@ -26,8 +26,10 @@ def build_parlay(results: dict) -> dict:
     PARLAY_BET = 25
     PARLAY_LEGS = 4
 
+    # Use pre-correlation-cap bets if available (parlay is flat $25, independent of Kelly sizing)
+    source_bets = results.get('parlay_candidates', results['bets'])
     ml_candidates = []
-    for b in results['bets']:
+    for b in source_bets:
         if b['type'] not in ('CONSENSUS', 'ML'):
             continue
         ml = b.get('moneyline')
