@@ -152,7 +152,32 @@ def build_betting_page_context(conference=''):
     # Build game lookup for enriching tracked bets with full game data
     games_by_id = {g['game_id']: g for g in games}
 
-    # Consensus bets from tracked_confident_bets
+    # EV bets from tracked_bets (loaded FIRST — EV takes priority)
+    _tc_cursor.execute(
+        'SELECT * FROM tracked_bets WHERE date = ? ORDER BY edge DESC',
+        (today_str,)
+    )
+    tracked_ev = [dict(r) for r in _tc_cursor.fetchall()]
+    ev_bets = []
+    ev_ids = set()
+    for tb in tracked_ev:
+        g = games_by_id.get(tb['game_id'])
+        if g:
+            pick = 'home' if tb['is_home'] else 'away'
+            prob = tb.get('model_prob', 0.5)
+            ml = tb.get('moneyline')
+            g['tracked_ev'] = True
+            g['best_pick'] = pick
+            g['best_edge'] = tb.get('edge', 0)
+            if ml:
+                vi = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
+                g['vegas_disagreement'] = prob < vi
+                g['disagreement_pp'] = round((prob - vi) * 100, 1)
+            _add_calibrated_edge(g, prob, ml)
+            ev_bets.append(g)
+            ev_ids.add(tb['game_id'])
+
+    # Consensus bets from tracked_confident_bets (exclude games already in EV)
     _tc_cursor.execute(
         'SELECT * FROM tracked_confident_bets WHERE date = ? ORDER BY avg_prob DESC',
         (today_str,)
@@ -160,9 +185,10 @@ def build_betting_page_context(conference=''):
     tracked_consensus = [dict(r) for r in _tc_cursor.fetchall()]
     confident_bets = []
     for tb in tracked_consensus:
+        if tb['game_id'] in ev_ids:
+            continue
         g = games_by_id.get(tb['game_id'])
         if g:
-            # Enrich game with tracked bet info
             pick = 'home' if tb['is_home'] else 'away'
             prob = tb.get('avg_prob', 0.5)
             ml = tb.get('moneyline')
@@ -180,32 +206,6 @@ def build_betting_page_context(conference=''):
                 g['disagreement_pp'] = round((prob - vi) * 100, 1)
             _add_calibrated_edge(g, prob, ml)
             confident_bets.append(g)
-
-    # EV bets from tracked_bets (exclude games already in consensus)
-    confident_ids = {g['game_id'] for g in confident_bets}
-    _tc_cursor.execute(
-        'SELECT * FROM tracked_bets WHERE date = ? ORDER BY edge DESC',
-        (today_str,)
-    )
-    tracked_ev = [dict(r) for r in _tc_cursor.fetchall()]
-    ev_bets = []
-    for tb in tracked_ev:
-        if tb['game_id'] in confident_ids:
-            continue
-        g = games_by_id.get(tb['game_id'])
-        if g:
-            pick = 'home' if tb['is_home'] else 'away'
-            prob = tb.get('model_prob', 0.5)
-            ml = tb.get('moneyline')
-            g['tracked_ev'] = True
-            g['best_pick'] = pick
-            g['best_edge'] = tb.get('edge', 0)
-            if ml:
-                vi = abs(ml)/(abs(ml)+100) if ml < 0 else 100/(100+ml)
-                g['vegas_disagreement'] = prob < vi
-                g['disagreement_pp'] = round((prob - vi) * 100, 1)
-            _add_calibrated_edge(g, prob, ml)
-            ev_bets.append(g)
 
     # Best totals from tracked_bets_spreads
     _tc_cursor.execute(

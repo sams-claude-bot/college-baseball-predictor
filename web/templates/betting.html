@@ -381,85 +381,6 @@ html[data-theme='dark'] .betting-loading-overlay {
 {% endif %}
 
 
-{% if confident_bets %}
-<div class="card mb-4">
-    <div class="card-header bg-maroon">
-        <div class="d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-people-fill"></i> Best Bets — Model Consensus</span>
-            <small class="text-white-50">7+ models agree | +1% bonus per model above 5</small>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="row">
-            {% for game in confident_bets %}
-            <div class="col-md-4 mb-3">
-                <div class="card h-100 {% if game.bet_result == 'won' %}border-success{% elif game.bet_result == 'lost' %}border-danger{% elif game.bet_result == 'live' %}border-warning{% else %}border-primary{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer;{% if game.bet_result == 'won' %}background:rgba(16,185,129,0.08);{% elif game.bet_result == 'lost' %}background:rgba(239,68,68,0.08);{% elif game.bet_result == 'live' %}background:rgba(251,191,36,0.08);{% endif %}" onclick="window.location='/game/{{ game.game_id }}'">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <small class="text-muted">{{ game.date }}</small>
-                            <div>
-                                {% if game.bet_result == 'won' %}
-                                <span class="badge bg-success">✓ Won</span>
-                                {% elif game.bet_result == 'lost' %}
-                                <span class="badge bg-danger">✗ Lost</span>
-                                {% elif game.bet_result == 'live' %}
-                                <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
-                                {% endif %}
-                                {% if game.bucket %}
-                                <span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% if game.status == 'final' or game.status == 'in-progress' %}
-                        <div class="d-flex justify-content-between align-items-center mb-2 py-1 px-2 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem;">
-                            <span>{{ game.away_team_name[:15] }} <strong>{{ game.away_score or 0 }}</strong></span>
-                            <small class="{% if game.status == 'final' %}text-muted{% else %}text-warning{% endif %}">{{ game.inning_text or ('Final' if game.status == 'final' else '') }}</small>
-                            <span>{{ game.home_team_name[:15] }} <strong>{{ game.home_score or 0 }}</strong></span>
-                        </div>
-                        {% endif %}
-                        <h6 class="mb-1 fw-bold d-flex align-items-center">
-                            <img src="{{ team_logo(game.home_team_id if game.model_agreement.pick == 'home' else game.away_team_id, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
-                            {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
-                        </h6>
-                        <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
-                        <div class="mb-2">
-                            {{ agreement_meter(game.model_agreement.count, game.model_agreement.total, 'md') }}
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                            <span class="fw-bold">
-                                {% if game.model_agreement.pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}
-                            </span>
-                            {{ confidence_pill(game.model_agreement.avg_prob, 'conf') }}
-                            {% if game.calibrated_prob is defined and game.calibrated_prob is not none %}
-                            {{ confidence_pill(game.calibrated_prob, 'cal') }}
-                            {% endif %}
-                        </div>
-
-                        <div class="betting-card-metrics">
-                            {{ edge_meter(game.adjusted_edge if game.adjusted_edge is defined else game.best_edge, game.calibrated_edge if game.calibrated_edge is defined else none) }}
-                        </div>
-                        {% if game.series_probs %}
-                        {% set sp = game.series_probs %}
-                        {% set pick = game.model_agreement.pick %}
-                        <div class="mt-2 pt-2 border-top">
-                            <small class="text-muted">Series: </small>
-                            <small>{{ ((sp.home_win_1plus if pick == 'home' else sp.away_win_1plus) * 100)|round(0) }}%</small>
-                            <small class="text-muted"> / </small>
-                            <small>{{ ((sp.home_win_2plus if pick == 'home' else sp.away_win_2plus) * 100)|round(0) }}%</small>
-                            <small class="text-muted"> / </small>
-                            <small>{{ ((sp.home_sweep if pick == 'home' else sp.away_sweep) * 100)|round(0) }}%</small>
-                            <small class="text-muted ms-1" title="Win 1+ / Win 2+ / Sweep"><i class="bi bi-info-circle"></i></small>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</div>
-{% endif %}
-
 {% if ev_bets %}
 <div class="card mb-4">
     <div class="card-header" style="background-color: #10b981; color: white;">
@@ -527,6 +448,85 @@ html[data-theme='dark'] .betting-loading-overlay {
                         {% if game.series_probs %}
                         {% set sp = game.series_probs %}
                         {% set pick = game.best_pick %}
+                        <div class="mt-2 pt-2 border-top">
+                            <small class="text-muted">Series: </small>
+                            <small>{{ ((sp.home_win_1plus if pick == 'home' else sp.away_win_1plus) * 100)|round(0) }}%</small>
+                            <small class="text-muted"> / </small>
+                            <small>{{ ((sp.home_win_2plus if pick == 'home' else sp.away_win_2plus) * 100)|round(0) }}%</small>
+                            <small class="text-muted"> / </small>
+                            <small>{{ ((sp.home_sweep if pick == 'home' else sp.away_sweep) * 100)|round(0) }}%</small>
+                            <small class="text-muted ms-1" title="Win 1+ / Win 2+ / Sweep"><i class="bi bi-info-circle"></i></small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if confident_bets %}
+<div class="card mb-4">
+    <div class="card-header bg-maroon">
+        <div class="d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-people-fill"></i> Best Bets — Model Consensus</span>
+            <small class="text-white-50">7+ models agree | +1% bonus per model above 5</small>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for game in confident_bets %}
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 {% if game.bet_result == 'won' %}border-success{% elif game.bet_result == 'lost' %}border-danger{% elif game.bet_result == 'live' %}border-warning{% else %}border-primary{% endif %}" data-game-id="{{ game.game_id }}" style="cursor:pointer;{% if game.bet_result == 'won' %}background:rgba(16,185,129,0.08);{% elif game.bet_result == 'lost' %}background:rgba(239,68,68,0.08);{% elif game.bet_result == 'live' %}background:rgba(251,191,36,0.08);{% endif %}" onclick="window.location='/game/{{ game.game_id }}'">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <small class="text-muted">{{ game.date }}</small>
+                            <div>
+                                {% if game.bet_result == 'won' %}
+                                <span class="badge bg-success">✓ Won</span>
+                                {% elif game.bet_result == 'lost' %}
+                                <span class="badge bg-danger">✗ Lost</span>
+                                {% elif game.bet_result == 'live' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
+                                {% endif %}
+                                {% if game.bucket %}
+                                <span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if game.status == 'final' or game.status == 'in-progress' %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 py-1 px-2 rounded" style="background:rgba(255,255,255,0.05);font-size:0.85rem;">
+                            <span>{{ game.away_team_name[:15] }} <strong>{{ game.away_score or 0 }}</strong></span>
+                            <small class="{% if game.status == 'final' %}text-muted{% else %}text-warning{% endif %}">{{ game.inning_text or ('Final' if game.status == 'final' else '') }}</small>
+                            <span>{{ game.home_team_name[:15] }} <strong>{{ game.home_score or 0 }}</strong></span>
+                        </div>
+                        {% endif %}
+                        <h6 class="mb-1 fw-bold d-flex align-items-center">
+                            <img src="{{ team_logo(game.home_team_id if game.model_agreement.pick == 'home' else game.away_team_id, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
+                        </h6>
+                        <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
+                        <div class="mb-2">
+                            {{ agreement_meter(game.model_agreement.count, game.model_agreement.total, 'md') }}
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                            <span class="fw-bold">
+                                {% if game.model_agreement.pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}
+                            </span>
+                            {{ confidence_pill(game.model_agreement.avg_prob, 'conf') }}
+                            {% if game.calibrated_prob is defined and game.calibrated_prob is not none %}
+                            {{ confidence_pill(game.calibrated_prob, 'cal') }}
+                            {% endif %}
+                        </div>
+
+                        <div class="betting-card-metrics">
+                            {{ edge_meter(game.adjusted_edge if game.adjusted_edge is defined else game.best_edge, game.calibrated_edge if game.calibrated_edge is defined else none) }}
+                        </div>
+                        {% if game.series_probs %}
+                        {% set sp = game.series_probs %}
+                        {% set pick = game.model_agreement.pick %}
                         <div class="mt-2 pt-2 border-top">
                             <small class="text-muted">Series: </small>
                             <small>{{ ((sp.home_win_1plus if pick == 'home' else sp.away_win_1plus) * 100)|round(0) }}%</small>
