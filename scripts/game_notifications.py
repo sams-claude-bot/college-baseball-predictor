@@ -135,11 +135,43 @@ class GameNotificationDispatcher:
             prev_half_state = self._last_half_state.get(game_id)
             prev_score_state = self._last_score_state.get(game_id)
 
-            # First sighting: seed state to avoid startup spam.
+            # First sighting: seed state and fire game_start notification.
             if prev_half_state is None or prev_score_state is None:
                 self._last_half_state[game_id] = current_half_state
                 self._last_score_state[game_id] = current_score
                 self._half_start_score[game_id] = current_score
+
+                # --- Game Started notification ---
+                try:
+                    teams = _get_game_teams(self.conn, game_id)
+                    if teams:
+                        from notifications import send_team_notification, ensure_tables
+                        ensure_tables(self.conn)
+
+                        home_tid = teams['home_team_id']
+                        away_tid = teams['away_team_id']
+                        home_name = teams['home_name']
+                        away_name = teams['away_name']
+
+                        start_payload = {
+                            'title': f"🟢 Game Started: {away_name} @ {home_name}",
+                            'body': 'First pitch! Tap to follow along.',
+                            'url': f"/game/{game_id}",
+                            'tag': f"start-{game_id}",
+                            'game_id': game_id,
+                        }
+
+                        for team_id in (home_tid, away_tid):
+                            send_team_notification(
+                                team_id,
+                                'game_start',
+                                start_payload,
+                                dedup_key=f"game_start:{game_id}:{team_id}",
+                                conn=self.conn,
+                            )
+                except Exception as e:
+                    logger.warning("Game start notification error for %s: %s", game_id, e)
+
                 return
 
             half_transition = current_half_state != prev_half_state

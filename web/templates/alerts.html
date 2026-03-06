@@ -83,6 +83,13 @@
         <div class="card-header"><span class="badge bg-primary me-2">2</span> Alert Types</div>
         <div class="card-body">
             <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="alert-game-start" checked>
+                <label class="form-check-label" for="alert-game-start">
+                    <strong>🟢 Game Started</strong>
+                    <div class="text-muted small">Get pinged when your team's game goes live.</div>
+                </label>
+            </div>
+            <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="alert-half-inning-score" checked>
                 <label class="form-check-label" for="alert-half-inning-score">
                     <strong>📌 Inning Recaps (Scoring Only)</strong>
@@ -454,6 +461,7 @@ async function savePreferences() {
     const teams = getFavoriteTeamsFromStorage();
     const followedGames = getFollowedGamesForAlerts();
 
+    const gameStart = document.getElementById('alert-game-start').checked;
     const halfInningScoring = document.getElementById('alert-half-inning-score').checked;
     const instantScore = document.getElementById('alert-score-change').checked;
     const finalScore = document.getElementById('alert-final-score').checked;
@@ -462,6 +470,7 @@ async function savePreferences() {
     // Build preference list
     const preferences = [];
     for (const tid of teams) {
+        if (gameStart) preferences.push({ alert_type: 'game_start', team_id: tid });
         if (halfInningScoring) preferences.push({ alert_type: 'game_update_scoring', team_id: tid });
         if (instantScore) preferences.push({ alert_type: 'score_change', team_id: tid });
         if (finalScore) preferences.push({ alert_type: 'final_score', team_id: tid });
@@ -569,6 +578,7 @@ async function loadSavedPreferences() {
         });
 
         // Restore checkboxes based on what's actually saved server-side
+        document.getElementById('alert-game-start').checked = types.has('game_start');
         document.getElementById('alert-half-inning-score').checked = types.has('game_update_scoring');
         document.getElementById('alert-score-change').checked = types.has('score_change');
         document.getElementById('alert-final-score').checked = types.has('final_score');

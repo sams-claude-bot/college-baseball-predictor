@@ -8,6 +8,7 @@ Handles:
   - Sending notifications via pywebpush
 
 Alert types:
+  - game_start: Notification when a tracked game first goes live
   - game_update: Legacy half-inning summaries (all transitions)
   - game_update_scoring: Half-inning recaps only when runs score
   - score_change: Instant alerts whenever score changes
@@ -185,7 +186,7 @@ def save_preferences(subscription_id, preferences, conn=None):
         game_id = pref.get('game_id')
 
         # Hard guard: skip malformed team/game alerts with no scope.
-        if alert_type in {'game_update', 'game_update_scoring', 'score_change', 'final_score'}:
+        if alert_type in {'game_start', 'game_update', 'game_update_scoring', 'score_change', 'final_score'}:
             if not team_id and not game_id:
                 continue
 

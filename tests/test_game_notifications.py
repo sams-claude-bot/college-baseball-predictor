@@ -69,17 +69,27 @@ def notif_db(tmp_path):
     return _make_db(tmp_path)
 
 
-def test_first_sighting_seeds_state_no_notifications(notif_db):
-    """First call should seed state without sending notifications."""
+def test_first_sighting_seeds_state_and_fires_game_start(notif_db):
+    """First call should seed state and send game_start notifications."""
     dispatcher = GameNotificationDispatcher(notif_db)
 
     with patch(PATCH_TEAM) as mock_team, \
-         patch(PATCH_GAME) as mock_game:
+         patch(PATCH_GAME) as mock_game, \
+         patch(PATCH_ENSURE):
         dispatcher.check('2026-03-06_auburn_tennessee', {
             'inning': 3, 'inning_half': 'top',
             'home_score': 2, 'visitor_score': 1,
         })
-        mock_team.assert_not_called()
+
+        # game_start should fire for both teams
+        start_calls = [c for c in mock_team.call_args_list if c[0][1] == 'game_start']
+        assert len(start_calls) == 2
+        team_ids = {c[0][0] for c in start_calls}
+        assert team_ids == {'auburn', 'tennessee'}
+
+        # No other notification types on first sighting
+        other_calls = [c for c in mock_team.call_args_list if c[0][1] != 'game_start']
+        assert len(other_calls) == 0
         mock_game.assert_not_called()
 
 
