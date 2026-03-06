@@ -75,6 +75,7 @@ def account_state():
         'account': {'id': public_id},
         'teams': state['teams'],
         'games': state['games'],
+        'exclusions': state.get('exclusions', []),
     }
     conn.close()
     return _json_with_session_cookie(payload, session_token, incoming)
@@ -152,6 +153,7 @@ def redeem_account_link_code():
         'account': {'id': public_id},
         'teams': state['teams'],
         'games': state['games'],
+        'exclusions': state.get('exclusions', []),
     }
     conn.close()
     return _json_with_session_cookie(payload, session_token, incoming)

@@ -134,8 +134,10 @@ def game_follow_preference():
 @alerts_bp.route('/api/push/unsubscribe', methods=['POST'])
 def unsubscribe():
     """Remove a push subscription."""
-    data = request.get_json()
-    endpoint = data.get('endpoint') if data else None
+    data = request.get_json() or {}
+    # Accept both {endpoint: ...} and {subscription: {endpoint: ...}} formats.
+    sub = data.get('subscription') or {}
+    endpoint = sub.get('endpoint') or data.get('endpoint')
     if not endpoint:
         return jsonify({'error': 'Missing endpoint'}), 400
 
