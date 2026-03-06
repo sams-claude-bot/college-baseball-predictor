@@ -346,6 +346,22 @@ class SidearmPoller:
                 if not data:
                     continue
 
+                # Validate SIDEARM response date matches expected game date.
+                # SIDEARM keeps serving stale data from previous games until
+                # the next one starts, so we skip if dates don't match.
+                sa_date = data.get('Game', {}).get('Date', '')  # e.g. "3/5/2026"
+                expected_date = game_id.split('_')[0]  # e.g. "2026-03-06"
+                if sa_date:
+                    try:
+                        from datetime import datetime as dt
+                        sa_parsed = dt.strptime(sa_date, '%m/%d/%Y').strftime('%Y-%m-%d')
+                        if sa_parsed != expected_date:
+                            logger.debug("Skipping %s: SIDEARM date %s != expected %s",
+                                         game_id, sa_parsed, expected_date)
+                            continue
+                    except ValueError:
+                        pass  # Can't parse date, proceed cautiously
+
                 # Check completion
                 if is_game_complete(data):
                     self._handle_complete(game_id, data)
