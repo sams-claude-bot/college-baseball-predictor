@@ -185,10 +185,25 @@ def scores():
         nn_total = sum(1 for g in games if g.get('nn_correct') is not None)
 
     # Split into completed, in-progress, scheduled, and postponed
+    # Games marked in-progress by ESPN but with no score data are treated as
+    # scheduled (avoids phantom duplicates for doubleheaders where only one
+    # game is actually live).
     completed_games = [g for g in games if g['status'] == 'final']
-    all_in_progress = [g for g in games if g['status'] == 'in-progress']
+    all_in_progress = [
+        g for g in games
+        if g['status'] == 'in-progress'
+        and (g.get('home_score') is not None or g.get('away_score') is not None
+             or g.get('inning_text') or g.get('situation'))
+    ]
+    phantom_live = [
+        g for g in games
+        if g['status'] == 'in-progress'
+        and g.get('home_score') is None and g.get('away_score') is None
+        and not g.get('inning_text') and not g.get('situation')
+    ]
     postponed_games = [g for g in games if g['status'] in ('postponed', 'canceled')]
     scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress', 'postponed', 'canceled')]
+    scheduled_games.extend(phantom_live)  # demote phantoms to scheduled
 
     # Tag doubleheader games with game_number (1 or 2) for display
     all_game_ids = {g['id'] for g in games}
