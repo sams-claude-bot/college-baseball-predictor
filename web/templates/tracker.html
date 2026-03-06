@@ -226,6 +226,45 @@
     </div>
 </div>
 
+<!-- Claude's Parlay Summary -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="border-color: #f59e0b;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1" style="color: #f59e0b;"><i class="bi bi-robot"></i> Claude's Parlay</h6>
+                        <small class="text-muted">AI longshot picks at +1500 or better • $5/bet</small>
+                    </div>
+                    <div class="text-center">
+                        {% if longshot_stats.total > 0 %}
+                        <span class="h4 {% if longshot_stats.pl > 0 %}text-success{% elif longshot_stats.pl < 0 %}text-danger{% endif %}">
+                            {{ '+' if longshot_stats.pl > 0 else '' }}${{ longshot_stats.pl }}
+                        </span>
+                        <small class="text-muted d-block">{{ longshot_stats.wins }}/{{ longshot_stats.total }} hit ({{ longshot_stats.win_rate }}%)</small>
+                        {% else %}
+                        <span class="h5 text-muted">Tracking started</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-end">
+                        {% if pending_longshots %}
+                        <span class="badge bg-warning text-dark">{{ pending_longshots|length }} pending</span>
+                        {% endif %}
+                        {% for p in pending_longshots %}
+                        <small class="d-block text-muted">{{ p.date }}: +{{ p.american_odds }} ({{ (p.model_prob * 100)|round(1) }}%)</small>
+                        {% endfor %}
+                        {% for p in longshot_bets|reverse %}
+                        <small class="d-block {% if p.won %}text-success{% else %}text-danger{% endif %}">
+                            {{ p.date }}: +{{ p.american_odds }} {% if p.won %}✅ +${{ (p.payout - p.bet_amount)|round(2) }}{% else %}❌ {{ p.legs_won }}/{{ p.num_legs }}{% endif %}
+                        </small>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Charts Row 1: Combined + Consensus -->
 <div class="row mb-4">
     <div class="col-lg-6">

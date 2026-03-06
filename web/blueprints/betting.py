@@ -334,6 +334,37 @@ def tracker():
     if underdog_bucket and underdog_bucket['count'] >= 3 and underdog_bucket['win_rate'] < 40:
         bet_recommendation = f"⚠️ Underdog bets: {underdog_bucket['wins']}W-{underdog_bucket['count'] - underdog_bucket['wins']}L ({underdog_bucket['win_rate']}%), ${underdog_bucket['pl']:+.0f}. New filters now skip all underdogs."
 
+    # --- CLAUDE'S PARLAYS (longshot) ---
+    conn3 = get_connection()
+    c3 = conn3.cursor()
+    c3.execute('SELECT * FROM tracked_longshot_parlays ORDER BY date')
+    all_longshots = [dict(r) for r in c3.fetchall()]
+    conn3.close()
+
+    longshot_bets = []
+    pending_longshots = []
+    for p in all_longshots:
+        legs = _json.loads(p['legs_json'])
+        entry = {
+            'date': p['date'],
+            'legs': legs,
+            'num_legs': p['num_legs'],
+            'american_odds': p['american_odds'],
+            'model_prob': p['model_prob'],
+            'bet_amount': p['bet_amount'],
+            'payout': p['payout'],
+            'won': p['won'],
+            'profit': (p['payout'] - p['bet_amount']) if p.get('won') == 1 else (-p['bet_amount'] if p.get('won') == 0 else 0),
+            'legs_won': p.get('legs_won', 0) or 0,
+            'legs_lost': p.get('legs_lost', 0) or 0,
+        }
+        if p['won'] is not None:
+            longshot_bets.append(entry)
+        else:
+            pending_longshots.append(entry)
+
+    longshot_stats = calc_stats(longshot_bets)
+
     # --- CLV SUMMARY ---
     clv_summary = get_clv_summary()
 
@@ -366,4 +397,7 @@ def tracker():
                           parlay_bets=parlay_bets,
                           pending_parlays=pending_parlays,
                           parlay_stats=parlay_stats,
-                          parlay_running_pl=parlay_running_pl)
+                          parlay_running_pl=parlay_running_pl,
+                          longshot_bets=longshot_bets,
+                          pending_longshots=pending_longshots,
+                          longshot_stats=longshot_stats)
