@@ -544,6 +544,13 @@ def _fetch_sb_event_ids_http(gid, session=None):
                 logger.debug("SB 403 for gid=%s (attempt %d), backing off", gid, attempt + 1)
                 time.sleep(3 * (attempt + 1))
                 continue
+
+            # Check if page loaded directly (no anti-bot redirect)
+            direct_ids = list(set(int(x) for x in re.findall(r'broadcast/\?id=(\d+)', r1.text)))
+            if direct_ids:
+                return sorted(direct_ids)
+
+            # Anti-bot redirect: extract cookie and re-fetch
             m = re.search(r'sb_cv=([^;"]+)', r1.text)
             if not m:
                 return []
