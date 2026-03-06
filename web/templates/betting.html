@@ -264,6 +264,61 @@ html[data-theme='dark'] .betting-loading-overlay {
     </div>
 </div>
 
+<!-- Top Movers -->
+{% if top_movers and top_movers|length > 0 %}
+<div class="card mb-4">
+    <div class="card-header" style="background: linear-gradient(135deg, #ef4444, #f97316); color: white;">
+        <i class="bi bi-lightning-charge-fill"></i> Top Line Movers Today
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>Game</th>
+                        <th class="text-center">Opening ML</th>
+                        <th class="text-center"></th>
+                        <th class="text-center">Current ML</th>
+                        <th class="text-center">Prob Change</th>
+                        <th class="text-center">Direction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in top_movers %}
+                    <tr>
+                        <td>
+                            <a href="/game/{{ m.game_id }}" class="text-decoration-none">
+                                {{ m.away_name }} @ {{ m.home_name }}
+                            </a>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary">{{ m.home_ml_open }}</span>
+                        </td>
+                        <td class="text-center">&rarr;</td>
+                        <td class="text-center">
+                            <span class="badge bg-dark">{{ m.home_ml_latest }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="fw-bold {% if m.home_prob_move > 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ '%+.1f'|format(m.home_prob_move) }}pp
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            {% if m.home_prob_move > 0 %}
+                            <span class="badge bg-success"><i class="bi bi-arrow-up"></i> HOME</span>
+                            {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-arrow-down"></i> AWAY</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- 4-Leg Parlay -->
 {% if parlay_legs and parlay_legs|length == 4 %}
 <div class="card mb-4">

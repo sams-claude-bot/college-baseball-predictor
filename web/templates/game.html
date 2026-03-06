@@ -532,6 +532,136 @@
 </script>
 {% endif %}
 
+{% if line_history and line_history|length > 1 %}
+<!-- Line Movement -->
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-activity"></i> Line Movement
+    </div>
+    <div class="card-body">
+        <div style="position:relative; height:280px;">
+            <canvas id="lineMovementChart"></canvas>
+        </div>
+        <div class="d-flex justify-content-between mt-2">
+            <small class="text-muted">
+                {{ line_history|length }} snapshots
+                {% if line_history[0].home_prob is not none and line_history[-1].home_prob is not none %}
+                &middot; {{ '%+.1f'|format(line_history[-1].home_prob - line_history[0].home_prob) }}pp
+                {% endif %}
+            </small>
+            <small class="text-muted">
+                {% if line_history[0].home_ml is not none %}
+                Open: {{ line_history[0].home_ml }}
+                {% endif %}
+                {% if line_history[-1].home_ml is not none %}
+                &rarr; Current: {{ line_history[-1].home_ml }}
+                {% endif %}
+            </small>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var snapshots = {{ line_history|tojson }};
+    var homeColor = {{ home.primary_color|tojson }};
+
+    var labels = snapshots.map(function(s) {
+        var d = new Date(s.captured_at);
+        return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    });
+
+    var probData = snapshots.map(function(s) { return s.home_prob; });
+    var ouData = snapshots.map(function(s) { return s.over_under; });
+    var hasOU = ouData.some(function(v) { return v !== null; });
+
+    // Mark opening/closing with special point styles
+    var pointRadii = snapshots.map(function(s, i) {
+        if (i === 0 || i === snapshots.length - 1) return 6;
+        if (s.snapshot_type === 'opening' || s.snapshot_type === 'closing') return 6;
+        return 2;
+    });
+    var pointStyles = snapshots.map(function(s, i) {
+        if (i === 0) return 'triangle';
+        if (i === snapshots.length - 1) return 'rectRot';
+        if (s.snapshot_type === 'opening') return 'triangle';
+        if (s.snapshot_type === 'closing') return 'rectRot';
+        return 'circle';
+    });
+
+    var datasets = [{
+        label: '{{ home.name }} Win Prob (%)',
+        data: probData,
+        borderColor: homeColor,
+        backgroundColor: homeColor + '22',
+        fill: true,
+        tension: 0.3,
+        pointRadius: pointRadii,
+        pointStyle: pointStyles,
+        pointBackgroundColor: homeColor,
+        yAxisID: 'y'
+    }];
+
+    var scales = {
+        y: {
+            position: 'left',
+            title: { display: true, text: 'Home Win Prob (%)' },
+            min: Math.max(0, Math.min.apply(null, probData.filter(function(v){return v!==null;})) - 5),
+            max: Math.min(100, Math.max.apply(null, probData.filter(function(v){return v!==null;})) + 5),
+        },
+        x: {
+            title: { display: false }
+        }
+    };
+
+    if (hasOU) {
+        datasets.push({
+            label: 'Over/Under',
+            data: ouData,
+            borderColor: '#f59e0b',
+            borderDash: [5, 3],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 2,
+            yAxisID: 'y1'
+        });
+        var ouValid = ouData.filter(function(v){return v!==null;});
+        scales.y1 = {
+            position: 'right',
+            title: { display: true, text: 'O/U' },
+            min: Math.min.apply(null, ouValid) - 1,
+            max: Math.max.apply(null, ouValid) + 1,
+            grid: { drawOnChartArea: false }
+        };
+    }
+
+    new Chart(document.getElementById('lineMovementChart'), {
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: hasOU },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(ctx) {
+                            var s = snapshots[ctx.dataIndex];
+                            if (ctx.datasetIndex === 0 && s.home_ml !== null) {
+                                return 'ML: ' + (s.home_ml > 0 ? '+' : '') + s.home_ml;
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: scales
+        }
+    });
+})();
+</script>
+{% endif %}
+
 {% if series_probs %}
 <!-- Series Outlook -->
 <div class="card">

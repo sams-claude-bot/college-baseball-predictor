@@ -13,6 +13,7 @@ sys.path.insert(0, str(base_dir / "scripts"))
 
 from database import get_connection
 from strategy_pl_report import generate_report as generate_strategy_report
+from line_tracker import get_line_movement
 
 from web.helpers import get_clv_summary
 from web.services.betting_page import build_betting_page_context
@@ -26,7 +27,18 @@ def betting():
     """Betting analysis page - v2 logic with adjusted edges"""
     conference = request.args.get('conference', '')
     _view = request.args.get('view', '')
-    return render_template('betting.html', **build_betting_page_context(conference=conference))
+    ctx = build_betting_page_context(conference=conference)
+
+    # Top movers: games with biggest ML movement today (>1pp)
+    try:
+        movements = get_line_movement()
+        with_moves = [m for m in movements if m['home_prob_move'] is not None and abs(m['home_prob_move']) > 1.0]
+        with_moves.sort(key=lambda m: abs(m['home_prob_move']), reverse=True)
+        ctx['top_movers'] = with_moves[:5]
+    except Exception:
+        ctx['top_movers'] = []
+
+    return render_template('betting.html', **ctx)
 
 
 @betting_bp.route('/experimental/risk-engine')

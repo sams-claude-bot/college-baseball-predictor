@@ -137,7 +137,7 @@ class TestBettingLineHistory:
         c = db_connection.cursor()
         c.execute("SELECT DISTINCT snapshot_type FROM betting_line_history")
         types = {row['snapshot_type'] for row in c.fetchall()}
-        valid_types = {'opening', 'midday', 'pregame', 'closing'}
+        valid_types = {'opening', 'midday', 'pregame', 'closing', 'periodic'}
         assert types.issubset(valid_types), f"Invalid snapshot types found: {types - valid_types}"
 
 

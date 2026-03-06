@@ -56,6 +56,68 @@ def compute_clv(opening_ml, closing_ml):
     return round(clv_implied, 6), clv_cents
 
 
+def get_best_closing_line(db, game_id, game_datetime):
+    """Return the most accurate closing ML available for a game.
+
+    Prefers the most recent periodic snapshot within 15 min of game time
+    over an older 'closing' snapshot. Falls back to closing if no periodic.
+
+    Args:
+        db: SQLite connection
+        game_id: The game ID
+        game_datetime: naive datetime of game start (Central Time)
+
+    Returns:
+        dict with 'home_ml', 'away_ml', 'source', 'captured_at' or None
+    """
+    if game_datetime is None:
+        return None
+
+    cutoff = game_datetime - timedelta(minutes=15)
+    cutoff_str = cutoff.strftime('%Y-%m-%d %H:%M:%S')
+    game_dt_str = game_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+    # Best periodic snapshot: within 15 min of game time, most recent first
+    periodic = db.execute("""
+        SELECT home_ml, away_ml, captured_at
+        FROM betting_line_history
+        WHERE game_id = ? AND snapshot_type = 'periodic'
+          AND captured_at >= ? AND captured_at <= ?
+        ORDER BY captured_at DESC LIMIT 1
+    """, (game_id, cutoff_str, game_dt_str)).fetchone()
+
+    # Closing snapshot
+    closing = db.execute("""
+        SELECT home_ml, away_ml, captured_at
+        FROM betting_line_history
+        WHERE game_id = ? AND snapshot_type = 'closing'
+        ORDER BY captured_at DESC LIMIT 1
+    """, (game_id,)).fetchone()
+
+    # Pick whichever is more recent (periodic wins ties)
+    best = None
+    source = None
+    if periodic and closing:
+        if periodic['captured_at'] >= closing['captured_at']:
+            best, source = periodic, 'periodic'
+        else:
+            best, source = closing, 'closing'
+    elif periodic:
+        best, source = periodic, 'periodic'
+    elif closing:
+        best, source = closing, 'closing'
+
+    if best is None or (best['home_ml'] is None and best['away_ml'] is None):
+        return None
+
+    return {
+        'home_ml': best['home_ml'],
+        'away_ml': best['away_ml'],
+        'source': source,
+        'captured_at': best['captured_at'],
+    }
+
+
 def capture_closing_lines():
     """Find games starting soon and capture their closing lines."""
     db = get_db()
@@ -126,9 +188,19 @@ def capture_closing_lines():
               bl['over_odds'], bl['under_odds']))
         captured += 1
 
-        # Update tracked_bets with closing_ml and CLV
+        # Check if a periodic snapshot closer to game time exists
+        game_dt = _parse_game_time(today, game_time_str)
+        best = get_best_closing_line(db, game_id, game_dt)
+        if best:
+            best_home_ml = best['home_ml']
+            best_away_ml = best['away_ml']
+        else:
+            best_home_ml = bl['home_ml']
+            best_away_ml = bl['away_ml']
+
+        # Update tracked_bets with best available closing ML and CLV
         clv_updated += _update_bet_clv(db, game_id, game['home_team_id'],
-                                        bl['home_ml'], bl['away_ml'])
+                                        best_home_ml, best_away_ml)
 
     db.commit()
     db.close()

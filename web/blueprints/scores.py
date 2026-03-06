@@ -19,6 +19,7 @@ from web.helpers import (
 )
 from web.services.game_quality import compute_gqi, gqi_label, gqi_color
 from web.services.win_quality import get_game_resume_impact
+from line_tracker import get_game_line_history
 
 scores_bp = Blueprint('scores', __name__)
 
@@ -450,6 +451,9 @@ def game_detail(game_id):
         else:
             h2h_record['away_wins'] += 1
 
+    # Line movement history for this game
+    line_history = get_game_line_history(conn, game_id)
+
     conn.close()
 
     # Series probabilities for upcoming games
@@ -485,4 +489,5 @@ def game_detail(game_id):
         series_probs=series_probs,
         cross_matchup=cross_matchup,
         resume_impact=resume_impact,
+        line_history=line_history,
         gqi=gqi_val, gqi_label=gqi_label(gqi_val), gqi_color=gqi_color(gqi_val))
