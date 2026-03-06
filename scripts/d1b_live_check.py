@@ -372,6 +372,79 @@ def main():
             import time
             time.sleep(0.15)
 
+        # --- Phase 2: Re-probe SB team schedule pages for remaining ESPN-only games ---
+        # Catches SB events created after the morning pregame discovery.
+        if games_without_active_sb:
+            import json as _json
+            sb_gid_path = Path(__file__).parent / "sb_group_ids.json"
+            if sb_gid_path.exists():
+                with open(str(sb_gid_path)) as f:
+                    gid_data = _json.load(f)
+                gid_data.pop("_extra_schools", None)
+
+                probed_gids = set()
+                sb_team_found = 0
+
+                for gid in list(games_without_active_sb):
+                    row = conn.execute(
+                        "SELECT away_team_id, home_team_id FROM games WHERE id = ?", (gid,)
+                    ).fetchone()
+                    if not row:
+                        continue
+
+                    for team_id in [row['home_team_id'], row['away_team_id']]:
+                        sb_gid = gid_data.get(team_id)
+                        if not sb_gid or sb_gid in probed_gids:
+                            continue
+                        probed_gids.add(sb_gid)
+
+                        try:
+                            from d1b_pregame_discovery import _fetch_sb_event_ids_http
+                            import requests
+                            http_session = requests.Session()
+                            event_ids = _fetch_sb_event_ids_http(sb_gid, http_session)
+                            import time
+                            time.sleep(0.3)
+
+                            for eid in event_ids:
+                                existing = conn.execute(
+                                    "SELECT 1 FROM statbroadcast_events WHERE sb_event_id = ?", (eid,)
+                                ).fetchone()
+                                if existing:
+                                    continue
+
+                                info = client.get_event_info(eid)
+                                if not info or info.get('sport') != 'bsgame' or info.get('date') != date_str:
+                                    time.sleep(0.1)
+                                    continue
+
+                                from statbroadcast_discovery import match_game
+                                matched_game_id = match_game(info, conn)
+                                if matched_game_id:
+                                    from html import unescape
+                                    _upsert_sb_event(conn, {
+                                        "sb_event_id": eid,
+                                        "game_id": matched_game_id,
+                                        "home_team": unescape(info.get("home", "")),
+                                        "visitor_team": unescape(info.get("visitor", "")),
+                                        "home_team_id": row['home_team_id'],
+                                        "visitor_team_id": row['away_team_id'],
+                                        "game_date": date_str,
+                                        "group_id": info.get("group_id", ""),
+                                        "xml_file": info.get("xml_file", ""),
+                                        "completed": 1 if info.get("completed") else 0,
+                                    })
+                                    sb_registered += 1
+                                    sb_team_found += 1
+                                    games_without_active_sb.discard(matched_game_id)
+                                    print(f"  SB discovered (team page): {matched_game_id} -> event {eid}")
+                                time.sleep(0.1)
+                        except Exception as e:
+                            logger.debug("SB team page probe error for %s: %s", sb_gid, e)
+
+                if sb_team_found:
+                    print(f"  SB team page probe found {sb_team_found} new events")
+
         if games_without_active_sb:
             sample = sorted(games_without_active_sb)
             print(f"  ESPN-only live after D1B check: {len(sample)} ({', '.join(sample[:8])})")
