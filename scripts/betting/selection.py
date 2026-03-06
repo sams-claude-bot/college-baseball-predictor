@@ -68,60 +68,9 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
             'avg_prob': g['avg_prob'],
         }
 
-    for game in data.get('confident_bets', []):
-        ml = game.get('moneyline')
-        if not ml:
-            continue
-
-        models_agree = game['models_agree']
-        avg_prob = game['avg_prob']
-        # Prefer meta-ensemble probability (best single model, 77.7% walk-forward)
-        best_prob = game.get('meta_prob') or avg_prob
-        rejection_reasons = []
-
-        if models_agree < ML_CONSENSUS_MIN:
-            rejection_reasons.append(f"only {models_agree}/10 models agree (need {ML_CONSENSUS_MIN}+)")
-
-        max_fav = ML_MAX_FAVORITE_CONSENSUS if models_agree >= 9 else ML_MAX_FAVORITE
-        if ml < max_fav:
-            rejection_reasons.append(f"ML {ml} too heavy (max {max_fav} for {models_agree}/10 consensus)")
-
-        if best_prob > ML_MAX_MODEL_PROB:
-            rejection_reasons.append(f"model prob {best_prob*100:.0f}% overconfident (max {ML_MAX_MODEL_PROB*100:.0f}%)")
-
-        if rejection_reasons:
-            results['rejections'].append({
-                'type': 'CONSENSUS',
-                'game': f"{game['pick_team_name']} vs {game['opponent_name']}",
-                'models_agree': models_agree,
-                'ml': ml,
-                'reasons': rejection_reasons,
-            })
-        else:
-            kelly_mult = kelly_fraction(best_prob, ml)
-            base_bet = {
-                'type': 'CONSENSUS',
-                'game_id': game['game_id'],
-                'date': game['date'],
-                'pick_team_id': game['pick_team_id'],
-                'pick_team_name': game['pick_team_name'],
-                'opponent_name': game['opponent_name'],
-                'is_home': game['is_home'],
-                'moneyline': ml,
-                'model_prob': best_prob,
-                'models_agree': models_agree,
-                'models_total': 10,
-                'edge': (best_prob - american_to_prob(ml)) * 100,
-                'kelly_mult': kelly_mult,
-            }
-            sizing = suggest_stake_for_bet(base_bet)
-            base_bet.update(sizing)
-            base_bet['bet_amount'] = round(base_bet['suggested_stake'], 0)
-            base_bet.setdefault('exposure_bucket', '')
-            results['bets'].append(base_bet)
-
+    # === EV BETS FIRST (priority over consensus) ===
     for game in data.get('moneylines', []):
-        if game['game_id'] in [b['game_id'] for b in results['bets'] if b['type'] == 'CONSENSUS']:
+        if game['game_id'] in [b['game_id'] for b in results['bets'] if b['type'] == 'ML']:
             continue
         ml = game['moneyline']
         # Prefer meta-ensemble probability when available
@@ -180,6 +129,69 @@ def analyze_games(date_str: Optional[str] = None) -> dict:
                 'models_agree': models_agree,
                 'kelly_mult': kelly_mult,
                 'models_total': 10,
+            }
+            sizing = suggest_stake_for_bet(base_bet)
+            base_bet.update(sizing)
+            base_bet['bet_amount'] = round(base_bet['suggested_stake'], 0)
+            base_bet.setdefault('exposure_bucket', '')
+            results['bets'].append(base_bet)
+
+    # === CONSENSUS BETS (skip games already claimed by EV) ===
+    # Games that pass EV edge thresholds get classified as ML (EV), rest as CONSENSUS
+    ev_game_ids = {b['game_id'] for b in results['bets'] if b['type'] == 'ML'}
+    for game in data.get('confident_bets', []):
+        if game['game_id'] in ev_game_ids:
+            continue
+        ml = game.get('moneyline')
+        if not ml:
+            continue
+
+        models_agree = game['models_agree']
+        avg_prob = game['avg_prob']
+        best_prob = game.get('meta_prob') or avg_prob
+        edge = (best_prob - american_to_prob(ml)) * 100
+        is_underdog = ml > 0
+        rejection_reasons = []
+
+        if models_agree < ML_CONSENSUS_MIN:
+            rejection_reasons.append(f"only {models_agree}/10 models agree (need {ML_CONSENSUS_MIN}+)")
+
+        max_fav = ML_MAX_FAVORITE_CONSENSUS if models_agree >= 9 else ML_MAX_FAVORITE
+        if ml < max_fav:
+            rejection_reasons.append(f"ML {ml} too heavy (max {max_fav} for {models_agree}/10 consensus)")
+
+        if best_prob > ML_MAX_MODEL_PROB:
+            rejection_reasons.append(f"model prob {best_prob*100:.0f}% overconfident (max {ML_MAX_MODEL_PROB*100:.0f}%)")
+
+        if rejection_reasons:
+            results['rejections'].append({
+                'type': 'CONSENSUS',
+                'game': f"{game['pick_team_name']} vs {game['opponent_name']}",
+                'models_agree': models_agree,
+                'ml': ml,
+                'reasons': rejection_reasons,
+            })
+        else:
+            # If game also passes EV edge threshold, classify as ML (EV takes priority)
+            ev_threshold = ML_EDGE_UNDERDOG if is_underdog else ML_EDGE_THRESHOLD
+            bet_type = 'ML' if edge >= ev_threshold else 'CONSENSUS'
+
+            kelly_mult = kelly_fraction(best_prob, ml)
+            base_bet = {
+                'type': bet_type,
+                'game_id': game['game_id'],
+                'date': game['date'],
+                'pick_team_id': game['pick_team_id'],
+                'pick_team_name': game['pick_team_name'],
+                'opponent_name': game['opponent_name'],
+                'is_home': game['is_home'],
+                'moneyline': ml,
+                'model_prob': best_prob,
+                'models_agree': models_agree,
+                'models_total': 10,
+                'edge': edge,
+                'dk_implied': american_to_prob(ml),
+                'kelly_mult': kelly_mult,
             }
             sizing = suggest_stake_for_bet(base_bet)
             base_bet.update(sizing)
