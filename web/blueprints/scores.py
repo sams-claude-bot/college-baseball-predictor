@@ -190,6 +190,15 @@ def scores():
     postponed_games = [g for g in games if g['status'] in ('postponed', 'canceled')]
     scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress', 'postponed', 'canceled')]
 
+    # Tag doubleheader games with game_number (1 or 2) for display
+    all_game_ids = {g['id'] for g in games}
+    for g in games:
+        gid = g['id']
+        if gid.endswith('_gm2'):
+            g['game_number'] = 2
+        elif (gid + '_gm2') in all_game_ids:
+            g['game_number'] = 1
+
     # Split live games: those with StatBroadcast/SIDEARM coverage vs ESPN-only
     live_with_stats = []
     live_espn_only = []
