@@ -349,6 +349,23 @@ class StatBroadcastPoller:
                     except Exception as fix_err:
                         logger.debug("Could not re-check event info for %s: %s", sb_id, fix_err)
 
+                    # Before marking completed, check if the event is actually done.
+                    # Some events return 404 on the data feed but are still live
+                    # (broadcast page works, API says not completed).
+                    try:
+                        info2 = self.client.get_event_info(sb_id)
+                        if info2 and not info2.get('completed'):
+                            # Event is still live per SB — don't mark completed.
+                            # Just stop polling this cycle (d1b_live_check will reactivate).
+                            logger.info(
+                                "SB event %s (game %s): %d 404s but event NOT completed per API — skipping",
+                                sb_id, game_id, cnt,
+                            )
+                            self._404_counts[sb_id] = 0  # reset counter
+                            return False
+                    except Exception:
+                        pass
+
                     logger.warning(
                         "SB event %s (game %s): %d consecutive 404s — marking completed",
                         sb_id, game_id, cnt,
@@ -474,6 +491,19 @@ class StatBroadcastPoller:
                                 (real_xml, real_group, sb_id),
                             )
                             self.conn.commit()
+                            self._404_counts[sb_id] = 0
+                            return False
+                    except Exception:
+                        pass
+
+                    # Verify event is actually done before marking completed
+                    try:
+                        info2 = self.client.get_event_info(sb_id)
+                        if info2 and not info2.get('completed'):
+                            logger.info(
+                                "SB event %s (game %s): %d 404s but NOT completed per API — skipping",
+                                sb_id, game_id, cnt,
+                            )
                             self._404_counts[sb_id] = 0
                             return False
                     except Exception:
