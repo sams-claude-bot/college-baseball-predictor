@@ -193,6 +193,27 @@ def extract_situation(data: dict) -> Optional[Dict[str, Any]]:
         'context': p.get('Context'),
     } for p in last_10]
 
+    # Extract scoring plays (plays with Score field set)
+    scoring_plays = []
+    for p in plays:
+        score = p.get('Score')
+        if not score:
+            continue
+        inning_num = p.get('Period', 0)
+        team_key = p.get('Team', '')
+        is_top = team_key == 'VisitingTeam'
+        half_label = 'Top' if is_top else 'Bot'
+        team_name = visitor.get('Name', 'Away') if is_top else home.get('Name', 'Home')
+        scoring_plays.append({
+            'inning': f'{half_label} {ordinal(inning_num)}',
+            'team': team_name,
+            'text': p.get('Narrative', ''),
+            'scoring': p.get('Type', ''),
+            'score_after': f"{score.get('VisitingTeam', 0)}-{score.get('HomeTeam', 0)}",
+        })
+    if scoring_plays:
+        sa_fields['sa_scoring_plays'] = scoring_plays
+
     return sa_fields
 
 
@@ -350,7 +371,7 @@ class SidearmPoller:
         return updated
 
     def _update_situation(self, game_id: str, sa_fields: Dict[str, Any]):
-        """Merge sa_ fields into games.situation_json."""
+        """Merge sa_ fields into games.situation_json and log situation event."""
         row = self.conn.execute(
             "SELECT situation_json FROM games WHERE id = ?", (game_id,)
         ).fetchone()
@@ -362,6 +383,23 @@ class SidearmPoller:
         self.conn.execute(
             "UPDATE games SET situation_json = ? WHERE id = ?",
             (merged, game_id)
+        )
+
+        # Insert sa_situation event for win probability timeline
+        sit_event = {
+            'source': 'sidearm',
+            'inning': sa_fields.get('sa_inning'),
+            'inning_half': sa_fields.get('sa_inning_half'),
+            'outs': sa_fields.get('sa_outs'),
+            'home_score': sa_fields.get('sa_home_score'),
+            'visitor_score': sa_fields.get('sa_visitor_score'),
+            'on_first': sa_fields.get('sa_on_first'),
+            'on_second': sa_fields.get('sa_on_second'),
+            'on_third': sa_fields.get('sa_on_third'),
+        }
+        self.conn.execute(
+            "INSERT INTO live_events (game_id, event_type, data_json) VALUES (?, ?, ?)",
+            (game_id, 'sa_situation', json.dumps(sit_event))
         )
         self.conn.commit()
 

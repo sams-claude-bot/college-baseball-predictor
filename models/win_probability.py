@@ -306,7 +306,7 @@ class WinProbabilityModel:
                 json_extract(data_json, '$.on_second') as on_second,
                 json_extract(data_json, '$.on_third') as on_third
             FROM live_events
-            WHERE game_id = ? AND event_type = 'sb_situation'
+            WHERE game_id = ? AND event_type IN ('sb_situation', 'sa_situation')
               AND json_extract(data_json, '$.inning') IS NOT NULL
             GROUP BY inning, half, outs, home_score, away_score, on_first, on_second, on_third
             ORDER BY MIN(id)
