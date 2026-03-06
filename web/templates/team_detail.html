@@ -223,7 +223,7 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <img src="{{ team_logo(opponent_id) }}" height="20" class="me-2" onerror="this.style.display='none'">
+                                        <img src="{{ team_logo(opponent_id, 24) }}" height="20" class="me-2" onerror="this.style.display='none'">
                                         <span class="text-muted me-1">{{ '@' if not is_home else 'vs' }}</span>
                                         <a href="/team/{{ opponent_id }}" class="team-link">{{ opponent }}</a>
                                         {% if game.is_conference_game %}
@@ -558,6 +558,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 {% if team.elo_history and team.elo_history|length > 1 %}
 const ctx = document.getElementById('eloChart').getContext('2d');

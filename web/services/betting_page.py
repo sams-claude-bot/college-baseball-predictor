@@ -230,32 +230,38 @@ def build_betting_page_context(conference=''):
 
     _tc.close()
 
-    # === 4-LEG PARLAY BUILDER ===
-    # Mix of ML + Totals picks. Sweet spot: ~80% confidence, -200 range, good edge.
-    # Avoid heavy favorites (-300 or worse) — they kill parlay value.
-    PARLAY_ML_CAP = -200  # Max favorite ML for parlay legs — heavier favorites kill parlay value
-    PARLAY_MIN_PROB = 0.0   # No min — allow all confidence levels
-    PARLAY_MAX_PROB = 1.0   # No max — allow all confidence levels
-    PARLAY_MIN_EDGE = 5.0   # Min edge over line
+    # === PARLAY BUILDER ===
+    # Mirror morning-pipeline constraints for fallback generation.
+    PARLAY_ML_CAP = -250
+    PARLAY_MIN_PROB = 0.72
+    PARLAY_MAX_PROB = 0.92
+    PARLAY_MIN_EDGE = 8.0
 
     # ML candidates for parlay
     parlay_ml_candidates = []
     for g in games:
         if not g.get('best_edge') or g['best_edge'] < PARLAY_MIN_EDGE:
             continue
-        ml = g.get('home_ml') if g.get('best_pick') == 'home' else g.get('away_ml')
+        best_pick = g.get('best_pick')
+        if best_pick not in ('home', 'away'):
+            continue
+
+        ml = g.get('home_ml') if best_pick == 'home' else g.get('away_ml')
         if ml is None:
             continue
-        # Skip heavy favorites and big underdogs
+        # Skip heavy favorites.
         if ml < PARLAY_ML_CAP:
             continue
-        # Use consensus avg_prob for parlay filtering (more stable than meta_ensemble extremes)
+
+        # Use side-aware probability aligned to best_pick.
         agreement = g.get('model_agreement', {})
         if agreement and agreement.get('avg_prob'):
             prob = agreement['avg_prob']
+            if agreement.get('pick') in ('home', 'away') and agreement.get('pick') != best_pick:
+                prob = 1 - prob
         else:
             prob = g.get('model_home_prob', 0.5)
-            if g.get('best_pick') == 'away':
+            if best_pick == 'away':
                 prob = 1 - prob
         if not (PARLAY_MIN_PROB <= prob <= PARLAY_MAX_PROB):
             continue
@@ -268,9 +274,9 @@ def build_betting_page_context(conference=''):
         parlay_ml_candidates.append({
             'game': g,
             'type': 'ML',
-            'pick_team': g.get('home_team_name') if g.get('best_pick') == 'home' else g.get('away_team_name'),
-            'opponent': g.get('away_team_name') if g.get('best_pick') == 'home' else g.get('home_team_name'),
-            'pick_label': g.get('home_team_name') if g.get('best_pick') == 'home' else g.get('away_team_name'),
+            'pick_team': g.get('home_team_name') if best_pick == 'home' else g.get('away_team_name'),
+            'opponent': g.get('away_team_name') if best_pick == 'home' else g.get('home_team_name'),
+            'pick_label': g.get('home_team_name') if best_pick == 'home' else g.get('away_team_name'),
             'odds': ml,
             'prob': prob,
             'calibrated_prob': round(cal_prob, 4),
@@ -288,33 +294,6 @@ def build_betting_page_context(conference=''):
         prob_score = 1.0 - abs(cp - 0.72) * 3  # Peak at 72% (calibrated sweet spot)
         c['parlay_score'] = prob_score * max(c.get('calibrated_edge', c['edge']), 0)
     parlay_ml_candidates.sort(key=lambda x: x['parlay_score'], reverse=True)
-
-    # Totals candidates for parlay
-    parlay_totals_candidates = []
-    for g in games:
-        if not g.get('over_under') or not g.get('total_diff'):
-            continue
-        if abs(g['total_diff']) < 2.0:  # At least 2 runs projected difference
-            continue
-        total_edge_pct = g.get('total_edge', 0)
-        if g.get('total_prob'):
-            if g['total_prob'] < 0.58:
-                continue
-        elif total_edge_pct < 15:
-            continue
-        parlay_totals_candidates.append({
-            'game': g,
-            'type': 'Total',
-            'pick_label': f"{g['total_lean']} {g['over_under']}",
-            'pick_team': g['total_lean'],
-            'odds': -110,  # Standard totals juice
-            'prob': g.get('total_prob', min(0.5 + abs(g['total_diff']) * 0.06, 0.85)),
-            'edge': total_edge_pct,
-            'total_diff': g['total_diff'],
-            'game_id': g['game_id'],
-            'matchup': f"{g.get('away_team_name')} @ {g.get('home_team_name')}",
-        })
-    parlay_totals_candidates.sort(key=lambda x: abs(x.get('total_diff', 0)), reverse=True)
 
     # Load parlay from tracked_parlays (set once by morning pipeline).
     # Only fall back to dynamic generation if no stored parlay exists.
@@ -366,47 +345,40 @@ def build_betting_page_context(conference=''):
             cp = leg.get('calibrated_prob')
             parlay_calibrated_prob *= cp if cp is not None else leg['prob']
     else:
-        # Fallback: dynamically build parlay if none stored
+        # Fallback: dynamically build ML/CONSENSUS-style parlay if none stored.
         parlay_legs = []
         used_game_ids = set()
 
         for c in parlay_ml_candidates:
-            if len(parlay_legs) >= 3:
-                break
-            if c['game_id'] not in used_game_ids:
-                parlay_legs.append(c)
-                used_game_ids.add(c['game_id'])
-
-        for c in parlay_totals_candidates:
             if len(parlay_legs) >= 4:
                 break
             if c['game_id'] not in used_game_ids:
                 parlay_legs.append(c)
                 used_game_ids.add(c['game_id'])
 
-        if len(parlay_legs) < 4:
-            for c in parlay_ml_candidates:
-                if len(parlay_legs) >= 4:
-                    break
-                if c['game_id'] not in used_game_ids:
-                    parlay_legs.append(c)
-                    used_game_ids.add(c['game_id'])
+        if len(parlay_legs) < 3:
+            parlay_legs = []
+            parlay_decimal = 0
+            parlay_combined_prob = 0
+            parlay_calibrated_prob = 0
+            parlay_american = 0
+            parlay_payout_per_10 = 0
+        else:
+            parlay_decimal = 1.0
+            parlay_combined_prob = 1.0
+            parlay_calibrated_prob = 1.0
+            for leg in parlay_legs:
+                parlay_decimal *= ml_to_decimal(leg['odds'])
+                parlay_combined_prob *= leg['prob']
+                parlay_calibrated_prob *= leg.get('calibrated_prob', leg['prob'])
 
-        parlay_decimal = 1.0
-        parlay_combined_prob = 1.0
-        parlay_calibrated_prob = 1.0
-        for leg in parlay_legs:
-            parlay_decimal *= ml_to_decimal(leg['odds'])
-            parlay_combined_prob *= leg['prob']
-            parlay_calibrated_prob *= leg.get('calibrated_prob', leg['prob'])
+            parlay_american = 0
+            if parlay_decimal > 2:
+                parlay_american = round((parlay_decimal - 1) * 100)
+            elif parlay_decimal > 1:
+                parlay_american = round(-100 / (parlay_decimal - 1))
 
-        parlay_american = 0
-        if parlay_decimal > 2:
-            parlay_american = round((parlay_decimal - 1) * 100)
-        elif parlay_decimal > 1:
-            parlay_american = round(-100 / (parlay_decimal - 1))
-
-        parlay_payout_per_10 = round(10 * parlay_decimal, 2) if parlay_legs else 0
+            parlay_payout_per_10 = round(10 * parlay_decimal, 2)
 
     _parlay_conn.close()
 
@@ -530,4 +502,3 @@ def build_betting_page_context(conference=''):
             'underdog_discount': UNDERDOG_DISCOUNT,
         },
     }
-

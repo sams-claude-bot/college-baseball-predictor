@@ -846,25 +846,30 @@ def get_betting_games(date_str=None):
 
             # Model prediction — use stored pre-game predictions
             game_id = line.get('game_id')
-            # Prefer meta_ensemble; fall back to ensemble
+            # Prefer meta_ensemble for primary edge/bet logic; fall back to legacy ensemble
             stored_meta = stored_preds.get((game_id, 'meta_ensemble'))
             stored_ens = stored_preds.get((game_id, 'ensemble'))
             stored_nn = stored_preds.get((game_id, 'neural'))
-            
+            stored_pitching = stored_preds.get((game_id, 'pitching'))
+
             primary = stored_meta or stored_ens
             if primary:
+                line['primary_model'] = 'meta_ensemble' if stored_meta else 'ensemble'
                 line['model_home_prob'] = primary['prob']
                 line['model_away_prob'] = 1 - primary['prob']
                 # Use ensemble for run projections (meta_ensemble doesn't have them)
                 run_source = stored_ens or primary
                 line['projected_total'] = run_source['home_runs'] + run_source['away_runs']
-                line['ens_prob'] = primary['prob']
+                # Keep explicit model columns distinct for UI display
+                line['meta_prob'] = stored_meta['prob'] if stored_meta else None
+                line['ens_prob'] = stored_ens['prob'] if stored_ens else None
+                line['pitching_prob'] = stored_pitching['prob'] if stored_pitching else None
             if stored_nn:
                 line['nn_prob'] = stored_nn['prob']
-            
+
             if not primary:
                 continue
-            
+
             line['blend_info'] = 'pre-game'
 
             # Model consensus from stored predictions — majority vote, not ensemble-driven
@@ -1007,16 +1012,21 @@ def get_ensemble_weights():
 
 
 def get_model_accuracy():
-    """Get model accuracy statistics from database"""
+    """Get model accuracy statistics from database.
+
+    Includes:
+    - raw all-time / recent (legacy view)
+    - strict pregame, non-backfill (meta-training-aligned view)
+    """
     conn = get_connection()
     c = conn.cursor()
 
-    # All-time accuracy
+    # All-time accuracy (raw)
     c.execute('''
         SELECT model_name,
                SUM(was_correct) as correct,
                COUNT(*) as total
-        FROM model_predictions 
+        FROM model_predictions
         WHERE was_correct IS NOT NULL
         GROUP BY model_name
     ''')
@@ -1029,10 +1039,15 @@ def get_model_accuracy():
             'all_time_predictions': total,
             'recent_accuracy': None,
             'recent_predictions': 0,
+            'strict_all_time_accuracy': None,
+            'strict_all_time_predictions': 0,
+            'strict_recent_accuracy': None,
+            'strict_recent_predictions': 0,
+            'strict_coverage_pct': None,
             'current_weight': MODELS.get('ensemble').weights.get(model_name, 0) if MODELS.get('ensemble') else 0
         }
 
-    # Rolling 7-day accuracy
+    # Rolling 7-day accuracy (raw)
     c.execute('''
         SELECT mp.model_name,
                SUM(mp.was_correct) as correct,
@@ -1049,6 +1064,78 @@ def get_model_accuracy():
         if model_name in result:
             result[model_name]['recent_accuracy'] = correct / total if total > 0 else None
             result[model_name]['recent_predictions'] = total
+
+    # Strict all-time: pregame + non-backfill (matches meta training cohort rules)
+    c.execute('''
+        SELECT mp.model_name,
+               SUM(CASE WHEN mp.was_correct = 1 THEN 1 ELSE 0 END) as correct,
+               COUNT(*) as total
+        FROM model_predictions mp
+        JOIN games g ON mp.game_id = g.id
+        WHERE mp.was_correct IS NOT NULL
+          AND COALESCE(mp.prediction_source, 'live') != 'backfill'
+          AND datetime(mp.predicted_at) <= datetime(
+                COALESCE(
+                    datetime(g.date || ' ' || g.time),
+                    datetime(g.date || ' 23:59:59')
+                ),
+                '-5 minutes'
+          )
+        GROUP BY mp.model_name
+    ''')
+
+    for row in c.fetchall():
+        model_name, correct, total = row
+        if model_name not in result:
+            result[model_name] = {
+                'all_time_accuracy': None,
+                'all_time_predictions': 0,
+                'recent_accuracy': None,
+                'recent_predictions': 0,
+                'strict_all_time_accuracy': None,
+                'strict_all_time_predictions': 0,
+                'strict_recent_accuracy': None,
+                'strict_recent_predictions': 0,
+                'strict_coverage_pct': None,
+                'current_weight': MODELS.get('ensemble').weights.get(model_name, 0) if MODELS.get('ensemble') else 0
+            }
+        result[model_name]['strict_all_time_accuracy'] = correct / total if total > 0 else None
+        result[model_name]['strict_all_time_predictions'] = total
+
+    # Strict rolling 7-day
+    c.execute('''
+        SELECT mp.model_name,
+               SUM(CASE WHEN mp.was_correct = 1 THEN 1 ELSE 0 END) as correct,
+               COUNT(*) as total
+        FROM model_predictions mp
+        JOIN games g ON mp.game_id = g.id
+        WHERE mp.was_correct IS NOT NULL
+          AND g.date >= date('now', '-7 days')
+          AND COALESCE(mp.prediction_source, 'live') != 'backfill'
+          AND datetime(mp.predicted_at) <= datetime(
+                COALESCE(
+                    datetime(g.date || ' ' || g.time),
+                    datetime(g.date || ' 23:59:59')
+                ),
+                '-5 minutes'
+          )
+        GROUP BY mp.model_name
+    ''')
+
+    for row in c.fetchall():
+        model_name, correct, total = row
+        if model_name in result:
+            result[model_name]['strict_recent_accuracy'] = correct / total if total > 0 else None
+            result[model_name]['strict_recent_predictions'] = total
+
+    # Coverage: strict rows as a percent of raw graded rows
+    for model_name, stats in result.items():
+        raw_total = stats.get('all_time_predictions') or 0
+        strict_total = stats.get('strict_all_time_predictions') or 0
+        if raw_total > 0:
+            stats['strict_coverage_pct'] = strict_total / raw_total
+        else:
+            stats['strict_coverage_pct'] = None
 
     conn.close()
     return result
@@ -1197,25 +1284,25 @@ def get_games_for_date_with_predictions(date_str):
         else:
             game['linescore'] = None
 
-        # Fall back to StatBroadcast per-inning scoring if no ESPN linescore
+        # Fall back to StatBroadcast / SIDEARM per-inning scoring if no ESPN linescore
         if not game.get('linescore') and game.get('situation'):
             sit = game['situation']
-            vis_inn = sit.get('sb_visitor_innings')
-            hom_inn = sit.get('sb_home_innings')
+            vis_inn = sit.get('sb_visitor_innings') or sit.get('sa_visitor_innings')
+            hom_inn = sit.get('sb_home_innings') or sit.get('sa_home_innings')
             if vis_inn or hom_inn:
                 game['linescore'] = {
                     'away': vis_inn or [],
                     'home': hom_inn or [],
                 }
-                # Also fill H/E from SB if not already set
-                if game.get('away_hits') is None and sit.get('sb_visitor_hits') is not None:
-                    game['away_hits'] = sit['sb_visitor_hits']
-                if game.get('home_hits') is None and sit.get('sb_home_hits') is not None:
-                    game['home_hits'] = sit['sb_home_hits']
-                if game.get('away_errors') is None and sit.get('sb_visitor_errors') is not None:
-                    game['away_errors'] = sit['sb_visitor_errors']
-                if game.get('home_errors') is None and sit.get('sb_home_errors') is not None:
-                    game['home_errors'] = sit['sb_home_errors']
+                # Also fill H/E from SB or SA if not already set
+                if game.get('away_hits') is None:
+                    game['away_hits'] = sit.get('sb_visitor_hits') if sit.get('sb_visitor_hits') is not None else sit.get('sa_visitor_hits')
+                if game.get('home_hits') is None:
+                    game['home_hits'] = sit.get('sb_home_hits') if sit.get('sb_home_hits') is not None else sit.get('sa_home_hits')
+                if game.get('away_errors') is None:
+                    game['away_errors'] = sit.get('sb_visitor_errors') if sit.get('sb_visitor_errors') is not None else sit.get('sa_visitor_errors')
+                if game.get('home_errors') is None:
+                    game['home_errors'] = sit.get('sb_home_errors') if sit.get('sb_home_hits') is not None else sit.get('sa_home_errors')
 
     # Load pre-game predictions from model_predictions table (recorded BEFORE games)
     conn2 = get_connection()

@@ -39,72 +39,91 @@ def run_browser_cmd(args: list, timeout: int = 30) -> dict:
     return json.loads(result.stdout)
 
 
+EXTRACT_JS = """() => {
+    const tiles = document.querySelectorAll('.d1-score-tile');
+    const seen = new Set();
+    const games = [];
+    tiles.forEach(t => {
+        const key = t.dataset.key;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        const away = (t.querySelector('.team-1 a[href*="/team/"]') || {}).href || '';
+        const home = (t.querySelector('.team-2 a[href*="/team/"]') || {}).href || '';
+        const awaySlug = away.match(/\/team\/([^/]+)/)?.[1] || '';
+        const homeSlug = home.match(/\/team\/([^/]+)/)?.[1] || '';
+
+        const inProgress = t.dataset.inProgress === 'true' || t.dataset.inProgress === '1';
+        const isOver = t.dataset.isOver === 'true' || t.dataset.isOver === '1';
+        const ts = parseInt(t.dataset.matchupTime) || 0;
+
+        // Get scores if available
+        const awayScoreEl = t.querySelector('.team-1 .score, .team-1 .d1-score');
+        const homeScoreEl = t.querySelector('.team-2 .score, .team-2 .d1-score');
+        const awayScore = awayScoreEl ? parseInt(awayScoreEl.textContent.trim()) : null;
+        const homeScore = homeScoreEl ? parseInt(homeScoreEl.textContent.trim()) : null;
+
+        // Extract StatBroadcast event ID from "Live Stats" links
+        const sbLinks = t.querySelectorAll('a[href*="statbroadcast"], a[href*="statb.us"]');
+        let sbId = null;
+        sbLinks.forEach(a => {
+            if (sbId) return;
+            const m = a.href.match(/id=(\d+)/) || a.href.match(/\/b\/(\d+)/);
+            if (m) sbId = parseInt(m[1]);
+        });
+
+        if (awaySlug && homeSlug) {
+            games.push({
+                a: awaySlug, h: homeSlug,
+                ip: inProgress, over: isOver,
+                as: isNaN(awayScore) ? null : awayScore,
+                hs: isNaN(homeScore) ? null : homeScore,
+                t: ts,
+                sb: sbId
+            });
+        }
+    });
+    return games;
+}"""
+
+
+def scrape_d1b_status_playwright(url: str) -> list:
+    """Fallback scraper using local Playwright when OpenClaw browser times out."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        page = browser.new_page()
+        page.goto(url, wait_until='domcontentloaded', timeout=60000)
+        page.wait_for_timeout(5000)
+        games = page.evaluate(EXTRACT_JS) or []
+        browser.close()
+        return games
+
+
 def scrape_d1b_status(date_str: str) -> list:
     """Scrape D1B scores page for game statuses.
-    
-    Returns list of dicts with: away_slug, home_slug, in_progress, is_over, 
+
+    Returns list of dicts with: away_slug, home_slug, in_progress, is_over,
     away_score, home_score, matchup_time
     """
     d1b_date = date_str.replace("-", "")
     url = f"https://d1baseball.com/scores/?date={d1b_date}"
-    
-    # Navigate
-    run_browser_cmd(["navigate", url])
-    
-    # Wait for JS rendering
-    import time
-    time.sleep(5)
-    
-    # Extract status data from tiles
-    js = """() => {
-        const tiles = document.querySelectorAll('.d1-score-tile');
-        const seen = new Set();
-        const games = [];
-        tiles.forEach(t => {
-            const key = t.dataset.key;
-            if (seen.has(key)) return;
-            seen.add(key);
-            
-            const away = (t.querySelector('.team-1 a[href*="/team/"]') || {}).href || '';
-            const home = (t.querySelector('.team-2 a[href*="/team/"]') || {}).href || '';
-            const awaySlug = away.match(/\\/team\\/([^/]+)/)?.[1] || '';
-            const homeSlug = home.match(/\\/team\\/([^/]+)/)?.[1] || '';
-            
-            const inProgress = t.dataset.inProgress === 'true' || t.dataset.inProgress === '1';
-            const isOver = t.dataset.isOver === 'true' || t.dataset.isOver === '1';
-            const ts = parseInt(t.dataset.matchupTime) || 0;
-            
-            // Get scores if available
-            const awayScoreEl = t.querySelector('.team-1 .score, .team-1 .d1-score');
-            const homeScoreEl = t.querySelector('.team-2 .score, .team-2 .d1-score');
-            const awayScore = awayScoreEl ? parseInt(awayScoreEl.textContent.trim()) : null;
-            const homeScore = homeScoreEl ? parseInt(homeScoreEl.textContent.trim()) : null;
-            
-            // Extract StatBroadcast event ID from "Live Stats" links
-            const sbLinks = t.querySelectorAll('a[href*="statbroadcast"], a[href*="statb.us"]');
-            let sbId = null;
-            sbLinks.forEach(a => {
-                if (sbId) return;
-                const m = a.href.match(/id=(\\d+)/) || a.href.match(/\\/b\\/(\\d+)/);
-                if (m) sbId = parseInt(m[1]);
-            });
 
-            if (awaySlug && homeSlug) {
-                games.push({
-                    a: awaySlug, h: homeSlug,
-                    ip: inProgress, over: isOver,
-                    as: isNaN(awayScore) ? null : awayScore,
-                    hs: isNaN(homeScore) ? null : homeScore,
-                    t: ts,
-                    sb: sbId
-                });
-            }
-        });
-        return games;
-    }"""
-    
-    resp = run_browser_cmd(["evaluate", "--fn", js])
-    return resp.get("result", [])
+    try:
+        # Navigate
+        run_browser_cmd(["navigate", url])
+
+        # Wait for JS rendering
+        import time
+        time.sleep(5)
+
+        # Extract status data from tiles
+        resp = run_browser_cmd(["evaluate", "--fn", EXTRACT_JS])
+        return resp.get("result", [])
+    except Exception as e:
+        print(f"OpenClaw browser scrape failed, falling back to local Playwright: {e}")
+        return scrape_d1b_status_playwright(url)
 
 
 def ts_to_central(ts: int, date_str: str) -> str:
@@ -224,15 +243,24 @@ def main():
         ensure_table(conn)
         client = StatBroadcastClient()
 
-        # Get existing active SB events for today
-        existing_sb = set()
-        for row in conn.execute(
-            "SELECT sb_event_id FROM statbroadcast_events WHERE game_date = ?", (date_str,)
-        ).fetchall():
-            existing_sb.add(str(row['sb_event_id']))
+        # Snapshot SB rows for today.
+        sb_rows = conn.execute(
+            "SELECT sb_event_id, game_id, completed FROM statbroadcast_events WHERE game_date = ?",
+            (date_str,)
+        ).fetchall()
 
-        # Get in-progress games without active SB events
-        games_without_sb = set()
+        inactive_sb_ids = set()
+        active_sb_by_game = {}
+        for row in sb_rows:
+            eid = str(row['sb_event_id'])
+            gid = row['game_id']
+            if row['completed'] == 0 and gid:
+                active_sb_by_game.setdefault(gid, set()).add(eid)
+            else:
+                inactive_sb_ids.add(eid)
+
+        # In-progress games that currently have no ACTIVE SB mapping (= likely ESPN-only right now).
+        games_without_active_sb = set()
         for row in conn.execute("""
             SELECT g.id FROM games g
             WHERE g.date = ? AND g.status = 'in-progress'
@@ -241,7 +269,10 @@ def main():
                 WHERE completed = 0 AND game_id IS NOT NULL AND game_date = ?
             )
         """, (date_str, date_str)).fetchall():
-            games_without_sb.add(row['id'])
+            games_without_active_sb.add(row['id'])
+
+        if games_without_active_sb:
+            print(f"  ESPN-only live candidates before D1B check: {len(games_without_active_sb)}")
 
         # Build game lookup for matching
         all_games = conn.execute(
@@ -255,9 +286,11 @@ def main():
 
         for dg in d1b_games:
             sb_id = dg.get('sb')
-            if not sb_id or str(sb_id) in existing_sb:
+            if not sb_id:
                 continue
-            if not dg.get('ip'):
+
+            # Only probe games that have actually started per D1B.
+            if not (dg.get('ip') or dg.get('over')):
                 continue
 
             # Resolve teams
@@ -276,15 +309,36 @@ def main():
                     if len(candidates) == 1:
                         game_id = candidates[0]
 
-            if not game_id or game_id not in games_without_sb:
+            if not game_id:
                 continue
 
-            # Get correct xml_file from SB API
+            sb_id_str = str(sb_id)
+            active_ids = active_sb_by_game.get(game_id, set())
+
+            # Already active and linked for this game.
+            if sb_id_str in active_ids:
+                continue
+
+            # If game currently has a different active SB event, treat as rollover.
+            if active_ids and sb_id_str not in active_ids:
+                conn.execute(
+                    "UPDATE statbroadcast_events SET completed = 1 WHERE game_id = ? AND game_date = ? AND completed = 0",
+                    (game_id, date_str),
+                )
+                print(f"  SB rollover: {game_id} active={sorted(active_ids)} -> {sb_id_str}")
+                active_sb_by_game[game_id] = set()
+
+            # Get correct xml_file from SB API and (re)register event.
             try:
-                info = client.get_event_info(str(sb_id))
+                info = client.get_event_info(sb_id_str)
                 if info and info.get('xml_file'):
+                    game_status_row = conn.execute(
+                        "SELECT status FROM games WHERE id = ?", (game_id,)
+                    ).fetchone()
+                    game_status = game_status_row['status'] if game_status_row else 'scheduled'
+
                     _upsert_sb_event(conn, {
-                        'sb_event_id': str(sb_id),
+                        'sb_event_id': sb_id_str,
                         'game_id': game_id,
                         'home_team': info.get('home', ''),
                         'visitor_team': info.get('visitor', ''),
@@ -293,16 +347,26 @@ def main():
                         'game_date': date_str,
                         'group_id': info.get('group_id', ''),
                         'xml_file': info['xml_file'],
-                        'completed': 0,
+                        # keep active while game is in-progress even if stale row was completed
+                        'completed': 0 if game_status == 'in-progress' else (1 if info.get('completed') else 0),
                     })
                     sb_registered += 1
-                    print(f"  SB discovered: {game_id} -> event {sb_id} ({info['xml_file']})")
-                    games_without_sb.discard(game_id)
+                    active_sb_by_game.setdefault(game_id, set()).add(sb_id_str)
+                    games_without_active_sb.discard(game_id)
+
+                    if sb_id_str in inactive_sb_ids:
+                        print(f"  SB reactivated: {game_id} -> event {sb_id_str} ({info['xml_file']})")
+                    else:
+                        print(f"  SB discovered: {game_id} -> event {sb_id_str} ({info['xml_file']})")
             except Exception as e:
                 print(f"  SB error for {sb_id}: {e}")
 
             import time
             time.sleep(0.15)
+
+        if games_without_active_sb:
+            sample = sorted(games_without_active_sb)
+            print(f"  ESPN-only live after D1B check: {len(sample)} ({', '.join(sample[:8])})")
     except ImportError:
         pass  # SB modules not available
     except Exception as e:

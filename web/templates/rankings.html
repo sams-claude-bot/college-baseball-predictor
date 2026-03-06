@@ -52,7 +52,7 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <img src="{{ team_logo(tid) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <img src="{{ team_logo(tid, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
                                         <div>
                                             <a href="/team/{{ tid }}" class="team-link"><strong>{{ team.name }}</strong></a>
                                             <br><small class="text-muted">{{ team.conference or '' }}</small>
@@ -107,7 +107,7 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <img src="{{ team_logo(team.team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <img src="{{ team_logo(team.team_id, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
                                         <div>
                                             <a href="/team/{{ team.team_id }}" class="team-link"><strong>{{ team.name }}</strong></a>
                                             <br><small class="text-muted">{{ team.conference or '' }}</small>

@@ -13,7 +13,7 @@ from pathlib import Path
 base_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(base_dir))
 
-from flask import Flask, render_template
+from flask import Flask, render_template, make_response
 from flask_caching import Cache
 
 # Import blueprints
@@ -26,7 +26,8 @@ from web.blueprints import (
     rankings_bp,
     models_bp,
     api_bp,
-    debug_bp
+    debug_bp,
+    account_bp
 )
 from web.blueprints.alerts import alerts_bp
 
@@ -60,15 +61,19 @@ def create_app():
     app.register_blueprint(models_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(debug_bp)
+    app.register_blueprint(account_bp)
     app.register_blueprint(alerts_bp)
 
     # Serve service worker from root (required for push scope)
     @app.route('/sw.js')
     def service_worker():
-        return app.send_static_file('sw.js'), 200, {
-            'Content-Type': 'application/javascript',
-            'Service-Worker-Allowed': '/'
-        }
+        response = make_response(app.send_static_file('sw.js'))
+        response.headers['Content-Type'] = 'application/javascript'
+        response.headers['Service-Worker-Allowed'] = '/'
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        return response
 
     # Register template filters
     register_filters(app)
@@ -84,6 +89,8 @@ def register_filters(app):
     
     # Cache for team colors (populated on first use)
     _team_colors_cache = {}
+    # Cache for logo variant existence checks (key: "{variant}:{team_id}")
+    _logo_variant_exists_cache = {}
     
     def _load_team_colors():
         """Load all team colors from DB into cache."""
@@ -106,18 +113,44 @@ def register_filters(app):
     # Template global for team logos and colors
     @app.context_processor
     def inject_team_helpers():
-        def team_logo(team_id):
-            if team_id:
-                return f'/static/logos/{team_id}.png'
-            return ''
-        
+        def team_logo(team_id, size=None):
+            """Return logo path for a team, with optional optimized size variant."""
+            if not team_id:
+                return ''
+
+            # Use generated lightweight variants when available.
+            if size is not None:
+                try:
+                    px = int(size)
+                except (TypeError, ValueError):
+                    px = None
+
+                variant = None
+                if px is not None:
+                    if px <= 24:
+                        variant = '24'
+                    elif px <= 48:
+                        variant = '48'
+
+                if variant:
+                    rel_variant = f'logos/{variant}/{team_id}.png'
+                    cache_key = f'{variant}:{team_id}'
+                    exists = _logo_variant_exists_cache.get(cache_key)
+                    if exists is None:
+                        exists = (Path(app.static_folder) / rel_variant).exists()
+                        _logo_variant_exists_cache[cache_key] = exists
+                    if exists:
+                        return f'/static/{rel_variant}'
+
+            return f'/static/logos/{team_id}.png'
+
         def team_color(team_id, which='primary'):
             """Get team color by ID. Returns hex color or default."""
             _load_team_colors()
             if team_id in _team_colors_cache:
                 return _team_colors_cache[team_id].get(which, '#5E6A71')
             return '#5E6A71'  # Default gray
-        
+
         return dict(team_logo=team_logo, team_color=team_color)
 
     @app.template_filter('format_odds')

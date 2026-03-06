@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container-fluid">
     <h3 class="mb-3"><i class="bi bi-bell"></i> Game Alerts</h3>
-    <p class="text-muted mb-4">Get push notifications for your teams — half-inning updates, final scores, and upset alerts. Works on iPhone, Android, and desktop.</p>
+    <p class="text-muted mb-4">Get push notifications for your teams — inning recaps, instant score changes, final scores, and upset alerts. Works on iPhone, Android, and desktop.</p>
 
     <!-- Status Banner -->
     <div id="alert-status" class="alert d-none mb-4" role="alert"></div>
@@ -34,60 +34,70 @@
         </div>
     </div>
 
-    <!-- Step 2: Choose Teams -->
-    <div class="card mb-4" id="step-teams">
-        <div class="card-header"><span class="badge bg-primary me-2">2</span> Choose Your Teams</div>
+    <!-- Teams Source -->
+    <div class="card mb-4" id="step-teams-source">
+        <div class="card-header"><i class="bi bi-stars me-1"></i> Teams & Games for Alerts</div>
         <div class="card-body">
-            <div class="mb-3">
-                <input type="text" class="form-control" id="team-search" placeholder="Search teams..." oninput="filterTeams(this.value)">
-            </div>
+            <p class="mb-2">Alerts use teams you follow on the <a href="/teams">Teams page</a>. Games you follow on <a href="/scores">Scores</a> default to inning recaps.</p>
+            <div id="followed-teams-summary" class="small text-muted mb-2">Loading followed teams...</div>
+            <div id="followed-games-summary" class="small text-muted">Loading followed games...</div>
+        </div>
+    </div>
 
-            <div id="selected-teams" class="mb-3 d-flex flex-wrap gap-2"></div>
+    <!-- Account Linking (Optional) -->
+    <div class="card mb-4" id="step-account-linking">
+        <div class="card-header"><i class="bi bi-person-check me-1"></i> Sync Across Devices (Light Account)</div>
+        <div class="card-body">
+            <p class="text-muted mb-2">Your follows now sync to a lightweight account automatically on this browser. To link another device, generate a one-time code here and redeem it there.</p>
+            <div id="account-sync-summary" class="small text-muted mb-3">Loading account status...</div>
 
-            <div class="accordion" id="confAccordion">
-                {% for conf_name, teams in conferences %}
-                <div class="accordion-item conference-group" data-conf="{{ conf_name }}">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#conf-{{ loop.index }}" style="font-size:0.9rem;">
-                            {{ conf_name }} <span class="badge bg-secondary ms-2">{{ teams|length }}</span>
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label small text-muted">Share this code on your other device</label>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary" onclick="createLinkCode()">
+                            <i class="bi bi-key"></i> Generate Link Code
                         </button>
-                    </h2>
-                    <div id="conf-{{ loop.index }}" class="accordion-collapse collapse">
-                        <div class="accordion-body p-2">
-                            <div class="row g-2">
-                                {% for team in teams %}
-                                <div class="col-6 col-md-4 col-lg-3 team-item" data-name="{{ team.name|lower }}" data-id="{{ team.id }}">
-                                    <div class="form-check p-2 rounded" style="border-left: 3px solid {{ team.color }};">
-                                        <input class="form-check-input team-checkbox" type="checkbox" value="{{ team.id }}" id="team-{{ team.id }}" onchange="updateSelectedTeams()">
-                                        <label class="form-check-label small" for="team-{{ team.id }}">{{ team.name }}</label>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
+                        <span id="link-code-output" class="badge bg-secondary d-none" style="font-size:1rem; letter-spacing:1px;"></span>
+                    </div>
+                    <div id="link-code-expiry" class="small text-muted mt-1"></div>
+                </div>
+                <div class="col-md-6">
+                    <label for="redeem-link-code" class="form-label small text-muted">Enter code from another device</label>
+                    <div class="d-flex gap-2">
+                        <input id="redeem-link-code" class="form-control" maxlength="6" placeholder="ABC123" style="text-transform:uppercase; max-width:140px;" />
+                        <button class="btn btn-success" onclick="redeemLinkCode()">
+                            <i class="bi bi-link-45deg"></i> Link This Device
+                        </button>
                     </div>
                 </div>
-                {% endfor %}
             </div>
         </div>
     </div>
 
-    <!-- Step 3: Alert Types -->
+    <!-- Step 2: Alert Types -->
     <div class="card mb-4" id="step-types">
-        <div class="card-header"><span class="badge bg-primary me-2">3</span> Alert Types</div>
+        <div class="card-header"><span class="badge bg-primary me-2">2</span> Alert Types</div>
         <div class="card-body">
             <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="alert-game-update" checked>
-                <label class="form-check-label" for="alert-game-update">
-                    <strong>🏟️ Half-Inning Updates</strong>
-                    <div class="text-muted small">Score changes and inning summaries for your teams</div>
+                <input class="form-check-input" type="checkbox" id="alert-half-inning-score" checked>
+                <label class="form-check-label" for="alert-half-inning-score">
+                    <strong>📌 Inning Recaps (Scoring Only)</strong>
+                    <div class="text-muted small">One alert when a half-inning ends, but only if runs scored.</div>
+                </label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="alert-score-change">
+                <label class="form-check-label" for="alert-score-change">
+                    <strong>🚨 Instant Score Changes</strong>
+                    <div class="text-muted small">Immediate push any time the score changes.</div>
                 </label>
             </div>
             <div class="form-check form-switch mb-3">
                 <input class="form-check-input" type="checkbox" id="alert-final-score" checked>
                 <label class="form-check-label" for="alert-final-score">
                     <strong>🏁 Final Scores</strong>
-                    <div class="text-muted small">Get notified when your team's game ends</div>
+                    <div class="text-muted small">Get notified when your team's game ends.</div>
                 </label>
             </div>
             <div class="form-check form-switch mb-3">
@@ -190,7 +200,7 @@ async function enableNotifications() {
 
         currentSubscription = subscription;
         showGranted();
-        showStatus('Notifications enabled! Choose your teams below.', 'success');
+        showStatus('Notifications enabled! Alerts will use your followed teams from the Teams page.', 'success');
     } catch (err) {
         console.error('Subscription failed:', err);
         showStatus('Failed to enable notifications: ' + err.message, 'danger');
@@ -218,36 +228,191 @@ async function testNotification() {
 }
 
 // --- Preferences ---
-function getSelectedTeams() {
-    return Array.from(document.querySelectorAll('.team-checkbox:checked'))
-        .map(cb => cb.value);
+function getFavoriteTeamsFromStorage() {
+    if (typeof window.getFavoriteTeams === 'function') {
+        return window.getFavoriteTeams();
+    }
+    try {
+        const teams = JSON.parse(localStorage.getItem('favorite_teams') || '[]');
+        return Array.isArray(teams) ? teams : [];
+    } catch (e) {
+        return [];
+    }
 }
 
-function updateSelectedTeams() {
-    const container = document.getElementById('selected-teams');
-    const teams = getSelectedTeams();
-    container.innerHTML = teams.map(tid => {
-        const label = document.querySelector('label[for="team-' + tid + '"]');
-        const name = label ? label.textContent : tid;
-        return '<span class="badge bg-primary">' + name +
-            ' <i class="bi bi-x" style="cursor:pointer" onclick="document.getElementById(\'team-' + tid + '\').checked=false;updateSelectedTeams()"></i></span>';
-    }).join('');
+function getFavoriteGamesMapFromStorage() {
+    if (typeof window.getFavoriteGamesMap === 'function') {
+        return window.getFavoriteGamesMap() || {};
+    }
+    try {
+        const parsed = JSON.parse(localStorage.getItem('favorite_games') || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) {
+        return {};
+    }
 }
 
-function filterTeams(query) {
-    query = query.toLowerCase();
-    document.querySelectorAll('.team-item').forEach(el => {
-        el.style.display = el.dataset.name.includes(query) ? '' : 'none';
-    });
-    // Auto-expand matching conferences
-    if (query.length >= 2) {
-        document.querySelectorAll('.conference-group').forEach(g => {
-            const hasVisible = g.querySelector('.team-item:not([style*="display: none"])');
-            const collapse = g.querySelector('.accordion-collapse');
-            if (hasVisible && collapse) {
-                collapse.classList.add('show');
-            }
+function getFollowedGamesForAlerts() {
+    const map = getFavoriteGamesMapFromStorage();
+    return Object.values(map || {})
+        .filter(g => g && (g.gameId || g.game_id))
+        .map(g => {
+            const gameId = g.gameId || g.game_id;
+            return {
+                gameId,
+                homeTeamId: g.homeTeamId || g.home_team_id || '',
+                awayTeamId: g.awayTeamId || g.away_team_id || '',
+                homeTeamName: g.homeTeamName || g.home_team_name || '',
+                awayTeamName: g.awayTeamName || g.away_team_name || '',
+                // Default mode for followed games.
+                alertType: g.alertType || g.alert_type || 'game_update_scoring',
+            };
         });
+}
+
+function prettyTeamId(teamId) {
+    return String(teamId || '')
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function escapeHtml(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function refreshFollowedTeamsSummary() {
+    const el = document.getElementById('followed-teams-summary');
+    if (!el) return;
+
+    const teams = getFavoriteTeamsFromStorage();
+    if (!teams.length) {
+        el.innerHTML = 'No followed teams yet. <a href="/teams">Follow at least one team first</a>.';
+        return;
+    }
+
+    const names = teams.map(prettyTeamId);
+    const chips = names.slice(0, 12).map(name =>
+        '<span class="badge bg-secondary">' + escapeHtml(name) + '</span>'
+    ).join(' ');
+    const extra = names.length > 12
+        ? ' <span class="text-muted">+' + (names.length - 12) + ' more</span>'
+        : '';
+
+    el.innerHTML =
+        '<div class="mb-1"><strong>' + names.length + '</strong> followed team' + (names.length === 1 ? '' : 's') + ' selected for alerts.</div>' +
+        '<div class="d-flex flex-wrap gap-1">' + chips + extra + '</div>';
+}
+
+function refreshFollowedGamesSummary() {
+    const el = document.getElementById('followed-games-summary');
+    if (!el) return;
+
+    const games = getFollowedGamesForAlerts();
+    if (!games.length) {
+        el.innerHTML = 'No followed games yet. Follow a game from <a href="/scores">Scores</a> to auto-add inning recap alerts.';
+        return;
+    }
+
+    const preview = games.slice(0, 8).map(g => {
+        const away = g.awayTeamName || prettyTeamId(g.awayTeamId || 'Away');
+        const home = g.homeTeamName || prettyTeamId(g.homeTeamId || 'Home');
+        return '<span class="badge bg-light text-dark">' + escapeHtml(away + ' @ ' + home) + '</span>';
+    }).join(' ');
+
+    const extra = games.length > 8
+        ? ' <span class="text-muted">+' + (games.length - 8) + ' more</span>'
+        : '';
+
+    el.innerHTML =
+        '<div class="mb-1"><strong>' + games.length + '</strong> followed game' + (games.length === 1 ? '' : 's') + ' set to default <strong>Inning Recaps</strong>.</div>' +
+        '<div class="d-flex flex-wrap gap-1">' + preview + extra + '</div>';
+}
+
+async function refreshAccountSyncSummary() {
+    const el = document.getElementById('account-sync-summary');
+    if (!el) return;
+
+    try {
+        const resp = await fetch('/api/account/state');
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+            throw new Error((data && data.error) || 'Failed to load account state');
+        }
+
+        const teamCount = Array.isArray(data.teams) ? data.teams.length : 0;
+        const gameCount = data.games && typeof data.games === 'object' ? Object.keys(data.games).length : 0;
+        const accountId = data.account && data.account.id ? data.account.id : 'unknown';
+
+        el.innerHTML =
+            '<strong>Account:</strong> <code>' + escapeHtml(accountId) + '</code> • ' +
+            '<strong>' + teamCount + '</strong> team follow' + (teamCount === 1 ? '' : 's') + ' • ' +
+            '<strong>' + gameCount + '</strong> game follow' + (gameCount === 1 ? '' : 's');
+    } catch (err) {
+        el.textContent = 'Account sync is temporarily unavailable (' + err.message + ').';
+    }
+}
+
+async function createLinkCode() {
+    const badge = document.getElementById('link-code-output');
+    const expiry = document.getElementById('link-code-expiry');
+
+    try {
+        const resp = await fetch('/api/account/link-code', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+            throw new Error((data && data.error) || 'Unable to create code');
+        }
+
+        if (badge) {
+            badge.textContent = data.code;
+            badge.classList.remove('d-none');
+        }
+        if (expiry) {
+            expiry.textContent = 'Code expires at ' + new Date(data.expires_at + 'Z').toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        }
+        showStatus('Link code created. Enter it on your other device within 15 minutes.', 'success');
+        refreshAccountSyncSummary();
+    } catch (err) {
+        showStatus('Could not create link code: ' + err.message, 'danger');
+    }
+}
+
+async function redeemLinkCode() {
+    const input = document.getElementById('redeem-link-code');
+    const code = String((input && input.value) || '').trim().toUpperCase();
+    if (!code) {
+        showStatus('Enter a link code first.', 'warning');
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/account/link-code/redeem', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+            throw new Error((data && data.error) || 'Invalid code');
+        }
+
+        if (input) input.value = '';
+
+        if (typeof window.dingerAccountRefreshState === 'function') {
+            await window.dingerAccountRefreshState();
+        }
+
+        refreshFollowedTeamsSummary();
+        refreshFollowedGamesSummary();
+        refreshAccountSyncSummary();
+        showStatus('Device linked successfully. Favorites are now synced to this account.', 'success');
+    } catch (err) {
+        showStatus('Could not link device: ' + err.message, 'danger');
     }
 }
 
@@ -257,25 +422,50 @@ async function savePreferences() {
         return;
     }
 
-    const teams = getSelectedTeams();
-    if (teams.length === 0) {
-        showStatus('Select at least one team!', 'warning');
-        return;
-    }
+    const teams = getFavoriteTeamsFromStorage();
+    const followedGames = getFollowedGamesForAlerts();
 
-    const alertTypes = [];
-    const gameUpdate = document.getElementById('alert-game-update').checked;
+    const halfInningScoring = document.getElementById('alert-half-inning-score').checked;
+    const instantScore = document.getElementById('alert-score-change').checked;
     const finalScore = document.getElementById('alert-final-score').checked;
     const upsetWatch = document.getElementById('alert-upset-watch').checked;
 
     // Build preference list
     const preferences = [];
     for (const tid of teams) {
-        if (gameUpdate) preferences.push({ alert_type: 'game_update', team_id: tid });
+        if (halfInningScoring) preferences.push({ alert_type: 'game_update_scoring', team_id: tid });
+        if (instantScore) preferences.push({ alert_type: 'score_change', team_id: tid });
         if (finalScore) preferences.push({ alert_type: 'final_score', team_id: tid });
     }
+
+    // Followed games default to inning recaps (scoring-only), unless already covered by team recaps.
+    const followedTeamsSet = new Set(teams);
+    const seenGameIds = new Set();
+    followedGames.forEach(game => {
+        const gameId = game.gameId;
+        if (!gameId || seenGameIds.has(gameId)) return;
+        seenGameIds.add(gameId);
+
+        const mode = game.alertType || 'game_update_scoring';
+        if (mode !== 'game_update_scoring') return;
+
+        const teamCoveredByRecaps = halfInningScoring && (
+            (game.homeTeamId && followedTeamsSet.has(game.homeTeamId)) ||
+            (game.awayTeamId && followedTeamsSet.has(game.awayTeamId))
+        );
+
+        if (!teamCoveredByRecaps) {
+            preferences.push({ alert_type: 'game_update_scoring', game_id: gameId });
+        }
+    });
+
     if (upsetWatch) {
         preferences.push({ alert_type: 'upset_watch', conference: 'SEC' });
+    }
+
+    if (!preferences.length) {
+        showStatus('Follow at least one team or game, and pick at least one alert type.', 'warning');
+        return;
     }
 
     const sub = currentSubscription.toJSON();
@@ -287,7 +477,16 @@ async function savePreferences() {
         });
         const data = await resp.json();
         if (data.ok) {
-            showStatus('Preferences saved! You\'ll get alerts for ' + teams.length + ' team(s).', 'success');
+            const gameRecapPrefs = preferences.filter(p => p && p.alert_type === 'game_update_scoring' && p.game_id).length;
+            const parts = [];
+            if (teams.length) parts.push(teams.length + ' team(s)');
+            if (gameRecapPrefs) parts.push(gameRecapPrefs + ' followed game recap(s)');
+            if (upsetWatch) parts.push('SEC upset watch');
+
+            const summary = parts.length
+                ? ('Preferences saved! Enabled: ' + parts.join(', ') + '.')
+                : 'Preferences saved!';
+            showStatus(summary, 'success');
             document.getElementById('btn-save').textContent = '✅ Saved!';
             setTimeout(() => {
                 document.getElementById('btn-save').innerHTML = '<i class="bi bi-check-lg"></i> Save Alert Preferences';
@@ -321,6 +520,35 @@ function showStatus(msg, type) {
 }
 
 // Init on load
-initPush();
+document.addEventListener('DOMContentLoaded', function() {
+    initPush();
+    refreshFollowedTeamsSummary();
+    refreshFollowedGamesSummary();
+
+    if (typeof window.dingerAccountBootstrap === 'function') {
+        window.dingerAccountBootstrap().then(refreshAccountSyncSummary).catch(function() {
+            refreshAccountSyncSummary();
+        });
+    } else {
+        refreshAccountSyncSummary();
+    }
+
+    window.addEventListener('dinger:favorites-teams-updated', function() {
+        refreshFollowedTeamsSummary();
+    });
+
+    window.addEventListener('dinger:favorites-games-updated', function() {
+        refreshFollowedGamesSummary();
+    });
+
+    window.addEventListener('storage', function(e) {
+        if (!e || !e.key || e.key === 'favorite_teams') {
+            refreshFollowedTeamsSummary();
+        }
+        if (!e || !e.key || e.key === 'favorite_games') {
+            refreshFollowedGamesSummary();
+        }
+    });
+});
 </script>
 {% endblock %}

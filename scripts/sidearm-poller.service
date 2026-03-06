@@ -1,0 +1,17 @@
+[Unit]
+Description=SIDEARM Live Stats Poller for College Baseball
+After=network.target
+
+[Service]
+Type=simple
+User=sam
+WorkingDirectory=/home/sam/college-baseball-predictor
+ExecStart=/usr/bin/python3 scripts/sidearm_poller.py --interval 30
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sidearm-poller
+
+[Install]
+WantedBy=multi-user.target

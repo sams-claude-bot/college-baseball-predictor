@@ -1,11 +1,15 @@
 // Service Worker for Dinger PWA
-const CACHE_NAME = 'baseball-v2';
+const SW_VERSION = 'v3';
+const PRECACHE_NAME = `dinger-precache-${SW_VERSION}`;
+const RUNTIME_STATIC_CACHE = `dinger-static-${SW_VERSION}`;
+const RUNTIME_CDN_CACHE = `dinger-cdn-${SW_VERSION}`;
 const OFFLINE_URL = '/static/offline.html';
+const CDN_HOSTS = new Set(['cdn.jsdelivr.net', 'cdnjs.cloudflare.com']);
 
 // Install — cache offline page and essential assets
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
+    caches.open(PRECACHE_NAME).then(cache => {
       return cache.addAll([
         OFFLINE_URL,
         '/static/icons/icon-192.png',
@@ -18,10 +22,13 @@ self.addEventListener('install', event => {
 
 // Activate — clean old caches
 self.addEventListener('activate', event => {
+  const keep = new Set([PRECACHE_NAME, RUNTIME_STATIC_CACHE, RUNTIME_CDN_CACHE]);
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys
+          .filter(k => (k.startsWith('dinger-') || k.startsWith('baseball-')) && !keep.has(k))
+          .map(k => caches.delete(k))
       );
     }).then(() => clients.claim())
   );
@@ -29,14 +36,49 @@ self.addEventListener('activate', event => {
 
 // Fetch — network first, offline fallback for navigation requests
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
+      fetch(event.request).catch(async () => {
         return caches.match(OFFLINE_URL);
       })
     );
+    return;
+  }
+
+  if (url.origin === self.location.origin && url.pathname.startsWith('/static/')) {
+    event.respondWith(staleWhileRevalidate(event.request, RUNTIME_STATIC_CACHE));
+    return;
+  }
+
+  if (CDN_HOSTS.has(url.hostname)) {
+    event.respondWith(staleWhileRevalidate(event.request, RUNTIME_CDN_CACHE));
   }
 });
+
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  const networkPromise = fetch(request)
+    .then(response => {
+      if (response && (response.ok || response.type === 'opaque')) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  if (cached) {
+    networkPromise.catch(() => null);
+    return cached;
+  }
+
+  const networkResponse = await networkPromise;
+  return networkResponse || new Response('', { status: 504, statusText: 'Gateway Timeout' });
+}
 
 // Push notification handler
 self.addEventListener('push', event => {

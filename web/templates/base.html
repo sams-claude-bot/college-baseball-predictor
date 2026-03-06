@@ -35,6 +35,7 @@
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content">
     <title>{% block title %}Dinger{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Dinger college baseball scores, schedule, rankings, predictions, and betting insights in a fast mobile-friendly app.{% endblock %}">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
     <link rel="manifest" href="/static/manifest.json">
@@ -58,13 +59,13 @@
     <link rel="apple-touch-startup-image" media="(device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2)" href="/static/splash/splash-1620x2160.png">
     <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" href="/static/splash/splash-1536x2048.png">
 
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <!-- Bootstrap CSS subset (template-driven, render-stable) -->
+    <link href="/static/css/bootstrap-subset.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons subset (non-blocking) -->
+    <link rel="preload" href="/static/fonts/bootstrap-icons-subset.woff" as="font" type="font/woff" crossorigin>
+    <link rel="preload" href="/static/css/bootstrap-icons-subset.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="/static/css/bootstrap-icons-subset.css" rel="stylesheet"></noscript>
     
     <style>
         :root {
@@ -628,9 +629,9 @@
                 justify-content: center;
                 flex: 1;
                 padding: 6px 0 3px;
-                color: rgba(255,255,255,0.4);
+                color: rgba(255,255,255,0.68);
                 text-decoration: none;
-                font-size: 0.6rem;
+                font-size: 0.72rem;
                 font-weight: 600;
                 letter-spacing: 0.2px;
                 border: none;
@@ -792,8 +793,6 @@
         }
     </style>
     {% block extra_css %}{% endblock %}
-    <!-- Umami Analytics -->
-    <script defer src="https://analytics.mcdevitt.page/script.js" data-website-id="0231c1a3-69c3-4570-ac7a-4f5dc7f3ab2d"></script>
 </head>
 <body>
     <!-- Navigation -->
@@ -805,7 +804,8 @@
                 <span class="d-sm-none">Dinger</span>
             </a>
             <!-- Mobile search toggle -->
-            <button class="btn btn-sm p-1 d-lg-none" style="color:rgba(255,255,255,0.7);border:none;" onclick="toggleMobileSearch()">
+            <button type="button" class="btn btn-sm p-1 d-lg-none" style="color:rgba(255,255,255,0.7);border:none;" onclick="toggleMobileSearch()" aria-label="Search teams" title="Search teams">
+                <span class="visually-hidden">Search teams</span>
                 <i class="bi bi-search" style="font-size:1.1rem;"></i>
             </button>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -862,7 +862,7 @@
                             <li><a class="dropdown-item" href="/models"><i class="bi bi-gear"></i> Models</a></li>
                             <li><a class="dropdown-item" href="/debug"><i class="bi bi-bug"></i> Debug</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/experimental/risk-engine"><i class="bi bi-flask"></i> Risk Engine (Experimental)</a></li>
+                            <li><a class="dropdown-item" href="/experimental/risk-engine"><i class="bi bi-gear"></i> Risk Engine (Experimental)</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="#" onclick="openTeamPicker(); return false;"><i class="bi bi-star-fill"></i> My Team</a></li>
                             <li><a class="dropdown-item" href="#" onclick="toggleDarkMode(); return false;"><i class="bi bi-moon-fill" id="darkModeIcon"></i> <span id="darkModeLabel">Dark Mode</span></a></li>
@@ -878,7 +878,7 @@
         <div class="d-flex gap-2">
             <input type="search" class="form-control form-control-sm" id="mobileSearchInput" 
                    placeholder="Search teams..." autocomplete="off" style="background:var(--bg-card);color:var(--text-primary);border-color:var(--border-color);">
-            <button class="btn btn-sm" style="color:rgba(255,255,255,0.6);" onclick="toggleMobileSearch()">
+            <button type="button" class="btn btn-sm" style="color:rgba(255,255,255,0.6);" onclick="toggleMobileSearch()" aria-label="Close search" title="Close search">
                 <i class="bi bi-x-lg"></i>
             </button>
         </div>
@@ -972,12 +972,15 @@
         <div class="modal-dialog modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-star-fill"></i> Choose Your Team</h5>
+                    <h5 class="modal-title"><i class="bi bi-star-fill"></i> My Team</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-2">
                     <input type="search" class="form-control mb-2" id="teamSearchInput" 
                            placeholder="Search teams..." autocomplete="off">
+                    <div class="px-2 pb-2 text-muted" style="font-size:0.78rem;">
+                        Tap a row to set your dashboard team. Follow teams from the Teams page.
+                    </div>
                     <div id="teamPickerResults" style="max-height:55vh;overflow-y:auto;">
                         <div class="text-center text-muted py-3">Loading teams...</div>
                     </div>
@@ -1021,9 +1024,68 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    
+    <!-- Lazy-load bootstrap JS + analytics after first interaction/idle -->
+    <script>
+    var _bootstrapLoadPromise = null;
+    function ensureBootstrap() {
+        if (window.bootstrap) return Promise.resolve(window.bootstrap);
+        if (_bootstrapLoadPromise) return _bootstrapLoadPromise;
+
+        _bootstrapLoadPromise = new Promise(function(resolve, reject) {
+            var script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js';
+            script.defer = true;
+            script.onload = function() { resolve(window.bootstrap); };
+            script.onerror = function(err) {
+                _bootstrapLoadPromise = null;
+                reject(err || new Error('Failed to load Bootstrap JS'));
+            };
+            document.head.appendChild(script);
+        });
+
+        return _bootstrapLoadPromise;
+    }
+
+    function runWhenIdle(fn, timeoutMs) {
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(fn, { timeout: timeoutMs || 2000 });
+        } else {
+            setTimeout(fn, timeoutMs || 1200);
+        }
+    }
+
+    function loadAnalyticsLazy() {
+        if (document.getElementById('umami-analytics-script')) return;
+        var script = document.createElement('script');
+        script.id = 'umami-analytics-script';
+        script.defer = true;
+        script.src = 'https://analytics.mcdevitt.page/script.js';
+        script.setAttribute('data-website-id', '0231c1a3-69c3-4570-ac7a-4f5dc7f3ab2d');
+        document.head.appendChild(script);
+    }
+
+    runWhenIdle(loadAnalyticsLazy, 2500);
+
+    // If user interacts with any Bootstrap-powered control before bundle loads,
+    // load bundle on-demand and replay the click.
+    document.addEventListener('click', function(e) {
+        var trigger = e.target.closest('[data-bs-toggle], [data-bs-dismiss], [data-bs-target], .navbar-toggler');
+        if (!trigger || window.bootstrap) return;
+        if (trigger.getAttribute('data-bs-lazy-loading') === '1') return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        trigger.setAttribute('data-bs-lazy-loading', '1');
+
+        ensureBootstrap().then(function() {
+            trigger.removeAttribute('data-bs-lazy-loading');
+            setTimeout(function() { trigger.click(); }, 0);
+        }).catch(function() {
+            trigger.removeAttribute('data-bs-lazy-loading');
+        });
+    }, true);
+    </script>
+
     <!-- Dark Mode -->
     <script>
     function toggleDarkMode() {
@@ -1049,7 +1111,12 @@
         if (mLabel) mLabel.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
     }
     // Bug report
-    function openBugReport() {
+    async function openBugReport() {
+        try {
+            await ensureBootstrap();
+        } catch (e) {
+            return;
+        }
         new bootstrap.Modal(document.getElementById('bugReportModal')).show();
     }
     function submitBug() {
@@ -1061,7 +1128,11 @@
             body: JSON.stringify({description: desc, page: window.location.pathname})
         }).then(r => r.json()).then(data => {
             if (data.ok) {
-                bootstrap.Modal.getInstance(document.getElementById('bugReportModal')).hide();
+                if (window.bootstrap) {
+                    var modalEl = document.getElementById('bugReportModal');
+                    var modalInst = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInst) modalInst.hide();
+                }
                 document.getElementById('bugDescription').value = '';
                 alert('Bug reported! (#' + data.id + ')');
             }
@@ -1133,6 +1204,10 @@
     // Replaces onclick="window.location=..." with proper navigation
     if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
         document.addEventListener('click', function(e) {
+            // Allow nested interactive controls inside cards (stars, links, inputs, details)
+            var interactive = e.target.closest('a, button, input, select, textarea, label, summary, [data-no-card-nav]');
+            if (interactive) return;
+
             // Find the closest clickable element with an onclick that sets window.location
             var el = e.target.closest('[onclick*="window.location"]');
             if (el) {
@@ -1162,6 +1237,399 @@
             menu.style.display = 'block';
         }
     }
+
+    // Favorites state (teams + games)
+    function _readJsonArray(key) {
+        try {
+            var value = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(value) ? value : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function _writeJsonArray(key, arr) {
+        localStorage.setItem(key, JSON.stringify(arr));
+    }
+
+    function _readJsonObject(key) {
+        try {
+            var value = JSON.parse(localStorage.getItem(key) || '{}');
+            return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function _writeJsonObject(key, obj) {
+        localStorage.setItem(key, JSON.stringify(obj || {}));
+    }
+
+    function getFavoriteTeams() {
+        var teams = _readJsonArray('favorite_teams').filter(Boolean);
+        return Array.from(new Set(teams));
+    }
+
+    function saveFavoriteTeams(teamIds) {
+        var clean = Array.from(new Set((teamIds || []).filter(Boolean)));
+        _writeJsonArray('favorite_teams', clean);
+        window.dispatchEvent(new CustomEvent('dinger:favorites-teams-updated', { detail: { teamIds: clean } }));
+        return clean;
+    }
+
+    function isFavoriteTeam(teamId) {
+        if (!teamId) return false;
+        return getFavoriteTeams().indexOf(teamId) !== -1;
+    }
+
+    function addFavoriteTeam(teamId) {
+        if (!teamId) return getFavoriteTeams();
+        var teams = getFavoriteTeams();
+        if (teams.indexOf(teamId) === -1) teams.push(teamId);
+        return saveFavoriteTeams(teams);
+    }
+
+    function removeFavoriteTeam(teamId) {
+        var teams = getFavoriteTeams().filter(function(t) { return t !== teamId; });
+        return saveFavoriteTeams(teams);
+    }
+
+    function toggleFavoriteTeam(teamId) {
+        if (isFavoriteTeam(teamId)) {
+            removeFavoriteTeam(teamId);
+            return false;
+        }
+        addFavoriteTeam(teamId);
+        return true;
+    }
+
+    function getFavoriteGamesMap() {
+        var raw = _readJsonObject('favorite_games');
+        var out = {};
+        Object.keys(raw).forEach(function(k) {
+            if (!k) return;
+            out[k] = raw[k] || { gameId: k };
+        });
+        return out;
+    }
+
+    function getFavoriteGameExclusionsMap() {
+        var raw = _readJsonObject('favorite_game_exclusions');
+        var out = {};
+        Object.keys(raw).forEach(function(k) {
+            if (!k) return;
+            out[k] = raw[k] || { gameId: k };
+        });
+        return out;
+    }
+
+    function _dispatchFavoriteGamesUpdated() {
+        var explicitMap = getFavoriteGamesMap();
+        var excludedMap = getFavoriteGameExclusionsMap();
+        window.dispatchEvent(new CustomEvent('dinger:favorites-games-updated', {
+            detail: {
+                explicitGameIds: Object.keys(explicitMap),
+                excludedGameIds: Object.keys(excludedMap),
+            }
+        }));
+    }
+
+    async function _syncFollowedGameAlertPreference(gameId, enabled, meta) {
+        if (!gameId) return;
+        if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+
+        try {
+            var reg = await navigator.serviceWorker.ready;
+            var sub = await reg.pushManager.getSubscription();
+            if (!sub) return;
+
+            await fetch('/api/push/game-follow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    subscription: sub.toJSON(),
+                    game_id: gameId,
+                    enabled: !!enabled,
+                    alert_type: (meta && (meta.alertType || meta.alert_type)) || 'game_update_scoring',
+                }),
+            });
+        } catch (err) {
+            // Best effort: local follows should still work even if sync fails.
+            console.debug('push game-follow sync skipped', err);
+        }
+    }
+
+    function saveFavoriteGamesMap(map) {
+        _writeJsonObject('favorite_games', map || {});
+        _dispatchFavoriteGamesUpdated();
+    }
+
+    function saveFavoriteGameExclusionsMap(map) {
+        _writeJsonObject('favorite_game_exclusions', map || {});
+        _dispatchFavoriteGamesUpdated();
+    }
+
+    function getFavoriteGameIds() {
+        return Object.keys(getFavoriteGamesMap());
+    }
+
+    function getExcludedGameIds() {
+        return Object.keys(getFavoriteGameExclusionsMap());
+    }
+
+    function isFavoriteGame(gameId) {
+        if (!gameId) return false;
+        var map = getFavoriteGamesMap();
+        return !!map[gameId];
+    }
+
+    function isGameExcludedFromTeamFollow(gameId) {
+        if (!gameId) return false;
+        var map = getFavoriteGameExclusionsMap();
+        return !!map[gameId];
+    }
+
+    function setFavoriteGame(gameId, meta) {
+        if (!gameId) return;
+        var map = getFavoriteGamesMap();
+        var exclusions = getFavoriteGameExclusionsMap();
+        delete exclusions[gameId];
+
+        var existing = map[gameId] || {};
+        map[gameId] = Object.assign(
+            {
+                gameId: gameId,
+                savedAt: new Date().toISOString(),
+                // Default followed-game alert mode from Scores/Game pages.
+                alertType: existing.alertType || 'game_update_scoring',
+            },
+            existing,
+            meta || {}
+        );
+
+        _writeJsonObject('favorite_games', map);
+        _writeJsonObject('favorite_game_exclusions', exclusions);
+        _dispatchFavoriteGamesUpdated();
+    }
+
+    function removeFavoriteGame(gameId) {
+        var map = getFavoriteGamesMap();
+        delete map[gameId];
+        saveFavoriteGamesMap(map);
+    }
+
+    function setGameExcludedFromTeamFollow(gameId, excluded, meta) {
+        if (!gameId) return;
+        var map = getFavoriteGameExclusionsMap();
+        if (excluded) {
+            map[gameId] = Object.assign({ gameId: gameId, savedAt: new Date().toISOString() }, meta || {});
+        } else {
+            delete map[gameId];
+        }
+        saveFavoriteGameExclusionsMap(map);
+    }
+
+    function toggleFavoriteGame(gameId, meta) {
+        if (!gameId) return false;
+
+        var homeTeamId = meta && (meta.homeTeamId || meta.home_team_id);
+        var awayTeamId = meta && (meta.awayTeamId || meta.away_team_id);
+        var viaTeam = !!(homeTeamId && isFavoriteTeam(homeTeamId)) || !!(awayTeamId && isFavoriteTeam(awayTeamId));
+
+        var explicit = isFavoriteGame(gameId);
+        var excluded = isGameExcludedFromTeamFollow(gameId);
+
+        // If already followed (explicit or via team), toggle to unfollow.
+        if (explicit || (viaTeam && !excluded)) {
+            if (explicit) {
+                var explicitMap = getFavoriteGamesMap();
+                delete explicitMap[gameId];
+                _writeJsonObject('favorite_games', explicitMap);
+            }
+            if (viaTeam) {
+                var exclusionMap = getFavoriteGameExclusionsMap();
+                exclusionMap[gameId] = Object.assign({ gameId: gameId, savedAt: new Date().toISOString() }, meta || {});
+                _writeJsonObject('favorite_game_exclusions', exclusionMap);
+            } else {
+                var cleanupMap = getFavoriteGameExclusionsMap();
+                delete cleanupMap[gameId];
+                _writeJsonObject('favorite_game_exclusions', cleanupMap);
+            }
+            _dispatchFavoriteGamesUpdated();
+            _syncFollowedGameAlertPreference(gameId, false, meta);
+            return false;
+        }
+
+        // Not followed: if previously excluded from team-follow, remove exclusion.
+        if (excluded) {
+            setGameExcludedFromTeamFollow(gameId, false);
+            var nowViaTeam = isGameFollowed(gameId, homeTeamId, awayTeamId);
+            _syncFollowedGameAlertPreference(gameId, nowViaTeam, meta);
+            return nowViaTeam;
+        }
+
+        // Direct explicit follow.
+        setFavoriteGame(gameId, meta);
+        _syncFollowedGameAlertPreference(gameId, true, meta);
+        return true;
+    }
+
+    function isGameFollowed(gameId, homeTeamId, awayTeamId) {
+        if (isFavoriteGame(gameId)) return true;
+        if (isGameExcludedFromTeamFollow(gameId)) return false;
+        if (!homeTeamId && !awayTeamId) return false;
+        return isFavoriteTeam(homeTeamId) || isFavoriteTeam(awayTeamId);
+    }
+
+    window.getFavoriteTeams = getFavoriteTeams;
+    window.saveFavoriteTeams = saveFavoriteTeams;
+    window.isFavoriteTeam = isFavoriteTeam;
+    window.addFavoriteTeam = addFavoriteTeam;
+    window.removeFavoriteTeam = removeFavoriteTeam;
+    window.toggleFavoriteTeam = toggleFavoriteTeam;
+    window.getFavoriteGameIds = getFavoriteGameIds;
+    window.getExcludedGameIds = getExcludedGameIds;
+    window.getFavoriteGamesMap = getFavoriteGamesMap;
+    window.isFavoriteGame = isFavoriteGame;
+    window.isGameExcludedFromTeamFollow = isGameExcludedFromTeamFollow;
+    window.toggleFavoriteGame = toggleFavoriteGame;
+    window.isGameFollowed = isGameFollowed;
+
+    // Lightweight account sync for favorites across devices.
+    var _accountSyncReady = false;
+    var _accountBootstrapPromise = null;
+    var _accountSyncTimer = null;
+    var _accountSyncInFlight = false;
+    var _accountSyncQueued = false;
+    window.dingerAccount = null;
+
+    function _gamesKeySignature(map) {
+        var keys = Object.keys(map || {}).filter(Boolean).sort();
+        return keys.join('|');
+    }
+
+    function _mergeFavoriteGames(serverMap, localMap) {
+        var merged = {};
+        Object.keys(serverMap || {}).forEach(function(k) {
+            if (!k) return;
+            merged[k] = Object.assign({ gameId: k }, serverMap[k] || {});
+        });
+        Object.keys(localMap || {}).forEach(function(k) {
+            if (!k) return;
+            merged[k] = Object.assign({ gameId: k }, merged[k] || {}, localMap[k] || {});
+        });
+        return merged;
+    }
+
+    async function _accountFetchJson(url, options) {
+        var resp = await fetch(url, Object.assign({ credentials: 'same-origin' }, options || {}));
+        var data = await resp.json().catch(function() { return {}; });
+        if (!resp.ok) {
+            var err = new Error((data && data.error) || ('Request failed: ' + resp.status));
+            err.response = data;
+            throw err;
+        }
+        return data;
+    }
+
+    async function refreshAccountStateFromServer() {
+        if (!_accountSyncReady) return null;
+
+        var data = await _accountFetchJson('/api/account/state', { method: 'GET' });
+        if (!data || !data.ok) return data;
+
+        window.dingerAccount = data.account || window.dingerAccount;
+
+        var localTeams = getFavoriteTeams();
+        var serverTeams = Array.isArray(data.teams) ? data.teams.filter(Boolean) : [];
+        var mergedTeams = Array.from(new Set(localTeams.concat(serverTeams)));
+
+        var localGames = getFavoriteGamesMap();
+        var serverGames = (data.games && typeof data.games === 'object' && !Array.isArray(data.games)) ? data.games : {};
+        var mergedGames = _mergeFavoriteGames(serverGames, localGames);
+
+        var teamSigBefore = Array.from(new Set(localTeams)).sort().join('|');
+        var teamSigAfter = Array.from(new Set(mergedTeams)).sort().join('|');
+        if (teamSigBefore !== teamSigAfter) {
+            _writeJsonArray('favorite_teams', mergedTeams);
+            window.dispatchEvent(new CustomEvent('dinger:favorites-teams-updated', { detail: { teamIds: mergedTeams } }));
+        }
+
+        var gameSigBefore = _gamesKeySignature(localGames);
+        var gameSigAfter = _gamesKeySignature(mergedGames);
+        if (gameSigBefore !== gameSigAfter) {
+            _writeJsonObject('favorite_games', mergedGames);
+            _dispatchFavoriteGamesUpdated();
+        }
+
+        return data;
+    }
+
+    async function syncAccountFavoritesNow() {
+        if (!_accountSyncReady) return;
+        if (_accountSyncInFlight) {
+            _accountSyncQueued = true;
+            return;
+        }
+
+        _accountSyncInFlight = true;
+        try {
+            await _accountFetchJson('/api/account/favorites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    teams: getFavoriteTeams(),
+                    games: getFavoriteGamesMap(),
+                }),
+            });
+        } catch (err) {
+            console.debug('account favorites sync skipped', err);
+        } finally {
+            _accountSyncInFlight = false;
+            if (_accountSyncQueued) {
+                _accountSyncQueued = false;
+                scheduleAccountFavoritesSync();
+            }
+        }
+    }
+
+    function scheduleAccountFavoritesSync() {
+        if (!_accountSyncReady) return;
+        if (_accountSyncTimer) clearTimeout(_accountSyncTimer);
+        _accountSyncTimer = setTimeout(function() {
+            syncAccountFavoritesNow();
+        }, 600);
+    }
+
+    async function bootstrapAccountSync() {
+        if (_accountBootstrapPromise) return _accountBootstrapPromise;
+        _accountBootstrapPromise = (async function() {
+            try {
+                var data = await _accountFetchJson('/api/account/bootstrap', { method: 'POST' });
+                _accountSyncReady = !!(data && data.ok);
+                window.dingerAccount = data.account || null;
+                if (_accountSyncReady) {
+                    await refreshAccountStateFromServer();
+                    scheduleAccountFavoritesSync();
+                }
+            } catch (err) {
+                _accountSyncReady = false;
+                console.debug('account bootstrap unavailable', err);
+            }
+        })();
+        return _accountBootstrapPromise;
+    }
+
+    window.dingerAccountBootstrap = bootstrapAccountSync;
+    window.dingerAccountRefreshState = refreshAccountStateFromServer;
+    window.dingerAccountSyncNow = syncAccountFavoritesNow;
+
+    window.addEventListener('dinger:favorites-teams-updated', scheduleAccountFavoritesSync);
+    window.addEventListener('dinger:favorites-games-updated', scheduleAccountFavoritesSync);
+    document.addEventListener('DOMContentLoaded', function() {
+        bootstrapAccountSync();
+    });
 
     // Update bottom nav dashboard link with team preference
     (function() {
@@ -1227,7 +1695,13 @@
 
     // Team Picker
     var _teamCache = null;
-    function openTeamPicker() {
+    async function openTeamPicker() {
+        try {
+            await ensureBootstrap();
+        } catch (e) {
+            return;
+        }
+
         var modal = new bootstrap.Modal(document.getElementById('teamPickerModal'));
         modal.show();
         var input = document.getElementById('teamSearchInput');
@@ -1253,6 +1727,16 @@
     function renderTeamResults(teams, query) {
         var container = document.getElementById('teamPickerResults');
         var currentTeam = localStorage.getItem('featured_team') || '';
+
+        function esc(v) {
+            return String(v || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         var filtered = query
             ? teams.filter(function(t) {
                 return t.name.toLowerCase().indexOf(query) !== -1 ||
@@ -1277,16 +1761,17 @@
         var html = '';
         var confs = Object.keys(byConf).sort();
         confs.forEach(function(conf) {
-            html += '<div class="px-2 py-1 text-muted" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">' + conf + '</div>';
+            html += '<div class="px-2 py-1 text-muted" style="font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">' + esc(conf) + '</div>';
             byConf[conf].forEach(function(t) {
                 var isActive = t.id === currentTeam;
+                var safeId = String(t.id).replace(/'/g, "\\'");
                 html += '<div class="d-flex align-items-center px-2 py-2 rounded team-pick-row' +
                     (isActive ? ' active' : '') + '" ' +
-                    'onclick="selectTeam(\'' + t.id + '\',\'' + (t.c1||'') + '\',\'' + (t.c2||'') + '\')" ' +
+                    'onclick="selectTeam(\'' + safeId + '\',\'' + (t.c1||'') + '\',\'' + (t.c2||'') + '\')" ' +
                     'style="cursor:pointer;' + (isActive ? 'background:var(--light-grey);' : '') + '">' +
                     '<span style="width:12px;height:12px;border-radius:50%;background:' + (t.c1||'#777') + ';flex-shrink:0;margin-right:8px;"></span>' +
-                    '<span style="flex:1;font-size:0.9rem;">' + t.name + '</span>' +
-                    (isActive ? '<i class="bi bi-check-circle-fill" style="color:var(--maroon);"></i>' : '') +
+                    '<span style="flex:1;font-size:0.9rem;">' + esc(t.name) + '</span>' +
+                    (isActive ? '<i class="bi bi-check-circle-fill ms-2" style="color:var(--maroon);"></i>' : '') +
                     '</div>';
             });
         });
@@ -1296,29 +1781,44 @@
     function selectTeam(teamId, c1, c2) {
         localStorage.setItem('featured_team', teamId);
         localStorage.setItem('team_colors', JSON.stringify({c1: c1, c2: c2}));
+
         // Apply immediately
         document.documentElement.setAttribute('data-team', teamId);
         if (c1) {
             var theme = document.documentElement.getAttribute('data-theme') || 'light';
             applyTeamPalette(c1, c2, theme);
         }
+        refreshMoreMenuTeamLabel();
+
         // Close modal and go to dashboard with the team
-        bootstrap.Modal.getInstance(document.getElementById('teamPickerModal')).hide();
+        if (window.bootstrap) {
+            var teamModalEl = document.getElementById('teamPickerModal');
+            var teamModalInst = bootstrap.Modal.getInstance(teamModalEl);
+            if (teamModalInst) teamModalInst.hide();
+        }
         window.location.href = '/?team=' + teamId;
     }
 
-    // Show current team name in More menu
-    (function() {
-        var teamId = localStorage.getItem('featured_team');
+    // Show current My Team in More menu
+    function refreshMoreMenuTeamLabel() {
+        var featuredTeamId = localStorage.getItem('featured_team');
         var label = document.getElementById('moreMenuTeamLabel');
-        if (label && teamId) {
-            // Prettify: "mississippi-state" → "Mississippi State"
-            var pretty = teamId.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        if (!label) return;
+
+        if (featuredTeamId) {
+            var pretty = featuredTeamId.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
             label.textContent = pretty;
-        } else if (label) {
-            label.textContent = 'Pick Team';
+        } else {
+            label.textContent = 'Set My Team';
         }
-    })();
+    }
+
+    refreshMoreMenuTeamLabel();
+    window.addEventListener('storage', function(e) {
+        if (!e || !e.key || e.key === 'featured_team') {
+            refreshMoreMenuTeamLabel();
+        }
+    });
 
     // First-visit team picker prompt
     (function() {
@@ -1332,10 +1832,10 @@
                 'border:1px solid rgba(255,255,255,0.1);animation:slideUp 0.3s ease-out;';
             banner.innerHTML = '<div style="font-size:1.5em;margin-bottom:6px;">⚾</div>' +
                 '<div style="font-weight:700;font-size:1.05rem;margin-bottom:4px;">Welcome to Dinger!</div>' +
-                '<div style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Pick your team to customize scores, colors, and alerts.</div>' +
+                '<div style="font-size:0.85rem;color:#94a3b8;margin-bottom:12px;">Set your My Team for dashboard colors and defaults. Follow teams from the Teams page.</div>' +
                 '<div style="display:flex;gap:8px;justify-content:center;">' +
                 '<button onclick="document.getElementById(\'welcomeTeamBanner\').remove();openTeamPicker();" ' +
-                'style="background:var(--maroon);color:white;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:pointer;">Pick My Team</button>' +
+                'style="background:var(--maroon);color:white;border:none;padding:8px 20px;border-radius:8px;font-weight:600;font-size:0.9rem;cursor:pointer;">Set My Team</button>' +
                 '<button onclick="localStorage.setItem(\'team_picker_dismissed\',\'1\');document.getElementById(\'welcomeTeamBanner\').remove();" ' +
                 'style="background:transparent;color:#94a3b8;border:1px solid rgba(255,255,255,0.2);padding:8px 14px;border-radius:8px;font-size:0.85rem;cursor:pointer;">Later</button>' +
                 '</div>';

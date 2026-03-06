@@ -64,6 +64,13 @@ def _make_db():
             innings INTEGER
         )
     """)
+    conn.execute("""
+        CREATE TABLE teams (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            conference TEXT
+        )
+    """)
     conn.execute(ENSURE_LIVE_EVENTS_SQL)
     ensure_sb_table(conn)
     conn.commit()
@@ -74,6 +81,14 @@ def _seed_active_game(conn, game_id='2026-02-26_byu_washington-state',
                       sb_event_id=652739,
                       xml_file='wsu/652739.xml'):
     """Insert a game and its SB event mapping."""
+    conn.execute(
+        "INSERT OR IGNORE INTO teams (id, name, conference) VALUES (?, ?, ?)",
+        ('washington-state', 'Washington State', 'Pac-12')
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO teams (id, name, conference) VALUES (?, ?, ?)",
+        ('byu', 'BYU', 'Big 12')
+    )
     conn.execute(
         "INSERT INTO games (id, date, home_team_id, away_team_id, status) VALUES (?, ?, ?, ?, ?)",
         (game_id, '2026-02-26', 'washington-state', 'byu', 'in-progress')
@@ -351,3 +366,149 @@ class TestPoller:
         result = poller.poll_once()
         assert result == 0
         mock_client.get_live_stats.assert_not_called()
+
+
+class TestNotificationOptions:
+    def test_score_change_sends_instant_alert(self):
+        """Score changes within a half-inning trigger score_change alerts."""
+        conn = _make_db()
+        _seed_active_game(conn)
+        poller = StatBroadcastPoller(conn, client=_mock_client())
+
+        with patch('notifications.ensure_tables'), \
+             patch('notifications.send_team_notification') as send_team, \
+             patch('notifications.send_game_notification') as send_game:
+            # Baseline state (startup) should not alert.
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'top',
+                'home_score': 0,
+                'visitor_score': 0,
+                'inning_display': 'Top 1st',
+            })
+            send_team.assert_not_called()
+            send_game.assert_not_called()
+
+            # Score change in same half should trigger instant score_change alerts.
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'top',
+                'home_score': 0,
+                'visitor_score': 1,
+                'inning_display': 'Top 1st',
+            })
+
+            alert_types = [c.args[1] for c in send_team.call_args_list]
+            assert alert_types == ['score_change', 'score_change']
+
+            game_alert_types = [c.args[1] for c in send_game.call_args_list]
+            assert game_alert_types == ['score_change']
+
+    def test_half_inning_scoring_recap_only_when_runs_score(self):
+        """Half-inning recap alerts fire on transitions only when runs scored."""
+        conn = _make_db()
+        _seed_active_game(conn)
+        poller = StatBroadcastPoller(conn, client=_mock_client())
+
+        with patch('notifications.ensure_tables'), \
+             patch('notifications.send_team_notification') as send_team, \
+             patch('notifications.send_game_notification') as send_game:
+            # Seed startup state.
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'top',
+                'home_score': 0,
+                'visitor_score': 0,
+                'inning_display': 'Top 1st',
+            })
+            send_team.reset_mock()
+            send_game.reset_mock()
+
+            # Runs score in top 1st (instant alerts expected here).
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'top',
+                'home_score': 0,
+                'visitor_score': 2,
+                'inning_display': 'Top 1st',
+            })
+            send_team.reset_mock()
+            send_game.reset_mock()
+
+            # Transition to bottom 1st with same score -> recap should include scoring-only type.
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'bottom',
+                'home_score': 0,
+                'visitor_score': 2,
+                'inning_display': 'Bot 1st',
+            })
+
+            alert_types = [c.args[1] for c in send_team.call_args_list]
+            assert alert_types.count('game_update') == 2
+            assert alert_types.count('game_update_scoring') == 2
+            assert 'score_change' not in alert_types
+
+            game_alert_types = [c.args[1] for c in send_game.call_args_list]
+            assert game_alert_types == ['game_update_scoring']
+
+    def test_half_inning_transition_without_runs_skips_scoring_recap(self):
+        """No scoring in a half means no game_update_scoring alerts."""
+        conn = _make_db()
+        _seed_active_game(conn)
+        poller = StatBroadcastPoller(conn, client=_mock_client())
+
+        with patch('notifications.ensure_tables'), \
+             patch('notifications.send_team_notification') as send_team, \
+             patch('notifications.send_game_notification') as send_game:
+            # Seed startup state.
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'top',
+                'home_score': 0,
+                'visitor_score': 0,
+                'inning_display': 'Top 1st',
+            })
+            send_team.reset_mock()
+            send_game.reset_mock()
+
+            # Transition with no scoring.
+            poller._check_notifications('2026-02-26_byu_washington-state', {
+                'inning': 1,
+                'inning_half': 'bottom',
+                'home_score': 0,
+                'visitor_score': 0,
+                'inning_display': 'Bot 1st',
+            })
+
+            alert_types = [c.args[1] for c in send_team.call_args_list]
+            assert alert_types.count('game_update') == 2
+            assert 'game_update_scoring' not in alert_types
+            send_game.assert_not_called()
+
+    def test_final_score_uses_team_specific_dedup_keys(self):
+        """Final alerts must dedupe per team so both fanbases are notified."""
+        conn = _make_db()
+        game_id = '2026-02-26_byu_washington-state'
+        _seed_active_game(conn, game_id=game_id)
+        conn.execute(
+            "UPDATE games SET status = 'final', home_score = 5, away_score = 3, innings = 9 WHERE id = ?",
+            (game_id,),
+        )
+        conn.commit()
+
+        poller = StatBroadcastPoller(conn, client=_mock_client())
+
+        with patch('notifications.ensure_tables'), \
+             patch('notifications.send_team_notification') as send_team:
+            poller._check_final_notifications(game_id)
+
+            assert send_team.call_count == 2
+            team_ids = [c.args[0] for c in send_team.call_args_list]
+            dedup_keys = [c.kwargs['dedup_key'] for c in send_team.call_args_list]
+
+            assert team_ids == ['washington-state', 'byu']
+            assert dedup_keys == [
+                f'final:{game_id}:washington-state',
+                f'final:{game_id}:byu',
+            ]

@@ -281,6 +281,19 @@ def register_sb_events(d1b_games, date_str, slug_map, conn):
         away_id = slug_map.get(dg["a"])
         home_id = slug_map.get(dg["h"])
 
+        if not away_id and not home_id:
+            logger.warning(
+                "TRACE SB D1B skip reason=slug_unmapped away_slug=%s home_slug=%s sb_id=%s",
+                dg.get("a"), dg.get("h"), sb_id,
+            )
+            continue
+
+        if not away_id or not home_id:
+            logger.info(
+                "TRACE SB D1B partial-slug-map away_slug=%s home_slug=%s away_id=%s home_id=%s sb_id=%s",
+                dg.get("a"), dg.get("h"), away_id or "?", home_id or "?", sb_id,
+            )
+
         # Match to our game — try exact match first
         game_id = None
         if away_id and home_id:
@@ -296,20 +309,40 @@ def register_sb_events(d1b_games, date_str, slug_map, conn):
                     game_id = candidates[0]
                     logger.info("  Fallback match: %s -> %s (other team unresolved)", known_id, game_id)
 
-        if not away_id and not home_id:
-            continue
-
         # Fetch event info from SB to get xml_file and group_id
         try:
             info = client.get_event_info(sb_id)
         except Exception as e:
-            logger.debug("Could not fetch SB event info for %s: %s", sb_id, e)
+            logger.warning(
+                "TRACE SB D1B skip reason=event_info_fetch_failed sb_id=%s game=%s error=%s",
+                sb_id, game_id or "unmatched", str(e)[:180],
+            )
             skipped += 1
             continue
 
         if not info or info.get("sport") != "bsgame":
+            logger.info(
+                "TRACE SB D1B skip reason=non_baseball_or_empty sb_id=%s game=%s sport=%s",
+                sb_id, game_id or "unmatched", info.get("sport") if info else "none",
+            )
             skipped += 1
             continue
+
+        if game_id:
+            prior_rows = conn.execute(
+                "SELECT sb_event_id FROM statbroadcast_events WHERE game_id = ? AND game_date = ? AND completed = 0",
+                (game_id, date_str),
+            ).fetchall()
+            prior_ids = [int(r[0] if isinstance(r, tuple) else r["sb_event_id"]) for r in prior_rows]
+            if prior_ids and sb_id not in prior_ids:
+                logger.warning(
+                    "TRACE SB D1B game=%s replacing_active_events old=%s new=%s",
+                    game_id, prior_ids, sb_id,
+                )
+                conn.execute(
+                    "UPDATE statbroadcast_events SET completed = 1 WHERE game_id = ? AND game_date = ? AND completed = 0",
+                    (game_id, date_str),
+                )
 
         _upsert_sb_event(conn, {
             "sb_event_id": sb_id,
@@ -327,6 +360,15 @@ def register_sb_events(d1b_games, date_str, slug_map, conn):
         existing.add(sb_id)
         logger.info("  Registered SB event %s for %s @ %s (game %s)",
                      sb_id, dg["a"], dg["h"], game_id or "unmatched")
+        logger.info(
+            "TRACE SB RESOLVED game=%s source=d1b_link sb_id=%s group_id=%s xml=%s mapped_away=%s mapped_home=%s",
+            game_id or "unmatched",
+            sb_id,
+            info.get("group_id", ""),
+            info.get("xml_file", ""),
+            away_id or "?",
+            home_id or "?",
+        )
 
         time.sleep(0.15)  # gentle rate limit
 
@@ -575,6 +617,9 @@ def probe_sb_team_pages(date_str, conn, slug_map):
         home_id = game["home_team_id"]
         away_id = game["away_team_id"]
         game_covered = False
+        trace_reasons = []
+
+        logger.info("  TRACE SB PROBE start game=%s away=%s home=%s", game_id, away_id, home_id)
 
         # Try home team first, then away
         for team_id, role in [(home_id, "home"), (away_id, "away")]:
@@ -583,7 +628,10 @@ def probe_sb_team_pages(date_str, conn, slug_map):
 
             gid = gid_data.get(team_id)
             if not gid:
-                logger.debug("No SB gid for %s (%s), skipping", team_id, role)
+                reason = "{}:{}:no_gid_mapping".format(role, team_id)
+                trace_reasons.append(reason)
+                logger.info("  TRACE SB PROBE game=%s role=%s team=%s result=no_gid_mapping",
+                            game_id, role, team_id)
                 continue
 
             # Fetch event IDs (cached per gid)
@@ -601,7 +649,15 @@ def probe_sb_team_pages(date_str, conn, slug_map):
                              role, gid, len(event_ids))
 
             if not event_ids:
+                reason = "{}:{}:no_events_on_schedule_page".format(role, team_id)
+                trace_reasons.append(reason)
+                logger.info("  TRACE SB PROBE game=%s role=%s gid=%s result=no_events_on_schedule_page",
+                            game_id, role, gid)
                 continue
+
+            date_match_found = False
+            existing_only = False
+            had_info_errors = False
 
             # Probe each event ID we haven't seen yet
             for eid in event_ids:
@@ -615,13 +671,18 @@ def probe_sb_team_pages(date_str, conn, slug_map):
                         else:
                             event_cache[eid] = None
                             info = None
-                    except Exception:
+                    except Exception as e:
                         event_cache[eid] = None
                         info = None
+                        had_info_errors = True
+                        logger.debug("TRACE SB PROBE event-info-failed game=%s eid=%s error=%s",
+                                     game_id, eid, str(e)[:160])
                     time.sleep(0.1)  # rate limit API probes
 
                 if not info or info.get("date") != date_str:
                     continue
+
+                date_match_found = True
 
                 # Already registered?
                 existing = conn.execute(
@@ -629,6 +690,8 @@ def probe_sb_team_pages(date_str, conn, slug_map):
                     (eid,)
                 ).fetchone()
                 if existing:
+                    existing_only = True
+                    logger.debug("TRACE SB PROBE event-already-registered game=%s eid=%s", game_id, eid)
                     continue
 
                 _upsert_sb_event(conn, {
@@ -647,7 +710,21 @@ def probe_sb_team_pages(date_str, conn, slug_map):
                 game_covered = True
                 logger.info("  Found SB event %s for %s via %s page (%s)",
                             eid, game_id, role, gid)
+                logger.info("  TRACE SB RESOLVED game=%s source=team_%s gid=%s sb_id=%s",
+                            game_id, role, gid, eid)
                 break
+
+            if not game_covered:
+                if not date_match_found:
+                    trace_reasons.append("{}:{}:no_event_on_target_date".format(role, team_id))
+                elif existing_only:
+                    trace_reasons.append("{}:{}:event_already_registered".format(role, team_id))
+                elif had_info_errors:
+                    trace_reasons.append("{}:{}:event_info_errors".format(role, team_id))
+
+        if not game_covered:
+            logger.warning("  TRACE SB UNRESOLVED game=%s reasons=%s",
+                           game_id, " | ".join(trace_reasons) if trace_reasons else "unknown")
 
     conn.commit()
     logger.info("Team page probes: %d pages fetched, %d events found", probed, found)
@@ -657,8 +734,8 @@ def probe_sb_team_pages(date_str, conn, slug_map):
 def sb_coverage(conn, date_str):
     """Return (total_games, games_with_active_sb_event) for the date."""
     row = conn.execute("""
-        SELECT COUNT(*) as total,
-               SUM(CASE WHEN se.sb_event_id IS NOT NULL THEN 1 ELSE 0 END) as with_sb
+        SELECT COUNT(DISTINCT g.id) as total,
+               COUNT(DISTINCT CASE WHEN se.sb_event_id IS NOT NULL THEN g.id END) as with_sb
         FROM games g
         LEFT JOIN statbroadcast_events se
             ON g.id = se.game_id AND se.completed = 0
@@ -712,10 +789,19 @@ def run(date_str, verbose=False):
     stats["sb_team_found"] = sb_found
 
     total_games, sb_count = sb_coverage(conn, date_str)
+    missing_rows = conn.execute("""
+        SELECT g.id
+        FROM games g
+        LEFT JOIN statbroadcast_events se
+            ON g.id = se.game_id AND se.completed = 0
+        WHERE g.date = ? AND g.status != 'cancelled' AND se.sb_event_id IS NULL
+        ORDER BY g.id
+    """, (date_str,)).fetchall()
     conn.close()
 
     stats["sb_total"] = total_games
     stats["sb_covered"] = sb_count
+    stats["sb_missing_games"] = [r["id"] for r in missing_rows]
     return stats
 
 
@@ -748,6 +834,10 @@ def main():
     print("SIDEARM links:       {} registered".format(stats.get("sidearm_registered", 0)))
     print("SB coverage:         {}/{} games have active SB events".format(
         stats["sb_covered"], stats["sb_total"]))
+    if stats.get("sb_missing_games"):
+        print("SB missing games ({}): {}".format(
+            len(stats["sb_missing_games"]), ", ".join(stats["sb_missing_games"][:15])
+        ))
 
     unmapped = set(stats["unmapped_slugs"])
     if unmapped:

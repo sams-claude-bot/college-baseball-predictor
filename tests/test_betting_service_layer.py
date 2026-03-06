@@ -2,6 +2,7 @@
 """Smoke tests for betting service-layer extraction (Cleanup Sprint A, Step 3)."""
 
 import sys
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,40 @@ from flask import Flask
 
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def _init_empty_betting_tables(db_path: Path):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute(
+        "CREATE TABLE tracked_confident_bets ("
+        "date TEXT, game_id TEXT, avg_prob REAL, is_home INTEGER, moneyline INTEGER, "
+        "models_agree INTEGER, models_total INTEGER, confidence REAL)"
+    )
+    c.execute(
+        "CREATE TABLE tracked_bets ("
+        "date TEXT, game_id TEXT, edge REAL, is_home INTEGER, moneyline INTEGER, model_prob REAL)"
+    )
+    c.execute(
+        "CREATE TABLE tracked_bets_spreads ("
+        "date TEXT, game_id TEXT, bet_type TEXT, edge REAL, pick TEXT)"
+    )
+    c.execute(
+        "CREATE TABLE tracked_parlays ("
+        "date TEXT, legs_json TEXT, american_odds INTEGER, decimal_odds REAL, "
+        "model_prob REAL, payout REAL)"
+    )
+    c.execute(
+        "CREATE TABLE games ("
+        "id TEXT, status TEXT, home_score INTEGER, away_score INTEGER, inning_text TEXT, "
+        "home_team_id TEXT, away_team_id TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+
+def _mock_risk_preview():
+    return {'date': '2026-02-24', 'bets': [], 'rejections': [], 'error': None}
 
 
 def test_betting_page_service_smoke(monkeypatch):
@@ -76,6 +111,216 @@ def test_betting_page_service_smoke(monkeypatch):
         g.get('home_conf') == 'SEC' or g.get('away_conf') == 'SEC'
         for g in (ctx['games'] + ctx['confident_bets'] + ctx['ev_bets'])
     )
+
+
+def test_parlay_fallback_inverts_opposite_consensus_prob_and_blocks_bad_leg(monkeypatch, tmp_path):
+    from web.services import betting_page
+    import scripts.database as db_module
+
+    db_path = tmp_path / "betting.db"
+    _init_empty_betting_tables(db_path)
+
+    def _new_conn():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    sample_games = [
+        {
+            'game_id': 'g1',
+            'date': '2026-02-24',
+            'home_team_name': 'Home A',
+            'away_team_name': 'Away A',
+            'best_edge': 10.0,
+            'best_pick': 'home',
+            'home_ml': -140,
+            'away_ml': 120,
+            'model_home_prob': 0.75,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'home', 'avg_prob': 0.78},
+        },
+        {
+            'game_id': 'g2',
+            'date': '2026-02-24',
+            'home_team_name': 'Home B',
+            'away_team_name': 'Away B',
+            'best_edge': 9.5,
+            'best_pick': 'away',
+            'home_ml': -150,
+            'away_ml': 130,
+            'model_home_prob': 0.28,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'away', 'avg_prob': 0.76},
+        },
+        {
+            'game_id': 'g3',
+            'date': '2026-02-24',
+            'home_team_name': 'Home C',
+            'away_team_name': 'Away C',
+            'best_edge': 11.0,
+            'best_pick': 'home',
+            'home_ml': -135,
+            'away_ml': 115,
+            'model_home_prob': 0.74,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'away', 'avg_prob': 0.80},
+        },
+    ]
+
+    monkeypatch.setattr(db_module, 'get_connection', _new_conn)
+    monkeypatch.setattr(betting_page, 'get_all_conferences', lambda: [])
+    monkeypatch.setattr(betting_page, 'get_betting_games', lambda: [dict(g) for g in sample_games])
+    monkeypatch.setattr(betting_page, 'analyze_games', _mock_risk_preview)
+    monkeypatch.setattr(betting_page, '_get_calibrator', lambda: None)
+
+    ctx = betting_page.build_betting_page_context()
+
+    assert ctx['parlay_legs'] == []
+    assert ctx['parlay_american'] == 0
+    assert ctx['parlay_payout'] == 0
+    assert ctx['parlay_prob'] == 0.0
+    assert ctx['parlay_calibrated_prob'] == 0.0
+
+
+def test_parlay_fallback_returns_empty_when_fewer_than_three_legs(monkeypatch, tmp_path):
+    from web.services import betting_page
+    import scripts.database as db_module
+
+    db_path = tmp_path / "betting.db"
+    _init_empty_betting_tables(db_path)
+
+    def _new_conn():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    sample_games = [
+        {
+            'game_id': 'g1',
+            'date': '2026-02-24',
+            'home_team_name': 'Home A',
+            'away_team_name': 'Away A',
+            'best_edge': 10.0,
+            'best_pick': 'home',
+            'home_ml': -145,
+            'away_ml': 125,
+            'model_home_prob': 0.75,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'home', 'avg_prob': 0.78},
+        },
+        {
+            'game_id': 'g2',
+            'date': '2026-02-24',
+            'home_team_name': 'Home B',
+            'away_team_name': 'Away B',
+            'best_edge': 9.0,
+            'best_pick': 'away',
+            'home_ml': -140,
+            'away_ml': 125,
+            'model_home_prob': 0.27,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'away', 'avg_prob': 0.74},
+        },
+        {
+            'game_id': 'g3',
+            'date': '2026-02-24',
+            'home_team_name': 'Home C',
+            'away_team_name': 'Away C',
+            'best_edge': 12.0,
+            'best_pick': 'home',
+            'home_ml': -300,
+            'away_ml': 240,
+            'model_home_prob': 0.81,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'home', 'avg_prob': 0.82},
+        },
+    ]
+
+    monkeypatch.setattr(db_module, 'get_connection', _new_conn)
+    monkeypatch.setattr(betting_page, 'get_all_conferences', lambda: [])
+    monkeypatch.setattr(betting_page, 'get_betting_games', lambda: [dict(g) for g in sample_games])
+    monkeypatch.setattr(betting_page, 'analyze_games', _mock_risk_preview)
+    monkeypatch.setattr(betting_page, '_get_calibrator', lambda: None)
+
+    ctx = betting_page.build_betting_page_context()
+
+    assert ctx['parlay_legs'] == []
+    assert ctx['parlay_american'] == 0
+    assert ctx['parlay_payout'] == 0
+    assert ctx['parlay_prob'] == 0.0
+    assert ctx['parlay_calibrated_prob'] == 0.0
+
+
+def test_parlay_fallback_builds_sane_parlay_with_three_plus_legs(monkeypatch, tmp_path):
+    from web.services import betting_page
+    import scripts.database as db_module
+
+    db_path = tmp_path / "betting.db"
+    _init_empty_betting_tables(db_path)
+
+    def _new_conn():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    sample_games = [
+        {
+            'game_id': 'g1',
+            'date': '2026-02-24',
+            'home_team_name': 'Home A',
+            'away_team_name': 'Away A',
+            'best_edge': 10.0,
+            'best_pick': 'home',
+            'home_ml': -140,
+            'away_ml': 120,
+            'model_home_prob': 0.75,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'home', 'avg_prob': 0.78},
+        },
+        {
+            'game_id': 'g2',
+            'date': '2026-02-24',
+            'home_team_name': 'Home B',
+            'away_team_name': 'Away B',
+            'best_edge': 9.0,
+            'best_pick': 'away',
+            'home_ml': -145,
+            'away_ml': 125,
+            'model_home_prob': 0.26,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'away', 'avg_prob': 0.74},
+        },
+        {
+            'game_id': 'g3',
+            'date': '2026-02-24',
+            'home_team_name': 'Home C',
+            'away_team_name': 'Away C',
+            'best_edge': 11.0,
+            'best_pick': 'home',
+            'home_ml': -160,
+            'away_ml': 140,
+            'model_home_prob': 0.79,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'home', 'avg_prob': 0.81},
+        },
+        {
+            'game_id': 'g4',
+            'date': '2026-02-24',
+            'home_team_name': 'Home D',
+            'away_team_name': 'Away D',
+            'best_edge': 8.5,
+            'best_pick': 'away',
+            'home_ml': -135,
+            'away_ml': 115,
+            'model_home_prob': 0.22,
+            'model_agreement': {'count': 8, 'total': 12, 'pick': 'away', 'avg_prob': 0.73},
+        },
+    ]
+
+    monkeypatch.setattr(db_module, 'get_connection', _new_conn)
+    monkeypatch.setattr(betting_page, 'get_all_conferences', lambda: [])
+    monkeypatch.setattr(betting_page, 'get_betting_games', lambda: [dict(g) for g in sample_games])
+    monkeypatch.setattr(betting_page, 'analyze_games', _mock_risk_preview)
+    monkeypatch.setattr(betting_page, '_get_calibrator', lambda: None)
+
+    ctx = betting_page.build_betting_page_context()
+
+    assert len(ctx['parlay_legs']) == 4
+    assert ctx['parlay_american'] > 0
+    assert ctx['parlay_payout'] > 10
+    assert 0.0 < ctx['parlay_prob'] < 100.0
+    assert 0.0 < ctx['parlay_calibrated_prob'] < 100.0
 
 
 def test_risk_engine_page_service_smoke(monkeypatch):

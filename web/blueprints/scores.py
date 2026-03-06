@@ -189,12 +189,14 @@ def scores():
     postponed_games = [g for g in games if g['status'] in ('postponed', 'canceled')]
     scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress', 'postponed', 'canceled')]
 
-    # Split live games: those with StatBroadcast coverage vs ESPN-only
+    # Split live games: those with StatBroadcast/SIDEARM coverage vs ESPN-only
     live_with_stats = []
     live_espn_only = []
     for g in all_in_progress:
         sit = g.get('situation')
-        if sit and sit.get('sb_outs') is not None or sit and sit.get('sb_pitcher'):
+        has_sb = sit and (sit.get('sb_outs') is not None or sit.get('sb_pitcher'))
+        has_sa = sit and (sit.get('sa_outs') is not None or sit.get('sa_pitcher'))
+        if has_sb or has_sa:
             live_with_stats.append(g)
         else:
             live_espn_only.append(g)
@@ -313,24 +315,24 @@ def game_detail(game_id):
     else:
         game['linescore'] = None
 
-    # Fall back to StatBroadcast per-inning scoring if no ESPN linescore
+    # Fall back to StatBroadcast / SIDEARM per-inning scoring if no ESPN linescore
     if not game.get('linescore') and game.get('situation'):
         sit = game['situation']
-        vis_inn = sit.get('sb_visitor_innings')
-        hom_inn = sit.get('sb_home_innings')
+        vis_inn = sit.get('sb_visitor_innings') or sit.get('sa_visitor_innings')
+        hom_inn = sit.get('sb_home_innings') or sit.get('sa_home_innings')
         if vis_inn or hom_inn:
             game['linescore'] = {
                 'away': vis_inn or [],
                 'home': hom_inn or [],
             }
-            if game.get('away_hits') is None and sit.get('sb_visitor_hits') is not None:
-                game['away_hits'] = sit['sb_visitor_hits']
-            if game.get('home_hits') is None and sit.get('sb_home_hits') is not None:
-                game['home_hits'] = sit['sb_home_hits']
-            if game.get('away_errors') is None and sit.get('sb_visitor_errors') is not None:
-                game['away_errors'] = sit['sb_visitor_errors']
-            if game.get('home_errors') is None and sit.get('sb_home_errors') is not None:
-                game['home_errors'] = sit['sb_home_errors']
+            if game.get('away_hits') is None:
+                game['away_hits'] = sit.get('sb_visitor_hits') if sit.get('sb_visitor_hits') is not None else sit.get('sa_visitor_hits')
+            if game.get('home_hits') is None:
+                game['home_hits'] = sit.get('sb_home_hits') if sit.get('sb_home_hits') is not None else sit.get('sa_home_hits')
+            if game.get('away_errors') is None:
+                game['away_errors'] = sit.get('sb_visitor_errors') if sit.get('sb_visitor_errors') is not None else sit.get('sa_visitor_errors')
+            if game.get('home_errors') is None:
+                game['home_errors'] = sit.get('sb_home_errors') if sit.get('sb_home_errors') is not None else sit.get('sa_home_errors')
 
     home_id = game['home_team_id']
     away_id = game['away_team_id']

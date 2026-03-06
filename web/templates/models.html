@@ -30,10 +30,14 @@
                         <thead>
                             <tr>
                                 <th>Model</th>
-                                <th class="text-center">7-Day</th>
-                                <th class="text-center">All-Time</th>
-                                <th class="text-center">Trend</th>
-                                <th class="text-center">Games</th>
+                                <th class="text-center">7-Day (Raw)</th>
+                                <th class="text-center">All-Time (Raw)</th>
+                                <th class="text-center">7-Day Strict</th>
+                                <th class="text-center">All-Time Strict</th>
+                                <th class="text-center">Strict N</th>
+                                <th class="text-center">Coverage</th>
+                                <th class="text-center">Trend (Strict)</th>
+                                <th class="text-center">Games (Raw)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -41,7 +45,7 @@
                             {% for model in model_data if model.accuracy and model.accuracy.all_time_accuracy %}
                             {% if loop.first or model.tier != model_data[loop.index0 - 1].tier %}
                             <tr class="table-light">
-                                <td colspan="5" class="small fw-bold text-uppercase text-muted py-1">
+                                <td colspan="9" class="small fw-bold text-uppercase text-muted py-1">
                                     {% if model.tier == 'meta' %}⭐ Stacking Model
                                     {% elif model.tier == 'core' %}📊 Active Models (feed meta-ensemble)
                                     {% elif model.tier == 'legacy' %}📦 Legacy (historical only)
@@ -58,7 +62,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-center">
-                                    {% if model.accuracy.recent_accuracy %}
+                                    {% if model.accuracy.recent_accuracy is not none %}
                                     <span class="{% if model.accuracy.recent_accuracy > 0.70 %}text-success fw-bold{% elif model.accuracy.recent_accuracy > 0.55 %}text-success{% elif model.accuracy.recent_accuracy < 0.45 %}text-danger{% endif %}">
                                         {{ (model.accuracy.recent_accuracy * 100)|round(1) }}%
                                     </span>
@@ -67,13 +71,46 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-center">
+                                    {% if model.accuracy.all_time_accuracy is not none %}
                                     <span class="{% if model.accuracy.all_time_accuracy > 0.70 %}text-success fw-bold{% elif model.accuracy.all_time_accuracy > 0.65 %}text-success{% endif %}">
                                         {{ (model.accuracy.all_time_accuracy * 100)|round(1) }}%
                                     </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
                                 </td>
                                 <td class="text-center">
-                                    {% if model.accuracy.recent_accuracy and model.accuracy.all_time_accuracy %}
-                                        {% set delta = (model.accuracy.recent_accuracy - model.accuracy.all_time_accuracy) * 100 %}
+                                    {% if model.accuracy.strict_recent_accuracy is not none %}
+                                    <span class="{% if model.accuracy.strict_recent_accuracy > 0.70 %}text-success fw-bold{% elif model.accuracy.strict_recent_accuracy > 0.55 %}text-success{% elif model.accuracy.strict_recent_accuracy < 0.45 %}text-danger{% endif %}">
+                                        {{ (model.accuracy.strict_recent_accuracy * 100)|round(1) }}%
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if model.accuracy.strict_all_time_accuracy is not none %}
+                                    <span class="{% if model.accuracy.strict_all_time_accuracy > 0.70 %}text-success fw-bold{% elif model.accuracy.strict_all_time_accuracy > 0.65 %}text-success{% endif %}">
+                                        {{ (model.accuracy.strict_all_time_accuracy * 100)|round(1) }}%
+                                    </span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-dark">{{ model.accuracy.strict_all_time_predictions or 0 }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% if model.accuracy.strict_coverage_pct is not none %}
+                                    {% set cov = model.accuracy.strict_coverage_pct * 100 %}
+                                    <span class="{% if cov >= 70 %}text-success fw-bold{% elif cov >= 30 %}text-warning{% else %}text-danger{% endif %}">{{ cov|round(1) }}%</span>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if model.accuracy.strict_recent_accuracy is not none and model.accuracy.strict_all_time_accuracy is not none %}
+                                        {% set delta = (model.accuracy.strict_recent_accuracy - model.accuracy.strict_all_time_accuracy) * 100 %}
                                         {% if delta > 1 %}
                                         <span class="badge bg-success"><i class="bi bi-arrow-up"></i> +{{ delta|round(1) }}</span>
                                         {% elif delta < -1 %}
@@ -92,6 +129,12 @@
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <strong>Strict</strong> = non-backfill predictions made before first pitch cutoff (game time minus 5 min).
+                        Coverage = strict rows ÷ raw graded rows.
+                    </small>
                 </div>
                 {% else %}
                 <div class="text-center py-4">
@@ -114,6 +157,7 @@
                 <p class="text-muted small mb-2">
                     XGBoost stacking model combining 12 diverse sub-models. Trained on <strong>{{ meta_training_size }}</strong> games
                     (walk-forward validation). {{ meta_accuracy.get('meta_ensemble', {}).get('total', '?') }} graded predictions.
+                    <br><strong>Note:</strong> Importance is split gain contribution, not a direct blend weight.
                 </p>
                 {% set max_imp = meta_feature_importance.values()|list|first if meta_feature_importance else 1 %}
                 {% set top_features = meta_feature_importance.items()|list %}
@@ -122,7 +166,7 @@
                         <thead>
                             <tr>
                                 <th>Feature</th>
-                                <th class="text-center" style="width: 60px;">Weight</th>
+                                <th class="text-center" style="width: 80px;">Importance</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -597,7 +641,7 @@
     </div>
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header"><i class="bi bi-arrow-up-down"></i> O/U Hit Rate by Model</div>
+            <div class="card-header"><i class="bi bi-arrow-down-up"></i> O/U Hit Rate by Model</div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
                     <thead><tr><th>Model</th><th class="text-center">Direction</th><th class="text-center">Record</th><th class="text-center">Hit%</th><th class="text-center">7-Day</th></tr></thead>

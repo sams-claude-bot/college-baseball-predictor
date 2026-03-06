@@ -36,6 +36,7 @@ MANUAL_OVERRIDES = {
     'florida-gulf-coast': 'Florida Gulf Coast Eagles',
     'texas-am': 'Texas A&M Aggies',
     'texas-am-corpus-christi': 'Texas A&M-CC Islanders',
+    'texas-state': 'Texas State Bobcats',
     'louisiana': 'Louisiana Ragin\' Cajuns',
     'louisiana-monroe': 'Louisiana-Monroe Warhawks',
     'louisiana-tech': 'Louisiana Tech Bulldogs',

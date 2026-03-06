@@ -44,7 +44,7 @@
                     <td class="text-center text-muted">{{ loop.index }}</td>
                     <td>
                         <div class="d-flex align-items-center">
-                            <img src="{{ team_logo(team.id) }}" height="20" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(team.id, 24) }}" height="20" class="me-2" onerror="this.style.display='none'">
                             {% if team.rank %}<small class="text-muted me-1">#{{ team.rank }}</small> {% endif %}
                             <a href="/team/{{ team.id }}" class="team-link">{{ team.name }}</a>
                         </div>

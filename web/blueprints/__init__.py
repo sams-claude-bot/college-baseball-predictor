@@ -11,6 +11,7 @@ from .rankings import rankings_bp
 from .models import models_bp
 from .api import api_bp
 from .debug import debug_bp
+from .account import account_bp
 
 __all__ = [
     'dashboard_bp',
@@ -21,5 +22,6 @@ __all__ = [
     'rankings_bp',
     'models_bp',
     'api_bp',
-    'debug_bp'
+    'debug_bp',
+    'account_bp'
 ]

@@ -3,17 +3,41 @@
 {% block title %}Teams - Dinger{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
     <h1 class="h3 mb-0">
         <i class="bi bi-people"></i> All Teams
     </h1>
-    <div class="filter-bar">
-        <select class="form-select" id="conferenceFilter">
-            <option value="">All Conferences</option>
-            {% for conf in conferences %}
-            <option value="{{ conf }}">{{ conf }}</option>
-            {% endfor %}
-        </select>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="badge bg-secondary" id="teamsVisibleBadge">{{ teams|length }} shown</span>
+        <span class="badge bg-warning text-dark" id="teamsFollowedBadge">0 followed</span>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-12 col-md-5">
+                <label for="teamSearch" class="visually-hidden">Search teams</label>
+                <input type="search" class="form-control" id="teamSearch" placeholder="Search team, nickname, or conference..." autocomplete="off">
+            </div>
+            <div class="col-8 col-md-3">
+                <label for="conferenceFilter" class="visually-hidden">Filter by conference</label>
+                <select class="form-select" id="conferenceFilter">
+                    <option value="">All Conferences</option>
+                    {% for conf in conferences %}
+                    <option value="{{ conf }}">{{ conf }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-4 col-md-2">
+                <button type="button" class="btn btn-outline-secondary w-100" id="followedOnlyBtn" aria-pressed="false" onclick="toggleFollowedOnly()">
+                    ★ Following
+                </button>
+            </div>
+            <div class="col-12 col-md-2 text-md-end">
+                <small class="text-muted">Follow teams here. Set My Team from the menu.</small>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -37,6 +61,7 @@
                 <tr>
                     <th style="width: 60px;">Rank</th>
                     <th>Team</th>
+                    <th style="width: 96px;" class="text-center">Follow</th>
                     <th>Conference</th>
                     <th class="text-center">Record</th>
                     <th class="text-center">Win %</th>
@@ -47,7 +72,7 @@
             </thead>
             <tbody>
                 {% for team in teams %}
-                <tr data-conference="{{ team.conference or '' }}">
+                <tr data-conference="{{ team.conference or '' }}" data-team-id="{{ team.id }}" data-team-name="{{ team.name }}" data-team-nickname="{{ team.nickname or '' }}" data-c1="{{ team.primary_color or '#5D1725' }}" data-c2="{{ team.secondary_color or '#777777' }}">
                     <td class="text-center">
                         {% if team.current_rank %}
                         <span class="badge bg-maroon">{{ team.current_rank }}</span>
@@ -57,7 +82,7 @@
                     </td>
                     <td>
                         <div class="d-flex align-items-center">
-                            <img src="{{ team_logo(team.id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(team.id, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             <div>
                                 <a href="/team/{{ team.id }}" class="team-link">
                                     <strong>{{ team.name }}</strong>
@@ -67,6 +92,11 @@
                                 {% endif %}
                             </div>
                         </div>
+                    </td>
+                    <td class="text-center" onclick="toggleTeamFollow(event, this.querySelector('.team-follow-toggle'))" style="cursor:pointer;">
+                        <button type="button" class="btn btn-sm btn-outline-secondary team-follow-toggle" data-team-id="{{ team.id }}" onclick="toggleTeamFollow(event, this)" title="Follow team" aria-label="Follow team" aria-pressed="false" style="min-width:2.35rem;min-height:2.35rem;padding:0;border-radius:999px;">
+                            <i class="bi bi-star" style="font-size:1.05rem;"></i>
+                        </button>
                     </td>
                     <td>
                         <span class="badge bg-secondary">{{ team.conference or 'N/A' }}</span>
@@ -126,16 +156,132 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('conferenceFilter').addEventListener('change', function() {
-    const conference = this.value.toLowerCase();
-    const rows = document.querySelectorAll('#teamsTable tbody tr');
-    
-    rows.forEach(row => {
-        const rowConf = row.dataset.conference.toLowerCase();
-        if (conference === '' || rowConf === conference) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
+let followedOnly = false;
+
+function getTeamRows() {
+    return Array.from(document.querySelectorAll('#teamsTable tbody tr'));
+}
+
+function getFollowedTeams() {
+    if (typeof window.getFavoriteTeams === 'function') {
+        return window.getFavoriteTeams();
+    }
+    try {
+        const parsed = JSON.parse(localStorage.getItem('favorite_teams') || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function isTeamFollowed(teamId) {
+    if (!teamId) return false;
+    if (typeof window.isFavoriteTeam === 'function') {
+        return window.isFavoriteTeam(teamId);
+    }
+    return getFollowedTeams().includes(teamId);
+}
+
+function applyTeamsFilters() {
+    const conf = (document.getElementById('conferenceFilter').value || '').toLowerCase();
+    const query = (document.getElementById('teamSearch').value || '').trim().toLowerCase();
+
+    let visible = 0;
+    getTeamRows().forEach(row => {
+        const rowConf = (row.dataset.conference || '').toLowerCase();
+        const teamText = [
+            row.dataset.teamName || '',
+            row.dataset.teamNickname || '',
+            row.dataset.conference || '',
+            row.dataset.teamId || ''
+        ].join(' ').toLowerCase();
+
+        const confMatch = !conf || rowConf === conf;
+        const queryMatch = !query || teamText.includes(query);
+        const followMatch = !followedOnly || isTeamFollowed(row.dataset.teamId);
+
+        const show = confMatch && queryMatch && followMatch;
+        row.style.display = show ? '' : 'none';
+        if (show) visible += 1;
+    });
+
+    const visibleBadge = document.getElementById('teamsVisibleBadge');
+    if (visibleBadge) {
+        visibleBadge.textContent = visible + ' shown';
+    }
+}
+
+function refreshTeamControls() {
+    const followedCount = getFollowedTeams().length;
+
+    const followedBadge = document.getElementById('teamsFollowedBadge');
+    if (followedBadge) {
+        followedBadge.textContent = followedCount + ' followed';
+    }
+
+    const followedOnlyBtn = document.getElementById('followedOnlyBtn');
+    if (followedOnlyBtn) {
+        followedOnlyBtn.classList.toggle('active', followedOnly);
+        followedOnlyBtn.setAttribute('aria-pressed', followedOnly ? 'true' : 'false');
+    }
+
+    getTeamRows().forEach(row => {
+        const teamId = row.dataset.teamId;
+        const followed = isTeamFollowed(teamId);
+
+        const followBtn = row.querySelector('.team-follow-toggle');
+        if (followBtn) {
+            followBtn.classList.toggle('btn-warning', followed);
+            followBtn.classList.toggle('text-dark', followed);
+            followBtn.classList.toggle('btn-outline-secondary', !followed);
+            followBtn.innerHTML = followed
+                ? '<i class="bi bi-star-fill" style="font-size:1.05rem;"></i>'
+                : '<i class="bi bi-star" style="font-size:1.05rem;"></i>';
+            followBtn.title = followed ? 'Unfollow team' : 'Follow team';
+            followBtn.setAttribute('aria-pressed', followed ? 'true' : 'false');
+        }
+    });
+}
+
+function toggleTeamFollow(event, btn) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (!btn) return;
+    const teamId = btn.dataset.teamId;
+    if (!teamId || typeof window.toggleFavoriteTeam !== 'function') return;
+
+    window.toggleFavoriteTeam(teamId);
+    refreshTeamControls();
+    applyTeamsFilters();
+}
+
+function toggleFollowedOnly() {
+    followedOnly = !followedOnly;
+    refreshTeamControls();
+    applyTeamsFilters();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const conf = document.getElementById('conferenceFilter');
+    const search = document.getElementById('teamSearch');
+
+    if (conf) conf.addEventListener('change', applyTeamsFilters);
+    if (search) search.addEventListener('input', applyTeamsFilters);
+
+    refreshTeamControls();
+    applyTeamsFilters();
+
+    window.addEventListener('dinger:favorites-teams-updated', function() {
+        refreshTeamControls();
+        applyTeamsFilters();
+    });
+
+    window.addEventListener('storage', function(e) {
+        if (!e || !e.key || e.key === 'favorite_teams') {
+            refreshTeamControls();
+            applyTeamsFilters();
         }
     });
 });

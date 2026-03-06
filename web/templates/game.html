@@ -14,12 +14,27 @@
     .col-md-6 .card { margin-bottom: 0.5rem; }
     .stat-card { padding: 0.75rem 0.5rem; }
 }
+
+#favoriteGameBtn.following-explicit {
+    color: #f59f00;
+    border-color: #f59f00;
+}
+
+#favoriteGameBtn.following-team {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="mb-3">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<div class="mb-3 d-flex justify-content-between align-items-center gap-2">
     <a href="javascript:history.back()" class="text-muted"><i class="bi bi-arrow-left"></i> Back</a>
+    <button type="button" id="favoriteGameBtn" class="btn btn-sm btn-outline-secondary" data-no-card-nav="1" onclick="toggleCurrentGameFavorite(event)">
+        <i class="bi bi-star"></i> Follow Game
+    </button>
 </div>
 
 <!-- Matchup Header -->
@@ -27,14 +42,14 @@
     <div class="card-header bg-maroon text-center">
         <div class="d-flex justify-content-center align-items-center gap-3">
             <div class="d-flex align-items-center">
-                <img src="{{ team_logo(away.id) }}" height="48" class="me-2" onerror="this.style.display='none'">
+                <img src="{{ team_logo(away.id, 48) }}" height="48" class="me-2" onerror="this.style.display='none'">
                 <span class="fs-5">
                     {% if away.rank %}<small class="text-white-50">#{{ away.rank }}</small> {% endif %}{{ away.name }}
                 </span>
             </div>
             <span class="text-white-50">@</span>
             <div class="d-flex align-items-center">
-                <img src="{{ team_logo(home.id) }}" height="48" class="me-2" onerror="this.style.display='none'">
+                <img src="{{ team_logo(home.id, 48) }}" height="48" class="me-2" onerror="this.style.display='none'">
                 <span class="fs-5">
                     {% if home.rank %}<small class="text-white-50">#{{ home.rank }}</small> {% endif %}{{ home.name }}
                 </span>
@@ -120,14 +135,16 @@
         <!-- Live situation -->
         {% if game.situation and game.status == 'in-progress' %}
         {% set sit = game.situation %}
-        {% set s_outs = sit.sb_outs if sit.sb_outs is defined and sit.sb_outs is not none else sit.outs %}
-        {% set s_balls = sit.sb_balls if sit.sb_balls is defined and sit.sb_balls is not none else sit.balls %}
-        {% set s_strikes = sit.sb_strikes if sit.sb_strikes is defined and sit.sb_strikes is not none else sit.strikes %}
-        {% set s_pitcher = sit.sb_pitcher or sit.pitcher %}
-        {% set s_batter = sit.sb_batter or sit.batter %}
-        {% set on_1b = sit.sb_on_first if sit.sb_on_first is defined and sit.sb_on_first is not none else sit.onFirst %}
-        {% set on_2b = sit.sb_on_second if sit.sb_on_second is defined and sit.sb_on_second is not none else sit.onSecond %}
-        {% set on_3b = sit.sb_on_third if sit.sb_on_third is defined and sit.sb_on_third is not none else sit.onThird %}
+        {% set s_outs = sit.sb_outs if sit.sb_outs is defined and sit.sb_outs is not none else (sit.sa_outs if sit.sa_outs is defined and sit.sa_outs is not none else sit.outs) %}
+        {% set s_balls = sit.sb_balls if sit.sb_balls is defined and sit.sb_balls is not none else (sit.sa_balls if sit.sa_balls is defined and sit.sa_balls is not none else sit.balls) %}
+        {% set s_strikes = sit.sb_strikes if sit.sb_strikes is defined and sit.sb_strikes is not none else (sit.sa_strikes if sit.sa_strikes is defined and sit.sa_strikes is not none else sit.strikes) %}
+        {% set s_pitcher = sit.sb_pitcher or sit.sa_pitcher or sit.pitcher %}
+        {% set s_batter = sit.sb_batter or sit.sa_batter or sit.batter %}
+        {% set s_pitch_count = sit.sa_pitcher_pitch_count %}
+        {% set s_on_deck = sit.sa_on_deck %}
+        {% set on_1b = sit.sb_on_first if sit.sb_on_first is defined and sit.sb_on_first is not none else (sit.sa_on_first if sit.sa_on_first is defined and sit.sa_on_first is not none else sit.onFirst) %}
+        {% set on_2b = sit.sb_on_second if sit.sb_on_second is defined and sit.sb_on_second is not none else (sit.sa_on_second if sit.sa_on_second is defined and sit.sa_on_second is not none else sit.onSecond) %}
+        {% set on_3b = sit.sb_on_third if sit.sb_on_third is defined and sit.sb_on_third is not none else (sit.sa_on_third if sit.sa_on_third is defined and sit.sa_on_third is not none else sit.onThird) %}
         <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="d-flex align-items-center gap-3">
@@ -156,10 +173,13 @@
                 <!-- Pitcher / Batter -->
                 <div class="text-end">
                     {% if s_pitcher %}
-                    <div><small class="text-muted">Pitching:</small> <span class="fw-bold">{{ s_pitcher }}</span></div>
+                    <div><small class="text-muted">Pitching:</small> <span class="fw-bold">{{ s_pitcher }}{% if s_pitch_count %} <span class="text-muted fw-normal">({{ s_pitch_count }} pitches)</span>{% endif %}</span></div>
                     {% endif %}
                     {% if s_batter %}
                     <div><small class="text-muted">At Bat:</small> <span class="fw-bold">{{ s_batter }}{% if sit.sb_batter_position %} [{{ sit.sb_batter_position }}]{% endif %}</span></div>
+                    {% endif %}
+                    {% if s_on_deck %}
+                    <div><small class="text-muted">On Deck:</small> <span>{{ s_on_deck }}</span></div>
                     {% endif %}
                     {% if sit.lastPlay %}
                     <div class="mt-1"><small class="text-muted fst-italic">{{ sit.lastPlay }}</small></div>
@@ -169,6 +189,8 @@
         </div>
 
         <!-- Previously This Inning -->
+        {% if (sit.sb_plays is defined and sit.sb_plays) or (sit.sa_plays is defined and sit.sa_plays) %}
+        {# Use SB plays if available, fall back to SA plays #}
         {% if sit.sb_plays is defined and sit.sb_plays %}
         {% set current_half = sit.sb_plays[-1] if sit.sb_plays else none %}
         {% if current_half and current_half.plays %}
@@ -196,6 +218,31 @@
                 {{ current_half.summary }}
             </div>
             {% endif %}
+        </div>
+        {% endif %}
+        {% endif %}
+        {% elif sit.sa_plays is defined and sit.sa_plays %}
+        {# SIDEARM recent plays (flat list) #}
+        <div class="mt-3 p-3 rounded" style="background:rgba(255,255,255,0.05);">
+            <h6 class="text-muted mb-2" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:1px;">
+                ⚾ Recent Plays
+            </h6>
+            <div class="ps-2" style="border-left: 2px solid #374151;">
+                {% for play in sit.sa_plays|reverse %}
+                <div class="mb-1 d-flex align-items-start gap-2" style="font-size:0.85rem;">
+                    {% if play.type == 'Score' %}
+                    <span class="badge bg-success" style="font-size:0.65rem; min-width:18px;">R</span>
+                    {% elif play.type == 'Summary' %}
+                    <span class="text-muted" style="font-size:0.65rem; min-width:18px;">📋</span>
+                    {% elif play.type in ['Hit', 'Double', 'Triple', 'HomeRun'] %}
+                    <span class="badge" style="background:#2563eb; font-size:0.65rem; min-width:18px;">H</span>
+                    {% else %}
+                    <span class="text-muted" style="font-size:0.65rem; min-width:18px;">⊘</span>
+                    {% endif %}
+                    <span{% if play.type == 'Score' %} class="text-success fw-bold"{% endif %}>{{ play.text }}</span>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
         {% endif %}
@@ -836,6 +883,57 @@
     <a href="/team/{{ home.id }}" class="btn btn-outline-secondary">{{ home.name }}</a>
     <a href="/team/{{ away.id }}" class="btn btn-outline-secondary">{{ away.name }}</a>
 </div>
+
+<script>
+(function() {
+    const GAME_ID = {{ game.id|tojson }};
+    const GAME_META = {
+        gameId: GAME_ID,
+        homeTeamId: {{ home.id|tojson }},
+        awayTeamId: {{ away.id|tojson }},
+        homeTeamName: {{ home.name|tojson }},
+        awayTeamName: {{ away.name|tojson }},
+        date: {{ game.date|tojson }},
+        alertType: 'game_update_scoring',
+    };
+
+    function refreshFavoriteGameButton() {
+        const btn = document.getElementById('favoriteGameBtn');
+        if (!btn) return;
+
+        const explicit = typeof window.isFavoriteGame === 'function' && window.isFavoriteGame(GAME_ID);
+        const followed = typeof window.isGameFollowed === 'function' && window.isGameFollowed(GAME_ID, GAME_META.homeTeamId, GAME_META.awayTeamId);
+
+        btn.classList.remove('following-explicit', 'following-team');
+        if (followed) {
+            if (explicit) {
+                btn.classList.add('following-explicit');
+            } else {
+                btn.classList.add('following-team');
+            }
+            btn.innerHTML = '<i class="bi bi-star-fill"></i> Unfollow';
+            btn.title = 'Unfollow this game';
+        } else {
+            btn.innerHTML = '<i class="bi bi-star"></i> Follow Game';
+            btn.title = 'Follow this game';
+        }
+    }
+
+    window.toggleCurrentGameFavorite = function(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        if (typeof window.toggleFavoriteGame !== 'function') return;
+        window.toggleFavoriteGame(GAME_ID, GAME_META);
+        refreshFavoriteGameButton();
+    };
+
+    document.addEventListener('DOMContentLoaded', refreshFavoriteGameButton);
+    window.addEventListener('dinger:favorites-teams-updated', refreshFavoriteGameButton);
+    window.addEventListener('dinger:favorites-games-updated', refreshFavoriteGameButton);
+})();
+</script>
 {% endblock %}
 
 <!-- Time conversion handled by base.html global script -->

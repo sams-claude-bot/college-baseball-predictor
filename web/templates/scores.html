@@ -3,7 +3,8 @@
 {% block title %}Scores & Schedule - Dinger{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div id="scoresPage" class="scores-page">
+<div class="d-flex justify-content-between align-items-center mb-2">
     <h1 class="h3 mb-0">
         <i class="bi bi-clipboard-check"></i> Scores & Schedule
         {% if live_with_stats or live_espn_only %}
@@ -12,75 +13,92 @@
         </span>
         {% endif %}
     </h1>
-    <div class="filter-bar">
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-secondary active" onclick="filterGames('all')" id="filter-all">All Games</button>
-            <button type="button" class="btn btn-outline-secondary" onclick="filterGames('ranked')" id="filter-ranked">⭐ Top 25</button>
-            <button type="button" class="btn btn-outline-secondary" onclick="filterGames('gqi')" id="filter-gqi">Top Games</button>
+</div>
+
+<div id="scoresStickyToolbar" class="card mb-3 scores-sticky-toolbar">
+    <div class="card-body py-2">
+        <div class="scores-toolbar-grid">
+            <div class="btn-group scores-filter-group" role="group" aria-label="Score filters">
+                <button type="button" class="btn btn-outline-secondary active" onclick="filterGames('all')" id="filter-all">All</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="filterGames('ranked')" id="filter-ranked">⭐ Top 25</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="filterGames('favorites')" id="filter-favorites">★ Following</button>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <label for="conferenceFilter" class="visually-hidden">Filter scores by conference</label>
+                <select class="form-select form-select-sm" id="conferenceFilter" onchange="updateFilters()" aria-label="Filter scores by conference">
+                    <option value="">All Conferences</option>
+                    {% for conf in conferences %}
+                    <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="scores-date-nav d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="goToDay('{{ prev_date }}')" aria-label="Previous day">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <label for="datePicker" class="visually-hidden">Select scores date</label>
+                <input type="date" class="form-control form-control-sm" id="datePicker" value="{{ selected_date }}"
+                       aria-label="Select scores date" onchange="goToDate(this.value)">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="goToDay('{{ next_date }}')" aria-label="Next day">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+
+            <div class="btn-group btn-group-sm view-mode-group" role="group" aria-label="Scores view mode">
+                <button type="button" class="btn btn-outline-secondary" id="viewModeDetailedBtn" onclick="setViewMode('detailed')" aria-pressed="true" title="Detailed view">
+                    <i class="bi bi-list-check"></i> Detailed
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="viewModeCompactBtn" onclick="setViewMode('compact')" aria-pressed="false" title="Compact view">
+                    <i class="bi bi-list-ul"></i> Compact
+                </button>
+            </div>
         </div>
-        <select class="form-select" id="conferenceFilter" onchange="updateFilters()">
-            <option value="">All Conferences</option>
-            {% for conf in conferences %}
-            <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
-            {% endfor %}
-        </select>
     </div>
 </div>
 
-<!-- Date Navigation -->
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="row align-items-center">
-            <div class="col-auto">
-                <a href="/scores?date={{ prev_date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
-                   class="btn btn-outline-secondary">
-                    <i class="bi bi-chevron-left"></i> Prev
-                </a>
+<div id="scoresLoadingOverlay" class="scores-loading-overlay d-none" aria-hidden="true">
+    <div class="scores-loading-shell">
+        <div class="scores-loading-line scores-loading-line-lg"></div>
+        <div class="scores-loading-line scores-loading-line-sm"></div>
+        <div class="scores-loading-grid">
+            {% for _ in range(6) %}
+            <div class="scores-loading-card">
+                <div class="scores-loading-line scores-loading-line-sm"></div>
+                <div class="scores-loading-line scores-loading-line-md"></div>
+                <div class="scores-loading-line scores-loading-line-md"></div>
+                <div class="scores-loading-line scores-loading-line-xs"></div>
             </div>
-            <div class="col text-center">
-                <h4 class="mb-1">{{ display_date.strftime('%A, %B %d, %Y') }}</h4>
-                <div class="d-flex justify-content-center gap-4 text-muted flex-wrap">
-                    <span><strong>{{ total_completed }}</strong> completed</span>
-                    {% if total_scheduled > 0 %}
-                    <span class="text-primary"><strong>{{ total_scheduled }}</strong> scheduled</span>
-                    {% endif %}
-                    {% if accuracy_pct is not none %}
-                    <span class="{% if accuracy_pct >= 55 %}text-success{% elif accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
-                        <strong>Ens: {{ correct_count }}/{{ total_preds }}</strong> ({{ accuracy_pct }}%)
-                    </span>
-                    {% endif %}
-                    {% if nn_accuracy_pct is not none %}
-                    <span class="{% if nn_accuracy_pct >= 55 %}text-success{% elif nn_accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
-                        <strong>NN: {{ nn_correct }}/{{ nn_total }}</strong> ({{ nn_accuracy_pct }}%)
-                    </span>
-                    {% endif %}
-                    {% if totals_accuracy_pct is not none %}
-                    <span class="{% if totals_accuracy_pct >= 55 %}text-success{% elif totals_accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
-                        <strong>O/U: {{ totals_correct }}/{{ totals_total }}</strong> ({{ totals_accuracy_pct }}%)
-                    </span>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="col-auto">
-                <a href="/scores?date={{ next_date }}{% if selected_conference %}&conference={{ selected_conference }}{% endif %}" 
-                   class="btn btn-outline-secondary">
-                    Next <i class="bi bi-chevron-right"></i>
-                </a>
-            </div>
+            {% endfor %}
         </div>
-        
-        <!-- Date picker -->
-        <div class="row mt-3 justify-content-center">
-            <div class="col-auto">
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-calendar"></i></span>
-                    <input type="date" class="form-control" id="datePicker" value="{{ selected_date }}"
-                           onchange="goToDate(this.value)">
-                    <button class="btn btn-maroon" onclick="goToDate(document.getElementById('datePicker').value)">
-                        Go
-                    </button>
-                </div>
-            </div>
+    </div>
+</div>
+
+<!-- Date Summary -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <h4 class="mb-1 text-center">{{ display_date.strftime('%A, %B %d, %Y') }}</h4>
+        <div class="d-flex justify-content-center gap-3 text-muted flex-wrap" style="font-size:0.92rem;">
+            <span><strong>{{ total_completed }}</strong> completed</span>
+            {% if total_scheduled > 0 %}
+            <span class="text-primary"><strong>{{ total_scheduled }}</strong> scheduled</span>
+            {% endif %}
+            {% if accuracy_pct is not none %}
+            <span class="{% if accuracy_pct >= 55 %}text-success{% elif accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                <strong>Ens: {{ correct_count }}/{{ total_preds }}</strong> ({{ accuracy_pct }}%)
+            </span>
+            {% endif %}
+            {% if nn_accuracy_pct is not none %}
+            <span class="{% if nn_accuracy_pct >= 55 %}text-success{% elif nn_accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                <strong>NN: {{ nn_correct }}/{{ nn_total }}</strong> ({{ nn_accuracy_pct }}%)
+            </span>
+            {% endif %}
+            {% if totals_accuracy_pct is not none %}
+            <span class="{% if totals_accuracy_pct >= 55 %}text-success{% elif totals_accuracy_pct >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                <strong>O/U: {{ totals_correct }}/{{ totals_total }}</strong> ({{ totals_accuracy_pct }}%)
+            </span>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -138,18 +156,23 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in live_with_stats %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                 <div class="border border-success rounded p-3 h-100"
                      style="cursor:pointer; background: rgba(25,135,84,0.08);"
                      onclick="window.location='/game/{{ game.id }}'">
 
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">
-                            {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
-                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
-                        </small>
+                    <div class="d-flex justify-content-between align-items-center mb-2 game-status-row">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="status-pill status-live">Live</span>
+                            <small class="text-muted">
+                                {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
+                            </small>
+                            {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
+                        </div>
                         <div class="d-flex gap-1">
-                            <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
+                            <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
+                                <i class="bi bi-star"></i>
+                            </button>
                         </div>
                     </div>
                     
@@ -171,13 +194,13 @@
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
-                            <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(game.away_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                 {{ game.away_team_name }}
                             </a>
                         </div>
                         <div class="d-flex align-items-center">
-                            <span class="fs-5 fw-bold live-away-score" style="width:28px;text-align:center;">{{ game.away_score }}</span>
+                            <span class="score-hero-value live-away-score">{{ game.away_score }}</span>
                             {% if game.away_hits is not none %}
                             <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_hits }}</span>
                             <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_errors or 0 }}</span>
@@ -192,13 +215,13 @@
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
-                            <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(game.home_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                 {{ game.home_team_name }}
                             </a>
                         </div>
                         <div class="d-flex align-items-center">
-                            <span class="fs-5 fw-bold live-home-score" style="width:28px;text-align:center;">{{ game.home_score }}</span>
+                            <span class="score-hero-value live-home-score">{{ game.home_score }}</span>
                             {% if game.home_hits is not none %}
                             <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_hits }}</span>
                             <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_errors or 0 }}</span>
@@ -208,23 +231,25 @@
                     
                     <!-- Live situation (runners, count, pitcher/batter) -->
                     {% if game.situation %}
-                    {# Prefer StatBroadcast data (sb_*) over ESPN when available #}
+                    {# Prefer StatBroadcast (sb_*) → SIDEARM (sa_*) → ESPN when available #}
                     {% set sit = game.situation %}
-                    {% set s_outs = sit.get('sb_outs') if sit.get('sb_outs') is not none else sit.get('outs') %}
-                    {% set s_balls = sit.get('sb_balls') if sit.get('sb_balls') is not none else sit.get('balls') %}
-                    {% set s_strikes = sit.get('sb_strikes') if sit.get('sb_strikes') is not none else sit.get('strikes') %}
-                    {% set s_count = sit.get('sb_count') or (s_balls|string ~ '-' ~ s_strikes|string if s_balls is not none else none) %}
-                    {% set s_pitcher = sit.get('sb_pitcher') or sit.get('pitcher') %}
-                    {% set s_batter = sit.get('sb_batter') or sit.get('batter') %}
+                    {% set s_outs = sit.get('sb_outs') if sit.get('sb_outs') is not none else (sit.get('sa_outs') if sit.get('sa_outs') is not none else sit.get('outs')) %}
+                    {% set s_balls = sit.get('sb_balls') if sit.get('sb_balls') is not none else (sit.get('sa_balls') if sit.get('sa_balls') is not none else sit.get('balls')) %}
+                    {% set s_strikes = sit.get('sb_strikes') if sit.get('sb_strikes') is not none else (sit.get('sa_strikes') if sit.get('sa_strikes') is not none else sit.get('strikes')) %}
+                    {% set s_count = sit.get('sb_count') or sit.get('sa_count') or (s_balls|string ~ '-' ~ s_strikes|string if s_balls is not none else none) %}
+                    {% set s_pitcher = sit.get('sb_pitcher') or sit.get('sa_pitcher') or sit.get('pitcher') %}
+                    {% set s_batter = sit.get('sb_batter') or sit.get('sa_batter') or sit.get('batter') %}
                     {% set s_batter_pos = sit.get('sb_batter_position') %}
+                    {% set s_on_deck = sit.get('sa_on_deck') %}
+                    {% set s_pitch_count = sit.get('sa_pitcher_pitch_count') %}
                     {% set has_situation = s_outs is not none or s_pitcher or s_batter %}
                     {% if has_situation %}
                     <div class="mt-2 pt-2 border-top d-flex justify-content-between align-items-center situation-panel" data-game-id="{{ game.id }}">
                         <div class="d-flex align-items-center gap-2">
-                            <!-- Base diamond (prefer SB base runner data over ESPN) -->
-                            {% set on_1b = sit.get('sb_on_first') if sit.get('sb_on_first') is not none else sit.get('onFirst') %}
-                            {% set on_2b = sit.get('sb_on_second') if sit.get('sb_on_second') is not none else sit.get('onSecond') %}
-                            {% set on_3b = sit.get('sb_on_third') if sit.get('sb_on_third') is not none else sit.get('onThird') %}
+                            <!-- Base diamond (prefer SB → SA → ESPN base runner data) -->
+                            {% set on_1b = sit.get('sb_on_first') if sit.get('sb_on_first') is not none else (sit.get('sa_on_first') if sit.get('sa_on_first') is not none else sit.get('onFirst')) %}
+                            {% set on_2b = sit.get('sb_on_second') if sit.get('sb_on_second') is not none else (sit.get('sa_on_second') if sit.get('sa_on_second') is not none else sit.get('onSecond')) %}
+                            {% set on_3b = sit.get('sb_on_third') if sit.get('sb_on_third') is not none else (sit.get('sa_on_third') if sit.get('sa_on_third') is not none else sit.get('onThird')) %}
                             <svg width="32" height="32" viewBox="0 0 40 40" style="flex-shrink:0;">
                                 <rect x="13" y="3" width="14" height="14" rx="1" transform="rotate(45 20 10)" 
                                       fill="{{ '#fbbf24' if on_2b else '#374151' }}" stroke="#6b7280" stroke-width="1.5" class="base-second"/>
@@ -250,10 +275,13 @@
                         <!-- Pitcher/Batter -->
                         <div class="text-end" style="font-size:0.7rem;">
                             {% if s_pitcher %}
-                            <div class="text-muted sit-pitcher">P: {{ s_pitcher }}</div>
+                            <div class="text-muted sit-pitcher">P: {{ s_pitcher }}{% if s_pitch_count %} <span style="opacity:0.6;">({{ s_pitch_count }})</span>{% endif %}</div>
                             {% endif %}
                             {% if s_batter %}
                             <div class="text-muted sit-batter">AB: {{ s_batter }}{% if s_batter_pos %} <span class="text-muted" style="opacity:0.6;">[{{ s_batter_pos }}]</span>{% endif %}</div>
+                            {% endif %}
+                            {% if s_on_deck %}
+                            <div class="text-muted" style="opacity:0.6; font-size:0.6rem;">OD: {{ s_on_deck }}</div>
                             {% endif %}
                         </div>
                     </div>
@@ -293,18 +321,23 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in live_espn_only %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                 <div class="border rounded p-3 h-100"
                      style="cursor:pointer; background: rgba(108,117,125,0.08);"
                      onclick="window.location='/game/{{ game.id }}'">
 
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">
-                            {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
-                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
-                        </small>
+                    <div class="d-flex justify-content-between align-items-center mb-2 game-status-row">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="status-pill status-live-muted">Live</span>
+                            <small class="text-muted">
+                                {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
+                            </small>
+                            {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
+                        </div>
                         <div class="d-flex gap-1">
-                            <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
+                            <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
+                                <i class="bi bi-star"></i>
+                            </button>
                         </div>
                     </div>
 
@@ -322,14 +355,14 @@
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <div class="d-flex align-items-center">
                             <span class="team-color-dot me-1" style="background-color:{{ team_color(game.away_team_id, 'primary') }};"></span>
-                            {% if game.away_logo %}<img src="{{ game.away_logo }}" alt="" width="20" height="20" class="me-1">{% endif %}
+                            {% if game.away_logo %}<img src="{{ game.away_logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" class="me-1">{% endif %}
                             <span class="{% if game.away_rank %}fw-bold{% endif %}">
                                 {% if game.away_rank %}<small class="text-muted">{{ game.away_rank }}</small> {% endif %}
                                 {{ game.away_team_name }}
                             </span>
                         </div>
                         <div class="d-flex align-items-center">
-                            <strong class="live-away-score">{{ game.away_score if game.away_score is not none else '-' }}</strong>
+                            <span class="score-hero-value live-away-score">{{ game.away_score if game.away_score is not none else '-' }}</span>
                             {% if game.away_hits is not none %}
                             <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_hits }}</span>
                             <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.away_errors or 0 }}</span>
@@ -340,14 +373,14 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <span class="team-color-dot me-1" style="background-color:{{ team_color(game.home_team_id, 'primary') }};"></span>
-                            {% if game.home_logo %}<img src="{{ game.home_logo }}" alt="" width="20" height="20" class="me-1">{% endif %}
+                            {% if game.home_logo %}<img src="{{ game.home_logo }}" alt="" width="20" height="20" loading="lazy" decoding="async" class="me-1">{% endif %}
                             <span class="{% if game.home_rank %}fw-bold{% endif %}">
                                 {% if game.home_rank %}<small class="text-muted">{{ game.home_rank }}</small> {% endif %}
                                 {{ game.home_team_name }}
                             </span>
                         </div>
                         <div class="d-flex align-items-center">
-                            <strong class="live-home-score">{{ game.home_score if game.home_score is not none else '-' }}</strong>
+                            <span class="score-hero-value live-home-score">{{ game.home_score if game.home_score is not none else '-' }}</span>
                             {% if game.home_hits is not none %}
                             <span class="text-muted ms-1" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_hits }}</span>
                             <span class="text-muted" style="width:28px;text-align:center;font-size:0.85rem;">{{ game.home_errors or 0 }}</span>
@@ -421,19 +454,22 @@
                 <div class="accordion-body p-0">
                     <div class="row g-0">
                         {% for game in slot_games %}
-                        <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+                        <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                             <div class="border rounded p-3 h-100"
                                  style="cursor:pointer;"
                                  onclick="window.location='/game/{{ game.id }}'">
 
                                 <!-- Game header -->
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <small class="text-muted">
+                                <div class="d-flex justify-content-between align-items-center mb-2 game-status-row">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="status-pill status-scheduled">Scheduled</span>
                                         {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
-                                    </small>
-                                    <div class="d-flex gap-1">
-                                        <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
                                     </div>
+                                    <div class="d-flex gap-1">
+                                        <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
+                                            <i class="bi bi-star"></i>
+                                        </button>
+                                                </div>
                                 </div>
                                 
                                 <!-- Away team -->
@@ -443,7 +479,7 @@
                                         {% if game.away_rank %}
                                         <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                                         {% endif %}
-                                        <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <img src="{{ team_logo(game.away_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
                                         <a href="/team/{{ game.away_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                             {{ game.away_team_name }}
                                         </a>
@@ -460,7 +496,7 @@
                                         {% if game.home_rank %}
                                         <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                                         {% endif %}
-                                        <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                                        <img src="{{ team_logo(game.home_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
                                         <a href="/team/{{ game.home_team_id }}" class="team-link" onclick="event.stopPropagation();">
                                             {{ game.home_team_name }}
                                         </a>
@@ -470,43 +506,48 @@
                                     {% endif %}
                                 </div>
                                 
-                                <!-- Model predictions footer -->
-                                <div class="mt-2 pt-2 border-top">
-                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-                                        {% if game.pred_winner and game.home_team_name and game.away_team_name %}
-                                        {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
-                                        {% set ens_pick = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
-                                        <span class="badge bg-secondary" title="Ensemble picks {{ ens_pick }}">
-                                            <strong>Ens:</strong> {{ ens_pick[:10] }} {{ ens_pct }}%
-                                        </span>
-                                        {% endif %}
+                                <details class="game-secondary-details mt-2" onclick="event.stopPropagation();">
+                                    <summary>
+                                        <span><i class="bi bi-graph-up"></i> Model details</span>
+                                        <small class="text-muted">Optional</small>
+                                    </summary>
+                                    <div class="pt-2 mt-2 border-top">
+                                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                            {% if game.pred_winner and game.home_team_name and game.away_team_name %}
+                                            {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
+                                            {% set ens_pick = game.home_team_name if game.pred_winner == game.home_team_id else game.away_team_name %}
+                                            <span class="badge bg-secondary" title="Ensemble picks {{ ens_pick }}">
+                                                <strong>Ens:</strong> {{ ens_pick[:10] }} {{ ens_pct }}%
+                                            </span>
+                                            {% endif %}
+                                            
+                                            {% if game.nn_winner and game.home_team_name and game.away_team_name %}
+                                            {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
+                                            {% set nn_pick = game.home_team_name if game.nn_winner == game.home_team_id else game.away_team_name %}
+                                            <span class="badge bg-info text-dark" title="Neural picks {{ nn_pick }}">
+                                                <strong>NN:</strong> {{ nn_pick[:10] }} {{ nn_pct }}%
+                                            </span>
+                                            {% endif %}
+                                        </div>
                                         
-                                        {% if game.nn_winner and game.home_team_name and game.away_team_name %}
-                                        {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
-                                        {% set nn_pick = game.home_team_name if game.nn_winner == game.home_team_id else game.away_team_name %}
-                                        <span class="badge bg-info" title="Neural picks {{ nn_pick }}">
-                                            <strong>NN:</strong> {{ nn_pick[:10] }} {{ nn_pct }}%
-                                        </span>
-                                        {% endif %}
+                                        <div class="d-flex justify-content-between mt-1 flex-wrap gap-1">
+                                            {% if game.over_under %}
+                                            <small class="text-muted">O/U: {{ game.over_under }}</small>
+                                            {% endif %}
+                                            {% if game.nn_projected_total %}
+                                            <small class="{% if game.over_under and game.nn_projected_total > game.over_under %}text-success{% elif game.over_under and game.nn_projected_total < game.over_under %}text-danger{% else %}text-muted{% endif %}"
+                                                   title="Projected total">
+                                                Proj: {{ game.nn_projected_total|round(1) }}
+                                            </small>
+                                            {% endif %}
+                                            {% if game.nn_projected_margin is defined and game.nn_projected_margin is not none %}
+                                            <small class="text-muted" title="Projected home margin">
+                                                Margin: {{ '%+.1f'|format(game.nn_projected_margin) }}
+                                            </small>
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                    
-                                    <div class="d-flex justify-content-between mt-1 flex-wrap gap-1">
-                                        {% if game.over_under %}
-                                        <small class="text-muted">O/U: {{ game.over_under }}</small>
-                                        {% endif %}
-                                        {% if game.nn_projected_total %}
-                                        <small class="{% if game.over_under and game.nn_projected_total > game.over_under %}text-success{% elif game.over_under and game.nn_projected_total < game.over_under %}text-danger{% else %}text-muted{% endif %}"
-                                               title="Projected total">
-                                            Proj: {{ game.nn_projected_total|round(1) }}
-                                        </small>
-                                        {% endif %}
-                                        {% if game.nn_projected_margin is defined and game.nn_projected_margin is not none %}
-                                        <small class="text-muted" title="Projected home margin">
-                                            Margin: {{ '%+.1f'|format(game.nn_projected_margin) }}
-                                        </small>
-                                        {% endif %}
-                                    </div>
-                                </div>
+                                </details>
                             </div>
                         </div>
                         {% endfor %}
@@ -539,24 +580,29 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in completed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                 <div class="border rounded p-3 h-100 {% if game.is_upset %}border-warning{% endif %}"
                      style="cursor:pointer; {% if game.is_upset %}background: rgba(255,193,7,0.1);{% endif %}"
                      onclick="window.location='/game/{{ game.id }}'">
 
-                    <!-- Game header with time/status -->
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">
-                            {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
-                            {% if game.is_conference_game %}<span class="badge bg-secondary ms-1">Conf</span>{% endif %}
-                        </small>
+                    <!-- Game header with status/time -->
+                    <div class="d-flex justify-content-between align-items-center mb-2 game-status-row">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="status-pill status-final">Final</span>
+                            <small class="text-muted">
+                                {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
+                            </small>
+                            {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
+                        </div>
                         <div class="d-flex gap-1">
-                            <span class="badge" style="background-color:{{ game.gqi_color }};font-size:.65rem" title="{{ game.gqi_label }}">GQI {{ game.gqi }}</span>
+                            <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
+                                <i class="bi bi-star"></i>
+                            </button>
                             {% if game.pred_correct is not none %}
                                 {% if game.pred_correct %}
-                                <span class="badge bg-success" title="Prediction correct"><i class="bi bi-check"></i> ✅</span>
+                                <span class="badge bg-success" title="Prediction correct"><i class="bi bi-check"></i></span>
                                 {% else %}
-                                <span class="badge bg-danger" title="Prediction wrong"><i class="bi bi-x"></i> ❌</span>
+                                <span class="badge bg-danger" title="Prediction wrong"><i class="bi bi-x"></i></span>
                                 {% endif %}
                             {% endif %}
                             {% if game.is_upset %}
@@ -572,12 +618,12 @@
                             {% if game.away_rank %}
                             <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
                             {% endif %}
-                            <img src="{{ team_logo(game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(game.away_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.away_team_id }}" class="team-link {% if game.winner_id == game.away_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
                                 {{ game.away_team_name }}
                             </a>
                         </div>
-                        <span class="fs-5 {% if game.winner_id == game.away_team_id %}text-success fw-bold{% endif %}">
+                        <span class="score-hero-value {% if game.winner_id == game.away_team_id %}text-success fw-bold{% endif %}">
                             {{ game.away_score }}
                         </span>
                     </div>
@@ -589,59 +635,61 @@
                             {% if game.home_rank %}
                             <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
                             {% endif %}
-                            <img src="{{ team_logo(game.home_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(game.home_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
                             <a href="/team/{{ game.home_team_id }}" class="team-link {% if game.winner_id == game.home_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
                                 {{ game.home_team_name }}
                             </a>
                         </div>
-                        <span class="fs-5 {% if game.winner_id == game.home_team_id %}text-success fw-bold{% endif %}">
+                        <span class="score-hero-value {% if game.winner_id == game.home_team_id %}text-success fw-bold{% endif %}">
                             {{ game.home_score }}
                         </span>
                     </div>
                     
-                    <!-- Model predictions footer -->
-                    <div class="mt-2 pt-2 border-top">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted">
-                                {% if game.innings and game.innings != 9 %}({{ game.innings }} inn) {% endif %}Final
-                            </small>
-                            <div class="d-flex gap-2">
-                                <!-- Ensemble prediction -->
-                                {% if game.pred_winner %}
-                                {% set ens_picked_winner = game.pred_winner == game.winner_id %}
-                                {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
-                                <small class="{% if ens_picked_winner %}text-success{% else %}text-danger{% endif %}" 
-                                       title="Ensemble: picked {{ 'home' if game.pred_winner == game.home_team_id else 'away' }} at {{ ens_pct }}%">
-                                    Ens: {{ ens_pct }}% {% if ens_picked_winner %}✓{% else %}✗{% endif %}
-                                </small>
-                                {% endif %}
-                                
-                                <!-- Neural prediction -->
-                                {% if game.nn_winner %}
-                                {% set nn_picked_winner = game.nn_winner == game.winner_id %}
-                                {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
-                                <small class="{% if nn_picked_winner %}text-success{% else %}text-danger{% endif %}"
-                                       title="Neural: picked {{ 'home' if game.nn_winner == game.home_team_id else 'away' }} at {{ nn_pct }}%">
-                                    NN: {{ nn_pct }}% {% if nn_picked_winner %}✓{% else %}✗{% endif %}
-                                </small>
-                                {% endif %}
+                    <details class="game-secondary-details mt-2" onclick="event.stopPropagation();">
+                        <summary>
+                            <span>
+                                <i class="bi bi-info-circle"></i> Game details
+                            </span>
+                            <small class="text-muted">{% if game.innings and game.innings != 9 %}{{ game.innings }} inn{% else %}9 inn{% endif %}</small>
+                        </summary>
+                        <div class="pt-2 mt-2 border-top">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <small class="text-muted">Final</small>
+                                <div class="d-flex gap-2">
+                                    {% if game.pred_winner %}
+                                    {% set ens_picked_winner = game.pred_winner == game.winner_id %}
+                                    {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
+                                    <small class="{% if ens_picked_winner %}text-success{% else %}text-danger{% endif %}" 
+                                           title="Ensemble: picked {{ 'home' if game.pred_winner == game.home_team_id else 'away' }} at {{ ens_pct }}%">
+                                        Ens: {{ ens_pct }}% {% if ens_picked_winner %}✓{% else %}✗{% endif %}
+                                    </small>
+                                    {% endif %}
+                                    
+                                    {% if game.nn_winner %}
+                                    {% set nn_picked_winner = game.nn_winner == game.winner_id %}
+                                    {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
+                                    <small class="{% if nn_picked_winner %}text-success{% else %}text-danger{% endif %}"
+                                           title="Neural: picked {{ 'home' if game.nn_winner == game.home_team_id else 'away' }} at {{ nn_pct }}%">
+                                        NN: {{ nn_pct }}% {% if nn_picked_winner %}✓{% else %}✗{% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
                             </div>
-                        </div>
-                        
-                        <!-- Betting lines & totals if available -->
-                        {% if game.over_under or game.nn_projected_total %}
-                        <div class="d-flex justify-content-between mt-1">
-                            {% if game.over_under %}
-                            <small class="text-muted">O/U: {{ game.over_under }}</small>
+
+                            {% if game.over_under or game.nn_projected_total %}
+                            <div class="d-flex justify-content-between mt-1 flex-wrap gap-2">
+                                {% if game.over_under %}
+                                <small class="text-muted">O/U: {{ game.over_under }}</small>
+                                {% endif %}
+                                {% if game.nn_projected_total %}
+                                <small class="text-muted">Proj: {{ game.nn_projected_total|round(1) }}</small>
+                                {% endif %}
+                                {% set actual_total = (game.home_score or 0) + (game.away_score or 0) %}
+                                <small class="text-muted">Actual: {{ actual_total }}</small>
+                            </div>
                             {% endif %}
-                            {% if game.nn_projected_total %}
-                            <small class="text-muted">Proj: {{ game.nn_projected_total|round(1) }}</small>
-                            {% endif %}
-                            {% set actual_total = (game.home_score or 0) + (game.away_score or 0) %}
-                            <small class="text-muted">Actual: {{ actual_total }}</small>
                         </div>
-                        {% endif %}
-                    </div>
+                    </details>
                 </div>
             </div>
             {% endfor %}
@@ -660,11 +708,28 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in postponed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}">
                 <div class="border rounded p-3 h-100 opacity-50">
+                    {% set status_text = (game.status or 'postponed') %}
+                    {% set status_key = status_text|lower %}
+                    {% set status_class = 'status-postponed' %}
+                    {% if 'cancel' in status_key %}
+                        {% set status_class = 'status-canceled' %}
+                    {% elif 'delay' in status_key %}
+                        {% set status_class = 'status-delayed' %}
+                    {% elif 'suspend' in status_key %}
+                        {% set status_class = 'status-suspended' %}
+                    {% elif 'ppd' in status_key %}
+                        {% set status_class = 'status-postponed' %}
+                    {% endif %}
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted"><span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span></small>
-                        <span class="badge bg-warning text-dark">{{ game.status|capitalize }}</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
+                                <i class="bi bi-star"></i>
+                            </button>
+                            <span class="status-pill {{ status_class }}">{{ status_text|title }}</span>
+                        </div>
                     </div>
                     <div class="mb-1">
                         {% if game.away_rank %}<span class="badge bg-maroon me-1">{{ game.away_rank }}</span>{% endif %}
@@ -698,6 +763,7 @@
     </div>
 </div>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block extra_css %}
@@ -706,6 +772,7 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
+
 .team-color-dot {
     display: inline-block;
     width: 6px;
@@ -713,18 +780,309 @@
     border-radius: 50%;
     flex-shrink: 0;
 }
+
+.scores-sticky-toolbar {
+    position: sticky;
+    top: .5rem;
+    z-index: 20;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+.scores-toolbar-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(170px, 220px) minmax(220px, 260px) auto;
+    gap: .5rem;
+    align-items: center;
+}
+
+.scores-filter-group .btn {
+    font-size: .85rem;
+    padding: .35rem .55rem;
+}
+
+.view-mode-group .btn {
+    font-size: .82rem;
+    padding: .35rem .6rem;
+}
+
+.view-mode-group .btn.active {
+    background: var(--maroon);
+    border-color: var(--maroon);
+    color: #fff;
+}
+
+.scores-date-nav .form-control {
+    min-width: 150px;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    padding: .15rem .45rem;
+    line-height: 1.2;
+}
+
+.status-final {
+    background: rgba(25, 135, 84, .16);
+    color: #198754;
+}
+
+.status-live {
+    background: rgba(25, 135, 84, .16);
+    color: #198754;
+}
+
+.status-live-muted {
+    background: rgba(108, 117, 125, .18);
+    color: var(--text-secondary);
+}
+
+.status-scheduled {
+    background: rgba(108, 117, 125, .18);
+    color: var(--text-secondary);
+}
+
+.status-postponed {
+    background: rgba(245, 158, 11, .2);
+    color: #b45309;
+}
+
+.status-delayed {
+    background: rgba(245, 158, 11, .2);
+    color: #b45309;
+}
+
+.status-suspended {
+    background: rgba(111, 66, 193, .2);
+    color: #6f42c1;
+}
+
+.status-canceled {
+    background: rgba(220, 53, 69, .16);
+    color: #dc3545;
+}
+
+.favorite-game-toggle {
+    color: var(--text-muted);
+    text-decoration: none;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    padding: 0 !important;
+    background: transparent;
+}
+
+.favorite-game-toggle i {
+    font-size: .84rem;
+}
+
+.favorite-game-toggle.is-following-explicit {
+    color: #f59f00;
+    border-color: rgba(245, 159, 0, .5);
+    background: rgba(245, 159, 0, .1);
+}
+
+.favorite-game-toggle.is-following-team {
+    color: #0d6efd;
+    border-color: rgba(13, 110, 253, .45);
+    background: rgba(13, 110, 253, .08);
+}
+
+.favorite-game-toggle:hover {
+    color: #f59f00;
+    border-color: rgba(245, 159, 0, .5);
+}
+
+.score-hero-value {
+    font-size: 1.45rem;
+    font-weight: 700;
+    min-width: 30px;
+    text-align: center;
+    line-height: 1;
+}
+
+.game-secondary-details {
+    border-top: 1px solid var(--border-color);
+    padding-top: .45rem;
+}
+
+.game-secondary-details summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-secondary);
+    font-size: .78rem;
+    font-weight: 600;
+    padding: .4rem .2rem;
+    border-radius: .4rem;
+    min-height: 38px;
+}
+
+.game-secondary-details[open] summary {
+    color: var(--text-primary);
+}
+
+.game-secondary-details summary:focus-visible {
+    outline: 2px solid var(--maroon);
+    outline-offset: 2px;
+}
+
+.game-secondary-details summary::-webkit-details-marker { display: none; }
+
+.scores-page.compact-mode .game-card > .border {
+    padding: .55rem .65rem !important;
+}
+
+.scores-page.compact-mode .team-link,
+.scores-page.compact-mode .score-hero-value {
+    font-size: .95rem;
+}
+
+.scores-page.compact-mode .game-secondary-details {
+    display: none;
+}
+
+.scores-page.compact-mode .situation-panel {
+    display: none !important;
+}
+
+.scores-page.compact-mode .day-summary-stats {
+    display: none !important;
+}
+
+.scores-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1060;
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(1px);
+    overflow: auto;
+}
+
+html[data-theme='dark'] .scores-loading-overlay {
+    background: rgba(12, 16, 22, 0.86);
+}
+
+.scores-loading-shell {
+    max-width: 980px;
+    margin: 1rem auto;
+    padding: 0 1rem 2rem;
+}
+
+.scores-loading-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: .75rem;
+    margin-top: .75rem;
+}
+
+.scores-loading-card {
+    border: 1px solid var(--border-color);
+    border-radius: .65rem;
+    background: var(--bg-card);
+    padding: .65rem;
+}
+
+.scores-loading-line {
+    border-radius: .4rem;
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.22) 25%, rgba(148, 163, 184, 0.42) 37%, rgba(148, 163, 184, 0.22) 63%);
+    background-size: 400% 100%;
+    animation: scoresShimmer 1.25s ease-in-out infinite;
+    margin-bottom: .55rem;
+}
+
+.scores-loading-line-lg { height: 22px; width: 210px; }
+.scores-loading-line-md { height: 15px; width: 78%; }
+.scores-loading-line-sm { height: 13px; width: 56%; }
+.scores-loading-line-xs { height: 11px; width: 35%; margin-bottom: 0; }
+
+@keyframes scoresShimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+}
+
+@media (max-width: 991.98px) {
+    .scores-sticky-toolbar {
+        top: .25rem;
+    }
+
+    .scores-toolbar-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .scores-filter-group,
+    .scores-date-nav,
+    .view-mode-group {
+        width: 100%;
+    }
+
+    .scores-date-nav .form-control {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .view-mode-group .btn {
+        flex: 1;
+    }
+}
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+function showScoresLoading(message) {
+    const overlay = document.getElementById('scoresLoadingOverlay');
+    if (!overlay) return;
+
+    if (message) {
+        const heading = overlay.querySelector('.scores-loading-line-lg');
+        if (heading) heading.setAttribute('aria-label', message);
+    }
+
+    overlay.classList.remove('d-none');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function navigateWithScoresLoading(url, message) {
+    showScoresLoading(message || 'Loading scores...');
+    window.location.href = url;
+}
+
+function reloadWithScoresLoading(delayMs = 0, message = 'Refreshing live board...') {
+    if (delayMs > 0) {
+        setTimeout(function() {
+            showScoresLoading(message);
+            window.location.reload();
+        }, delayMs);
+    } else {
+        showScoresLoading(message);
+        window.location.reload();
+    }
+}
+
 function goToDate(dateStr) {
     const conf = document.getElementById('conferenceFilter').value;
     let url = '/scores?date=' + dateStr;
     if (conf) {
         url += '&conference=' + encodeURIComponent(conf);
     }
-    window.location.href = url;
+    navigateWithScoresLoading(url, 'Loading updated scores...');
+}
+
+function goToDay(dayStr) {
+    goToDate(dayStr);
 }
 
 function updateFilters() {
@@ -732,23 +1090,131 @@ function updateFilters() {
     goToDate(date);
 }
 
+function setCompactMode(enabled, persist = false) {
+    const page = document.getElementById('scoresPage');
+    const detailedBtn = document.getElementById('viewModeDetailedBtn');
+    const compactBtn = document.getElementById('viewModeCompactBtn');
+    if (!page || !detailedBtn || !compactBtn) return;
+
+    page.classList.toggle('compact-mode', enabled);
+
+    // Default behavior: detailed mode shows model details expanded,
+    // compact mode collapses them to keep scan-speed high.
+    page.querySelectorAll('.game-secondary-details').forEach(el => {
+        if (enabled) {
+            el.removeAttribute('open');
+        } else {
+            el.setAttribute('open', 'open');
+        }
+    });
+
+    detailedBtn.classList.toggle('active', !enabled);
+    detailedBtn.setAttribute('aria-pressed', !enabled ? 'true' : 'false');
+
+    compactBtn.classList.toggle('active', enabled);
+    compactBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+
+    if (persist) {
+        localStorage.setItem('scores_compact_mode', enabled ? '1' : '0');
+    }
+}
+
+function setViewMode(mode) {
+    setCompactMode(mode === 'compact', true);
+}
+
+let currentScoresFilterMode = 'all';
+
+function refreshFavoriteGameButtons() {
+    document.querySelectorAll('.favorite-game-toggle').forEach(btn => {
+        const gameId = btn.dataset.gameId;
+        const homeId = btn.dataset.homeId;
+        const awayId = btn.dataset.awayId;
+
+        const explicit = typeof window.isFavoriteGame === 'function' && window.isFavoriteGame(gameId);
+        const followed = typeof window.isGameFollowed === 'function' && window.isGameFollowed(gameId, homeId, awayId);
+
+        btn.classList.remove('is-following-explicit', 'is-following-team');
+
+        if (followed) {
+            if (explicit) {
+                btn.classList.add('is-following-explicit');
+                btn.title = 'Unfollow this game';
+            } else {
+                btn.classList.add('is-following-team');
+                btn.title = 'Unfollow this game';
+            }
+            btn.innerHTML = '<i class="bi bi-star-fill"></i>';
+            btn.setAttribute('aria-label', 'Unfollow game');
+            btn.setAttribute('aria-pressed', 'true');
+        } else {
+            btn.innerHTML = '<i class="bi bi-star"></i>';
+            btn.title = 'Follow this game';
+            btn.setAttribute('aria-label', 'Follow game');
+            btn.setAttribute('aria-pressed', 'false');
+        }
+    });
+}
+
+function toggleGameFavorite(event, btn) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    if (!btn || typeof window.toggleFavoriteGame !== 'function') return;
+
+    const gameId = btn.dataset.gameId;
+    const metadata = {
+        gameId: gameId,
+        date: btn.dataset.date,
+        homeTeamId: btn.dataset.homeId,
+        awayTeamId: btn.dataset.awayId,
+        homeTeamName: btn.dataset.homeName,
+        awayTeamName: btn.dataset.awayName,
+        alertType: 'game_update_scoring',
+    };
+
+    window.toggleFavoriteGame(gameId, metadata);
+    refreshFavoriteGameButtons();
+
+    if (currentScoresFilterMode === 'favorites') {
+        filterGames('favorites');
+    }
+}
+
+function cardIsFollowed(card) {
+    const gameId = card.dataset.gameId;
+    const homeId = card.dataset.homeId;
+    const awayId = card.dataset.awayId;
+
+    if (typeof window.isGameFollowed === 'function') {
+        return window.isGameFollowed(gameId, homeId, awayId);
+    }
+
+    return false;
+}
+
 function filterGames(mode) {
+    currentScoresFilterMode = mode;
+
     // Update button states
-    document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('filter-' + mode).classList.add('active');
+    document.querySelectorAll('.scores-filter-group .btn').forEach(b => b.classList.remove('active'));
+    const active = document.getElementById('filter-' + mode);
+    if (active) active.classList.add('active');
 
     const cards = document.querySelectorAll('.game-card');
-    let visibleCount = 0;
-
     cards.forEach(card => {
+        const isRanked = card.dataset.ranked === 'true';
+        const isFollowed = cardIsFollowed(card);
+
+        let show = true;
         if (mode === 'ranked') {
-            const isRanked = card.dataset.ranked === 'true';
-            card.style.display = isRanked ? '' : 'none';
-            if (isRanked) visibleCount++;
-        } else {
-            card.style.display = '';
-            visibleCount++;
+            show = isRanked;
+        } else if (mode === 'favorites') {
+            show = isFollowed;
         }
+
+        card.style.display = show ? '' : 'none';
     });
 
     // Sort within each section
@@ -756,21 +1222,21 @@ function filterGames(mode) {
         const gameCards = Array.from(row.querySelectorAll('.game-card'));
         if (gameCards.length === 0) return;
 
-        if (mode === 'gqi') {
-            // Sort by GQI descending
-            gameCards.sort((a, b) => parseFloat(b.dataset.gqi || 0) - parseFloat(a.dataset.gqi || 0));
-        } else {
-            // Sort ranked games to top
-            gameCards.sort((a, b) => {
-                const aRanked = a.dataset.ranked === 'true';
-                const bRanked = b.dataset.ranked === 'true';
-                if (aRanked && !bRanked) return -1;
-                if (!aRanked && bRanked) return 1;
-                const aRank = Math.min(parseInt(a.dataset.homeRank) || 999, parseInt(a.dataset.awayRank) || 999);
-                const bRank = Math.min(parseInt(b.dataset.homeRank) || 999, parseInt(b.dataset.awayRank) || 999);
-                return aRank - bRank;
-            });
-        }
+        // Followed games first, then ranked games to top, then by best rank
+        gameCards.sort((a, b) => {
+            const aFollowed = cardIsFollowed(a);
+            const bFollowed = cardIsFollowed(b);
+            if (aFollowed && !bFollowed) return -1;
+            if (!aFollowed && bFollowed) return 1;
+
+            const aRanked = a.dataset.ranked === 'true';
+            const bRanked = b.dataset.ranked === 'true';
+            if (aRanked && !bRanked) return -1;
+            if (!aRanked && bRanked) return 1;
+            const aRank = Math.min(parseInt(a.dataset.homeRank) || 999, parseInt(a.dataset.awayRank) || 999);
+            const bRank = Math.min(parseInt(b.dataset.homeRank) || 999, parseInt(b.dataset.awayRank) || 999);
+            return aRank - bRank;
+        });
 
         gameCards.forEach(card => row.appendChild(card));
     });
@@ -784,8 +1250,40 @@ function filterGames(mode) {
     });
 }
 
-// Sort ranked games to top on initial load
-document.addEventListener('DOMContentLoaded', () => filterGames('all'));
+// Initialize filters + compact mode on load
+document.addEventListener('DOMContentLoaded', () => {
+    const compact = localStorage.getItem('scores_compact_mode') === '1';
+    setCompactMode(compact);
+    refreshFavoriteGameButtons();
+    filterGames('all');
+
+    // Show skeleton when moving between score dates via links.
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href^="/scores?"]');
+        if (!link) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (link.target === '_blank') return;
+        showScoresLoading('Loading selected date...');
+    });
+
+    window.addEventListener('dinger:favorites-teams-updated', function() {
+        refreshFavoriteGameButtons();
+        filterGames(currentScoresFilterMode || 'all');
+    });
+
+    window.addEventListener('dinger:favorites-games-updated', function() {
+        refreshFavoriteGameButtons();
+        filterGames(currentScoresFilterMode || 'all');
+    });
+});
+
+window.addEventListener('pageshow', function() {
+    const overlay = document.getElementById('scoresLoadingOverlay');
+    if (overlay) {
+        overlay.classList.add('d-none');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+});
 
 // ─── Live Score Updates (SSE + polling fallback) ───
 (function() {
@@ -830,13 +1328,16 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
             var sit = data.situation;
             var panel = card.querySelector('.situation-panel');
 
-            // Prefer sb_ fields over ESPN
-            var outs = sit.sb_outs !== undefined && sit.sb_outs !== null ? sit.sb_outs : sit.outs;
-            var balls = sit.sb_balls !== undefined && sit.sb_balls !== null ? sit.sb_balls : sit.balls;
-            var strikes = sit.sb_strikes !== undefined && sit.sb_strikes !== null ? sit.sb_strikes : sit.strikes;
-            var pitcher = sit.sb_pitcher || sit.pitcher || '';
-            var batter = sit.sb_batter || sit.batter || '';
+            // Prefer sb_ → sa_ → ESPN fields
+            function _pick(a, b, c) { return a !== undefined && a !== null ? a : (b !== undefined && b !== null ? b : c); }
+            var outs = _pick(sit.sb_outs, sit.sa_outs, sit.outs);
+            var balls = _pick(sit.sb_balls, sit.sa_balls, sit.balls);
+            var strikes = _pick(sit.sb_strikes, sit.sa_strikes, sit.strikes);
+            var pitcher = sit.sb_pitcher || sit.sa_pitcher || sit.pitcher || '';
+            var batter = sit.sb_batter || sit.sa_batter || sit.batter || '';
             var batter_pos = sit.sb_batter_position || '';
+            var pitchCount = sit.sa_pitcher_pitch_count;
+            var onDeck = sit.sa_on_deck || '';
 
             if (panel) {
                 // Update outs dots
@@ -857,7 +1358,7 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
                 var pitcherEl = panel.querySelector('.sit-pitcher');
                 if (pitcher) {
                     if (pitcherEl) {
-                        pitcherEl.textContent = 'P: ' + pitcher;
+                        pitcherEl.textContent = 'P: ' + pitcher + (pitchCount ? ' (' + pitchCount + ')' : '');
                     }
                 }
 
@@ -872,9 +1373,9 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
                 }
 
                 // Update base diamond SVG
-                var on1 = sit.sb_on_first !== undefined && sit.sb_on_first !== null ? sit.sb_on_first : sit.onFirst;
-                var on2 = sit.sb_on_second !== undefined && sit.sb_on_second !== null ? sit.sb_on_second : sit.onSecond;
-                var on3 = sit.sb_on_third !== undefined && sit.sb_on_third !== null ? sit.sb_on_third : sit.onThird;
+                var on1 = _pick(sit.sb_on_first, sit.sa_on_first, sit.onFirst);
+                var on2 = _pick(sit.sb_on_second, sit.sa_on_second, sit.onSecond);
+                var on3 = _pick(sit.sb_on_third, sit.sa_on_third, sit.onThird);
                 var base1 = panel.querySelector('.base-first');
                 var base2 = panel.querySelector('.base-second');
                 var base3 = panel.querySelector('.base-third');
@@ -900,14 +1401,14 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
         evtSource.addEventListener('status_change', function(e) {
             var data = JSON.parse(e.data);
             if (data.status === 'final') {
-                setTimeout(function() { window.location.reload(); }, 3000);
+                reloadWithScoresLoading(900, 'Refreshing live board...');
             } else {
                 updateGameCard(data);
             }
         });
 
         evtSource.addEventListener('game_final', function(e) {
-            setTimeout(function() { window.location.reload(); }, 3000);
+            reloadWithScoresLoading(900, 'Refreshing live board...');
         });
 
         evtSource.addEventListener('situation_update', function(e) {
@@ -975,7 +1476,7 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
                     });
 
                     if (game.status === 'final' && card.closest('.card') && card.closest('.card').querySelector('.bi-broadcast')) {
-                        setTimeout(function() { window.location.reload(); }, 3000);
+                        reloadWithScoresLoading(900, 'Refreshing live board...');
                     }
                 });
 
@@ -985,7 +1486,7 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
                 } else {
                     if (liveIndicator) liveIndicator.style.display = 'none';
                     if (hasLive && !data.has_live) {
-                        setTimeout(function() { window.location.reload(); }, 3000);
+                        reloadWithScoresLoading(900, 'Refreshing live board...');
                         return;
                     }
                     stopPolling();
@@ -1028,7 +1529,7 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         if (data.has_live) {
-                            window.location.reload();
+                            reloadWithScoresLoading(0, 'Live games just started...');
                         }
                     })
                     .catch(function() {});
@@ -1059,7 +1560,7 @@ document.addEventListener('DOMContentLoaded', () => filterGames('all'));
             var base = dx > 0 ? '{{ prev_date }}' : '{{ next_date }}';
             var url = '/scores?date=' + base;
             if (conf) url += '&conference=' + encodeURIComponent(conf);
-            window.location.href = url;
+            navigateWithScoresLoading(url, 'Loading nearby date...');
         }
     }, { passive: true });
 })();

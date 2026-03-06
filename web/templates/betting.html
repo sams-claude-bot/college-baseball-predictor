@@ -18,6 +18,31 @@
 </div>
 {% endmacro %}
 
+{% macro confidence_pill(prob, label='Conf') %}
+{% if prob is not none %}
+{% set pct = (prob * 100)|round(0)|int %}
+{% set tone = 'success' if pct >= 70 else ('primary' if pct >= 60 else 'secondary') %}
+<span class="confidence-pill confidence-pill-{{ tone }}" title="{{ label }}">
+    {{ pct }}% {{ label }}
+</span>
+{% endif %}
+{% endmacro %}
+
+{% macro edge_meter(edge, calibrated_edge=None) %}
+{% set edge_val = calibrated_edge if calibrated_edge is not none else edge %}
+{% if edge_val is none %}{% set edge_val = 0 %}{% endif %}
+{% set meter_pct = (edge_val / 12 * 100)|round(0)|int %}
+{% if meter_pct < 0 %}{% set meter_pct = 0 %}{% endif %}
+{% if meter_pct > 100 %}{% set meter_pct = 100 %}{% endif %}
+{% set tone = 'success' if edge_val >= 7 else ('primary' if edge_val >= 3 else ('warning' if edge_val > 0 else 'danger')) %}
+<div class="edge-meter" title="Edge {{ '%+.1f'|format(edge_val) }}%{% if calibrated_edge is not none %} (calibrated){% endif %}">
+    <div class="edge-meter-track">
+        <div class="edge-meter-fill edge-meter-fill-{{ tone }}" style="width: {{ meter_pct }}%;"></div>
+    </div>
+    <span class="edge-meter-label edge-meter-label-{{ tone }}">{{ '%+.1f'|format(edge_val) }}%</span>
+</div>
+{% endmacro %}
+
 {% block content %}
 <style>
 .agreement-meter {
@@ -71,6 +96,126 @@
 .agreement-meter .dot.filled.bg-success {
     box-shadow: 0 0 4px rgba(25, 135, 84, 0.5);
 }
+
+.confidence-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: .15rem .5rem;
+    font-size: .68rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.confidence-pill-success {
+    background: rgba(25, 135, 84, .15);
+    color: #198754;
+}
+
+.confidence-pill-primary {
+    background: rgba(13, 110, 253, .15);
+    color: #0d6efd;
+}
+
+.confidence-pill-secondary {
+    background: rgba(108, 117, 125, .18);
+    color: var(--text-secondary, #6c757d);
+}
+
+.edge-meter {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+.edge-meter-track {
+    position: relative;
+    flex: 1;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(108, 117, 125, .22);
+    overflow: hidden;
+}
+
+.edge-meter-fill {
+    height: 100%;
+    border-radius: 999px;
+}
+
+.edge-meter-fill-danger { background: #dc3545; }
+.edge-meter-fill-warning { background: #f59f00; }
+.edge-meter-fill-primary { background: #0d6efd; }
+.edge-meter-fill-success { background: #198754; }
+
+.edge-meter-label {
+    min-width: 44px;
+    text-align: right;
+    font-size: .74rem;
+    font-weight: 700;
+}
+
+.edge-meter-label-danger { color: #dc3545; }
+.edge-meter-label-warning { color: #f59f00; }
+.edge-meter-label-primary { color: #0d6efd; }
+.edge-meter-label-success { color: #198754; }
+
+.betting-card-metrics {
+    margin-top: .45rem;
+    padding-top: .45rem;
+    border-top: 1px solid var(--border-color, rgba(0,0,0,.08));
+}
+
+.betting-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1060;
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(1px);
+    overflow: auto;
+}
+
+html[data-theme='dark'] .betting-loading-overlay {
+    background: rgba(12, 16, 22, 0.86);
+}
+
+.betting-loading-shell {
+    max-width: 980px;
+    margin: 1rem auto;
+    padding: 0 1rem 2rem;
+}
+
+.betting-loading-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: .75rem;
+    margin-top: .75rem;
+}
+
+.betting-loading-card {
+    border: 1px solid var(--border-color);
+    border-radius: .65rem;
+    background: var(--bg-card);
+    padding: .65rem;
+}
+
+.betting-loading-line {
+    border-radius: .4rem;
+    background: linear-gradient(90deg, rgba(148, 163, 184, 0.22) 25%, rgba(148, 163, 184, 0.42) 37%, rgba(148, 163, 184, 0.22) 63%);
+    background-size: 400% 100%;
+    animation: bettingShimmer 1.25s ease-in-out infinite;
+    margin-bottom: .55rem;
+}
+
+.betting-loading-line-lg { height: 22px; width: 240px; }
+.betting-loading-line-md { height: 15px; width: 78%; }
+.betting-loading-line-sm { height: 13px; width: 56%; }
+.betting-loading-line-xs { height: 11px; width: 35%; margin-bottom: 0; }
+
+@keyframes bettingShimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+}
 </style>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -79,12 +224,28 @@
     </div>
     <div class="filter-bar">
         <select class="form-select"
-                onchange="window.location.href='/betting?conference=' + encodeURIComponent(this.value)">
+                onchange="goToBettingConference(this.value)">
             <option value="">All Conferences</option>
             {% for conf in conferences %}
             <option value="{{ conf }}" {% if selected_conference == conf %}selected{% endif %}>{{ conf }}</option>
             {% endfor %}
         </select>
+    </div>
+</div>
+
+<div id="bettingLoadingOverlay" class="betting-loading-overlay d-none" aria-hidden="true">
+    <div class="betting-loading-shell">
+        <div class="betting-loading-line betting-loading-line-lg"></div>
+        <div class="betting-loading-grid">
+            {% for _ in range(6) %}
+            <div class="betting-loading-card">
+                <div class="betting-loading-line betting-loading-line-sm"></div>
+                <div class="betting-loading-line betting-loading-line-md"></div>
+                <div class="betting-loading-line betting-loading-line-md"></div>
+                <div class="betting-loading-line betting-loading-line-xs"></div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 </div>
 
@@ -244,9 +405,6 @@
                                 {% elif game.bet_result == 'live' %}
                                 <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
                                 {% endif %}
-                                {% if game.adjusted_edge %}
-                                <span class="badge bg-success">+{{ game.adjusted_edge|round(1) }}%</span>
-                                {% endif %}
                                 {% if game.bucket %}
                                 <span class="badge bg-{{ game.bucket.color }}">{{ game.bucket.label }}</span>
                                 {% endif %}
@@ -260,23 +418,25 @@
                         </div>
                         {% endif %}
                         <h6 class="mb-1 fw-bold d-flex align-items-center">
-                            <img src="{{ team_logo(game.home_team_id if game.model_agreement.pick == 'home' else game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(game.home_team_id if game.model_agreement.pick == 'home' else game.away_team_id, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             {% if game.model_agreement.pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
                         </h6>
                         <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
                         <div class="mb-2">
                             {{ agreement_meter(game.model_agreement.count, game.model_agreement.total, 'md') }}
                         </div>
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                             <span class="fw-bold">
                                 {% if game.model_agreement.pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}
                             </span>
-                            <span class="badge bg-info" title="Raw model confidence">{{ (game.model_agreement.avg_prob * 100)|round(0) }}% conf</span>
-                            {% if game.calibrated_edge is defined and game.calibrated_edge is not none %}
-                            <span class="badge bg-{{ 'success' if game.calibrated_edge > 5 else 'warning text-dark' if game.calibrated_edge > 0 else 'danger' }}" title="Calibrated edge (adjusted for model overconfidence)">
-                                {{ game.calibrated_edge|round(1) }}% cal
-                            </span>
+                            {{ confidence_pill(game.model_agreement.avg_prob, 'conf') }}
+                            {% if game.calibrated_prob is defined and game.calibrated_prob is not none %}
+                            {{ confidence_pill(game.calibrated_prob, 'cal') }}
                             {% endif %}
+                        </div>
+
+                        <div class="betting-card-metrics">
+                            {{ edge_meter(game.adjusted_edge if game.adjusted_edge is defined else game.best_edge, game.calibrated_edge if game.calibrated_edge is defined else none) }}
                         </div>
                         {% if game.series_probs %}
                         {% set sp = game.series_probs %}
@@ -324,14 +484,6 @@
                                 {% elif game.bet_result == 'live' %}
                                 <span class="badge bg-warning text-dark"><i class="bi bi-broadcast"></i> Live</span>
                                 {% endif %}
-                                {% if game.adjusted_edge and game.adjusted_edge != game.best_edge %}
-                                <span class="badge bg-success" title="Raw: {{ game.best_edge|round(1) }}%">{{ game.adjusted_edge|round(1) }}% adj</span>
-                                {% else %}
-                                <span class="badge bg-success">+{{ game.best_edge|round(1) }}%</span>
-                                {% endif %}
-                                {% if game.models_agree and game.models_agree >= 6 %}
-                                {{ agreement_meter(game.models_agree, game.model_agreement.total if game.model_agreement else 12, 'sm') }}
-                                {% endif %}
                                 {% if game.is_underdog %}
                                 <span class="badge bg-warning text-dark" title="50% edge discount applied">🐕</span>
                                 {% endif %}
@@ -348,22 +500,29 @@
                         </div>
                         {% endif %}
                         <h6 class="mb-1 d-flex align-items-center">
-                            <img src="{{ team_logo(game.home_team_id if game.best_pick == 'home' else game.away_team_id) }}" height="24" class="me-2" onerror="this.style.display='none'">
+                            <img src="{{ team_logo(game.home_team_id if game.best_pick == 'home' else game.away_team_id, 24) }}" height="24" class="me-2" onerror="this.style.display='none'">
                             {% if game.best_pick == 'home' %}{{ game.home_team_name }}{% else %}{{ game.away_team_name }}{% endif %}
                         </h6>
                         <small class="text-muted d-block mb-2">{{ game.away_team_name }} @ {{ game.home_team_name }}</small>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>{% if game.best_pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}</span>
+                        {% set pick_prob = none %}
+                        {% if game.calibrated_prob is defined and game.calibrated_prob is not none %}
+                            {% set pick_prob = game.calibrated_prob %}
+                        {% elif game.model_home_prob is defined and game.model_home_prob is not none %}
+                            {% set pick_prob = game.model_home_prob if game.best_pick == 'home' else (1 - game.model_home_prob) %}
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                            <span class="fw-bold">{% if game.best_pick == 'home' %}{{ game.home_ml|format_odds }}{% else %}{{ game.away_ml|format_odds }}{% endif %}</span>
+                            {{ confidence_pill(pick_prob, 'conf') }}
                             {% if game.ev_per_100 %}
                             <span class="badge {% if game.ev_per_100 > 0 %}bg-success{% else %}bg-secondary{% endif %}">
-                                EV: {{ '+' if game.ev_per_100 > 0 else '' }}${{ game.ev_per_100|round(2) }}/100
+                                EV {{ '+' if game.ev_per_100 > 0 else '' }}${{ game.ev_per_100|round(2) }}/100
                             </span>
                             {% endif %}
-                            {% if game.calibrated_edge is defined and game.calibrated_edge is not none %}
-                            <span class="badge bg-{{ 'success' if game.calibrated_edge > 5 else 'warning text-dark' if game.calibrated_edge > 0 else 'danger' }}" title="Calibrated edge (adjusted for model overconfidence)">
-                                {{ game.calibrated_edge|round(1) }}% cal
-                            </span>
-                            {% endif %}
+                        </div>
+
+                        <div class="betting-card-metrics">
+                            {{ edge_meter(game.adjusted_edge if game.adjusted_edge is defined else game.best_edge, game.calibrated_edge if game.calibrated_edge is defined else none) }}
                         </div>
                         {% if game.series_probs %}
                         {% set sp = game.series_probs %}
@@ -450,7 +609,7 @@
                 <button class="btn btn-sm btn-outline-primary active" onclick="sortTable('consensus', this)" title="Model agreement">Consensus</button>
                 <button class="btn btn-sm btn-outline-success" onclick="sortTable('edge', this)" title="Edge over DK line">Edge</button>
                 <button class="btn btn-sm btn-outline-info" onclick="sortTable('ev', this)" title="Expected value per $100">EV</button>
-                <button class="btn btn-sm btn-outline-warning" onclick="sortTable('confidence', this)" title="Blended model confidence">Confidence</button>
+                <button class="btn btn-sm btn-outline-warning" onclick="sortTable('confidence', this)" title="Meta model confidence">Confidence</button>
                 <span class="badge bg-secondary align-self-center">{{ games|length }} games</span>
             </div>
         </div>
@@ -465,9 +624,9 @@
                         <th class="text-center">DK ML</th>
                         <th class="text-center">FD ML</th>
                         <th class="text-center" style="cursor:pointer" onclick="sortTable('consensus', null)">Consensus ↕</th>
-                        <th class="text-center" style="cursor:pointer" onclick="sortTable('confidence', null)">Blended ↕</th>
+                        <th class="text-center" style="cursor:pointer" onclick="sortTable('confidence', null)">Meta ↕</th>
                         <th class="text-center">Neural</th>
-                        <th class="text-center">Ensemble</th>
+                        <th class="text-center">Pitching</th>
                         <th class="text-center" style="cursor:pointer" onclick="sortTable('edge', null)">Edge ↕</th>
                         <th class="text-center">DK O/U</th>
                         <th class="text-center">FD O/U</th>
@@ -479,7 +638,7 @@
                     {% for game in games %}
                     <tr data-game-id="{{ game.game_id }}"
                         data-consensus="{{ game.model_agreement.count if game.model_agreement else 0 }}"
-                        data-confidence="{{ game.model_agreement.confidence|round(1) if game.model_agreement and game.model_agreement.confidence else 0 }}"
+                        data-confidence="{{ (([game.meta_prob, (1 - game.meta_prob)]|max) * 100)|round(1) if game.meta_prob is defined and game.meta_prob is not none else 0 }}"
                         data-edge="{{ game.best_edge|round(1) if game.best_edge else 0 }}"
                         data-ev="{{ game.ev_per_100|round(1) if game.ev_per_100 else -999 }}"
                         style="cursor:pointer" onclick="window.location='/game/{{ game.game_id }}'">
@@ -523,10 +682,10 @@
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
-                            {% if game.model_away_prob %}
+                            {% if game.meta_prob is defined and game.meta_prob is not none %}
                             <div class="d-flex flex-column">
-                                <span>{{ (game.model_away_prob * 100)|round(1) }}%</span>
-                                <span>{{ (game.model_home_prob * 100)|round(1) }}%</span>
+                                <span>{{ ((1 - game.meta_prob) * 100)|round(1) }}%</span>
+                                <span>{{ (game.meta_prob * 100)|round(1) }}%</span>
                             </div>
                             {% else %}—{% endif %}
                         </td>
@@ -539,10 +698,10 @@
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-center">
-                            {% if game.ens_prob is not none %}
+                            {% if game.pitching_prob is defined and game.pitching_prob is not none %}
                             <div class="d-flex flex-column">
-                                <span>{{ ((1 - game.ens_prob) * 100)|round(1) }}%</span>
-                                <span>{{ (game.ens_prob * 100)|round(1) }}%</span>
+                                <span>{{ ((1 - game.pitching_prob) * 100)|round(1) }}%</span>
+                                <span>{{ (game.pitching_prob * 100)|round(1) }}%</span>
                             </div>
                             {% else %}—{% endif %}
                         </td>
@@ -617,7 +776,7 @@
             <div class="card-body">
                 <h6><i class="bi bi-lightning-charge text-success"></i> Highest EV (Edge Over DK)</h6>
                 <p class="small text-muted mb-0">
-                    Edge = Model probability - DK implied probability. <strong>5%+ edge</strong> means our blended model sees more value than the line suggests.
+                    Edge = Model probability - DK implied probability. <strong>5%+ edge</strong> means our primary model (meta-ensemble, fallback legacy ensemble) sees more value than the line suggests.
                 </p>
             </div>
         </div>
@@ -633,6 +792,24 @@
 </div>
 
 <script>
+function showBettingLoading(message) {
+    const overlay = document.getElementById('bettingLoadingOverlay');
+    if (!overlay) return;
+
+    if (message) {
+        const heading = overlay.querySelector('.betting-loading-line-lg');
+        if (heading) heading.setAttribute('aria-label', message);
+    }
+
+    overlay.classList.remove('d-none');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function goToBettingConference(conf) {
+    showBettingLoading('Loading conference board...');
+    window.location.href = '/betting?conference=' + encodeURIComponent(conf || '');
+}
+
 function sortTable(criterion, btn) {
     const table = document.getElementById('allGamesTable');
     if (!table) return;
@@ -676,13 +853,49 @@ function sortTable(criterion, btn) {
 }
 
 // Sort by consensus on page load
-document.addEventListener('DOMContentLoaded', () => sortTable('consensus', document.querySelector('.btn-sm.active')));
+document.addEventListener('DOMContentLoaded', () => {
+    sortTable('consensus', document.querySelector('.btn-sm.active'));
+
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href^="/betting?"]');
+        if (!link) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (link.target === '_blank') return;
+        showBettingLoading('Loading betting board...');
+    });
+});
+
+window.addEventListener('pageshow', function() {
+    const overlay = document.getElementById('bettingLoadingOverlay');
+    if (overlay) {
+        overlay.classList.add('d-none');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+});
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+let _html2canvasLoader = null;
+
+function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    if (_html2canvasLoader) return _html2canvasLoader;
+
+    _html2canvasLoader = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.async = true;
+        script.onload = () => resolve(window.html2canvas);
+        script.onerror = () => reject(new Error('Failed to load html2canvas'));
+        document.head.appendChild(script);
+    });
+    return _html2canvasLoader;
+}
+
 async function shareParlay() {
     const card = document.getElementById('parlayShareCard');
     if (!card) return;
+    const btn = document.querySelector('[onclick="shareParlay()"]');
+    const origHtml = btn ? btn.innerHTML : '';
     
     // Temporarily make visible for rendering
     card.style.position = 'fixed';
@@ -692,6 +905,12 @@ async function shareParlay() {
     card.style.opacity = '1';
     
     try {
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Preparing...';
+        }
+
+        const html2canvas = await loadHtml2Canvas();
         const canvas = await html2canvas(card.firstElementChild, {
             backgroundColor: null,
             scale: 2,
@@ -727,16 +946,18 @@ async function shareParlay() {
             a.download = 'parlay-of-the-day.png';
             a.click();
             URL.revokeObjectURL(url);
-            const btn = document.querySelector('[onclick="shareParlay()"]');
-            const origHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="bi bi-download"></i> Downloaded!';
-            setTimeout(() => btn.innerHTML = origHtml, 2000);
+            if (btn) {
+                btn.innerHTML = '<i class="bi bi-download"></i> Downloaded!';
+                setTimeout(() => btn.innerHTML = origHtml, 2000);
+            }
         }, 'image/png');
     } catch (e) {
         card.style.position = 'absolute';
         card.style.left = '-9999px';
         console.error('Share failed:', e);
         alert('Failed to generate image');
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 </script>
