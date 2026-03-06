@@ -218,6 +218,14 @@ def main():
             
             if current_status == 'scheduled':
                 new_status = 'final' if dg['over'] else 'in-progress'
+
+                # DH guard: never mark a game in-progress if its counterpart already is
+                if new_status == 'in-progress':
+                    partner_id = game_id[:-4] if game_id.endswith('_gm2') else game_id + '_gm2'
+                    partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
+                    if partner and partner['status'] == 'in-progress':
+                        continue
+
                 updates = {"status": new_status}
                 
                 # Set scores if D1B has them

@@ -617,6 +617,14 @@ def write_change_to_db(change):
                     conn.close()
                     return
 
+            # DH guard: don't mark a game in-progress if its counterpart already is
+            partner_id = game_id[:-4] if game_id.endswith('_gm2') else game_id + '_gm2'
+            partner = conn.execute("SELECT status FROM games WHERE id = ?", (partner_id,)).fetchone()
+            if partner and (partner[0] if isinstance(partner, tuple) else partner['status']) == 'in-progress':
+                log.debug('DH guard: skipping %s, partner %s is already in-progress', game_id, partner_id)
+                conn.close()
+                return
+
         if db_status == 'final' and home_score is not None and away_score is not None:
             gw.finalize_game(game_id, home_score, away_score)
         elif db_status == 'in-progress' and home_score is not None and away_score is not None:
