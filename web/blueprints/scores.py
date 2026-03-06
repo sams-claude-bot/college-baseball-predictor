@@ -185,25 +185,82 @@ def scores():
         nn_total = sum(1 for g in games if g.get('nn_correct') is not None)
 
     # Split into completed, in-progress, scheduled, and postponed
-    # Games marked in-progress by ESPN but with no score data are treated as
-    # scheduled (avoids phantom duplicates for doubleheaders where only one
-    # game is actually live).
     completed_games = [g for g in games if g['status'] == 'final']
-    all_in_progress = [
-        g for g in games
-        if g['status'] == 'in-progress'
-        and (g.get('home_score') is not None or g.get('away_score') is not None
-             or g.get('inning_text') or g.get('situation'))
-    ]
-    phantom_live = [
-        g for g in games
-        if g['status'] == 'in-progress'
-        and g.get('home_score') is None and g.get('away_score') is None
-        and not g.get('inning_text') and not g.get('situation')
-    ]
+    raw_in_progress = [g for g in games if g['status'] == 'in-progress']
     postponed_games = [g for g in games if g['status'] in ('postponed', 'canceled')]
     scheduled_games = [g for g in games if g['status'] not in ('final', 'in-progress', 'postponed', 'canceled')]
-    scheduled_games.extend(phantom_live)  # demote phantoms to scheduled
+
+    # --- Doubleheader deduplication ---
+    # ESPN often marks both DH games as in-progress simultaneously (same
+    # score and inning) even when only one is actually playing.  Detect
+    # duplicate DH pairs and keep only the one with the best data.
+    def _has_detailed_stats(g):
+        sit = g.get('situation')
+        if not sit:
+            return False
+        return sit.get('sb_outs') is not None or sit.get('sb_pitcher') or \
+               sit.get('sa_outs') is not None or sit.get('sa_pitcher')
+
+    def _has_any_data(g):
+        return (g.get('home_score') is not None or g.get('away_score') is not None
+                or g.get('inning_text') or g.get('situation'))
+
+    ip_by_id = {g['id']: g for g in raw_in_progress}
+    demoted_ids = set()
+
+    for g in raw_in_progress:
+        gid = g['id']
+        if gid in demoted_ids:
+            continue
+
+        # Find DH counterpart
+        if gid.endswith('_gm2'):
+            partner_id = gid[:-4]  # strip _gm2
+        else:
+            partner_id = gid + '_gm2'
+
+        partner = ip_by_id.get(partner_id)
+        if not partner or partner['id'] in demoted_ids:
+            continue
+
+        g_stats = _has_detailed_stats(g)
+        p_stats = _has_detailed_stats(partner)
+        g_data = _has_any_data(g)
+        p_data = _has_any_data(partner)
+
+        # Case 1: one has SB/SA data, the other doesn't → demote the other
+        if g_stats and not p_stats:
+            demoted_ids.add(partner['id'])
+        elif p_stats and not g_stats:
+            demoted_ids.add(gid)
+        # Case 2: neither has SB/SA, same score → demote the gm2 (ESPN double-count)
+        elif not g_stats and not p_stats:
+            same_score = (g.get('home_score') == partner.get('home_score') and
+                          g.get('away_score') == partner.get('away_score'))
+            if same_score:
+                # Demote gm2 (or the one with no data)
+                if not p_data:
+                    demoted_ids.add(partner['id'])
+                elif not g_data:
+                    demoted_ids.add(gid)
+                elif gid.endswith('_gm2'):
+                    demoted_ids.add(gid)
+                else:
+                    demoted_ids.add(partner['id'])
+        # Case 3: both have SB/SA with same score → keep the one with fresher data
+        elif g_stats and p_stats:
+            same_score = (g.get('home_score') == partner.get('home_score') and
+                          g.get('away_score') == partner.get('away_score'))
+            if same_score:
+                # Keep whichever has a more recent situation update
+                if gid.endswith('_gm2'):
+                    demoted_ids.add(gid)
+                else:
+                    demoted_ids.add(partner['id'])
+
+    all_in_progress = [g for g in raw_in_progress if g['id'] not in demoted_ids and _has_any_data(g)]
+    phantom_live = [g for g in raw_in_progress if g['id'] in demoted_ids or not _has_any_data(g)]
+    scheduled_games.extend(phantom_live)  # demote phantoms + DH dupes to scheduled
 
     # Tag doubleheader games with game_number (1 or 2) for display
     all_game_ids = {g['id'] for g in games}
