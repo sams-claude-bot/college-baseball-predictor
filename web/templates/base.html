@@ -1563,6 +1563,22 @@
             _dispatchFavoriteGamesUpdated();
         }
 
+        // Merge game exclusions (unfollowed games from team-follows)
+        var localExclusions = getFavoriteGameExclusionsMap();
+        var serverExclusions = Array.isArray(data.exclusions) ? data.exclusions : [];
+        var mergedExclusionMap = Object.assign({}, localExclusions);
+        serverExclusions.forEach(function(gid) {
+            if (gid && !mergedExclusionMap[gid]) {
+                mergedExclusionMap[gid] = { gameId: gid, savedAt: new Date().toISOString() };
+            }
+        });
+        var exclSigBefore = Object.keys(localExclusions).filter(Boolean).sort().join('|');
+        var exclSigAfter = Object.keys(mergedExclusionMap).filter(Boolean).sort().join('|');
+        if (exclSigBefore !== exclSigAfter) {
+            _writeJsonObject('favorite_game_exclusions', mergedExclusionMap);
+            _dispatchFavoriteGamesUpdated();
+        }
+
         return data;
     }
 
@@ -1581,6 +1597,7 @@
                 body: JSON.stringify({
                     teams: getFavoriteTeams(),
                     games: getFavoriteGamesMap(),
+                    exclusions: getExcludedGameIds(),
                 }),
             });
         } catch (err) {

@@ -74,6 +74,14 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (account_id) REFERENCES user_accounts(id)
         );
 
+        CREATE TABLE IF NOT EXISTS account_game_exclusions (
+            account_id INTEGER NOT NULL,
+            game_id TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (account_id, game_id),
+            FOREIGN KEY (account_id) REFERENCES user_accounts(id)
+        );
+
         CREATE TABLE IF NOT EXISTS account_link_codes (
             code TEXT PRIMARY KEY,
             account_id INTEGER NOT NULL,
@@ -92,6 +100,18 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+
+
+def cleanup_expired(conn: sqlite3.Connection):
+    """Purge expired link codes and orphaned sessions. Best-effort."""
+    try:
+        conn.execute("DELETE FROM account_link_codes WHERE datetime(expires_at) < datetime('now')")
+        conn.execute(
+            "DELETE FROM account_sessions WHERE expires_at IS NOT NULL AND datetime(expires_at) < datetime('now')"
+        )
+        conn.commit()
+    except Exception:
+        pass  # Non-fatal
 
 
 def _create_account(conn: sqlite3.Connection) -> Tuple[int, str]:
@@ -273,12 +293,22 @@ def get_account_state(conn: sqlite3.Connection, account_id: int) -> dict:
         meta['gameId'] = game_id
         games[game_id] = meta
 
-    return {'teams': teams, 'games': games}
+    # Game exclusions (games unfollowed from team-follows)
+    exclusions = [
+        r['game_id']
+        for r in conn.execute(
+            "SELECT game_id FROM account_game_exclusions WHERE account_id = ? ORDER BY game_id",
+            (account_id,),
+        ).fetchall()
+    ]
+
+    return {'teams': teams, 'games': games, 'exclusions': exclusions}
 
 
-def save_account_state(conn: sqlite3.Connection, account_id: int, team_ids, games_input) -> dict:
+def save_account_state(conn: sqlite3.Connection, account_id: int, team_ids, games_input, exclusions_input=None) -> dict:
     teams = _normalize_teams(team_ids)
     games = _normalize_games(games_input)
+    exclusions = _normalize_teams(exclusions_input)  # reuse: list of game_id strings
 
     conn.execute("DELETE FROM account_favorite_teams WHERE account_id = ?", (account_id,))
     if teams:
@@ -302,6 +332,14 @@ def save_account_state(conn: sqlite3.Connection, account_id: int, team_ids, game
             ],
         )
 
+    # Sync game exclusions (games unfollowed from team-follows)
+    conn.execute("DELETE FROM account_game_exclusions WHERE account_id = ?", (account_id,))
+    if exclusions:
+        conn.executemany(
+            "INSERT INTO account_game_exclusions (account_id, game_id, created_at) VALUES (?, ?, ?)",
+            [(account_id, gid, _utc_now_sql()) for gid in exclusions],
+        )
+
     conn.execute(
         "UPDATE user_accounts SET updated_at = ? WHERE id = ?",
         (_utc_now_sql(), account_id),
@@ -311,6 +349,7 @@ def save_account_state(conn: sqlite3.Connection, account_id: int, team_ids, game
     return {
         'teams_count': len(teams),
         'games_count': len(games),
+        'exclusions_count': len(exclusions),
     }
 
 
@@ -367,6 +406,20 @@ def _merge_accounts(conn: sqlite3.Connection, source_account_id: int, target_acc
         (target_account_id, _utc_now_sql(), _utc_now_sql(), source_account_id),
     )
 
+    # Merge game exclusions.
+    try:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO account_game_exclusions (account_id, game_id, created_at)
+            SELECT ?, game_id, ?
+            FROM account_game_exclusions
+            WHERE account_id = ?
+            """,
+            (target_account_id, _utc_now_sql(), source_account_id),
+        )
+    except sqlite3.OperationalError:
+        pass  # Table may not exist on older DBs; non-fatal
+
     # If notification subscriptions are account-linked, move them to target.
     if _push_subscriptions_exists(conn):
         cols = [r[1] for r in conn.execute("PRAGMA table_info(push_subscriptions)").fetchall()]
@@ -375,6 +428,14 @@ def _merge_accounts(conn: sqlite3.Connection, source_account_id: int, target_acc
                 "UPDATE push_subscriptions SET account_id = ? WHERE account_id = ?",
                 (target_account_id, source_account_id),
             )
+
+    # Clean up source account data (now merged into target).
+    conn.execute("DELETE FROM account_favorite_teams WHERE account_id = ?", (source_account_id,))
+    conn.execute("DELETE FROM account_favorite_games WHERE account_id = ?", (source_account_id,))
+    try:
+        conn.execute("DELETE FROM account_game_exclusions WHERE account_id = ?", (source_account_id,))
+    except sqlite3.OperationalError:
+        pass
 
     conn.execute(
         "UPDATE user_accounts SET updated_at = ? WHERE id IN (?, ?)",

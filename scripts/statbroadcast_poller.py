@@ -1185,7 +1185,7 @@ class StatBroadcastPoller:
     def _check_final_notifications(self, game_id):
         """Send final score notifications when a game completes."""
         try:
-            from notifications import send_team_notification, ensure_tables
+            from notifications import send_team_notification, send_game_notification, ensure_tables
             ensure_tables(self.conn)
 
             row = self.conn.execute("""
@@ -1210,19 +1210,30 @@ class StatBroadcastPoller:
             winner = home_name if h_score > a_score else away_name
             score_line = f"{away_name} {a_score}, {home_name} {h_score}"
 
+            final_payload = {
+                'title': f"🏁 Final{extra}: {score_line}",
+                'body': f"{winner} wins!",
+                'url': f"/game/{game_id}",
+                'tag': f"final-{game_id}",
+                'game_id': game_id,
+            }
+
             for team_id in (home_tid, away_tid):
                 send_team_notification(
                     team_id, 'final_score',
-                    {
-                        'title': f"🏁 Final{extra}: {score_line}",
-                        'body': f"{winner} wins!",
-                        'url': f"/game/{game_id}",
-                        'tag': f"final-{game_id}",
-                        'game_id': game_id,
-                    },
+                    final_payload,
                     dedup_key=f"final:{game_id}:{team_id}",
                     conn=self.conn,
                 )
+
+            # Also send to explicit game-follow subscribers.
+            send_game_notification(
+                game_id,
+                'final_score',
+                final_payload,
+                dedup_key=f"final:{game_id}:game",
+                conn=self.conn,
+            )
         except Exception as e:
             logger.warning("Final notification error for %s: %s", game_id, e)
 

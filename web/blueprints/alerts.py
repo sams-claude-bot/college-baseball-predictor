@@ -170,6 +170,49 @@ def test_push():
         return jsonify({'error': 'Push delivery failed'}), 500
 
 
+@alerts_bp.route('/api/push/preferences', methods=['POST'])
+def get_preferences():
+    """Return saved alert preferences for the given subscription endpoint."""
+    data = request.get_json() or {}
+    sub = data.get('subscription') or {}
+    endpoint = sub.get('endpoint')
+    if not endpoint:
+        return jsonify({'error': 'Missing endpoint'}), 400
+
+    conn = get_connection()
+    ensure_tables(conn)
+
+    row = conn.execute(
+        "SELECT id FROM push_subscriptions WHERE endpoint = ? AND active = 1",
+        (endpoint,),
+    ).fetchone()
+
+    if not row:
+        conn.close()
+        return jsonify({'ok': True, 'preferences': []})
+
+    sub_id = row['id']
+    prefs = conn.execute(
+        "SELECT alert_type, team_id, conference, game_id, enabled FROM alert_preferences WHERE subscription_id = ?",
+        (sub_id,),
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        'ok': True,
+        'preferences': [
+            {
+                'alert_type': p['alert_type'],
+                'team_id': p['team_id'],
+                'conference': p['conference'],
+                'game_id': p['game_id'],
+                'enabled': bool(p['enabled']),
+            }
+            for p in prefs
+        ],
+    })
+
+
 @alerts_bp.route('/api/push/vapid-key')
 def vapid_key():
     """Return the VAPID public key for client-side subscription."""

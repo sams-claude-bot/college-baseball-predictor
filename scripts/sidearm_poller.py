@@ -259,9 +259,21 @@ class SidearmPoller:
         self._running = True
         self._school_codes: Dict[str, Optional[str]] = {}  # domain → code
         self._prev_scores: Dict[str, Tuple[int, int]] = {}  # game_id → (visitor, home)
+        self._notif_dispatcher = None  # Lazy-init shared notification dispatcher
 
     def stop(self):
         self._running = False
+
+    def _get_notif_dispatcher(self):
+        """Lazy-init the shared notification dispatcher."""
+        if self._notif_dispatcher is None:
+            try:
+                from game_notifications import GameNotificationDispatcher
+                self._notif_dispatcher = GameNotificationDispatcher(self.conn)
+            except ImportError:
+                logger.debug("game_notifications module not available")
+                self._notif_dispatcher = False  # Sentinel: don't retry
+        return self._notif_dispatcher if self._notif_dispatcher else None
 
     def _get_school_code(self, domain: str, link_id: int) -> Optional[str]:
         """Get school code for a domain, caching in memory and DB."""
@@ -349,6 +361,24 @@ class SidearmPoller:
 
                 # Score change detection
                 self._check_score_change(game_id, sa_fields)
+
+                # Push notifications (half-inning transitions, recaps, upsets)
+                dispatcher = self._get_notif_dispatcher()
+                if dispatcher:
+                    try:
+                        dispatcher.check(game_id, {
+                            'inning': sa_fields.get('sa_inning'),
+                            'inning_half': sa_fields.get('sa_inning_half'),
+                            'home_score': sa_fields.get('sa_home_score'),
+                            'visitor_score': sa_fields.get('sa_visitor_score'),
+                            'outs': sa_fields.get('sa_outs', 0),
+                            'on_first': sa_fields.get('sa_on_first', False),
+                            'on_second': sa_fields.get('sa_on_second', False),
+                            'on_third': sa_fields.get('sa_on_third', False),
+                            'inning_display': sa_fields.get('sa_inning_display'),
+                        })
+                    except Exception as e:
+                        logger.debug("Notification check failed (non-fatal): %s", e)
 
                 # Update game scores
                 self._update_scores(game_id, sa_fields)
@@ -439,14 +469,8 @@ class SidearmPoller:
                 game_id, prev[0], prev[1], current[0], current[1]
             )
 
-            # Optional push notifications
-            try:
-                from notifications import send_push_notifications
-                send_push_notifications(game_id, event_data)
-            except (ImportError, AttributeError):
-                pass
-            except Exception as e:
-                logger.debug("Notification send failed (non-fatal): %s", e)
+            # Note: push notifications are handled by the dispatcher.check()
+            # call in poll_once after _check_score_change.
 
     def _update_scores(self, game_id: str, sa_fields: Dict[str, Any]):
         """Update games table scores from SIDEARM data."""
@@ -513,6 +537,15 @@ class SidearmPoller:
                   final_innings, winner_id,
                   datetime.utcnow().isoformat(), game_id))
             self.conn.commit()
+
+        # Send final score notifications
+        dispatcher = self._get_notif_dispatcher()
+        if dispatcher:
+            try:
+                dispatcher.check_final(game_id)
+                dispatcher.cleanup_game(game_id)
+            except Exception as e:
+                logger.debug("Final notification failed (non-fatal): %s", e)
 
         logger.info("Game %s marked complete from SIDEARM", game_id)
 

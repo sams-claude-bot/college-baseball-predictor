@@ -141,15 +141,42 @@ def save_preferences(subscription_id, preferences, conn=None):
       - team_id (optional)
       - conference (optional)
       - game_id (optional)
+
+    Game-follow prefs from /api/push/game-follow that aren't explicitly
+    included in the new preference list are preserved (not deleted).
     """
     close = False
     if conn is None:
         conn = sqlite3.connect(str(DB_PATH))
         close = True
 
-    # Clear existing preferences for this subscription
-    conn.execute("DELETE FROM alert_preferences WHERE subscription_id = ?",
-                 (subscription_id,))
+    # Collect game_ids being saved in this batch so we know which to preserve.
+    incoming_game_ids = set()
+    for pref in preferences:
+        gid = pref.get('game_id')
+        if gid:
+            incoming_game_ids.add(gid)
+
+    # Delete non-game prefs (team/conference/wildcard) and game prefs that
+    # ARE in the incoming batch (they'll be re-created below). Preserve
+    # game-follow prefs NOT in the batch — those were set via the separate
+    # /api/push/game-follow endpoint.
+    if incoming_game_ids:
+        conn.execute(
+            "DELETE FROM alert_preferences WHERE subscription_id = ? AND game_id IS NULL",
+            (subscription_id,),
+        )
+        placeholders = ','.join('?' for _ in incoming_game_ids)
+        conn.execute(
+            f"DELETE FROM alert_preferences WHERE subscription_id = ? AND game_id IN ({placeholders})",
+            (subscription_id, *incoming_game_ids),
+        )
+    else:
+        # No game prefs in batch — only clear non-game prefs.
+        conn.execute(
+            "DELETE FROM alert_preferences WHERE subscription_id = ? AND game_id IS NULL",
+            (subscription_id,),
+        )
 
     for pref in preferences:
         alert_type = (pref.get('alert_type') or '').strip()
@@ -239,7 +266,7 @@ def get_subscribers_for_team(team_id, alert_type, conn=None):
           AND ap.enabled = 1
           AND ap.alert_type = ?
           AND ap.game_id IS NULL
-          AND (ap.team_id = ? OR ap.team_id IS NULL)
+          AND ap.team_id = ?
     """, (alert_type, team_id)).fetchall()
 
     if close:
@@ -262,7 +289,7 @@ def get_subscribers_for_conference(conference, alert_type, conn=None):
           AND ap.enabled = 1
           AND ap.alert_type = ?
           AND ap.game_id IS NULL
-          AND (ap.conference = ? OR ap.conference IS NULL)
+          AND ap.conference = ?
     """, (alert_type, conference)).fetchall()
 
     if close:
@@ -271,7 +298,11 @@ def get_subscribers_for_conference(conference, alert_type, conn=None):
 
 
 def get_subscribers_for_game(game_id, alert_type, conn=None):
-    """Get active push subscriptions that want alerts for a specific game."""
+    """Get active push subscriptions that want alerts for a specific game.
+
+    Following a game means you want ALL notification types for it,
+    so we match any active preference for this game_id (ignoring alert_type).
+    """
     close = False
     if conn is None:
         conn = sqlite3.connect(str(DB_PATH))
@@ -283,9 +314,8 @@ def get_subscribers_for_game(game_id, alert_type, conn=None):
         JOIN alert_preferences ap ON ps.id = ap.subscription_id
         WHERE ps.active = 1
           AND ap.enabled = 1
-          AND ap.alert_type = ?
           AND ap.game_id = ?
-    """, (alert_type, game_id)).fetchall()
+    """, (game_id,)).fetchall()
 
     if close:
         conn.close()

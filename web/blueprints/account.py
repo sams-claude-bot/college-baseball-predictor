@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 from scripts.account_store import (
     SESSION_COOKIE_NAME,
     SESSION_MAX_AGE_SECONDS,
+    cleanup_expired,
     create_link_code,
     ensure_account_session,
     ensure_tables,
@@ -40,6 +41,7 @@ def bootstrap_account():
     """Ensure this browser has an account session and return summary."""
     conn = get_connection()
     ensure_tables(conn)
+    cleanup_expired(conn)
 
     incoming = request.cookies.get(SESSION_COOKIE_NAME)
     account_id, public_id, session_token, created = ensure_account_session(conn, incoming)
@@ -80,17 +82,18 @@ def account_state():
 
 @account_bp.route('/api/account/favorites', methods=['POST'])
 def save_favorites():
-    """Replace server-side favorites (teams + games) for this account."""
+    """Replace server-side favorites (teams + games + exclusions) for this account."""
     data = request.get_json() or {}
     teams = data.get('teams', [])
     games = data.get('games', {})
+    exclusions = data.get('exclusions', [])
 
     conn = get_connection()
     ensure_tables(conn)
 
     incoming = request.cookies.get(SESSION_COOKIE_NAME)
     account_id, public_id, session_token, _created = ensure_account_session(conn, incoming)
-    counts = save_account_state(conn, account_id, teams, games)
+    counts = save_account_state(conn, account_id, teams, games, exclusions_input=exclusions)
 
     payload = {
         'ok': True,

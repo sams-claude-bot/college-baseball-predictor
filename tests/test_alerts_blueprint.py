@@ -183,6 +183,47 @@ def test_game_follow_preference_upsert_and_remove(alerts_client):
     assert active_subs == 1
 
 
+def test_save_preferences_preserves_unrelated_game_follows(alerts_client):
+    """Game-follow prefs set via /api/push/game-follow should survive
+    a full save_preferences call that doesn't include that game_id."""
+    client, db_path = alerts_client
+
+    sub = _subscription('https://push.example/sub-preserve')
+
+    # Step 1: Follow a game via game-follow endpoint
+    resp1 = client.post('/api/push/game-follow', json={
+        'subscription': sub,
+        'game_id': '2026-03-05_auburn_tennessee',
+        'enabled': True,
+        'alert_type': 'game_update_scoring',
+    })
+    assert resp1.status_code == 200
+
+    # Step 2: Save preferences (team-level) — should NOT wipe game follow
+    resp2 = client.post('/api/push/subscribe', json={
+        'subscription': sub,
+        'preferences': [
+            {'alert_type': 'game_update_scoring', 'team_id': 'lsu'},
+            {'alert_type': 'final_score', 'team_id': 'lsu'},
+        ],
+    })
+    assert resp2.status_code == 200
+
+    # Step 3: Verify game follow survived
+    conn = sqlite3.connect(db_path)
+    game_prefs = conn.execute(
+        "SELECT alert_type, game_id FROM alert_preferences WHERE game_id IS NOT NULL"
+    ).fetchall()
+    team_prefs = conn.execute(
+        "SELECT alert_type, team_id FROM alert_preferences WHERE team_id IS NOT NULL"
+    ).fetchall()
+    conn.close()
+
+    assert len(game_prefs) == 1
+    assert game_prefs[0] == ('game_update_scoring', '2026-03-05_auburn_tennessee')
+    assert len(team_prefs) == 2
+
+
 def test_game_follow_rejects_unsupported_alert_type(alerts_client):
     client, _ = alerts_client
 

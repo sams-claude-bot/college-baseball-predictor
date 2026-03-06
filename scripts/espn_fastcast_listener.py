@@ -471,6 +471,47 @@ def _nested_set(obj, path, value):
 
 # ── DB Writer ────────────────────────────────────────────────────
 
+# Module-level notification dispatcher (shared across all write_change_to_db calls)
+_espn_notif_dispatcher = None
+
+
+def _get_espn_notif_dispatcher(conn):
+    """Lazy-init notification dispatcher for ESPN games."""
+    global _espn_notif_dispatcher
+    if _espn_notif_dispatcher is None:
+        try:
+            from game_notifications import GameNotificationDispatcher
+            _espn_notif_dispatcher = GameNotificationDispatcher(conn)
+        except ImportError:
+            log.debug("game_notifications module not available for ESPN")
+            return None
+    else:
+        # Update conn reference (each write_change_to_db call gets a fresh conn)
+        _espn_notif_dispatcher.conn = conn
+    return _espn_notif_dispatcher
+
+
+def _parse_espn_inning(inning_text):
+    """Parse ESPN inning_text like 'Top 5th', 'Bot 7th', 'End 3rd' into (inning, half)."""
+    if not inning_text:
+        return None, None
+    text = inning_text.strip().lower()
+    half = None
+    if text.startswith('top'):
+        half = 'top'
+    elif text.startswith('bot') or text.startswith('bottom'):
+        half = 'bottom'
+    elif text.startswith('end'):
+        half = 'bottom'
+    elif text.startswith('mid'):
+        half = 'top'  # Mid-inning → between halves, treat as end of top
+
+    import re
+    nums = re.findall(r'\d+', text)
+    inning = int(nums[0]) if nums else None
+    return inning, half
+
+
 def write_change_to_db(change):
     """Write a detected change to the database."""
     conn = sqlite3.connect(DB_PATH, timeout=30)
@@ -569,6 +610,31 @@ def write_change_to_db(change):
                  change['away_db_id'], away_score or 0,
                  home_score or 0, change['home_db_id'],
                  change['inning_text'])
+
+        # ── Push notifications ──
+        try:
+            dispatcher = _get_espn_notif_dispatcher(conn)
+            if dispatcher:
+                if db_status == 'final':
+                    dispatcher.check_final(game_id)
+                    dispatcher.cleanup_game(game_id)
+                elif db_status == 'in-progress' and home_score is not None and away_score is not None:
+                    inning, half = _parse_espn_inning(change.get('inning_text', ''))
+                    sit = change.get('situation') or {}
+                    if inning and half:
+                        dispatcher.check(game_id, {
+                            'inning': inning,
+                            'inning_half': half,
+                            'home_score': home_score,
+                            'visitor_score': away_score,
+                            'outs': sit.get('outs', 0),
+                            'on_first': sit.get('onFirst', False),
+                            'on_second': sit.get('onSecond', False),
+                            'on_third': sit.get('onThird', False),
+                            'inning_display': change.get('inning_text'),
+                        })
+        except Exception as e:
+            log.debug('Notification dispatch failed (non-fatal): %s', e)
 
     except Exception as e:
         log.error('Error writing change to DB: %s', e)

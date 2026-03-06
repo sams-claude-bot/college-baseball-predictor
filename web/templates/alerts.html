@@ -504,6 +504,8 @@ function showGranted() {
     document.getElementById('notif-ready').classList.add('d-none');
     document.getElementById('notif-granted').classList.remove('d-none');
     document.getElementById('notif-denied').classList.add('d-none');
+    // Load saved preferences once we have a subscription
+    loadSavedPreferences();
 }
 
 function showDenied() {
@@ -517,6 +519,34 @@ function showStatus(msg, type) {
     el.textContent = msg;
     el.classList.remove('d-none');
     setTimeout(() => el.classList.add('d-none'), 5000);
+}
+
+// --- Restore saved preferences from server ---
+async function loadSavedPreferences() {
+    if (!currentSubscription) return;
+    const sub = currentSubscription.toJSON();
+    try {
+        const resp = await fetch('/api/push/preferences', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ subscription: sub })
+        });
+        const data = await resp.json();
+        if (!data.ok || !data.preferences || !data.preferences.length) return;
+
+        const types = new Set();
+        data.preferences.forEach(function(p) {
+            if (p.enabled) types.add(p.alert_type);
+        });
+
+        // Restore checkboxes based on what's actually saved server-side
+        document.getElementById('alert-half-inning-score').checked = types.has('game_update_scoring');
+        document.getElementById('alert-score-change').checked = types.has('score_change');
+        document.getElementById('alert-final-score').checked = types.has('final_score');
+        document.getElementById('alert-upset-watch').checked = types.has('upset_watch');
+    } catch (err) {
+        console.debug('Could not load saved preferences:', err);
+    }
 }
 
 // Init on load
