@@ -320,7 +320,7 @@ html[data-theme='dark'] .betting-loading-overlay {
 {% endif %}
 
 <!-- 4-Leg Parlay -->
-{% if parlay_legs and parlay_legs|length == 4 %}
+{% if parlay_legs and parlay_legs|length >= 3 %}
 <div class="card mb-4">
     <div class="card-header" style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white;">
         <div class="d-flex justify-content-between align-items-center">
