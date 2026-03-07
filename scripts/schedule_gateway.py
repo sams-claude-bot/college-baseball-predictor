@@ -192,6 +192,27 @@ class ScheduleGateway:
             """, (date, f"%_gm{game_num}", f"%_g{game_num}",
                   home_id, away_id, away_id, home_id)).fetchone()
 
+        if row:
+            return row
+
+        # --- 5. Cross-date: same team pair, postponed, within ±7 days ---
+        # Only match postponed games with no real scores (confirmed not played).
+        # This handles games that moved to a new date after weather postponement.
+        row = c.execute("""
+            SELECT * FROM games
+            WHERE date != ?
+              AND abs(julianday(?) - julianday(date)) <= 7
+              AND status = 'postponed'
+              AND (home_score IS NULL OR home_score = 0)
+              AND (away_score IS NULL OR away_score = 0)
+              AND (
+                (home_team_id = ? AND away_team_id = ?) OR
+                (home_team_id = ? AND away_team_id = ?)
+              )
+            ORDER BY abs(julianday(?) - julianday(date))
+            LIMIT 1
+        """, (date, date, home_id, away_id, away_id, home_id, date)).fetchone()
+
         return row  # may be None
 
     # ------------------------------------------------------------------
