@@ -16,6 +16,9 @@ python3 -u scripts/d1b_team_sync.py --delay 0.3 >> "$LOG" 2>&1
 echo "--- Step 2: Finalize Yesterday ---" >> "$LOG"
 python3 -u scripts/finalize_games.py --date "$YESTERDAY" --verbose >> "$LOG" 2>&1
 
+echo "--- Step 3: W-L Verification ---" >> "$LOG"
+python3 -u scripts/verify_wl_records.py >> "$LOG" 2>&1 || true
+
 echo "--- Verification ---" >> "$LOG"
 python3 - <<'PY' >> "$LOG" 2>&1
 import sqlite3
