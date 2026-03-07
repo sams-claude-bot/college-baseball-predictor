@@ -201,6 +201,53 @@ def finalize_from_d1b_scores(db, date_str, slug_map, dry_run=False, verbose=Fals
     return stats
 
 
+def merge_rescheduled(db, date_str, dry_run=False, verbose=False):
+    """Phase 3: Clean up postponed games that have a replacement on a nearby date.
+
+    After Phase 2 marks games as postponed, check each for a replacement.
+    If found: migrate FKs from postponed game to replacement, delete postponed entry.
+    """
+    postponed = db.execute("""
+        SELECT g.id, g.home_team_id, g.away_team_id, g.date
+        FROM games g
+        WHERE g.date = ? AND g.status = 'postponed'
+          AND g.home_score IS NULL AND g.away_score IS NULL
+    """, (date_str,)).fetchall()
+
+    gw = ScheduleGateway(db)
+    merged = 0
+
+    for p in postponed:
+        # Find replacement: same teams, within +7 days, not postponed/cancelled
+        replacement = db.execute("""
+            SELECT id FROM games
+            WHERE date > ?
+              AND abs(julianday(date) - julianday(?)) <= 7
+              AND status IN ('scheduled', 'final', 'in-progress')
+              AND (
+                (home_team_id = ? AND away_team_id = ?) OR
+                (home_team_id = ? AND away_team_id = ?)
+              )
+              AND id != ?
+            ORDER BY date
+            LIMIT 1
+        """, (p['date'], p['date'],
+              p['home_team_id'], p['away_team_id'],
+              p['away_team_id'], p['home_team_id'],
+              p['id'])).fetchone()
+
+        if replacement:
+            if not dry_run:
+                fk = gw.migrate_fk_rows(p['id'], replacement['id'])
+                db.execute("DELETE FROM games WHERE id = ?", (p['id'],))
+                db.commit()
+            if verbose:
+                print(f"  Merged: {p['id']} -> {replacement['id']}")
+            merged += 1
+
+    return merged
+
+
 def get_db():
     conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.row_factory = sqlite3.Row
@@ -357,6 +404,12 @@ def main():
         else:
             runner.info(f"Phase 2: Skipped — {target_date} is today or future ({remaining} still pending)")
     
+    # Phase 3: Merge rescheduled games (clean up postponed ghosts)
+    runner.info(f"Phase 3: Merging rescheduled games...")
+    merged = merge_rescheduled(db, target_date, dry_run=args.dry_run, verbose=args.verbose)
+    if merged > 0:
+        runner.info(f"Merged {merged} rescheduled games")
+
     # Final count
     final_nonfinal = db.execute(
         "SELECT COUNT(*) as c FROM games WHERE date = ? AND status NOT IN ('final', 'postponed', 'canceled')",
