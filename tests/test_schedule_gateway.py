@@ -474,6 +474,138 @@ class TestResolveTeamExactAlias:
 
 
 # =========================================================================
+# Cross-Date Dedup Tests
+# =========================================================================
+
+
+class TestCrossDateFindsPostponedGame:
+    """19. test_cross_date_finds_postponed_game — postponed Mon game found when creating Tue game."""
+
+    def test_finds_postponed(self):
+        gw, conn = _gw()
+        # Insert a postponed game on Monday with no scores
+        conn.execute("""
+            INSERT INTO games (id, date, home_team_id, away_team_id, status)
+            VALUES ('2025-03-03_auburn_mississippi-state', '2025-03-03',
+                    'mississippi-state', 'auburn', 'postponed')
+        """)
+        conn.commit()
+
+        # Search for same matchup on Tuesday — should find the postponed Monday game
+        row = gw.find_existing_game("2025-03-04", "auburn", "mississippi-state")
+        assert row is not None
+        assert row["id"] == "2025-03-03_auburn_mississippi-state"
+
+
+class TestCrossDateIgnoresFinalGames:
+    """20. test_cross_date_ignores_final_games — Fri final NOT matched for Sat game."""
+
+    def test_ignores_final(self):
+        gw, conn = _gw()
+        # Insert a final game on Friday
+        conn.execute("""
+            INSERT INTO games (id, date, home_team_id, away_team_id, status,
+                               home_score, away_score, winner_id)
+            VALUES ('2025-03-07_auburn_mississippi-state', '2025-03-07',
+                    'mississippi-state', 'auburn', 'final', 5, 3, 'mississippi-state')
+        """)
+        conn.commit()
+
+        # Search for same matchup on Saturday — should NOT find it (series game, not postponement)
+        row = gw.find_existing_game("2025-03-08", "auburn", "mississippi-state")
+        assert row is None
+
+
+class TestCrossDateIgnoresScoredPostponed:
+    """21. test_cross_date_ignores_scored_postponed — postponed game with real scores NOT matched."""
+
+    def test_ignores_scored(self):
+        gw, conn = _gw()
+        # Insert postponed game with real partial scores (3-0)
+        conn.execute("""
+            INSERT INTO games (id, date, home_team_id, away_team_id, status,
+                               home_score, away_score)
+            VALUES ('2025-03-03_auburn_mississippi-state', '2025-03-03',
+                    'mississippi-state', 'auburn', 'postponed', 3, 0)
+        """)
+        conn.commit()
+
+        row = gw.find_existing_game("2025-03-04", "auburn", "mississippi-state")
+        assert row is None
+
+
+class TestCrossDateIgnoresDistantGames:
+    """22. test_cross_date_ignores_distant_games — 8+ day gap → no match."""
+
+    def test_ignores_distant(self):
+        gw, conn = _gw()
+        # Insert postponed game 8 days before
+        conn.execute("""
+            INSERT INTO games (id, date, home_team_id, away_team_id, status)
+            VALUES ('2025-03-01_auburn_mississippi-state', '2025-03-01',
+                    'mississippi-state', 'auburn', 'postponed')
+        """)
+        conn.commit()
+
+        # 8 day gap — should NOT match
+        row = gw.find_existing_game("2025-03-09", "auburn", "mississippi-state")
+        assert row is None
+
+
+class TestCrossDateTriggersFkMigration:
+    """23. test_cross_date_triggers_fk_migration — end-to-end: FKs move from old to new game ID."""
+
+    def test_fk_migration(self):
+        gw, conn = _gw()
+        old_id = "2025-03-03_auburn_mississippi-state"
+
+        # Insert postponed game with FK data
+        conn.execute("""
+            INSERT INTO games (id, date, home_team_id, away_team_id, status)
+            VALUES (?, '2025-03-03', 'mississippi-state', 'auburn', 'postponed')
+        """, (old_id,))
+        conn.execute("""
+            INSERT INTO model_predictions (game_id, model_name, predicted_home_prob)
+            VALUES (?, 'elo', 0.60)
+        """, (old_id,))
+        conn.execute("""
+            INSERT INTO betting_lines (game_id, date, home_team_id, away_team_id, home_ml)
+            VALUES (?, '2025-03-03', 'mississippi-state', 'auburn', -140)
+        """, (old_id,))
+        conn.commit()
+
+        # Upsert the replacement game on the new date
+        new_id = "2025-03-04_auburn_mississippi-state"
+        action = gw.upsert_game("2025-03-04", "auburn", "mississippi-state",
+                                home_score=7, away_score=2, status="final",
+                                source="test")
+
+        assert action == "replaced"
+
+        # Old game gone
+        assert conn.execute("SELECT * FROM games WHERE id = ?",
+                            (old_id,)).fetchone() is None
+        # New game present
+        row = conn.execute("SELECT * FROM games WHERE id = ?",
+                           (new_id,)).fetchone()
+        assert row is not None
+        assert row["home_score"] == 7
+        assert row["status"] == "final"
+
+        # FK rows migrated to new ID
+        mp = conn.execute("SELECT * FROM model_predictions WHERE game_id = ?",
+                          (new_id,)).fetchone()
+        assert mp is not None
+        bl = conn.execute("SELECT * FROM betting_lines WHERE game_id = ?",
+                          (new_id,)).fetchone()
+        assert bl is not None
+
+        # No FK rows left on old ID
+        assert conn.execute("SELECT COUNT(*) FROM model_predictions WHERE game_id = ?",
+                            (old_id,)).fetchone()[0] == 0
+
+
+# =========================================================================
 # Integration Test
 # =========================================================================
 
