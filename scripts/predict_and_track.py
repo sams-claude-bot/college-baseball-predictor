@@ -8,6 +8,9 @@ Usage:
     python predict_and_track.py predict --refresh-existing --refresh-all  # Full refresh window
     python predict_and_track.py evaluate [DATE]      # Grade predictions against results
     python predict_and_track.py accuracy             # Show overall model accuracy
+    python predict_and_track.py totals_accuracy      # Totals model accuracy report
+    python predict_and_track.py spread_shadow_status # Spread shadow sample/accuracy status
+    python predict_and_track.py backfill_spread_shadow [START] [END] # Backfill graded spread shadow set
     python predict_and_track.py validate [--fix]     # Check for missing predictions
     python predict_and_track.py validate DATE --fix  # Fix missing predictions for DATE
 """
@@ -29,10 +32,37 @@ from scripts.run_utils import ScriptRunner
 # nn_slim v4 runs through the ensemble model; meta_ensemble covers its signal.
 MODEL_NAMES = ['pythagorean', 'elo', 'pitching', 'poisson', 'xgboost', 'lightgbm', 'pear', 'quality', 'neural', 'venue', 'rest_travel', 'upset', 'meta_ensemble']
 
+# Spread model (shadow mode): build/grade silently until sample is large enough.
+SPREAD_MODEL_NAME = 'runs_margin_v1'
+SPREAD_DEFAULT_MARGIN_SIGMA = 3.6
+
 # Dropped from prediction pipeline (still in DB for historical tracking):
 #   conference, advanced, log5 — r=0.94-0.96 correlated (W/L record clones)
 #   ensemble — double-counts individual models
 #   prior — stale preseason data, no longer feeds meta-ensemble
+
+
+def _normal_cdf(x):
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _estimate_spread_sigma(cur):
+    """Estimate margin residual sigma from graded spread predictions."""
+    cur.execute('''
+        SELECT COUNT(*), AVG((actual_margin - projected_margin) * (actual_margin - projected_margin))
+        FROM spread_predictions
+        WHERE model_name = ?
+          AND actual_margin IS NOT NULL
+          AND projected_margin IS NOT NULL
+    ''', (SPREAD_MODEL_NAME,))
+    n, mse = cur.fetchone()
+    n = n or 0
+    if n >= 50 and mse is not None and mse > 0:
+        sigma = math.sqrt(float(mse))
+    else:
+        sigma = SPREAD_DEFAULT_MARGIN_SIGMA
+    # Keep sigma in a sane band.
+    return max(1.5, min(8.0, sigma)), n
 
 
 def _load_calibration_params(cur):
@@ -242,6 +272,8 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
         cur.execute('SELECT model_name FROM model_predictions WHERE game_id = ?', (game_id,))
         existing_models = {row[0] for row in cur.fetchall()}
 
+        margin_components = []  # projected home-away run margin components
+
         for model_name, predictor in predictors.items():
             if (not refresh_existing) and model_name in existing_models:
                 continue
@@ -284,6 +316,13 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 else:
                     runs_str = f"{home_runs:.1f}-{away_runs:.1f}" if (home_runs is not None and away_runs is not None) else "—"
                     print(f"  {model_name:12}: {home_prob*100:5.1f}% {home_name} | {runs_str}")
+
+                if home_runs is not None and away_runs is not None:
+                    try:
+                        margin_components.append(float(home_runs) - float(away_runs))
+                    except Exception:
+                        pass
+
                 predictions_made += 1
                 models_run += 1
             except Exception as e:
@@ -449,8 +488,74 @@ def predict_games(date=None, days=3, runner=None, refresh_existing=False, refres
                 else:
                     print(f"  {'xgb_totals':12}: ERROR - {e}")
 
-        # Old nn_spread removed — spreads disabled
-    
+        # Spread shadow predictions (not published yet).
+        # Build margin projections and grade them over time until sample is strong enough.
+        try:
+            cur.execute('''
+                SELECT home_spread
+                FROM betting_lines
+                WHERE home_team_id = ? AND away_team_id = ?
+                  AND home_spread IS NOT NULL
+                  AND home_spread != 0
+                ORDER BY captured_at DESC
+                LIMIT 1
+            ''', (home_id, away_id))
+            sp_row = cur.fetchone()
+            home_spread = float(sp_row[0]) if sp_row else None
+
+            projected_margin = None
+            if margin_components:
+                projected_margin = sum(margin_components) / len(margin_components)
+            else:
+                # Fallback from stored predictions if we skipped model recompute.
+                cur.execute('''
+                    SELECT AVG(predicted_home_runs - predicted_away_runs)
+                    FROM model_predictions
+                    WHERE game_id = ?
+                      AND predicted_home_runs IS NOT NULL
+                      AND predicted_away_runs IS NOT NULL
+                      AND model_name NOT IN ('meta_ensemble')
+                ''', (game_id,))
+                pm_row = cur.fetchone()
+                if pm_row and pm_row[0] is not None:
+                    projected_margin = float(pm_row[0])
+
+            if home_spread is not None and projected_margin is not None:
+                spread_sigma, graded_n = _estimate_spread_sigma(cur)
+                home_cover_prob = _normal_cdf((projected_margin - home_spread) / spread_sigma)
+                prediction = 'HOME_COVER' if home_cover_prob >= 0.5 else 'AWAY_COVER'
+                confidence = max(home_cover_prob, 1.0 - home_cover_prob)
+
+                cur.execute('''
+                    INSERT INTO spread_predictions
+                    (game_id, model_name, spread_line, projected_margin, prediction, cover_prob, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(game_id, model_name, spread_line) DO UPDATE SET
+                        projected_margin = excluded.projected_margin,
+                        prediction = excluded.prediction,
+                        cover_prob = excluded.cover_prob,
+                        confidence = excluded.confidence,
+                        predicted_at = CURRENT_TIMESTAMP
+                ''', (
+                    game_id,
+                    SPREAD_MODEL_NAME,
+                    home_spread,
+                    projected_margin,
+                    prediction,
+                    home_cover_prob,
+                    confidence,
+                ))
+
+                if runner:
+                    side = 'HOME' if prediction == 'HOME_COVER' else 'AWAY'
+                    runner.info(
+                        f"  {'spread_shadow':12}: margin {projected_margin:+.2f} vs {home_spread:+.1f} "
+                        f"→ {side} ({home_cover_prob*100:.1f}% home cover, σ={spread_sigma:.2f}, n={graded_n})"
+                    )
+        except Exception as e:
+            if runner:
+                runner.warn(f"  {'spread_shadow':12}: ERROR - {e}")
+
     conn.commit()
     
     # Second pass: ensure ALL scheduled games have totals predictions (not just ones needing ML)
@@ -692,6 +797,49 @@ def evaluate_predictions(date=None, runner=None):
         else:
             print(f"✅ Evaluated {totals_updated} totals predictions")
 
+    # Evaluate spread shadow predictions
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute('''
+        SELECT sp.id, sp.game_id, sp.prediction, sp.spread_line,
+               g.home_score, g.away_score
+        FROM spread_predictions sp
+        JOIN games g ON sp.game_id = g.id
+        WHERE sp.was_correct IS NULL
+          AND g.status = 'final'
+          AND g.home_score IS NOT NULL
+          AND g.away_score IS NOT NULL
+    ''')
+    spread_rows = cur.fetchall()
+    spread_updated = 0
+
+    for sp_id, game_id, prediction, spread_line, home_score, away_score in spread_rows:
+        actual_margin = (home_score or 0) - (away_score or 0)
+        result = actual_margin - float(spread_line)
+
+        if abs(result) < 1e-9:
+            correct = None  # push
+        else:
+            home_covered = result > 0
+            predicted_home = (prediction == 'HOME_COVER')
+            correct = 1 if predicted_home == home_covered else 0
+
+        cur.execute('''
+            UPDATE spread_predictions
+            SET actual_margin = ?, was_correct = ?
+            WHERE id = ?
+        ''', (actual_margin, correct, sp_id))
+        spread_updated += 1
+
+    conn.commit()
+    conn.close()
+
+    if spread_updated:
+        if runner:
+            runner.info(f"Evaluated {spread_updated} spread shadow predictions")
+        else:
+            print(f"✅ Evaluated {spread_updated} spread shadow predictions")
+
 def show_totals_accuracy():
     """Show totals model accuracy: MAE and O/U record"""
     conn = get_connection()
@@ -765,6 +913,176 @@ def show_totals_accuracy():
         total = row[2]
         losses = total - correct
         print(f"{row[0]:<20} {row[1]:<7} {correct:>5} {total:>6} {row[4]:>6.1f}%")
+
+    conn.close()
+
+
+def backfill_spread_shadow(start_date=None, end_date=None, runner=None):
+    """Backfill spread shadow predictions from historical lines + stored run projections."""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    spread_sigma, graded_n = _estimate_spread_sigma(cur)
+
+    cur.execute('''
+        WITH latest_spread AS (
+            SELECT b.game_id, b.home_spread
+            FROM betting_lines b
+            JOIN (
+                SELECT game_id, MAX(captured_at) AS mx
+                FROM betting_lines
+                WHERE book = 'draftkings'
+                  AND home_spread IS NOT NULL
+                  AND home_spread != 0
+                GROUP BY game_id
+            ) x
+              ON b.game_id = x.game_id
+             AND b.captured_at = x.mx
+            WHERE b.book = 'draftkings'
+        ),
+        avg_margin AS (
+            SELECT mp.game_id,
+                   AVG(mp.predicted_home_runs - mp.predicted_away_runs) AS projected_margin
+            FROM model_predictions mp
+            WHERE mp.predicted_home_runs IS NOT NULL
+              AND mp.predicted_away_runs IS NOT NULL
+              AND mp.model_name NOT IN ('meta_ensemble')
+            GROUP BY mp.game_id
+        )
+        SELECT g.id, g.date, g.home_score, g.away_score,
+               ls.home_spread, am.projected_margin
+        FROM games g
+        JOIN latest_spread ls ON ls.game_id = g.id
+        JOIN avg_margin am ON am.game_id = g.id
+        WHERE g.status = 'final'
+          AND g.home_score IS NOT NULL
+          AND g.away_score IS NOT NULL
+          AND (? IS NULL OR g.date >= ?)
+          AND (? IS NULL OR g.date <= ?)
+        ORDER BY g.date, g.id
+    ''', (start_date, start_date, end_date, end_date))
+
+    rows = cur.fetchall()
+    total = len(rows)
+    upserted = 0
+    graded = 0
+
+    for game_id, game_date, home_score, away_score, spread_line, projected_margin in rows:
+        try:
+            spread_line = float(spread_line)
+            projected_margin = float(projected_margin)
+            actual_margin = float(home_score) - float(away_score)
+
+            home_cover_prob = _normal_cdf((projected_margin - spread_line) / spread_sigma)
+            prediction = 'HOME_COVER' if home_cover_prob >= 0.5 else 'AWAY_COVER'
+            confidence = max(home_cover_prob, 1.0 - home_cover_prob)
+
+            result = actual_margin - spread_line
+            if abs(result) < 1e-9:
+                correct = None
+            else:
+                home_covered = result > 0
+                predicted_home = prediction == 'HOME_COVER'
+                correct = 1 if predicted_home == home_covered else 0
+                graded += 1
+
+            cur.execute('''
+                INSERT INTO spread_predictions
+                (game_id, model_name, spread_line, projected_margin, prediction, cover_prob, confidence, actual_margin, was_correct)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(game_id, model_name, spread_line) DO UPDATE SET
+                    projected_margin = excluded.projected_margin,
+                    prediction = excluded.prediction,
+                    cover_prob = excluded.cover_prob,
+                    confidence = excluded.confidence,
+                    actual_margin = excluded.actual_margin,
+                    was_correct = excluded.was_correct,
+                    predicted_at = CURRENT_TIMESTAMP
+            ''', (
+                game_id,
+                SPREAD_MODEL_NAME,
+                spread_line,
+                projected_margin,
+                prediction,
+                home_cover_prob,
+                confidence,
+                actual_margin,
+                correct,
+            ))
+            upserted += 1
+        except Exception:
+            continue
+
+    conn.commit()
+    conn.close()
+
+    msg = (
+        f"Spread shadow backfill complete: source_games={total}, upserted={upserted}, "
+        f"graded={graded}, sigma={spread_sigma:.2f}, prior_graded_n={graded_n}"
+    )
+    if runner:
+        runner.info(msg)
+        runner.add_stat("source_games", total)
+        runner.add_stat("upserted", upserted)
+        runner.add_stat("graded", graded)
+    else:
+        print(msg)
+
+
+def show_spread_shadow_status():
+    """Show spread shadow model sample/accuracy readiness."""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute('''
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN actual_margin IS NOT NULL THEN 1 ELSE 0 END) as graded,
+            SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN was_correct = 0 THEN 1 ELSE 0 END) as losses,
+            AVG((actual_margin - projected_margin) * (actual_margin - projected_margin)) as mse
+        FROM spread_predictions
+        WHERE model_name = ?
+    ''', (SPREAD_MODEL_NAME,))
+    row = cur.fetchone()
+
+    total = row[0] or 0
+    graded = row[1] or 0
+    wins = row[2] or 0
+    losses = row[3] or 0
+    mse = row[4]
+    sigma = math.sqrt(mse) if mse is not None and mse > 0 else None
+    hit_rate = (100.0 * wins / (wins + losses)) if (wins + losses) > 0 else None
+
+    print("\n📊 SPREAD SHADOW STATUS")
+    print("=" * 45)
+    print(f"Model: {SPREAD_MODEL_NAME}")
+    print(f"Predictions stored: {total}")
+    print(f"Graded: {graded}")
+    if hit_rate is not None:
+        print(f"W-L: {wins}-{losses} ({hit_rate:.1f}%)")
+    if sigma is not None:
+        print(f"Residual sigma: {sigma:.2f} runs")
+
+    # Line-level breakdown
+    cur.execute('''
+        SELECT spread_line,
+               COUNT(*) as n,
+               SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as wins,
+               SUM(CASE WHEN was_correct = 0 THEN 1 ELSE 0 END) as losses
+        FROM spread_predictions
+        WHERE model_name = ? AND was_correct IS NOT NULL
+        GROUP BY spread_line
+        ORDER BY n DESC
+        LIMIT 8
+    ''', (SPREAD_MODEL_NAME,))
+    rows = cur.fetchall()
+    if rows:
+        print("\nTop spread lines by sample:")
+        for spread_line, n, w, l in rows:
+            wl_total = (w or 0) + (l or 0)
+            pct = (100.0 * (w or 0) / wl_total) if wl_total else 0.0
+            print(f"  {spread_line:+.1f}: {w or 0}-{l or 0} ({pct:.1f}%) n={n}")
 
     conn.close()
 
@@ -931,7 +1249,20 @@ if __name__ == "__main__":
         runner = ScriptRunner("predict_and_track_totals_accuracy")
         show_totals_accuracy()
         runner.finish()
-    elif cmd == "validate":
+    elif cmd == "spread_shadow_status":
+        runner = ScriptRunner("predict_and_track_spread_shadow_status")
+        show_spread_shadow_status()
+        runner.finish()
+    elif cmd == "backfill_spread_shadow":
+        runner = ScriptRunner("predict_and_track_backfill_spread_shadow")
+        # Usage: backfill_spread_shadow [start_date] [end_date]
+        start_date = date
+        end_date = None
+        if len(sys.argv) > 3 and not sys.argv[3].startswith('--'):
+            end_date = sys.argv[3]
+        backfill_spread_shadow(start_date=start_date, end_date=end_date, runner=runner)
+        runner.finish()
+    elif cmd == "validate":  
         runner = ScriptRunner("predict_and_track_validate")
         validate_predictions(date=date, fix=fix)
         runner.finish()

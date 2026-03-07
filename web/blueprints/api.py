@@ -365,7 +365,21 @@ def api_best_bets():
     date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     games = get_betting_games(date_str)
 
-    SPREADS_ENABLED = False
+    SPREADS_MIN_GRADED = 250
+    SPREADS_MODEL_NAME = 'runs_margin_v1'
+    SPREADS_PUBLISH_LIVE = False  # manual launch switch
+
+    # Shadow-mode readiness gate for spreads.
+    conn_sp = get_connection()
+    row = conn_sp.execute('''
+        SELECT COUNT(*)
+        FROM spread_predictions
+        WHERE model_name = ? AND was_correct IS NOT NULL
+    ''', (SPREADS_MODEL_NAME,)).fetchone()
+    conn_sp.close()
+    spreads_graded = int(row[0]) if row and row[0] is not None else 0
+    spreads_ready = spreads_graded >= SPREADS_MIN_GRADED
+    SPREADS_ENABLED = SPREADS_PUBLISH_LIVE and spreads_ready
 
     # Filter to only games with model predictions
     games = [g for g in games if g.get('best_pick')]
@@ -570,8 +584,22 @@ def api_best_bets():
         'ml_rejections': ml_rejections[:6],
         'totals': totals_bets,
         'totals_rejections': totals_rejections[:6],
-        'spreads': best_spreads,
-        'spreads_disabled_reason': 'Model not calibrated (0/5 historical)'
+        'spreads': best_spreads if SPREADS_ENABLED else [],
+        'spreads_disabled_reason': (
+            None if SPREADS_ENABLED
+            else (
+                f"Shadow mode: ready={spreads_graded}/{SPREADS_MIN_GRADED}, "
+                f"publish_live={SPREADS_PUBLISH_LIVE}"
+            )
+        ),
+        'spreads_shadow': {
+            'enabled': SPREADS_ENABLED,
+            'ready': spreads_ready,
+            'publish_live': SPREADS_PUBLISH_LIVE,
+            'graded': spreads_graded,
+            'min_graded': SPREADS_MIN_GRADED,
+            'model_name': SPREADS_MODEL_NAME,
+        }
     })
 
 
