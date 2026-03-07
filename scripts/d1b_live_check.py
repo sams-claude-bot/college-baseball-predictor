@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytz
 
+from database import configure_connection
+
 PROJECT = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT / "data" / "baseball.db"
 MAPPING = PROJECT / "data" / "d1b_slug_mapping.json"
@@ -257,8 +259,11 @@ def main():
     with open(MAPPING) as f:
         slug_map = json.load(f)
     
-    conn = sqlite3.connect(str(DB_PATH), timeout=30)
+    # Autocommit prevents long write transactions during network probing,
+    # which helps avoid starving live pollers.
+    conn = sqlite3.connect(str(DB_PATH), timeout=60, isolation_level=None)
     conn.row_factory = sqlite3.Row
+    configure_connection(conn, busy_timeout_ms=60000)
     
     # Get our scheduled games for this date (for status detection)
     tbd_games = conn.execute("""

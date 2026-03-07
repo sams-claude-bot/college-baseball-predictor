@@ -32,6 +32,7 @@ api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
 
 _D1B_DISCOVERY_DEBOUNCE_SECONDS = 300
+_LIVE_SCORES_RECENT_FINAL_MINUTES = 15
 _D1B_DISCOVERY_STATE_DIR = base_dir / "tmp"
 _D1B_DISCOVERY_LOCK_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.lock"
 _D1B_DISCOVERY_STAMP_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.last"
@@ -585,13 +586,18 @@ def live_scores():
     
     conn = get_connection()
     rows = conn.execute('''
-        SELECT g.id, g.status, g.home_score, g.away_score, g.inning_text, g.innings,
-               g.winner_id, g.home_team_id, g.away_team_id,
-               g.home_hits, g.away_hits, g.home_errors, g.away_errors,
-               g.situation_json
+        SELECT g.id, g.status, g.home_score, g.away_score,
+               g.inning_text, g.innings, g.situation_json
         FROM games g
         WHERE g.date = ?
-    ''', (date_str,)).fetchall()
+          AND (
+                g.status = 'in-progress'
+                OR (
+                    g.status = 'final'
+                    AND datetime(g.updated_at) >= datetime('now', ?)
+                )
+              )
+    ''', (date_str, f'-{_LIVE_SCORES_RECENT_FINAL_MINUTES} minutes')).fetchall()
 
     active_sb_links = set(
         r['game_id'] for r in conn.execute('''
@@ -622,17 +628,12 @@ def live_scores():
             'away_score': r['away_score'],
             'inning_text': r['inning_text'],
             'innings': r['innings'],
-            'winner_id': r['winner_id'],
-            'home_hits': r['home_hits'],
-            'away_hits': r['away_hits'],
-            'home_errors': r['home_errors'],
-            'away_errors': r['away_errors'],
         }
-        # Parse situation for live games
-        if r['situation_json']:
+        # Parse situation only for live games; finals don't need heavy payloads.
+        if r['status'] == 'in-progress' and r['situation_json']:
             try:
                 situation = _json.loads(r['situation_json'])
-            except:
+            except Exception:
                 situation = None
         game_data['situation'] = situation
 

@@ -28,11 +28,29 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent.parent
 DB_PATH = BASE_DIR / "data" / "baseball.db"
 
+def configure_connection(conn, busy_timeout_ms=60000):
+    """Apply SQLite pragmas for multi-process read/write workloads.
+
+    - WAL reduces reader/writer blocking.
+    - NORMAL sync is faster and safe enough for this app.
+    - busy_timeout makes writers wait briefly instead of failing immediately.
+    """
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
+    except Exception:
+        # Non-fatal: keep default behavior if pragmas can't be applied.
+        pass
+    return conn
+
+
 def get_connection():
     """Get database connection"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row  # Dict-like access
+    configure_connection(conn)
     return conn
 
 def _ensure_prediction_provenance_schema(conn):

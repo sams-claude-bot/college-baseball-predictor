@@ -41,6 +41,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from statbroadcast_client import StatBroadcastClient, parse_situation
 from statbroadcast_discovery import ensure_table, get_active_events, mark_completed
 from team_resolver import TeamResolver
+from database import configure_connection
 
 logger = logging.getLogger(__name__)
 
@@ -1301,8 +1302,9 @@ def main():
         format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     )
 
-    conn = sqlite3.connect(args.db, timeout=30, check_same_thread=False)
+    conn = sqlite3.connect(args.db, timeout=60, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    configure_connection(conn, busy_timeout_ms=60000)
     ensure_table(conn)
     ensure_live_events_table(conn)
 

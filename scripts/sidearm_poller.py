@@ -33,6 +33,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from database import configure_connection
+
 PROJECT_ROOT = Path(__file__).parent.parent
 SCRIPTS_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPTS_DIR))
@@ -641,8 +643,9 @@ def main():
         format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     )
 
-    conn = sqlite3.connect(args.db, timeout=30)
+    conn = sqlite3.connect(args.db, timeout=60)
     conn.row_factory = sqlite3.Row
+    configure_connection(conn, busy_timeout_ms=60000)
     ensure_school_code_column(conn)
     ensure_live_events_table(conn)
 

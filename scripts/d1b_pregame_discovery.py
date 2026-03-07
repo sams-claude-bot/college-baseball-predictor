@@ -31,6 +31,8 @@ from pathlib import Path
 
 import pytz
 
+from database import configure_connection
+
 PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT / "scripts"))
 
@@ -884,8 +886,9 @@ def run(date_str, verbose=False):
         logger.info("No games from D1B for %s — falling through to team probes", date_str)
 
     # Process
-    conn = sqlite3.connect(str(DB_PATH), timeout=30)
+    conn = sqlite3.connect(str(DB_PATH), timeout=60)
     conn.row_factory = sqlite3.Row
+    configure_connection(conn, busy_timeout_ms=60000)
 
     stats = process_games(d1b_games, date_str, slug_map, conn, verbose)
 
