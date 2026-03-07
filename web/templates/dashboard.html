@@ -215,7 +215,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for game in todays_games[:20] %}
+                            {% for game in todays_games if game.status != 'final' %}
                             <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
                                 <td>
                                     {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
@@ -263,15 +263,17 @@
                         </tbody>
                     </table>
                 </div>
-                {% if todays_games|length > 20 %}
                 <div class="card-footer text-center">
-                    <a href="/calendar" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games</a>
+                    <a href="/scores" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games</a>
                 </div>
-                {% endif %}
                 {% else %}
                 <div class="text-center text-muted py-4">
+                    {% if final_count %}
+                    <p class="mt-2 text-muted">All {{ final_count }} games are final — <a href="/scores">view scores</a></p>
+                    {% else %}
                     <i class="bi bi-calendar-x display-4"></i>
                     <p class="mt-2">No games scheduled for today</p>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
