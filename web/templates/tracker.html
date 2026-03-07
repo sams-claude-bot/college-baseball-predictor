@@ -63,17 +63,19 @@
                     <div>
                         <h6 class="text-muted mb-1"><i class="bi bi-speedometer2"></i> Closing Line Value (CLV)</h6>
                         <div class="h3 mb-0 {% if clv_summary.avg_clv_cents > 0 %}text-success{% elif clv_summary.avg_clv_cents < 0 %}text-danger{% endif %}">
-                            {{ '+' if clv_summary.avg_clv_cents > 0 else '' }}{{ clv_summary.avg_clv_cents }}%
+                            {{ '+' if clv_summary.avg_clv_cents > 0 else '' }}{{ clv_summary.avg_clv_cents }}c
                         </div>
                         <small class="text-muted">
                             {{ clv_summary.total_bets_with_clv }} bets with closing line data
                             {% if clv_summary.avg_clv_cents > 0 %} &mdash; beating the closing line{% endif %}
+                            <br>
+                            <em>CLV uses pregame closing snapshots only (never in-game line movement).</em>
                         </small>
                     </div>
                     <div class="text-end">
                         {% for type_name, type_data in clv_summary.by_type.items() %}
                         <div class="small {% if type_data.avg_clv_cents > 0 %}text-success{% elif type_data.avg_clv_cents < 0 %}text-danger{% else %}text-muted{% endif %}">
-                            {{ type_name }}: {{ '+' if type_data.avg_clv_cents > 0 else '' }}{{ type_data.avg_clv_cents }}% ({{ type_data.count }} bets)
+                            {{ type_name }}: {{ '+' if type_data.avg_clv_cents > 0 else '' }}{{ type_data.avg_clv_cents }}c ({{ type_data.count }} bets)
                         </div>
                         {% endfor %}
                     </div>
@@ -475,6 +477,7 @@
                                 <th class="text-center">ML</th>
                                 <th class="text-center">Models</th>
                                 <th class="text-center">Conf</th>
+                                <th class="text-center">CLV</th>
                                 <th class="text-center">Result</th>
                                 <th class="text-end">P&L</th>
                             </tr>
@@ -488,6 +491,13 @@
                                 <td class="text-center">{{ bet.moneyline|format_odds }}</td>
                                 <td class="text-center"><span class="badge bg-primary">{{ bet.models_agree }}/{{ bet.models_total|default(12) }}</span></td>
                                 <td class="text-center">{{ (bet.model_prob * 100)|round(0) }}%</td>
+                                <td class="text-center">
+                                    <small class="text-muted">
+                                        {% if bet.opening_ml is not none %}{{ bet.opening_ml|format_odds }} → {% endif %}
+                                        {{ bet.moneyline|format_odds }}
+                                        <br>awaiting close
+                                    </small>
+                                </td>
                                 <td class="text-center"><span class="badge bg-secondary">PENDING</span></td>
                                 <td class="text-end">—</td>
                             </tr>
@@ -500,6 +510,23 @@
                                 <td class="text-center">{{ bet.moneyline|format_odds }}</td>
                                 <td class="text-center"><span class="badge bg-primary">{{ bet.models_agree }}/{{ bet.models_total|default(12) }}</span></td>
                                 <td class="text-center">{{ (bet.model_prob * 100)|round(0) }}%</td>
+                                <td class="text-center">
+                                    {% if bet.clv_cents is not none %}
+                                    <div class="small {% if bet.clv_cents > 0 %}text-success{% elif bet.clv_cents < 0 %}text-danger{% endif %}">
+                                        {% if bet.opening_ml is not none %}{{ bet.opening_ml|format_odds }} → {% endif %}
+                                        <strong>{{ bet.moneyline|format_odds }}</strong> →
+                                        {{ bet.closing_ml|format_odds if bet.closing_ml is not none else '—' }}
+                                    </div>
+                                    <div class="small {% if bet.clv_cents > 0 %}text-success{% elif bet.clv_cents < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                        {{ '+' if bet.clv_cents > 0 else '' }}{{ '%.2f'|format(bet.clv_cents) }}c
+                                        {% if bet.clv_source %}
+                                        <span class="badge bg-secondary" style="font-size:0.6rem;">{{ bet.clv_source }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% else %}
+                                    <small class="text-muted">—</small>
+                                    {% endif %}
+                                </td>
                                 <td class="text-center">
                                     {% if bet.won %}<span class="badge bg-success">W</span>
                                     {% else %}<span class="badge bg-danger">L</span>{% endif %}
@@ -533,6 +560,7 @@
                                 <th class="text-center">ML</th>
                                 <th class="text-center">Edge</th>
                                 <th class="text-center">Model</th>
+                                <th class="text-center">CLV</th>
                                 <th class="text-center">Result</th>
                                 <th class="text-end">P&L</th>
                             </tr>
@@ -546,6 +574,13 @@
                                 <td class="text-center">{{ bet.moneyline|format_odds }}</td>
                                 <td class="text-center"><span class="badge bg-success">+{{ bet.edge }}%</span></td>
                                 <td class="text-center">{{ (bet.model_prob * 100)|round(0) }}%</td>
+                                <td class="text-center">
+                                    <small class="text-muted">
+                                        {% if bet.opening_ml is not none %}{{ bet.opening_ml|format_odds }} → {% endif %}
+                                        {{ bet.moneyline|format_odds }}
+                                        <br>awaiting close
+                                    </small>
+                                </td>
                                 <td class="text-center"><span class="badge bg-secondary">PENDING</span></td>
                                 <td class="text-end">—</td>
                             </tr>
@@ -560,6 +595,23 @@
                                     <span class="badge {% if bet.edge >= 10 %}bg-success{% else %}bg-secondary{% endif %}">+{{ bet.edge }}%</span>
                                 </td>
                                 <td class="text-center">{{ (bet.model_prob * 100)|round(0) }}%</td>
+                                <td class="text-center">
+                                    {% if bet.clv_cents is not none %}
+                                    <div class="small {% if bet.clv_cents > 0 %}text-success{% elif bet.clv_cents < 0 %}text-danger{% endif %}">
+                                        {% if bet.opening_ml is not none %}{{ bet.opening_ml|format_odds }} → {% endif %}
+                                        <strong>{{ bet.moneyline|format_odds }}</strong> →
+                                        {{ bet.closing_ml|format_odds if bet.closing_ml is not none else '—' }}
+                                    </div>
+                                    <div class="small {% if bet.clv_cents > 0 %}text-success{% elif bet.clv_cents < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                        {{ '+' if bet.clv_cents > 0 else '' }}{{ '%.2f'|format(bet.clv_cents) }}c
+                                        {% if bet.clv_source %}
+                                        <span class="badge bg-secondary" style="font-size:0.6rem;">{{ bet.clv_source }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% else %}
+                                    <small class="text-muted">—</small>
+                                    {% endif %}
+                                </td>
                                 <td class="text-center">
                                     {% if bet.won %}<span class="badge bg-success">W</span>
                                     {% else %}<span class="badge bg-danger">L</span>{% endif %}

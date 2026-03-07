@@ -62,25 +62,6 @@ def tracker():
     ''')
     all_consensus = [dict(r) for r in c.fetchall()]
 
-    consensus_bets = []
-    pending_consensus = []
-    for b in all_consensus:
-        entry = {
-            'date': b['date'],
-            'game': f"{'vs ' if b['is_home'] else '@ '}{b['opponent_name']}",
-            'pick': b['pick_team_name'],
-            'moneyline': b['moneyline'],
-            'models_agree': b.get('models_agree', 0),
-            'edge': round((b.get('avg_prob', 0.5) - (abs(b['moneyline']) / (abs(b['moneyline']) + 100) if b['moneyline'] < 0 else 100 / (100 + b['moneyline']))) * 100, 1) if b['moneyline'] else 0,
-            'model_prob': b.get('avg_prob', 0),
-            'won': b['won'],
-            'profit': b.get('profit', 0) or 0,
-        }
-        if b['won'] is not None:
-            consensus_bets.append(entry)
-        else:
-            pending_consensus.append(entry)
-
     # --- EV ML BETS (from tracked_bets) ---
     c.execute('''
         SELECT tb.*, g.status, g.home_score, g.away_score
@@ -90,20 +71,114 @@ def tracker():
     ''')
     all_ev = [dict(r) for r in c.fetchall()]
 
-    ev_bets = []
-    pending_ev = []
-    for b in all_ev:
+    # Prefetch opening/closing snapshot context for ML CLV display.
+    game_ids_for_clv = sorted({
+        *(b['game_id'] for b in all_consensus if b.get('game_id')),
+        *(b['game_id'] for b in all_ev if b.get('game_id')),
+    })
+    opening_by_game = {}
+    closing_by_game = {}
+
+    if game_ids_for_clv:
+        placeholders = ','.join('?' for _ in game_ids_for_clv)
+
+        # Opening snapshot (when available from odds ingest)
+        opening_rows = c.execute(f'''
+            SELECT blh.game_id, blh.home_ml, blh.away_ml, blh.snapshot_type, blh.captured_at
+            FROM betting_line_history blh
+            JOIN (
+                SELECT game_id, MAX(captured_at) AS mx
+                FROM betting_line_history
+                WHERE game_id IN ({placeholders})
+                  AND book = 'draftkings'
+                  AND snapshot_type = 'opening'
+                GROUP BY game_id
+            ) x
+              ON x.game_id = blh.game_id
+             AND x.mx = blh.captured_at
+        ''', game_ids_for_clv).fetchall()
+        opening_by_game = {r['game_id']: dict(r) for r in opening_rows}
+
+        # Best pregame close context. Prefer explicit 'closing', fallback to 'pregame'.
+        closing_rows = c.execute(f'''
+            SELECT game_id, home_ml, away_ml, snapshot_type, captured_at
+            FROM betting_line_history
+            WHERE game_id IN ({placeholders})
+              AND book = 'draftkings'
+              AND snapshot_type IN ('closing', 'pregame')
+            ORDER BY captured_at DESC
+        ''', game_ids_for_clv).fetchall()
+
+        priority = {'closing': 2, 'pregame': 1}
+        for row in closing_rows:
+            d = dict(row)
+            gid = d['game_id']
+            p = priority.get(d.get('snapshot_type'), 0)
+            existing = closing_by_game.get(gid)
+            if existing is None or p > existing.get('_priority', 0):
+                d['_priority'] = p
+                closing_by_game[gid] = d
+
+    def _line_for_side(snapshot, is_home):
+        if not snapshot:
+            return None
+        return snapshot.get('home_ml') if bool(is_home) else snapshot.get('away_ml')
+
+    def _build_ml_entry(b, is_consensus=False):
+        gid = b.get('game_id')
+        opening_snap = opening_by_game.get(gid)
+        closing_snap = closing_by_game.get(gid)
+
+        opening_ml = _line_for_side(opening_snap, b.get('is_home'))
+        closing_ml = b.get('closing_ml')
+        if closing_ml is None:
+            closing_ml = _line_for_side(closing_snap, b.get('is_home'))
+
         entry = {
             'date': b['date'],
             'game': f"{'vs ' if b['is_home'] else '@ '}{b['opponent_name']}",
             'pick': b['pick_team_name'],
             'moneyline': b['moneyline'],
-            'edge': round(b['edge'], 1),
-            'model_prob': b['model_prob'],
-            'dk_implied': b['dk_implied'],
+            'opening_ml': opening_ml,
+            'closing_ml': closing_ml,
+            'clv_implied': b.get('clv_implied'),
+            'clv_cents': b.get('clv_cents'),
+            'clv_source': (closing_snap.get('snapshot_type') if closing_snap else None),
+            'clv_captured_at': (closing_snap.get('captured_at') if closing_snap else None),
             'won': b['won'],
             'profit': b.get('profit', 0) or 0,
         }
+
+        if is_consensus:
+            entry['models_agree'] = b.get('models_agree', 0)
+            ml = b.get('moneyline')
+            implied = (
+                abs(ml) / (abs(ml) + 100)
+                if ml is not None and ml < 0
+                else (100 / (100 + ml) if ml is not None and ml > 0 else 0.5)
+            )
+            entry['edge'] = round((b.get('avg_prob', 0.5) - implied) * 100, 1) if ml is not None else 0
+            entry['model_prob'] = b.get('avg_prob', 0)
+        else:
+            entry['edge'] = round(b['edge'], 1)
+            entry['model_prob'] = b['model_prob']
+            entry['dk_implied'] = b['dk_implied']
+
+        return entry
+
+    consensus_bets = []
+    pending_consensus = []
+    for b in all_consensus:
+        entry = _build_ml_entry(b, is_consensus=True)
+        if b['won'] is not None:
+            consensus_bets.append(entry)
+        else:
+            pending_consensus.append(entry)
+
+    ev_bets = []
+    pending_ev = []
+    for b in all_ev:
+        entry = _build_ml_entry(b, is_consensus=False)
         if b['won'] is not None:
             ev_bets.append(entry)
         else:

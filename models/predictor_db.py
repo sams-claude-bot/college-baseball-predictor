@@ -173,31 +173,80 @@ class Predictor:
         return self.team_cache[team_id]
     
     def predict_game(self, home_team, away_team, neutral_site=False):
-        """Predict game outcome using configured model"""
+        """Predict game outcome using configured model.
+
+        Some specialty models (e.g. PEAR / quality) may return None when their
+        source tables are missing a team. In that case, we gracefully fall back
+        to a lightweight baseline so the pipeline stays complete.
+        """
         home_id = home_team.lower().replace(" ", "-")
         away_id = away_team.lower().replace(" ", "-")
-        
-        # Get prediction from model
-        pred = self.model.predict_game(home_id, away_id, neutral_site)
-        
+
         # Get team stats for additional context
         home = self.get_team_stats(home_id)
         away = self.get_team_stats(away_id)
-        
+
+        # Get prediction from model
+        pred = self.model.predict_game(home_id, away_id, neutral_site)
+        fallback_used = False
+
+        # Graceful fallback for models that return None for missing inputs.
+        if pred is None:
+            fallback_used = True
+            base_prob = 0.5 + (home.win_pct - away.win_pct) * 0.35
+            if not neutral_site:
+                base_prob += 0.04
+            base_prob = max(0.05, min(0.95, base_prob))
+
+            # Simple run projection baseline from team scoring + opponent prevention.
+            home_runs = 0.6 * home.runs_per_game + 0.4 * away.runs_allowed_per_game
+            away_runs = 0.6 * away.runs_per_game + 0.4 * home.runs_allowed_per_game
+            if not neutral_site:
+                home_runs *= 1.03
+                away_runs *= 0.97
+
+            pred = {
+                'model': self.model_name,
+                'home_win_probability': round(base_prob, 3),
+                'away_win_probability': round(1 - base_prob, 3),
+                'projected_home_runs': round(home_runs, 1),
+                'projected_away_runs': round(away_runs, 1),
+                'projected_total': round(home_runs + away_runs, 1),
+                'inputs': {'fallback_reason': 'model_returned_none'},
+            }
+
+        if not isinstance(pred, dict):
+            raise TypeError(f"Model {self.model_name} returned {type(pred).__name__}, expected dict")
+
+        # Defensive defaults if a model returns a partial dict.
+        pred = dict(pred)
+        if pred.get('home_win_probability') is None:
+            pred['home_win_probability'] = 0.5
+        pred['home_win_probability'] = float(pred['home_win_probability'])
+        pred['away_win_probability'] = float(pred.get('away_win_probability', 1 - pred['home_win_probability']))
+        if pred.get('projected_home_runs') is None:
+            pred['projected_home_runs'] = round(home.runs_per_game, 1)
+        if pred.get('projected_away_runs') is None:
+            pred['projected_away_runs'] = round(away.runs_per_game, 1)
+        if pred.get('projected_total') is None:
+            pred['projected_total'] = round(pred['projected_home_runs'] + pred['projected_away_runs'], 1)
+
         # Add team info to prediction
         pred['home_team'] = home_team
         pred['away_team'] = away_team
         pred['neutral_site'] = neutral_site
         pred['predicted_winner'] = home_team if pred['home_win_probability'] > 0.5 else away_team
         pred['confidence'] = round(abs(pred['home_win_probability'] - 0.5) * 2, 3)
-        
+
         # Add basic team stats
-        if 'model_inputs' not in pred:
+        if 'model_inputs' not in pred or not isinstance(pred.get('model_inputs'), dict):
             pred['model_inputs'] = {}
-        
+
         pred['model_inputs']['home_record'] = f"{home.wins}-{home.losses}"
         pred['model_inputs']['away_record'] = f"{away.wins}-{away.losses}"
-        
+        if fallback_used:
+            pred['model_inputs']['fallback_used'] = True
+
         return pred
     
     def predict_series(self, home_team, away_team, games=3, neutral_site=False):

@@ -1040,7 +1040,8 @@ def show_spread_shadow_status():
             SUM(CASE WHEN actual_margin IS NOT NULL THEN 1 ELSE 0 END) as graded,
             SUM(CASE WHEN was_correct = 1 THEN 1 ELSE 0 END) as wins,
             SUM(CASE WHEN was_correct = 0 THEN 1 ELSE 0 END) as losses,
-            AVG((actual_margin - projected_margin) * (actual_margin - projected_margin)) as mse
+            AVG((actual_margin - projected_margin) * (actual_margin - projected_margin)) as mse,
+            AVG((confidence - was_correct) * (confidence - was_correct)) as brier
         FROM spread_predictions
         WHERE model_name = ?
     ''', (SPREAD_MODEL_NAME,))
@@ -1051,6 +1052,7 @@ def show_spread_shadow_status():
     wins = row[2] or 0
     losses = row[3] or 0
     mse = row[4]
+    brier = row[5]
     sigma = math.sqrt(mse) if mse is not None and mse > 0 else None
     hit_rate = (100.0 * wins / (wins + losses)) if (wins + losses) > 0 else None
 
@@ -1063,6 +1065,8 @@ def show_spread_shadow_status():
         print(f"W-L: {wins}-{losses} ({hit_rate:.1f}%)")
     if sigma is not None:
         print(f"Residual sigma: {sigma:.2f} runs")
+    if brier is not None:
+        print(f"Brier score: {brier:.4f}")
 
     # Line-level breakdown
     cur.execute('''
@@ -1083,6 +1087,49 @@ def show_spread_shadow_status():
             wl_total = (w or 0) + (l or 0)
             pct = (100.0 * (w or 0) / wl_total) if wl_total else 0.0
             print(f"  {spread_line:+.1f}: {w or 0}-{l or 0} ({pct:.1f}%) n={n}")
+
+    # Confidence calibration bins
+    cur.execute('''
+        SELECT
+            CASE
+                WHEN confidence < 0.55 THEN '50-55%'
+                WHEN confidence < 0.60 THEN '55-60%'
+                WHEN confidence < 0.65 THEN '60-65%'
+                WHEN confidence < 0.70 THEN '65-70%'
+                WHEN confidence < 0.75 THEN '70-75%'
+                WHEN confidence < 0.80 THEN '75-80%'
+                ELSE '80%+'
+            END as conf_bin,
+            CASE
+                WHEN confidence < 0.55 THEN 1
+                WHEN confidence < 0.60 THEN 2
+                WHEN confidence < 0.65 THEN 3
+                WHEN confidence < 0.70 THEN 4
+                WHEN confidence < 0.75 THEN 5
+                WHEN confidence < 0.80 THEN 6
+                ELSE 7
+            END as conf_ord,
+            COUNT(*) as n,
+            AVG(confidence) as avg_conf,
+            AVG(CASE WHEN was_correct = 1 THEN 1.0 ELSE 0.0 END) as hit_rate
+        FROM spread_predictions
+        WHERE model_name = ?
+          AND was_correct IS NOT NULL
+          AND confidence IS NOT NULL
+        GROUP BY conf_bin, conf_ord
+        ORDER BY conf_ord
+    ''', (SPREAD_MODEL_NAME,))
+    cal_rows = cur.fetchall()
+    if cal_rows:
+        print("\nConfidence calibration:")
+        for conf_bin, _, n, avg_conf, hit_rate in cal_rows:
+            gap = (hit_rate - avg_conf) * 100.0
+            print(
+                f"  {conf_bin:>6}  n={n:>3}  "
+                f"pred={avg_conf*100:>5.1f}%  "
+                f"actual={hit_rate*100:>5.1f}%  "
+                f"gap={gap:+.1f}pp"
+            )
 
     conn.close()
 
@@ -1170,7 +1217,14 @@ def validate_predictions(date=None, fix=False):
     
     print(f"⚠️  Found {len(incomplete)} games with missing predictions:")
     
-    predictors = {name: Predictor(model=name) for name in MODEL_NAMES} if fix else {}
+    predictors = {name: Predictor(model=name) for name in MODEL_NAMES if name != 'meta_ensemble'} if fix else {}
+    meta_predictor = None
+    if fix:
+        try:
+            from models.meta_ensemble import MetaEnsemble
+            meta_predictor = MetaEnsemble()
+        except Exception:
+            meta_predictor = None
     fixed_count = 0
     
     for game_id, home_id, away_id, home_name, away_name, game_date, count in incomplete:
