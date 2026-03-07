@@ -1398,6 +1398,8 @@ def get_featured_team_info(team_id='mississippi-state'):
             score = f"{r['away_score']}-{r['home_score']}"
         last_5.append({'won': won, 'opponent': opponent, 'score': score, 'date': r['date']})
 
+    last_5.reverse()  # chronological: oldest on left, most recent on right
+
     # Live game (in progress)
     c.execute('''
         SELECT g.id, g.date, g.time, g.home_team_id, g.away_team_id,
