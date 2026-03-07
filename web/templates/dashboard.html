@@ -63,7 +63,18 @@
 
 <!-- Quick Stats (compact single row) -->
 <div class="d-flex gap-2 mb-4 flex-wrap">
-    <span class="badge bg-secondary" style="font-size:0.8rem;">{{ todays_games|length }} games today</span>
+    {% set live_count = todays_games|selectattr('status', 'equalto', 'in-progress')|list|length %}
+    {% set final_count = todays_games|selectattr('status', 'equalto', 'final')|list|length %}
+    {% set upcoming_count = todays_games|length - live_count - final_count %}
+    {% if live_count %}
+    <span class="badge bg-danger" style="font-size:0.8rem;">{{ live_count }} live</span>
+    {% endif %}
+    {% if upcoming_count > 0 %}
+    <span class="badge bg-secondary" style="font-size:0.8rem;">{{ upcoming_count }} upcoming</span>
+    {% endif %}
+    {% if final_count %}
+    <span class="badge bg-success" style="font-size:0.8rem;">{{ final_count }} final</span>
+    {% endif %}
     <span class="badge bg-secondary" style="font-size:0.8rem;">{{ stats.games_played }} played</span>
     {% if accuracy.ensemble.pct %}
     <span class="badge {% if accuracy.ensemble.pct >= 60 %}bg-success{% else %}bg-secondary{% endif %}" style="font-size:0.8rem;">Ens {{ accuracy.ensemble.pct }}%</span>
@@ -188,7 +199,9 @@
         <div class="card">
             <div class="card-header" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('d-none'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-down'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-up');">
                 <i class="bi bi-calendar-event"></i> Today's Games
-                <span class="badge bg-secondary ms-2">{{ todays_games|length }}</span>
+                {% if live_count %}<span class="badge bg-danger ms-2">{{ live_count }} live</span>{% endif %}
+                {% if upcoming_count > 0 %}<span class="badge bg-secondary ms-2">{{ upcoming_count }} upcoming</span>{% endif %}
+                {% if final_count %}<span class="badge bg-success ms-2">{{ final_count }} final</span>{% endif %}
                 <i class="bi bi-chevron-up collapse-icon float-end d-md-none" style="font-size:0.8rem;margin-top:4px;"></i>
             </div>
             <div class="card-body p-0">
