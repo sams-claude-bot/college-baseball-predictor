@@ -472,8 +472,8 @@ def register_sb_events(d1b_games, date_str, slug_map, conn):
 def _register_sidearm_links(d1b_games, date_str, slug_map, conn):
     """Register SIDEARM live stats links from D1B score tiles.
 
-    These games stay in the ESPN-only category but get SIDEARM as a
-    supplemental data source for live scores.
+    DH-aware: when two games share the same teams (gm1/gm2), map repeated
+    SIDEARM links across distinct game_ids instead of collapsing to one row.
 
     Returns count of newly registered links.
     """
@@ -491,6 +491,19 @@ def _register_sidearm_links(d1b_games, date_str, slug_map, conn):
         UNIQUE(game_id, domain)
     )""")
 
+    # Build DH-aware lookup: team pair -> ordered game candidates (gm1, gm2)
+    pair_games = {}
+    for r in conn.execute(
+        "SELECT id, away_team_id, home_team_id, status FROM games WHERE date = ?",
+        (date_str,),
+    ).fetchall():
+        d = dict(r)
+        pair = tuple(sorted([d['away_team_id'], d['home_team_id']]))
+        pair_games.setdefault(pair, []).append(d)
+
+    for pair in pair_games:
+        pair_games[pair].sort(key=lambda g: (g['id'].endswith('_gm2'), g['id']))
+
     for dg in d1b_games:
         sa_url = dg.get("sa")
         if not sa_url:
@@ -501,31 +514,33 @@ def _register_sidearm_links(d1b_games, date_str, slug_map, conn):
         if not away_id or not home_id:
             continue
 
-        game_id = "{}_{}".format(date_str, "_".join(sorted([away_id, home_id])))
-        # Try both orderings
-        c.execute("SELECT id FROM games WHERE id = ? OR id = ?",
-                  (game_id, "{}_{}_{}".format(date_str, away_id, home_id)))
-        row = c.fetchone()
-        if not row:
-            c.execute("SELECT id FROM games WHERE id = ?",
-                      ("{}_{}_{}".format(date_str, home_id, away_id),))
-            row = c.fetchone()
-        if not row:
-            # Try the away_home format from our DB
-            c.execute("""SELECT id FROM games WHERE date = ?
-                         AND ((home_team_id = ? AND away_team_id = ?)
-                           OR (home_team_id = ? AND away_team_id = ?))""",
-                      (date_str, home_id, away_id, away_id, home_id))
-            row = c.fetchone()
-        if not row:
+        pair = tuple(sorted([away_id, home_id]))
+        candidates = pair_games.get(pair, [])
+        if not candidates:
             continue
-
-        actual_game_id = row[0] if isinstance(row, tuple) else row['id']
 
         # Extract domain from URL
         import re as _re
         m = _re.match(r'https?://([^/]+)', sa_url)
         domain = m.group(1) if m else sa_url
+
+        # Prefer non-final game first, then final (helps live DH game2 pickup)
+        ordered = [g for g in candidates if g.get('status') != 'final'] + \
+                  [g for g in candidates if g.get('status') == 'final']
+
+        actual_game_id = None
+        for g in ordered:
+            gid = g['id']
+            exists = c.execute(
+                "SELECT 1 FROM sidearm_links WHERE game_id = ? AND domain = ?",
+                (gid, domain)
+            ).fetchone()
+            if not exists:
+                actual_game_id = gid
+                break
+
+        if not actual_game_id:
+            continue
 
         try:
             c.execute("""INSERT OR IGNORE INTO sidearm_links

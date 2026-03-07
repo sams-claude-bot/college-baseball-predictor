@@ -385,13 +385,20 @@ def main():
 
         # Build game lookup for matching
         all_games = conn.execute(
-            "SELECT id, away_team_id, home_team_id FROM games WHERE date = ?",
+            "SELECT id, away_team_id, home_team_id, status FROM games WHERE date = ?",
             (date_str,)
         ).fetchall()
         game_lookup_sb = {}
+        pair_games = {}
         for g in all_games:
             game_lookup_sb[(g['away_team_id'], g['home_team_id'])] = g['id']
             game_lookup_sb[(g['home_team_id'], g['away_team_id'])] = g['id']
+
+            pair = tuple(sorted([g['away_team_id'], g['home_team_id']]))
+            pair_games.setdefault(pair, []).append(dict(g))
+
+        for pair in pair_games:
+            pair_games[pair].sort(key=lambda x: (x['id'].endswith('_gm2'), x['id']))
 
         for dg in d1b_games:
             sb_id = dg.get('sb')
@@ -474,6 +481,8 @@ def main():
             time.sleep(0.15)
 
         # --- SIDEARM link registration from D1B ---
+        # DH-aware: if the same team pair appears twice (gm1/gm2), assign links
+        # to distinct game_ids instead of collapsing to one mapping.
         sa_registered = 0
         for dg in d1b_games:
             sa_url = dg.get('sa')
@@ -484,10 +493,12 @@ def main():
 
             away_id = slug_map.get(dg['a'])
             home_id = slug_map.get(dg['h'])
-            game_id = None
-            if away_id and home_id:
-                game_id = game_lookup_sb.get((away_id, home_id)) or game_lookup_sb.get((home_id, away_id))
-            if not game_id:
+            if not away_id or not home_id:
+                continue
+
+            pair = tuple(sorted([away_id, home_id]))
+            candidates = pair_games.get(pair, [])
+            if not candidates:
                 continue
 
             # Extract domain from URL
@@ -498,12 +509,22 @@ def main():
             except Exception:
                 continue
 
-            # Check if already registered
-            existing = conn.execute(
-                "SELECT 1 FROM sidearm_links WHERE game_id = ? AND domain = ?",
-                (game_id, domain)
-            ).fetchone()
-            if existing:
+            # Prefer non-final game first, then final
+            ordered = [g for g in candidates if g.get('status') != 'final'] + \
+                      [g for g in candidates if g.get('status') == 'final']
+
+            game_id = None
+            for g in ordered:
+                gid = g['id']
+                existing = conn.execute(
+                    "SELECT 1 FROM sidearm_links WHERE game_id = ? AND domain = ?",
+                    (gid, domain)
+                ).fetchone()
+                if not existing:
+                    game_id = gid
+                    break
+
+            if not game_id:
                 continue
 
             conn.execute("""
