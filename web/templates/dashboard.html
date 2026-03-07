@@ -197,24 +197,18 @@
         {% set upcoming_games = todays_games|rejectattr('status', 'equalto', 'final')|rejectattr('status', 'equalto', 'in-progress')|sort(attribute='gqi', reverse=true)|list %}
         {% set final_games = todays_games|selectattr('status', 'equalto', 'final')|sort(attribute='gqi', reverse=true)|list %}
         <div class="card">
-            <div class="card-header p-0">
-                <ul class="nav nav-tabs card-header-tabs" role="tablist" style="border-bottom:0;">
-                    <li class="nav-item">
-                        <button class="nav-link {% if live_games %}active{% elif not live_games and upcoming_games %}{% else %}{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-live" role="tab" {% if not live_games %}disabled{% endif %}>
-                            🔴 Live {% if live_games %}<span class="badge bg-danger">{{ live_games|length }}</span>{% endif %}
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link {% if not live_games and upcoming_games %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-upcoming" role="tab" {% if not upcoming_games %}disabled{% endif %}>
-                            Upcoming {% if upcoming_games %}<span class="badge bg-secondary">{{ upcoming_games|length }}</span>{% endif %}
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link {% if not live_games and not upcoming_games %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-final" role="tab" {% if not final_games %}disabled{% endif %}>
-                            Final {% if final_games %}<span class="badge bg-success">{{ final_games|length }}</span>{% endif %}
-                        </button>
-                    </li>
-                </ul>
+            <div class="card-header">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm {% if live_games %}btn-danger{% else %}btn-outline-secondary{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-live" role="tab" {% if not live_games %}disabled{% endif %}>
+                        🔴 Live {% if live_games %}<span class="badge bg-light text-dark">{{ live_games|length }}</span>{% endif %}
+                    </button>
+                    <button class="btn btn-sm {% if not live_games and upcoming_games %}btn-secondary{% else %}btn-outline-secondary{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-upcoming" role="tab" {% if not upcoming_games %}disabled{% endif %}>
+                        Upcoming {% if upcoming_games %}<span class="badge bg-light text-dark">{{ upcoming_games|length }}</span>{% endif %}
+                    </button>
+                    <button class="btn btn-sm {% if not live_games and not upcoming_games %}btn-success{% else %}btn-outline-secondary{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-final" role="tab" {% if not final_games %}disabled{% endif %}>
+                        Final {% if final_games %}<span class="badge bg-light text-dark">{{ final_games|length }}</span>{% endif %}
+                    </button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="tab-content">
@@ -309,6 +303,19 @@
                 <a href="/scores" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games on Scores</a>
             </div>
         </div>
+        <script>
+        document.querySelectorAll('[data-bs-target^="#tab-"]').forEach(function(btn){
+            btn.addEventListener('shown.bs.tab', function(){
+                btn.closest('.d-flex').querySelectorAll('.btn').forEach(function(b){
+                    b.className = b.className.replace(/btn-(danger|success|secondary)\b/g, 'btn-outline-secondary');
+                });
+                var t = btn.dataset.bsTarget;
+                if(t === '#tab-live') btn.className = btn.className.replace('btn-outline-secondary', 'btn-danger');
+                else if(t === '#tab-upcoming') btn.className = btn.className.replace('btn-outline-secondary', 'btn-secondary');
+                else if(t === '#tab-final') btn.className = btn.className.replace('btn-outline-secondary', 'btn-success');
+            });
+        });
+        </script>
 
 
         <!-- Recent Results -->
