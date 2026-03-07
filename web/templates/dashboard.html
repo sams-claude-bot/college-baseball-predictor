@@ -192,90 +192,121 @@
             </div>
         </div>
 
-        <!-- Today's Games -->
+        <!-- Today's Games (tabbed by status, sorted by GQI) -->
+        {% set live_games = todays_games|selectattr('status', 'equalto', 'in-progress')|sort(attribute='gqi', reverse=true)|list %}
+        {% set upcoming_games = todays_games|rejectattr('status', 'equalto', 'final')|rejectattr('status', 'equalto', 'in-progress')|sort(attribute='gqi', reverse=true)|list %}
+        {% set final_games = todays_games|selectattr('status', 'equalto', 'final')|sort(attribute='gqi', reverse=true)|list %}
         <div class="card">
-            <div class="card-header" style="cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('d-none'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-down'); this.querySelector('.collapse-icon').classList.toggle('bi-chevron-up');">
-                <i class="bi bi-calendar-event"></i> Today's Games
-                {% if live_count %}<span class="badge bg-danger ms-2">{{ live_count }} live</span>{% endif %}
-                {% if upcoming_count > 0 %}<span class="badge bg-secondary ms-2">{{ upcoming_count }} upcoming</span>{% endif %}
-                <i class="bi bi-chevron-up collapse-icon float-end d-md-none" style="font-size:0.8rem;margin-top:4px;"></i>
+            <div class="card-header p-0">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist" style="border-bottom:0;">
+                    <li class="nav-item">
+                        <button class="nav-link {% if live_games %}active{% elif not live_games and upcoming_games %}{% else %}{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-live" role="tab" {% if not live_games %}disabled{% endif %}>
+                            🔴 Live {% if live_games %}<span class="badge bg-danger">{{ live_games|length }}</span>{% endif %}
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if not live_games and upcoming_games %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-upcoming" role="tab" {% if not upcoming_games %}disabled{% endif %}>
+                            Upcoming {% if upcoming_games %}<span class="badge bg-secondary">{{ upcoming_games|length }}</span>{% endif %}
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link {% if not live_games and not upcoming_games %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-final" role="tab" {% if not final_games %}disabled{% endif %}>
+                            Final {% if final_games %}<span class="badge bg-success">{{ final_games|length }}</span>{% endif %}
+                        </button>
+                    </li>
+                </ul>
             </div>
             <div class="card-body p-0">
-                {% if todays_games %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Away</th>
-                                <th class="text-center">Score/Time</th>
-                                <th>Home</th>
-                                <th class="text-center hide-mobile">Pred</th>
-                                <th class="text-center hide-mobile">Wx</th>
-                                <th class="text-center hide-mobile">Lines</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for game in todays_games if game.status != 'final' %}
-                            <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
-                                <td>
-                                    {% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}
-                                    <a href="/team/{{ game.away_team_id }}" class="team-link">{{ game.away_team_name }}</a>
-                                </td>
-                                <td class="text-center">
-                                    {% if game.status == 'final' %}
-                                    <span class="{% if game.away_score is not none and game.home_score is not none and game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score if game.away_score is not none else '-' }}</span>
-                                    -
-                                    <span class="{% if game.away_score is not none and game.home_score is not none and game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score if game.home_score is not none else '-' }}</span>
-                                    <br><small class="text-success">Final</small>
-                                    {% else %}
-                                    <span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}
-                                    <a href="/team/{{ game.home_team_id }}" class="team-link">{{ game.home_team_name }}</a>
-                                </td>
-                                <td class="text-center hide-mobile">
-                                    {% if game.prediction %}
-                                    <small>
-                                        {% if game.prediction.projected_away_runs is not none and game.prediction.projected_home_runs is not none %}
-                                        {{ game.prediction.projected_away_runs|round(1) }}-{{ game.prediction.projected_home_runs|round(1) }}
-                                        {% else %}—{% endif %}
-                                    </small>
-                                    {% else %}—{% endif %}
-                                </td>
-                                <td class="text-center hide-mobile">
-                                    {% if game.temperature %}
-                                    <small title="{{ game.wind_speed|int }}mph wind{% if game.precipitation_prob %}, {{ game.precipitation_prob|int }}% rain{% endif %}">
-                                        {{ game.temperature|int }}°
-                                        {% if game.wind_speed and game.wind_speed >= 10 %}💨{% endif %}
-                                        {% if game.precipitation_prob and game.precipitation_prob >= 30 %}🌧️{% endif %}
-                                    </small>
-                                    {% else %}—{% endif %}
-                                </td>
-                                <td class="text-center hide-mobile">
-                                    {% if game.home_ml %}
-                                    <small>{{ game.away_ml|format_odds }}/{{ game.home_ml|format_odds }}</small>
-                                    {% else %}—{% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                <div class="tab-content">
+                    <!-- Live Tab -->
+                    <div class="tab-pane fade {% if live_games %}show active{% endif %}" id="tab-live" role="tabpanel">
+                        {% if live_games %}
+                        <div style="max-height:420px; overflow-y:auto;">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead style="position:sticky;top:0;z-index:1;" class="bg-body">
+                                    <tr><th>Away</th><th class="text-center">Score</th><th>Home</th><th class="text-center hide-mobile">GQI</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in live_games %}
+                                    <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
+                                        <td>{% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}{{ game.away_team_name }}</td>
+                                        <td class="text-center">
+                                            <span class="{% if game.away_score is not none and game.home_score is not none and game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score if game.away_score is not none else 0 }}</span>
+                                            -
+                                            <span class="{% if game.away_score is not none and game.home_score is not none and game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score if game.home_score is not none else 0 }}</span>
+                                            <br><small class="text-danger">{{ game.inning_text or 'Live' }}</small>
+                                        </td>
+                                        <td>{% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}{{ game.home_team_name }}</td>
+                                        <td class="text-center hide-mobile"><span class="badge" style="background-color:{{ game.gqi_color }}">{{ game.gqi }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted py-3"><small>No live games right now</small></div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Upcoming Tab -->
+                    <div class="tab-pane fade {% if not live_games and upcoming_games %}show active{% endif %}" id="tab-upcoming" role="tabpanel">
+                        {% if upcoming_games %}
+                        <div style="max-height:420px; overflow-y:auto;">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead style="position:sticky;top:0;z-index:1;" class="bg-body">
+                                    <tr><th>Away</th><th class="text-center">Time</th><th>Home</th><th class="text-center hide-mobile">GQI</th><th class="text-center hide-mobile">Lines</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in upcoming_games %}
+                                    <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
+                                        <td>{% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}{{ game.away_team_name }}</td>
+                                        <td class="text-center"><span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time or 'TBD' }}</span></td>
+                                        <td>{% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}{{ game.home_team_name }}</td>
+                                        <td class="text-center hide-mobile"><span class="badge" style="background-color:{{ game.gqi_color }}">{{ game.gqi }}</span></td>
+                                        <td class="text-center hide-mobile">{% if game.home_ml %}<small>{{ game.away_ml|format_odds }}/{{ game.home_ml|format_odds }}</small>{% else %}—{% endif %}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted py-3"><small>No upcoming games</small></div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Final Tab -->
+                    <div class="tab-pane fade {% if not live_games and not upcoming_games %}show active{% endif %}" id="tab-final" role="tabpanel">
+                        {% if final_games %}
+                        <div style="max-height:420px; overflow-y:auto;">
+                            <table class="table table-hover table-sm mb-0">
+                                <thead style="position:sticky;top:0;z-index:1;" class="bg-body">
+                                    <tr><th>Away</th><th class="text-center">Score</th><th>Home</th><th class="text-center hide-mobile">GQI</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for game in final_games %}
+                                    <tr style="cursor:pointer;" onclick="window.location='/game/{{ game.id }}'">
+                                        <td>{% if game.away_rank %}<small class="text-muted">#{{ game.away_rank }}</small> {% endif %}{{ game.away_team_name }}</td>
+                                        <td class="text-center">
+                                            <span class="{% if game.away_score is not none and game.home_score is not none and game.away_score > game.home_score %}fw-bold{% endif %}">{{ game.away_score if game.away_score is not none else '-' }}</span>
+                                            -
+                                            <span class="{% if game.away_score is not none and game.home_score is not none and game.home_score > game.away_score %}fw-bold{% endif %}">{{ game.home_score if game.home_score is not none else '-' }}</span>
+                                            <br><small class="text-success">Final</small>
+                                        </td>
+                                        <td>{% if game.home_rank %}<small class="text-muted">#{{ game.home_rank }}</small> {% endif %}{{ game.home_team_name }}</td>
+                                        <td class="text-center hide-mobile"><span class="badge" style="background-color:{{ game.gqi_color }}">{{ game.gqi }}</span></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center text-muted py-3"><small>No final games yet</small></div>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="card-footer text-center">
-                    <a href="/scores" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games</a>
-                </div>
-                {% else %}
-                <div class="text-center text-muted py-4">
-                    {% if final_count %}
-                    <p class="mt-2 text-muted">All {{ final_count }} games are final — <a href="/scores">view scores</a></p>
-                    {% else %}
-                    <i class="bi bi-calendar-x display-4"></i>
-                    <p class="mt-2">No games scheduled for today</p>
-                    {% endif %}
-                </div>
-                {% endif %}
+            </div>
+            <div class="card-footer text-center">
+                <a href="/scores" class="btn btn-sm btn-outline-secondary">View all {{ todays_games|length }} games on Scores</a>
             </div>
         </div>
 

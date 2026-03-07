@@ -374,7 +374,7 @@ def get_todays_games():
     c.execute('''
         SELECT g.id, g.date, g.time, g.status,
                g.home_team_id, g.away_team_id,
-               g.home_score, g.away_score,
+               g.home_score, g.away_score, g.inning_text,
                b.home_ml, b.away_ml, b.over_under, 
                b.home_spread as run_line, b.home_spread_odds as run_line_odds,
                ht.name as home_team_name, ht.current_rank as home_rank, ht.conference as home_conf,

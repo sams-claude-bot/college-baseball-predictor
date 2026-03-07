@@ -11,6 +11,7 @@ from web.helpers import (
     get_model_accuracy, get_recent_results,
     get_games_for_date_with_predictions
 )
+from web.services.game_quality import compute_gqi, gqi_label, gqi_color
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -26,6 +27,15 @@ def dashboard():
         return cached
 
     todays_games = get_todays_games()
+
+    # Compute GQI for each game
+    for game in todays_games:
+        home_elo = game.get('home_elo') or 1500
+        away_elo = game.get('away_elo') or 1500
+        game['gqi'] = compute_gqi(home_elo, away_elo, game.get('home_rank'), game.get('away_rank'))
+        game['gqi_label'] = gqi_label(game['gqi'])
+        game['gqi_color'] = gqi_color(game['gqi'])
+
     value_picks = get_value_picks(5)
     stats = get_quick_stats()
     featured = get_featured_team_info(featured_team)
