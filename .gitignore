@@ -45,3 +45,4 @@ web/templates.bak/
 .idea/
 web/static/logos/
 data/vapid_keys.json
+tmp/

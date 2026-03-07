@@ -242,11 +242,22 @@ class StatBroadcastPoller:
         self._filetimes = {}  # sb_event_id -> last filetime
         self._poll_counts = {}  # sb_event_id -> poll cycle counter
         self._404_counts = {}  # sb_event_id -> consecutive 404 count
+        self._retry_after = {}  # sb_event_id -> unix timestamp to retry after
         self._running = True
 
     def stop(self):
         """Signal the poller to stop."""
         self._running = False
+
+    def _should_poll_event(self, sb_id):
+        ts = self._retry_after.get(str(sb_id), 0)
+        return time.time() >= ts
+
+    def _set_event_backoff(self, sb_id, seconds):
+        self._retry_after[str(sb_id)] = time.time() + max(1, int(seconds))
+
+    def _clear_event_backoff(self, sb_id):
+        self._retry_after.pop(str(sb_id), None)
 
     def poll_once(self):
         """
@@ -257,6 +268,11 @@ class StatBroadcastPoller:
         events = get_active_events(self.conn)
         if not events:
             logger.debug("No active SB events to poll")
+            return 0
+
+        events = [ev for ev in events if self._should_poll_event(ev['sb_event_id'])]
+        if not events:
+            logger.debug("No SB events eligible this cycle (backoff active)")
             return 0
 
         # Use threading for parallel HTTP fetches when many games are live
@@ -326,6 +342,11 @@ class StatBroadcastPoller:
             if is_404:
                 cnt = self._404_counts.get(sb_id, 0) + 1
                 self._404_counts[sb_id] = cnt
+
+                # Backoff noisy 404 feeds to reduce useless churn.
+                backoff_s = min(180, max(20, cnt * 20))
+                self._set_event_backoff(sb_id, backoff_s)
+
                 if cnt >= self.MAX_CONSECUTIVE_404:
                     # Before marking completed, check if xml_file is wrong
                     # (tournament games often have wrong group prefix)
@@ -345,24 +366,22 @@ class StatBroadcastPoller:
                                     (real_xml, real_group, sb_id),
                                 )
                                 self.conn.commit()
-                            self._404_counts[sb_id] = 0  # reset, retry with correct xml
+                            self._404_counts[sb_id] = 0
+                            self._set_event_backoff(sb_id, 10)
                             return False
                     except Exception as fix_err:
                         logger.debug("Could not re-check event info for %s: %s", sb_id, fix_err)
 
                     # Before marking completed, check if the event is actually done.
-                    # Some events return 404 on the data feed but are still live
-                    # (broadcast page works, API says not completed).
                     try:
                         info2 = self.client.get_event_info(sb_id)
                         if info2 and not info2.get('completed'):
-                            # Event is still live per SB — don't mark completed.
-                            # Just stop polling this cycle (d1b_live_check will reactivate).
                             logger.info(
-                                "SB event %s (game %s): %d 404s but event NOT completed per API — skipping",
+                                "SB event %s (game %s): %d 404s but event NOT completed per API — backing off",
                                 sb_id, game_id, cnt,
                             )
-                            self._404_counts[sb_id] = 0  # reset counter
+                            self._404_counts[sb_id] = 0
+                            self._set_event_backoff(sb_id, 60)
                             return False
                     except Exception:
                         pass
@@ -374,12 +393,22 @@ class StatBroadcastPoller:
                     with self._db_lock:
                         mark_completed(self.conn, sb_id)
                     self._404_counts.pop(sb_id, None)
+                    self._clear_event_backoff(sb_id)
                     return False
+
+                logger.debug(
+                    "SB event %s (game %s): HTTP 404 #%d, backing off %ss",
+                    sb_id, game_id, cnt, backoff_s,
+                )
+                return False
+
+            self._set_event_backoff(sb_id, 20)
             logger.error("HTTP error polling SB event %s: %s", sb_id, e)
             return False
 
-        # Successful fetch — reset 404 counter
+        # Successful fetch — reset 404/backoff counters
         self._404_counts.pop(sb_id, None)
+        self._clear_event_backoff(sb_id)
         self._filetimes[sb_id] = new_ft
 
         if html is None:
@@ -475,6 +504,10 @@ class StatBroadcastPoller:
             if is_404:
                 cnt = self._404_counts.get(sb_id, 0) + 1
                 self._404_counts[sb_id] = cnt
+
+                backoff_s = min(180, max(20, cnt * 20))
+                self._set_event_backoff(sb_id, backoff_s)
+
                 if cnt >= self.MAX_CONSECUTIVE_404:
                     # Before marking completed, check if xml_file is wrong
                     try:
@@ -493,6 +526,7 @@ class StatBroadcastPoller:
                             )
                             self.conn.commit()
                             self._404_counts[sb_id] = 0
+                            self._set_event_backoff(sb_id, 10)
                             return False
                     except Exception:
                         pass
@@ -502,10 +536,11 @@ class StatBroadcastPoller:
                         info2 = self.client.get_event_info(sb_id)
                         if info2 and not info2.get('completed'):
                             logger.info(
-                                "SB event %s (game %s): %d 404s but NOT completed per API — skipping",
+                                "SB event %s (game %s): %d 404s but NOT completed per API — backing off",
                                 sb_id, game_id, cnt,
                             )
                             self._404_counts[sb_id] = 0
+                            self._set_event_backoff(sb_id, 60)
                             return False
                     except Exception:
                         pass
@@ -516,12 +551,22 @@ class StatBroadcastPoller:
                     )
                     mark_completed(self.conn, sb_id)
                     self._404_counts.pop(sb_id, None)
+                    self._clear_event_backoff(sb_id)
                     return False
+
+                logger.debug(
+                    "SB event %s (game %s): HTTP 404 #%d, backing off %ss",
+                    sb_id, game_id, cnt, backoff_s,
+                )
+                return False
+
+            self._set_event_backoff(sb_id, 20)
             logger.error("HTTP error polling SB event %s: %s", sb_id, e)
             return False
 
-        # Successful fetch — reset 404 counter
+        # Successful fetch — reset 404/backoff counters
         self._404_counts.pop(sb_id, None)
+        self._clear_event_backoff(sb_id)
 
         # Update stored filetime
         self._filetimes[sb_id] = new_ft

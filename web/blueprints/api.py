@@ -32,7 +32,6 @@ api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
 
 _D1B_DISCOVERY_DEBOUNCE_SECONDS = 300
-_LIVE_SCORES_RECENT_FINAL_MINUTES = 15
 _D1B_DISCOVERY_STATE_DIR = base_dir / "tmp"
 _D1B_DISCOVERY_LOCK_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.lock"
 _D1B_DISCOVERY_STAMP_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.last"
@@ -578,26 +577,50 @@ def api_best_bets():
 
 @api_bp.route('/api/live-scores')
 def live_scores():
-    """Lightweight endpoint for live score polling — returns only in-progress and recently-finished games."""
+    """Lightweight endpoint for live polling.
+
+    Returns all in-progress games for the date, plus optional watched IDs so
+    clients can observe live→final transitions without downloading the full slate.
+    """
     from datetime import datetime
     today_str = datetime.now().strftime('%Y-%m-%d')
     raw_date = request.args.get('date')
     date_str = today_str if raw_date in (None, '', 'today') else raw_date
-    
+
+    # Optional comma-separated watch list from the client.
+    watch_raw = (request.args.get('watch') or '').strip()
+    watch_ids = []
+    if watch_raw:
+        seen = set()
+        for token in watch_raw.split(','):
+            t = token.strip()
+            if not t or t in seen:
+                continue
+            if len(t) > 120:
+                continue
+            if not all(ch.isalnum() or ch in ('-', '_') for ch in t):
+                continue
+            seen.add(t)
+            watch_ids.append(t)
+
     conn = get_connection()
-    rows = conn.execute('''
-        SELECT g.id, g.status, g.home_score, g.away_score,
-               g.inning_text, g.innings, g.situation_json
-        FROM games g
-        WHERE g.date = ?
-          AND (
-                g.status = 'in-progress'
-                OR (
-                    g.status = 'final'
-                    AND datetime(g.updated_at) >= datetime('now', ?)
-                )
-              )
-    ''', (date_str, f'-{_LIVE_SCORES_RECENT_FINAL_MINUTES} minutes')).fetchall()
+
+    if watch_ids:
+        placeholders = ','.join('?' for _ in watch_ids)
+        rows = conn.execute(f'''
+            SELECT g.id, g.status, g.home_score, g.away_score,
+                   g.inning_text, g.innings, g.situation_json
+            FROM games g
+            WHERE g.date = ?
+              AND (g.status = 'in-progress' OR g.id IN ({placeholders}))
+        ''', [date_str] + watch_ids).fetchall()
+    else:
+        rows = conn.execute('''
+            SELECT g.id, g.status, g.home_score, g.away_score,
+                   g.inning_text, g.innings, g.situation_json
+            FROM games g
+            WHERE g.date = ? AND g.status = 'in-progress'
+        ''', (date_str,)).fetchall()
 
     active_sb_links = set(
         r['game_id'] for r in conn.execute('''
@@ -614,12 +637,12 @@ def live_scores():
         ''', (date_str,)).fetchall()
     )
     conn.close()
-    
+
     import json as _json
     games = {}
     has_live = False
-    espn_only_live = 0
     unresolved_link_live = 0
+
     for r in rows:
         situation = None
         game_data = {
@@ -629,7 +652,7 @@ def live_scores():
             'inning_text': r['inning_text'],
             'innings': r['innings'],
         }
-        # Parse situation only for live games; finals don't need heavy payloads.
+
         if r['status'] == 'in-progress' and r['situation_json']:
             try:
                 situation = _json.loads(r['situation_json'])
@@ -643,20 +666,36 @@ def live_scores():
             has_sb_data = _has_provider_fields(situation, 'sb_')
             has_sa_data = _has_provider_fields(situation, 'sa_')
             if not has_sb_data and not has_sa_data:
-                espn_only_live += 1
                 has_sb_link = r['id'] in active_sb_links
                 has_sa_link = r['id'] in active_sa_links
                 if not has_sb_link and not has_sa_link:
                     unresolved_link_live += 1
 
-    # Only trigger D1B discovery when live ESPN-only games still lack any SB/SA links.
     if date_str == today_str and unresolved_link_live > 0:
         try:
             _trigger_d1b_live_check_async(date_str)
         except Exception:
             logger.exception("Failed to trigger async d1b_live_check for %s", date_str)
-    
+
     return jsonify({'games': games, 'has_live': has_live, 'date': date_str})
+
+
+@api_bp.route('/api/live-status')
+def live_status():
+    """Tiny endpoint to check whether any games are currently live for a date."""
+    from datetime import datetime
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    raw_date = request.args.get('date')
+    date_str = today_str if raw_date in (None, '', 'today') else raw_date
+
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT 1 FROM games WHERE date = ? AND status = 'in-progress' LIMIT 1",
+        (date_str,),
+    ).fetchone()
+    conn.close()
+
+    return jsonify({'has_live': bool(row), 'date': date_str})
 
 
 @api_bp.route('/api/live-stream')

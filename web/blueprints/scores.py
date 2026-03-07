@@ -65,6 +65,7 @@ def scores():
     conn_def.close()
     date_str = request.args.get('date', default_date)
     conference = request.args.get('conference', '')
+    finals_fragment = request.args.get('finals_fragment') == '1'
 
     # Parse date
     try:
@@ -73,7 +74,7 @@ def scores():
         display_date = datetime.now() - timedelta(days=1)
         date_str = display_date.strftime('%Y-%m-%d')
 
-    cache_key = f'scores:{date_str}:{conference}'
+    cache_key = None if finals_fragment else f'scores:{date_str}:{conference}'
     # Check for live games — use short cache (15s) during live games, full cache otherwise
     conn_live = get_connection()
     has_live = conn_live.execute(
@@ -81,9 +82,10 @@ def scores():
         (date_str,)
     ).fetchone()
     conn_live.close()
-    cached = cache.get(cache_key)
-    if cached:
-        return cached
+    if cache_key:
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
 
     # Get games for the date (base predictions from ensemble)
     games, correct_count, total_preds = get_games_for_date_with_predictions(date_str)
@@ -334,6 +336,14 @@ def scores():
     # Quick links - get dates with completed games
     available_dates = get_available_dates()
 
+    if request.args.get('finals_fragment') == '1':
+        return render_template(
+            'partials/final_scores_section.html',
+            completed_games=completed_games,
+            accuracy_pct=accuracy_pct,
+            nn_accuracy_pct=nn_accuracy_pct,
+        )
+
     result = render_template('scores.html',
                           completed_games=completed_games,
                           in_progress_games=in_progress_games,
@@ -362,8 +372,9 @@ def scores():
                           totals_accuracy_pct=totals_accuracy_pct,
                           totals_correct=totals_correct,
                           totals_total=totals_total)
-    cache_timeout = 15 if has_live else 600  # 15s during live games, 10min otherwise
-    cache.set(cache_key, result, timeout=cache_timeout)
+    if cache_key:
+        cache_timeout = 15 if has_live else 600  # 15s during live games, 10min otherwise
+        cache.set(cache_key, result, timeout=cache_timeout)
     return result
 
 

@@ -156,7 +156,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in live_with_stats %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-live-watch="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                 <div class="border border-success rounded p-3 h-100"
                      style="cursor:pointer; background: rgba(25,135,84,0.08);"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -322,7 +322,7 @@
     <div class="card-body p-0">
         <div class="row g-0">
             {% for game in live_espn_only %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
+            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-live-watch="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
                 <div class="border rounded p-3 h-100"
                      style="cursor:pointer; background: rgba(108,117,125,0.08);"
                      onclick="window.location='/game/{{ game.id }}'">
@@ -563,141 +563,30 @@
 </div>
 {% endif %}
 
-<!-- Completed Games -->
+<!-- Completed Games (lazy loaded) -->
 {% if completed_games %}
-<div class="card mb-4">
-    <div class="card-header bg-maroon text-white">
-        <i class="bi bi-check-circle"></i> Final Scores
-        <span class="badge bg-light text-dark ms-2">{{ completed_games|length }}</span>
-        {% if accuracy_pct is not none %}
-        <span class="badge {% if accuracy_pct >= 55 %}bg-success{% elif accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
-            Ens {{ accuracy_pct }}%
-        </span>
-        {% endif %}
-        {% if nn_accuracy_pct is not none %}
-        <span class="badge {% if nn_accuracy_pct >= 55 %}bg-success{% elif nn_accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
-            NN {{ nn_accuracy_pct }}%
-        </span>
-        {% endif %}
-    </div>
-    <div class="card-body p-0">
-        <div class="row g-0">
-            {% for game in completed_games %}
-            <div class="col-12 col-md-6 col-lg-4 p-2 game-card" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-ranked="{{ 'true' if game.home_rank or game.away_rank else 'false' }}" data-home-rank="{{ game.home_rank or 999 }}" data-away-rank="{{ game.away_rank or 999 }}" data-gqi="{{ game.gqi }}">
-                <div class="border rounded p-3 h-100 {% if game.is_upset %}border-warning{% endif %}"
-                     style="cursor:pointer; {% if game.is_upset %}background: rgba(255,193,7,0.1);{% endif %}"
-                     onclick="window.location='/game/{{ game.id }}'">
-
-                    <!-- Game header with status/time -->
-                    <div class="d-flex justify-content-between align-items-center mb-2 game-status-row">
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <span class="status-pill status-final">Final</span>
-                            <small class="text-muted">
-                                {% if game.time %}<span class="local-time" data-time="{{ game.time }}" data-date="{{ game.date }}">{{ game.time }}</span>{% endif %}
-                            </small>
-                            {% if game.is_conference_game %}<span class="badge bg-secondary">Conf</span>{% endif %}
-                            
-                        </div>
-                        <div class="d-flex gap-1">
-                            <button type="button" class="btn btn-link p-0 favorite-game-toggle" data-no-card-nav="1" data-game-id="{{ game.id }}" data-home-id="{{ game.home_team_id }}" data-away-id="{{ game.away_team_id }}" data-home-name="{{ game.home_team_name }}" data-away-name="{{ game.away_team_name }}" data-date="{{ game.date }}" onclick="toggleGameFavorite(event, this)" title="Follow this game" aria-label="Follow this game">
-                                <i class="bi bi-star"></i>
-                            </button>
-                            {% if game.pred_correct is not none %}
-                                {% if game.pred_correct %}
-                                <span class="badge bg-success" title="Prediction correct"><i class="bi bi-check"></i></span>
-                                {% else %}
-                                <span class="badge bg-danger" title="Prediction wrong"><i class="bi bi-x"></i></span>
-                                {% endif %}
-                            {% endif %}
-                            {% if game.is_upset %}
-                            <span class="badge bg-warning text-dark" title="Upset!">⚡</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <!-- Away team -->
-                    <div class="d-flex justify-content-between align-items-center mb-1 {% if game.winner_id == game.away_team_id %}fw-bold{% endif %}">
-                        <div class="d-flex align-items-center">
-                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.away_team_id, 'primary') }};"></span>
-                            {% if game.away_rank %}
-                            <span class="badge bg-maroon me-2">{{ game.away_rank }}</span>
-                            {% endif %}
-                            <img src="{{ team_logo(game.away_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
-                            <a href="/team/{{ game.away_team_id }}" class="team-link {% if game.winner_id == game.away_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
-                                {{ game.away_team_name }}
-                            </a>
-                        </div>
-                        <span class="score-hero-value {% if game.winner_id == game.away_team_id %}text-success fw-bold{% endif %}">
-                            {{ game.away_score }}
-                        </span>
-                    </div>
-                    
-                    <!-- Home team -->
-                    <div class="d-flex justify-content-between align-items-center {% if game.winner_id == game.home_team_id %}fw-bold{% endif %}">
-                        <div class="d-flex align-items-center">
-                            <span class="team-color-dot me-1" style="background-color:{{ team_color(game.home_team_id, 'primary') }};"></span>
-                            {% if game.home_rank %}
-                            <span class="badge bg-maroon me-2">{{ game.home_rank }}</span>
-                            {% endif %}
-                            <img src="{{ team_logo(game.home_team_id, 24) }}" width="24" height="24" loading="lazy" decoding="async" class="me-2" onerror="this.style.display='none'">
-                            <a href="/team/{{ game.home_team_id }}" class="team-link {% if game.winner_id == game.home_team_id %}text-success{% endif %}" onclick="event.stopPropagation();">
-                                {{ game.home_team_name }}
-                            </a>
-                        </div>
-                        <span class="score-hero-value {% if game.winner_id == game.home_team_id %}text-success fw-bold{% endif %}">
-                            {{ game.home_score }}
-                        </span>
-                    </div>
-                    
-                    <details class="game-secondary-details mt-2" onclick="event.stopPropagation();">
-                        <summary>
-                            <span>
-                                <i class="bi bi-info-circle"></i> Game details
-                            </span>
-                            <small class="text-muted">{% if game.innings and game.innings != 9 %}{{ game.innings }} inn{% else %}9 inn{% endif %}</small>
-                        </summary>
-                        <div class="pt-2 mt-2 border-top">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                <small class="text-muted">Final</small>
-                                <div class="d-flex gap-2">
-                                    {% if game.pred_winner %}
-                                    {% set ens_picked_winner = game.pred_winner == game.winner_id %}
-                                    {% set ens_pct = (game.pred_confidence * 100)|round(0)|int %}
-                                    <small class="{% if ens_picked_winner %}text-success{% else %}text-danger{% endif %}" 
-                                           title="Ensemble: picked {{ 'home' if game.pred_winner == game.home_team_id else 'away' }} at {{ ens_pct }}%">
-                                        Ens: {{ ens_pct }}% {% if ens_picked_winner %}✓{% else %}✗{% endif %}
-                                    </small>
-                                    {% endif %}
-                                    
-                                    {% if game.nn_winner %}
-                                    {% set nn_picked_winner = game.nn_winner == game.winner_id %}
-                                    {% set nn_pct = (game.nn_confidence * 100)|round(0)|int %}
-                                    <small class="{% if nn_picked_winner %}text-success{% else %}text-danger{% endif %}"
-                                           title="Neural: picked {{ 'home' if game.nn_winner == game.home_team_id else 'away' }} at {{ nn_pct }}%">
-                                        NN: {{ nn_pct }}% {% if nn_picked_winner %}✓{% else %}✗{% endif %}
-                                    </small>
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            {% if game.over_under or game.nn_projected_total %}
-                            <div class="d-flex justify-content-between mt-1 flex-wrap gap-2">
-                                {% if game.over_under %}
-                                <small class="text-muted">O/U: {{ game.over_under }}</small>
-                                {% endif %}
-                                {% if game.nn_projected_total %}
-                                <small class="text-muted">Proj: {{ game.nn_projected_total|round(1) }}</small>
-                                {% endif %}
-                                {% set actual_total = (game.home_score or 0) + (game.away_score or 0) %}
-                                <small class="text-muted">Actual: {{ actual_total }}</small>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </details>
-                </div>
-            </div>
-            {% endfor %}
+<div class="card mb-4" id="final-scores-lazy-root" data-loaded="false" data-date="{{ selected_date }}" data-conference="{{ selected_conference or '' }}">
+    <div class="card-header bg-maroon text-white d-flex justify-content-between align-items-center">
+        <div>
+            <i class="bi bi-check-circle"></i> Final Scores
+            <span class="badge bg-light text-dark ms-2">{{ completed_games|length }}</span>
+            {% if accuracy_pct is not none %}
+            <span class="badge {% if accuracy_pct >= 55 %}bg-success{% elif accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
+                Ens {{ accuracy_pct }}%
+            </span>
+            {% endif %}
+            {% if nn_accuracy_pct is not none %}
+            <span class="badge {% if nn_accuracy_pct >= 55 %}bg-success{% elif nn_accuracy_pct >= 50 %}bg-warning{% else %}bg-danger{% endif %} ms-2">
+                NN {{ nn_accuracy_pct }}%
+            </span>
+            {% endif %}
         </div>
+        <button type="button" class="btn btn-sm btn-light load-finals-trigger">
+            Load finals
+        </button>
+    </div>
+    <div class="card-body text-center py-3">
+        <small class="text-muted">Final games are lazy-loaded to keep live page loads fast.</small>
     </div>
 </div>
 {% endif %}
@@ -1460,12 +1349,19 @@ window.addEventListener('pageshow', function() {
 
     // ── Polling fallback ──
     function updateLiveScores() {
-        fetch('/api/live-scores?date=' + ACTIVE_DATE)
+        var watchCards = Array.from(document.querySelectorAll('.game-card[data-live-watch="1"]'));
+        var watchIds = watchCards.map(function(card) { return card.dataset.gameId; }).filter(Boolean);
+        var url = '/api/live-scores?date=' + ACTIVE_DATE;
+        if (watchIds.length) {
+            url += '&watch=' + encodeURIComponent(watchIds.join(','));
+        }
+
+        fetch(url)
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 consecutiveErrors = 0;
 
-                document.querySelectorAll('.game-card[data-game-id]').forEach(function(card) {
+                watchCards.forEach(function(card) {
                     var gameId = card.dataset.gameId;
                     var game = data.games[gameId];
                     if (!game) return;
@@ -1529,7 +1425,7 @@ window.addEventListener('pageshow', function() {
     if (hour >= 11 && hour <= 23 && ACTIVE_DATE === new Date().toISOString().slice(0,10)) {
         if (!hasLive) {
             pollTimer = setInterval(function() {
-                fetch('/api/live-scores?date=' + ACTIVE_DATE)
+                fetch('/api/live-status?date=' + ACTIVE_DATE)
                     .then(function(r) { return r.json(); })
                     .then(function(data) {
                         if (data.has_live) {
@@ -1540,6 +1436,53 @@ window.addEventListener('pageshow', function() {
             }, 300000);
         }
     }
+})();
+
+// ── Lazy load final scores section ──
+(function() {
+    var root = document.getElementById('final-scores-lazy-root');
+    if (!root) return;
+
+    function loadFinals() {
+        if (root.dataset.loading === '1' || root.dataset.loaded === 'true') return;
+        root.dataset.loading = '1';
+
+        var btn = root.querySelector('.load-finals-trigger');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+        }
+
+        var date = root.dataset.date || '';
+        var conf = root.dataset.conference || '';
+        var url = '/scores?finals_fragment=1&date=' + encodeURIComponent(date);
+        if (conf) url += '&conference=' + encodeURIComponent(conf);
+
+        fetch(url)
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var wrapper = document.createElement('div');
+                wrapper.innerHTML = html;
+                var newRoot = wrapper.querySelector('#final-scores-lazy-root');
+                if (newRoot) {
+                    root.replaceWith(newRoot);
+                } else {
+                    root.querySelector('.card-body').innerHTML = '<div class="text-center py-3 text-muted"><small>No final games to load</small></div>';
+                }
+            })
+            .catch(function() {
+                root.dataset.loading = '0';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Load finals';
+                }
+                var body = root.querySelector('.card-body');
+                if (body) body.innerHTML = '<div class="text-center py-3 text-danger"><small>Failed to load finals. Tap again.</small></div>';
+            });
+    }
+
+    var trigger = root.querySelector('.load-finals-trigger');
+    if (trigger) trigger.addEventListener('click', loadFinals);
 })();
 
 // Swipe between days (mobile)
