@@ -262,14 +262,36 @@ def scores():
     phantom_live = [g for g in raw_in_progress if g['id'] in demoted_ids or not _has_any_data(g)]
     scheduled_games.extend(phantom_live)  # demote phantoms + DH dupes to scheduled
 
-    # Split live games: those with StatBroadcast/SIDEARM coverage vs ESPN-only
+    # Split live games: those with StatBroadcast/SIDEARM coverage vs ESPN-only.
+    # Treat active SB/SA links as coverage even before the first sb_*/sa_*
+    # situation payload lands, so games don't linger as ESPN-only.
+    conn_cov = get_connection()
+    active_sb_links = set(
+        r['game_id'] for r in conn_cov.execute('''
+            SELECT DISTINCT game_id
+            FROM statbroadcast_events
+            WHERE game_date = ? AND completed = 0 AND game_id IS NOT NULL
+        ''', (date_str,)).fetchall()
+    )
+    active_sa_links = set(
+        r['game_id'] for r in conn_cov.execute('''
+            SELECT DISTINCT game_id
+            FROM sidearm_links
+            WHERE game_date = ? AND game_id IS NOT NULL
+        ''', (date_str,)).fetchall()
+    )
+    conn_cov.close()
+
     live_with_stats = []
     live_espn_only = []
     for g in all_in_progress:
         sit = g.get('situation')
-        has_sb = sit and (sit.get('sb_outs') is not None or sit.get('sb_pitcher'))
-        has_sa = sit and (sit.get('sa_outs') is not None or sit.get('sa_pitcher'))
-        if has_sb or has_sa:
+        has_sb_data = bool(sit and (sit.get('sb_outs') is not None or sit.get('sb_pitcher')))
+        has_sa_data = bool(sit and (sit.get('sa_outs') is not None or sit.get('sa_pitcher')))
+        has_sb_link = g['id'] in active_sb_links
+        has_sa_link = g['id'] in active_sa_links
+
+        if has_sb_data or has_sa_data or has_sb_link or has_sa_link:
             live_with_stats.append(g)
         else:
             live_espn_only.append(g)

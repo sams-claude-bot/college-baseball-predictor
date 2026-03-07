@@ -31,7 +31,7 @@ from web.bet_quality import (
 api_bp = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
 
-_D1B_DISCOVERY_DEBOUNCE_SECONDS = 120
+_D1B_DISCOVERY_DEBOUNCE_SECONDS = 300
 _D1B_DISCOVERY_STATE_DIR = base_dir / "tmp"
 _D1B_DISCOVERY_LOCK_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.lock"
 _D1B_DISCOVERY_STAMP_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.last"
@@ -102,9 +102,28 @@ def _try_acquire_discovery_lock():
     return False
 
 
+def _any_d1b_live_check_running():
+    """Return True if any d1b_live_check.py process is already running (cron or API)."""
+    try:
+        proc = subprocess.run(
+            ["pgrep", "-f", "scripts/d1b_live_check.py"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        if proc.returncode != 0:
+            return False
+        pids = [int(x) for x in proc.stdout.split() if x.isdigit()]
+        return any(pid != os.getpid() and _pid_is_alive(pid) for pid in pids)
+    except Exception:
+        return False
+
+
 def _trigger_d1b_live_check_async(date_str):
     now_ts = time.time()
     if now_ts - _read_last_trigger_ts() < _D1B_DISCOVERY_DEBOUNCE_SECONDS:
+        return False
+    if _any_d1b_live_check_running():
         return False
     if not _try_acquire_discovery_lock():
         return False
@@ -573,12 +592,28 @@ def live_scores():
         FROM games g
         WHERE g.date = ?
     ''', (date_str,)).fetchall()
+
+    active_sb_links = set(
+        r['game_id'] for r in conn.execute('''
+            SELECT DISTINCT game_id
+            FROM statbroadcast_events
+            WHERE game_date = ? AND completed = 0 AND game_id IS NOT NULL
+        ''', (date_str,)).fetchall()
+    )
+    active_sa_links = set(
+        r['game_id'] for r in conn.execute('''
+            SELECT DISTINCT game_id
+            FROM sidearm_links
+            WHERE game_date = ? AND game_id IS NOT NULL
+        ''', (date_str,)).fetchall()
+    )
     conn.close()
     
     import json as _json
     games = {}
     has_live = False
     espn_only_live = 0
+    unresolved_link_live = 0
     for r in rows:
         situation = None
         game_data = {
@@ -604,12 +639,17 @@ def live_scores():
         games[r['id']] = game_data
         if r['status'] == 'in-progress':
             has_live = True
-            has_sb = _has_provider_fields(situation, 'sb_')
-            has_sa = _has_provider_fields(situation, 'sa_')
-            if not has_sb and not has_sa:
+            has_sb_data = _has_provider_fields(situation, 'sb_')
+            has_sa_data = _has_provider_fields(situation, 'sa_')
+            if not has_sb_data and not has_sa_data:
                 espn_only_live += 1
+                has_sb_link = r['id'] in active_sb_links
+                has_sa_link = r['id'] in active_sa_links
+                if not has_sb_link and not has_sa_link:
+                    unresolved_link_live += 1
 
-    if date_str == today_str and espn_only_live > 0:
+    # Only trigger D1B discovery when live ESPN-only games still lack any SB/SA links.
+    if date_str == today_str and unresolved_link_live > 0:
         try:
             _trigger_d1b_live_check_async(date_str)
         except Exception:
