@@ -79,7 +79,7 @@ def snapshot_all_lines(db=None):
                bl.home_ml, bl.away_ml, bl.over_under, bl.over_odds, bl.under_odds
         FROM betting_lines bl
         JOIN games g ON bl.game_id = g.id
-        WHERE bl.date = ? AND g.status IN ('scheduled', 'in_progress')
+        WHERE bl.date = ? AND g.status IN ('scheduled', 'in-progress', 'in_progress')
     """, (today,)).fetchall()
 
     captured = 0

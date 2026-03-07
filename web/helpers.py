@@ -765,6 +765,19 @@ def get_betting_games(date_str=None):
         line['fd_over_under'] = fd.get('fd_over_under')
         line['fd_over_odds'] = fd.get('fd_over_odds')
         line['fd_under_odds'] = fd.get('fd_under_odds')
+
+        # Totals fallback: if DK is missing O/U but FD has it, use FD for totals analysis.
+        # Keep DK moneyline as the primary market for side picks.
+        if line.get('over_under') is None and line.get('fd_over_under') is not None:
+            line['over_under'] = line['fd_over_under']
+            if line.get('over_odds') is None and line.get('fd_over_odds') is not None:
+                line['over_odds'] = line['fd_over_odds']
+            if line.get('under_odds') is None and line.get('fd_under_odds') is not None:
+                line['under_odds'] = line['fd_under_odds']
+            line['total_book'] = 'fanduel'
+        else:
+            line['total_book'] = 'draftkings' if line.get('over_under') is not None else None
+
         lines.append(line)
 
     # Also add FD-only games (no DK line)
@@ -791,6 +804,7 @@ def get_betting_games(date_str=None):
                 line['fd_over_under'] = line['over_under']
                 line['fd_over_odds'] = line.get('over_odds')
                 line['fd_under_odds'] = line.get('under_odds')
+                line['total_book'] = 'fanduel' if line.get('over_under') is not None else None
                 lines.append(line)
 
     conn.close()
