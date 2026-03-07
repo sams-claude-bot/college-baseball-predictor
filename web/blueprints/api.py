@@ -4,6 +4,9 @@ API Blueprint - All API endpoints
 
 import sys
 import time
+import os
+import logging
+import subprocess
 from pathlib import Path
 from datetime import datetime
 from flask import Blueprint, request, jsonify, Response
@@ -26,6 +29,104 @@ from web.bet_quality import (
 )
 
 api_bp = Blueprint('api', __name__)
+logger = logging.getLogger(__name__)
+
+_D1B_DISCOVERY_DEBOUNCE_SECONDS = 120
+_D1B_DISCOVERY_STATE_DIR = base_dir / "tmp"
+_D1B_DISCOVERY_LOCK_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.lock"
+_D1B_DISCOVERY_STAMP_FILE = _D1B_DISCOVERY_STATE_DIR / "d1b_live_check.last"
+
+
+def _has_provider_fields(situation, prefix):
+    if not isinstance(situation, dict):
+        return False
+    for key, val in situation.items():
+        if not key.startswith(prefix):
+            continue
+        if val is None:
+            continue
+        if isinstance(val, str) and not val.strip():
+            continue
+        return True
+    return False
+
+
+def _read_last_trigger_ts():
+    try:
+        return float(_D1B_DISCOVERY_STAMP_FILE.read_text(encoding='utf-8').strip() or "0")
+    except Exception:
+        return 0.0
+
+
+def _write_last_trigger_ts(ts):
+    try:
+        _D1B_DISCOVERY_STAMP_FILE.write_text(str(ts), encoding='utf-8')
+    except Exception:
+        pass
+
+
+def _read_lock_pid():
+    try:
+        raw = _D1B_DISCOVERY_LOCK_FILE.read_text(encoding='utf-8').strip()
+        return int(raw.splitlines()[0]) if raw else None
+    except Exception:
+        return None
+
+
+def _pid_is_alive(pid):
+    if not pid or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _try_acquire_discovery_lock():
+    _D1B_DISCOVERY_STATE_DIR.mkdir(parents=True, exist_ok=True)
+    for _ in range(2):
+        try:
+            fd = os.open(str(_D1B_DISCOVERY_LOCK_FILE), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            with os.fdopen(fd, 'w') as f:
+                f.write(f"{os.getpid()}\n")
+            return True
+        except FileExistsError:
+            pid = _read_lock_pid()
+            if pid and _pid_is_alive(pid):
+                return False
+            try:
+                _D1B_DISCOVERY_LOCK_FILE.unlink()
+            except FileNotFoundError:
+                pass
+    return False
+
+
+def _trigger_d1b_live_check_async(date_str):
+    now_ts = time.time()
+    if now_ts - _read_last_trigger_ts() < _D1B_DISCOVERY_DEBOUNCE_SECONDS:
+        return False
+    if not _try_acquire_discovery_lock():
+        return False
+
+    cmd = ["python3", str(base_dir / "scripts" / "d1b_live_check.py"), date_str]
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(base_dir),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        _D1B_DISCOVERY_LOCK_FILE.write_text(f"{proc.pid}\n", encoding='utf-8')
+        _write_last_trigger_ts(now_ts)
+        return True
+    except Exception:
+        try:
+            _D1B_DISCOVERY_LOCK_FILE.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 @api_bp.route('/api/predict', methods=['POST'])
@@ -459,7 +560,9 @@ def api_best_bets():
 def live_scores():
     """Lightweight endpoint for live score polling — returns only in-progress and recently-finished games."""
     from datetime import datetime
-    date_str = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    raw_date = request.args.get('date')
+    date_str = today_str if raw_date in (None, '', 'today') else raw_date
     
     conn = get_connection()
     rows = conn.execute('''
@@ -475,7 +578,9 @@ def live_scores():
     import json as _json
     games = {}
     has_live = False
+    espn_only_live = 0
     for r in rows:
+        situation = None
         game_data = {
             'status': r['status'],
             'home_score': r['home_score'],
@@ -491,14 +596,24 @@ def live_scores():
         # Parse situation for live games
         if r['situation_json']:
             try:
-                game_data['situation'] = _json.loads(r['situation_json'])
+                situation = _json.loads(r['situation_json'])
             except:
-                game_data['situation'] = None
-        else:
-            game_data['situation'] = None
+                situation = None
+        game_data['situation'] = situation
+
         games[r['id']] = game_data
         if r['status'] == 'in-progress':
             has_live = True
+            has_sb = _has_provider_fields(situation, 'sb_')
+            has_sa = _has_provider_fields(situation, 'sa_')
+            if not has_sb and not has_sa:
+                espn_only_live += 1
+
+    if date_str == today_str and espn_only_live > 0:
+        try:
+            _trigger_d1b_live_check_async(date_str)
+        except Exception:
+            logger.exception("Failed to trigger async d1b_live_check for %s", date_str)
     
     return jsonify({'games': games, 'has_live': has_live, 'date': date_str})
 

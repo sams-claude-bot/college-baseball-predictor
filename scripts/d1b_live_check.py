@@ -43,6 +43,88 @@ EXTRACT_JS = """() => {
     const tiles = document.querySelectorAll('.d1-score-tile');
     const seen = new Set();
     const games = [];
+    const REDIRECT_PARAMS = ['url', 'u', 'href', 'target', 'redirect', 'redirect_url',
+        'redirect_uri', 'dest', 'destination', 'next', 'r', 'link', 'to',
+        'ret', 'return', 'return_to', 'out'];
+
+    const decodeCandidates = (raw) => {
+        const out = [];
+        if (!raw || typeof raw !== 'string') return out;
+        let cur = raw.trim();
+        if (!cur) return out;
+        out.push(cur);
+        const ampFixed = cur.replace(/&amp;/gi, '&');
+        if (ampFixed !== cur) out.push(ampFixed);
+        for (let i = 0; i < 2; i++) {
+            try {
+                const dec = decodeURIComponent(cur);
+                if (!dec || dec === cur) break;
+                out.push(dec);
+                cur = dec;
+            } catch (e) {
+                break;
+            }
+        }
+        return [...new Set(out)];
+    };
+
+    const collectNestedUrls = (raw) => {
+        const queue = [...decodeCandidates(raw)];
+        const seenRaw = new Set();
+        const found = [];
+        while (queue.length) {
+            const candidate = queue.shift();
+            if (!candidate || seenRaw.has(candidate)) continue;
+            seenRaw.add(candidate);
+            found.push(candidate);
+            let parsed = null;
+            try { parsed = new URL(candidate, window.location.href); } catch (e) {}
+            if (!parsed) continue;
+            found.push(parsed.href);
+            REDIRECT_PARAMS.forEach((k) => {
+                const v = parsed.searchParams.get(k);
+                if (!v) return;
+                decodeCandidates(v).forEach((nested) => {
+                    if (!seenRaw.has(nested)) queue.push(nested);
+                });
+            });
+        }
+        return [...new Set(found)];
+    };
+
+    const extractSbId = (raw) => {
+        const candidates = collectNestedUrls(raw);
+        for (const candidate of candidates) {
+            const directMatch = candidate.match(/(?:[?&](?:id|event|eventid|game|gid)=|\\/b\\/)(\\d{3,})/i);
+            if (directMatch) return parseInt(directMatch[1], 10);
+            let parsed = null;
+            try { parsed = new URL(candidate, window.location.href); } catch (e) {}
+            if (!parsed) continue;
+            const host = (parsed.hostname || '').toLowerCase();
+            if (!host.includes('statbroadcast') && !host.includes('statb.us')) continue;
+            const qId = parsed.searchParams.get('id') || parsed.searchParams.get('event')
+                || parsed.searchParams.get('eventid') || parsed.searchParams.get('game')
+                || parsed.searchParams.get('gid');
+            if (qId && /^\\d+$/.test(qId)) return parseInt(qId, 10);
+            const pMatch = parsed.pathname.match(/\\/b\\/(\\d{3,})/i);
+            if (pMatch) return parseInt(pMatch[1], 10);
+        }
+        return null;
+    };
+
+    const extractSidearmCanonical = (raw) => {
+        const candidates = collectNestedUrls(raw);
+        for (const candidate of candidates) {
+            let parsed = null;
+            try { parsed = new URL(candidate, window.location.href); } catch (e) {}
+            if (!parsed) continue;
+            const host = (parsed.hostname || '').toLowerCase();
+            if (!host.includes('sidearmstats.com')) continue;
+            return parsed.origin + parsed.pathname;
+        }
+        return null;
+    };
+
     tiles.forEach(t => {
         const key = t.dataset.key;
         if (seen.has(key)) return;
@@ -63,22 +145,31 @@ EXTRACT_JS = """() => {
         const awayScore = awayScoreEl ? parseInt(awayScoreEl.textContent.trim()) : null;
         const homeScore = homeScoreEl ? parseInt(homeScoreEl.textContent.trim()) : null;
 
-        // Extract StatBroadcast event ID from "Live Stats" links
-        const sbLinks = t.querySelectorAll('a[href*="statbroadcast"], a[href*="statb.us"]');
-        let sbId = null;
-        sbLinks.forEach(a => {
-            if (sbId) return;
-            const m = a.href.match(/id=(\d+)/) || a.href.match(/\/b\/(\d+)/);
-            if (m) sbId = parseInt(m[1]);
+        // Gather candidate links from href/data-href and extract nested provider URLs.
+        const linkNodes = t.querySelectorAll('[href], [data-href], [data-url], [data-link]');
+        const rawLinks = [];
+        linkNodes.forEach(node => {
+            ['href', 'data-href', 'data-url', 'data-link'].forEach(attr => {
+                const v = node.getAttribute(attr);
+                if (v) rawLinks.push(v);
+            });
+            if (node.href) rawLinks.push(node.href);
         });
 
-        // Extract SIDEARM live stats link
-        const saLinks = t.querySelectorAll('a[href*="sidearmstats"]');
+        // Extract StatBroadcast event ID from direct/redirected/encoded links.
+        let sbId = null;
+        rawLinks.forEach(raw => {
+            if (sbId) return;
+            const parsedId = extractSbId(raw);
+            if (parsedId) sbId = parsedId;
+        });
+
+        // Extract SIDEARM live stats link as canonical origin+path URL.
         let saUrl = null;
-        saLinks.forEach(a => {
-            if (!saUrl) {
-                try { saUrl = new URL(a.href).origin + new URL(a.href).pathname; } catch(e) {}
-            }
+        rawLinks.forEach(raw => {
+            if (saUrl) return;
+            const canonical = extractSidearmCanonical(raw);
+            if (canonical) saUrl = canonical;
         });
 
         if (awaySlug && homeSlug) {
